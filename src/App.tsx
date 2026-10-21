@@ -737,6 +737,8 @@ export function App() {
   const privacyContext = useMemo(() => ({ on: privacy, revealed, toggle: toggleAddress,
     accounts: state.accounts, names: collectPrivateNames(state.accounts) }),
   [privacy, revealed, toggleAddress, state.accounts]);
+  const replySources = compose?.inReplyTo ? state.messages.filter((mail) =>
+    mail.accountId === compose.accountId && mail.messageId === compose.inReplyTo) : [];
   useEffect(() => {
     if (contextMenu && !menuMail) closeContextMenu();
   }, [contextMenu, menuMail, closeContextMenu]);
@@ -1150,6 +1152,7 @@ export function App() {
         {compose && (
           <ComposePanel
             draft={compose}
+            original={replySources.length === 1 ? replySources[0] : undefined}
             setDraft={editCompose}
             accounts={state.accounts}
             preferences={state.composePreferences ?? emptyComposePreferences}
