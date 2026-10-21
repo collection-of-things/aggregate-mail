@@ -35,9 +35,11 @@ export function FormattedMail({ html, showImages, renderText, redactText, privac
     if (tag === "font" && /^[1-7]$/.test(a.size || "")) style.fontSize = [10, 13, 16, 18, 24, 32, 48][Number(a.size) - 1];
     Object.assign(style, legacyAlign(tag, (a.align || "").toLowerCase()));
     Object.assign(style, mailStyle(a.style || ""));
-    if (tag !== "img" && hasText(children)) for (const property of ["fontSize", "lineHeight", "height", "maxHeight"] as const)
-      if (typeof style[property] === "string" && (style[property] as string).endsWith("px") && parseFloat(style[property] as string) < 6)
+    if (tag !== "img" && hasText(children)) for (const property of ["fontSize", "lineHeight", "height", "maxHeight"] as const) {
+      const value = style[property];
+      if (typeof value === "string" && (value === "0" || value.endsWith("px") && parseFloat(value) < 6))
         delete style[property];
+    }
     // Quotes take the app's own inset and bar, so nested replies keep their width.
     if (tag === "blockquote") for (const property of Object.keys(style) as (keyof CSSProperties)[])
       if (/^(margin|padding|border)/.test(property)) delete style[property];

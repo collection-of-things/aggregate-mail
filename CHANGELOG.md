@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Keep tiny newsletter text wrappers readable without disturbing text flow, preserve image height caps in placeholders, and keep inline image status prose out of sender layouts.
+- Keep tiny and zero-sized newsletter text wrappers readable without disturbing text flow, preserve image height caps in placeholders, and keep inline image status prose out of sender layouts.
 
 - Add Read, Snooze/Return to inbox, Reply, Archive and Pin beside Trash on each mail row. Use a raised 3D toolbar that follows built-in and custom themes, mode and accent. Keep row actions tied to their own email, with visible touch controls and the existing provider safeguards.
 

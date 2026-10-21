@@ -36,12 +36,14 @@ test("formatted renderer keeps headings, nested formatting, tables and validated
 });
 
 test("tiny newsletter preheader typography and box height do not overlap the body", () => {
-  const document = documentOf(render('<div style="font-size:1px;line-height:1px;height:1px;max-height:1px">Preview text</div><div>Body</div>'));
-  const [preheader, body] = document.querySelectorAll<HTMLElement>(".formatted-mail > div");
-  assert.equal(preheader.textContent, "Preview text");
-  assert.equal(body.textContent, "Body");
-  for (const property of ["fontSize", "lineHeight", "height", "maxHeight"] as const)
-    assert.equal(preheader.style[property], "", property);
+  for (const [fontSize, lineHeight] of [["1px", "1px"], ["1px", "0"], ["0", "1px"], ["0", "0"]]) {
+    const document = documentOf(render(`<div style="font-size:${fontSize};line-height:${lineHeight};height:1px;max-height:1px">Preview text</div><div>Body</div>`));
+    const [preheader, body] = document.querySelectorAll<HTMLElement>(".formatted-mail > div");
+    assert.equal(preheader.textContent, "Preview text");
+    assert.equal(body.textContent, "Body");
+    for (const property of ["fontSize", "lineHeight", "height", "maxHeight"] as const)
+      assert.equal(preheader.style[property], "", `${fontSize}/${lineHeight}: ${property}`);
+  }
 });
 
 test("newsletter image loading does not add prose inside a narrow icon cell", () => {
