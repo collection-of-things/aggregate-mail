@@ -559,7 +559,7 @@ test("privacy removes connected recipient names and addresses from list, headers
     await app.click(app.button("Show images"));
     assert.equal(app.container.querySelectorAll(".message-body img").length, 1);
     assertHidden();
-    assert.ok(app.container.textContent?.includes("Image unavailable while personal information is hidden"));
+    assert.ok(app.container.querySelector('[aria-label="Image unavailable while personal information is hidden."]'));
     await app.click(app.button("Hide images"));
     assert.equal(app.container.querySelector(".message-body img"), null);
     assert.ok(app.container.querySelector(".formatted-mail table"));
@@ -606,7 +606,7 @@ test("formatted privacy keeps image order and keyboard reveal across image bound
     assertHidden();
     assert.equal(body.querySelectorAll("img").length, 2);
     assert.equal(body.querySelectorAll("[src]").length, 2);
-    assert.ok(body.textContent?.includes("Image unavailable while personal information is hidden"));
+    assert.ok(body.querySelector('[aria-label="Image unavailable while personal information is hidden."]'));
     const copy = body.cloneNode(true) as HTMLElement;
     copy.querySelectorAll(".formatted-mail-image-status").forEach((status) => status.remove());
     copy.querySelectorAll("img").forEach((image, index) => image.replaceWith(`[image${index + 1}]`));
@@ -615,14 +615,14 @@ test("formatted privacy keeps image order and keyboard reveal across image bound
     name.focus();
     await act(async () => name.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
     assert.equal(app.window.document.activeElement, name);
-    assert.match(body.textContent || "", /NoLoading image…ra Lane/);
+    assert.match(body.textContent || "", /Nora Lane/);
     assert.ok(!body.innerHTML.includes("first@example.com"));
     assert.ok(body.textContent?.endsWith(" Separate ."), "revealing the full name leaves a separate surname hidden");
     await act(async () => name.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true })));
     assertHidden();
     const address = body.querySelector<HTMLElement>('[aria-label="Reveal hidden address"]')!;
     await app.click(address);
-    assert.match(body.textContent || "", /first@Loading image…example.com/);
+    assert.match(body.textContent || "", /first@example.com/);
     assert.ok(!body.innerHTML.includes("Nora") && !body.innerHTML.includes("Lane"));
     await app.click(address);
     assertHidden();
