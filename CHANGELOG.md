@@ -2,14 +2,12 @@
 
 ## Unreleased
 
+- Restore Linux Ctrl+Q through normal application quit, retaining draft warnings and close-to-background behavior.
+- Disable invitation and cancellation drafts until an event has a connected account. Confirm local event deletion in the app dialog, with guarded pending requests and retained errors.
+- Use Emc² in the window title, left-align Calendar rows, and keep event dialog headings visible while the form scrolls.
 - Keep custom snooze forms inside the viewport as they grow, without moving focus out of the time input.
 - Remove the right-hand sender panel and its toolbar toggle.
 - Stack notices from their anchored edge with the newest nearest it, animate arrivals and dismissals, and add a labeled Dismiss button. Keep multiline notices and the count line reachable in a viewport-bounded scroll area with padding for shadows.
-- Disable invitation and cancellation drafts until an event has an account. Confirm local event deletion in the app dialog, with guarded pending requests and retained errors.
-- Disable invitation and cancellation drafts until an event has a connected account. Confirm local event deletion in the app dialog, with guarded pending requests and retained errors.
-
-- Use Emc² in the window title, left-align Calendar rows, and keep event dialog headings visible while the form scrolls.
-
 - Allow the CI test step 12 minutes. The serial suite reached the 8-minute limit on hosted Intel macOS runners.
 - Move the Filters and privacy buttons into the persistent toolbar, and put Inbox tabs, the cached-mail note and work-view controls on the same line as each pane title.
 - Give every pane header below the toolbar one 48px height and extend Transparency (Glass/Subtle) to the whole window with one shared tint over the toolbar and every working pane, transparent child panes, blurred sticky headings and brighter secondary text for built-in and custom themes.
