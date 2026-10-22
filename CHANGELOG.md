@@ -6,6 +6,7 @@
 - Remove the right-hand sender panel and its toolbar toggle.
 - Stack notices from their anchored edge with the newest nearest it, animate arrivals and dismissals, and add a labeled Dismiss button. Keep multiline notices and the count line reachable in a viewport-bounded scroll area with padding for shadows.
 - Disable invitation and cancellation drafts until an event has an account. Confirm local event deletion in the app dialog, with guarded pending requests and retained errors.
+- Disable invitation and cancellation drafts until an event has a connected account. Confirm local event deletion in the app dialog, with guarded pending requests and retained errors.
 
 - Use Emc² in the window title, left-align Calendar rows, and keep event dialog headings visible while the form scrolls.
 
