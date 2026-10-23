@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -52,6 +53,81 @@ test("offers use encrypted settings, complete explicit Google reads, reviewed re
   const book = async (offer: CalendarOffer, slot = 0, sourceMailId = mail.id) => request(`/calendar/offers/${offer.id}/book`, "POST", { sourceMailId, fingerprint: (await context(sourceMailId)).fingerprint, slot });
   const local = (id: string, start: string, end: string, allDay = false): CalendarEvent => ({ id, source: "local", title: "Synthetic busy", start, end, allDay, attendees: [], revision: 1, updatedAt: 1 });
   try {
+    await t.test("empty offer context skips mailbox reads while preserving source validation", async (t) => {
+      const unrelated: Mail = { ...mail, id: "a:context-unrelated", messageId: "<context-unrelated@example.test>", threadId: "context-unrelated", body: "Unrelated synthetic body" };
+      store.put("mail", unrelated.id, unrelated);
+      const reader = new DatabaseSync(path.join(directory, "mail.sqlite"), { readOnly: true });
+      const ciphertext = reader.prepare("SELECT value FROM records WHERE kind=? AND id=?").get("mail", unrelated.id)!.value;
+      const originalPrepare = DatabaseSync.prototype.prepare;
+      let mailboxScans = 0, unrelatedReads = 0;
+      const observed = t.mock.method(DatabaseSync.prototype, "prepare", function (this: DatabaseSync, sql: string) {
+        const statement = originalPrepare.call(this, sql), all = statement.all.bind(statement), get = statement.get.bind(statement);
+        statement.all = (...args) => {
+          const rows: ReturnType<typeof all> = Reflect.apply(all, statement, args);
+          if (args[0] === "mail") mailboxScans++;
+          unrelatedReads += rows.filter((row) => row.value === ciphertext).length;
+          return rows;
+        };
+        statement.get = (...args) => {
+          const row: ReturnType<typeof get> = Reflect.apply(get, statement, args);
+          if (row?.value === ciphertext) unrelatedReads++;
+          return row;
+        };
+        return statement;
+      });
+      const expectedFingerprint = createHash("sha256").update(JSON.stringify([mail.id, mail.accountId, "a@example.test", mail.remoteId, mail.messageId, mail.threadId, mail.inReplyTo, mail.references, mail.address, mail.replyTo, mail.to, mail.cc, mail.subject, mail.body])).digest("hex");
+      const foreign: CalendarOffer = { id: "context-foreign", accountId: "b", sourceMailId: mail.id, sourceFingerprint: expectedFingerprint, recipient: mail.address, settings: working, from: at("09:00"), to: at("12:00"), google: [], slots: [], input: "synthetic", createdAt: 1 };
+      try {
+        for (const [name, offer] of [
+          ["no saved offers", undefined],
+          ["only another account", foreign],
+          ["only another recipient", { ...foreign, accountId: "a", recipient: "other@example.test" }],
+        ] as const) await t.test(name, async () => {
+          if (offer) store.put("calendarOffer", offer.id, offer);
+          mailboxScans = unrelatedReads = 0;
+          try {
+            assert.deepEqual(await context(), { fingerprint: expectedFingerprint, google: [{ accountId: "a", ready: false, calendars: [] }, { accountId: "b", ready: false, calendars: [] }], offers: [] });
+            assert.deepEqual({ mailboxScans, unrelatedReads }, { mailboxScans: 0, unrelatedReads: 0 }, "empty relevant offers must not scan or read unrelated encrypted mail");
+          } finally { store.remove("calendarOffer", foreign.id); }
+        });
+        await t.test("invalid source and query still reject before mailbox reads", async () => {
+          mailboxScans = unrelatedReads = 0;
+          for (const query of ["", "sourceMailId=", `sourceMailId=${mail.id}&extra=1`]) assert.equal((await request(`/calendar/offers?${query}`)).status, 400);
+          assert.equal((await request("/calendar/offers?sourceMailId=missing")).status, 409);
+          store.remove("account", "a");
+          try { assert.equal((await request(`/calendar/offers?sourceMailId=${mail.id}`)).status, 409); }
+          finally { store.put("account", "a", { id: "a", email: "a@example.test", provider: "gmail", credentials: { refreshToken: "synthetic-a" } }); }
+          for (const address of ["a@example.test", "one@example.test, two@example.test", "invalid"]) {
+            store.put("mail", mail.id, { ...mail, address });
+            assert.equal((await request(`/calendar/offers?sourceMailId=${mail.id}`)).status, 409);
+          }
+          store.put("mail", mail.id, { ...mail, body: "Changed synthetic source" });
+          assert.notEqual((await context()).fingerprint, expectedFingerprint);
+          assert.deepEqual({ mailboxScans, unrelatedReads }, { mailboxScans: 0, unrelatedReads: 0 });
+        });
+      } finally { observed.mock.restore(); reader.close(); store.put("mail", mail.id, mail); store.remove("mail", unrelated.id); }
+    });
+    await t.test("saved offer context retains conversation filtering, ordering and booked events", async () => {
+      const reply: Mail = { ...mail, id: "a:context-reply", messageId: "<context-reply@example.test>", threadId: "different-thread", inReplyTo: mail.messageId };
+      const unrelated: Mail = { ...mail, id: "a:context-other", messageId: "<context-other@example.test>", threadId: "different-conversation" };
+      for (const item of [reply, unrelated]) store.put("mail", item.id, item);
+      const before = await context(), event = local("context-booked", at("09:00"), at("09:30"));
+      const first: CalendarOffer = { id: "context-z", accountId: "a", sourceMailId: mail.id, sourceFingerprint: before.fingerprint, recipient: "GUEST@example.test", settings: working, from: at("09:00"), to: at("12:00"), google: [], slots: [], input: "synthetic", createdAt: 1, booking: { slot: 0, eventId: event.id } };
+      const last: CalendarOffer = { ...first, id: "context-a", sourceMailId: reply.id, createdAt: 2, booking: { slot: 0, eventId: "context-missing-event" } };
+      const offers = [first, { ...first, id: "context-unrelated", sourceMailId: unrelated.id }, { ...first, id: "context-wrong-account", accountId: "b" }, { ...first, id: "context-wrong-recipient", recipient: "other@example.test" }, last];
+      for (const offer of offers) store.put("calendarOffer", offer.id, offer);
+      store.put("calendarEvent", event.id, event);
+      store.put("availability", "working", working);
+      try {
+        const expected = store.all("calendarOffer").filter((offer) => offer.id === first.id || offer.id === last.id).map((offer) => offer.id === first.id ? { offer, event } : { offer });
+        assert.deepEqual(await context(), { ...before, settings: working, offers: expected });
+        assert.deepEqual((await context(reply.id)).offers, expected);
+      } finally {
+        for (const offer of offers) store.remove("calendarOffer", offer.id);
+        for (const item of [reply, unrelated]) store.remove("mail", item.id);
+        store.remove("calendarEvent", event.id); store.remove("availability", "working");
+      }
+    });
     await t.test("separate OAuth access proofs and no implicit busy reads", async () => {
       const eventsOnly = provider.calendarScopes.filter((scope) => !scope.endsWith("calendar.freebusy")).join(" ");
       provider.saveCalendarAccess("a", eventsOnly, true); assert.equal(store.get("googleCalendar", "a")?.access, true); assert.equal(store.get("googleCalendar", "a")?.freeBusyAccess, false);

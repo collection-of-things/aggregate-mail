@@ -1686,3 +1686,33 @@ Interactive reads, long-running sync, the five-minute automatic-maintenance
 probe and exact installed-build performance equivalence remain unverified.
 These observations do not establish a general RAM guarantee or explain every
 large installed-profile footprint.
+
+
+### Native loaded-mail and automatic timer checks
+
+A later native arm64 check used the same unchanged production ASAR with
+5,000 synthetic cached messages and 3,333 Inbox messages. Ten reader cycles
+kept 13 mounted mail rows and passed exact body/version and search checks.
+Privacy image-consent reset and reply-draft keep/recovery passed without sending.
+These were candidate-only functional runs, not a new paired RAM comparison.
+
+The unchanged five-minute timer ran after about 302 seconds without a manual
+compaction request or clock override. The synthetic database went from 29,576
+pages, including 18,240 free pages, to 12,174 pages with none free, at 4,096
+bytes per page. It reclaimed 71,278,592 bytes. All 5,000 mail ciphertexts, three
+live attachment records, protected key and identity, and an uncertain draft
+at revision 7 with its inline attachment survived. Only the seeded orphan was
+removed, and the inventory timestamp was persisted encrypted.
+
+Post-maintenance local body and search requests and the Drafts list passed.
+Reopening the draft in that same native run remains unverified because the
+owned test window lost focus. All owned processes were cleaned up and the
+unchanged installed app was reopened. These synthetic checks do not prove
+real-provider behavior, power-loss durability or installed-candidate interaction.
+
+Reader offer-context requests validate the source, then filter saved offers by
+account and case-insensitive recipient before constructing a conversation. If
+none match, they skip the full-mailbox scan. HTTP regressions count encrypted
+mail reads and retain source validation, conversation filtering, offer ordering
+and booked-event coverage. This removes avoidable work; its whole-app RAM
+effect requires a separate matched runtime comparison.

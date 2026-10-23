@@ -113,13 +113,15 @@ export function mountOffers(app: express.Express) {
   const router = express.Router();
   router.get("/calendar/offers", (req, res) => {
     const { sourceMailId } = sourceInput.omit({ fingerprint: true }).strict().parse(req.query);
-    const current = source(sourceMailId), ids = new Set(conversation(sourceMailId).messages.map((mail) => mail.id));
+    const current = source(sourceMailId);
+    const offers = all("calendarOffer").filter((offer) => offer.accountId === current.account.id && offer.recipient.toLowerCase() === current.recipient.toLowerCase());
+    const ids = new Set(offers.length ? conversation(sourceMailId).messages.map((mail) => mail.id) : []);
     res.json({ fingerprint: current.fingerprint, settings: get("availability", "working"),
       google: all("account").filter((account) => account.provider === "gmail").map((account) => {
         const connection = get("googleCalendar", account.id);
         return { accountId: account.id, ready: !!connection?.freeBusyAccess, calendars: connection?.calendars.map(({ id, name }) => ({ id, name })) || [] };
       }),
-      offers: all("calendarOffer").filter((offer) => offer.accountId === current.account.id && ids.has(offer.sourceMailId) && offer.recipient.toLowerCase() === current.recipient.toLowerCase()).map((offer) => ({ offer, event: offer.booking ? get("calendarEvent", offer.booking.eventId) : undefined })),
+      offers: offers.filter((offer) => ids.has(offer.sourceMailId)).map((offer) => ({ offer, event: offer.booking ? get("calendarEvent", offer.booking.eventId) : undefined })),
     });
   });
   router.put("/calendar/availability", (req, res) => { const value = settings(req.body); put("availability", "working", value); res.json(value); });

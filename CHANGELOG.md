@@ -10,6 +10,8 @@
 - Keep custom snooze forms inside the viewport as they grow, without moving focus out of the time input.
 - Remove the right-hand sender panel and its toolbar toggle.
 - Stack notices from their anchored edge with the newest nearest it, animate arrivals and dismissals, and add a labeled Dismiss button. Keep multiline notices and the count line reachable in a viewport-bounded scroll area with padding for shadows.
+- Skip whole-mailbox conversation scans when opening mail without matching saved time offers. Preserve source validation and existing offer relationships.
+
 - Preserve encrypted connection-settings migration when Node returns environment dictionaries with a null prototype. Keep unrelated settings and failure recovery unchanged.
 
 - Scan ordinary privacy text with direct UTF-16 offsets, avoiding per-character mapping arrays while preserving encoded-text decoding and masking behavior.
