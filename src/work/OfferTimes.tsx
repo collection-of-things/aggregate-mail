@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import type { AvailabilitySettings } from "../../shared/availability";
 import type { CalendarEvent } from "../../shared/calendar";
 import { offeredTime, type BusySelection, type CalendarOffer, type OfferContext } from "../../shared/offers";
-import type { Draft, Mail, State } from "../../shared/types";
+import type { Draft, RendererMail as Mail, RendererState as State } from "../../shared/types";
 import { ApiError, type Api } from "../api";
 import { accountLabel } from "../mail-ui";
 import { PrivacyContext, Redact } from "../ui/Privacy";

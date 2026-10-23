@@ -83,6 +83,8 @@ test("an explicitly granted MCP assistant reads cached mail, tracks work and exp
     const work = document.querySelector<HTMLButtonElement>(".work-select");
     assert.match(work?.textContent || "", /Send Friday proposal/);
     await act(async () => work!.click());
+    for (let i = 0; i < 100 && !document.querySelector(".today-mail .message-body"); i++)
+      await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
     assert.match(document.querySelector(".today-mail")?.textContent || "", /Please send the proposal on Friday/);
     assert.deepEqual(store.get("mail", mail.id), mail, "The cached read and tracking leave mail unchanged");
     assert.equal(store.all("proposal").length, 0);

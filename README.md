@@ -58,7 +58,7 @@ Do not remove quarantine or disable Gatekeeper to make a build launch. If signat
 
 For local DMG and ZIP output, `npm run package:mac` uses the same signing hook. Local packaging never publishes downloads. Public binary distribution with a verified publisher still requires Developer ID signing and notarization by an authorized Apple team. The version-tag release workflow remains unchanged.
 
-The macOS menu provides standard Command shortcuts for editing, closing and quitting. The window controls sit at the top left, beside the sidebar toggle. Closing the window hides the app to the tray on both platforms: it keeps syncing and shows a notification for new unread mail, and Quit in the tray menu exits. Unsent drafts still require confirmation.
+The macOS menu provides standard Command shortcuts for editing, closing and quitting. The window controls sit at the top left, beside the sidebar toggle. Closing the window keeps the app running in the background. On macOS, reopen it from the Dock and quit through the application menu. Windows and Linux retain Open and Quit in the tray menu. Unsent drafts still require confirmation.
 
 ## Search and compose tools
 
@@ -237,11 +237,11 @@ Standard Tab navigation still works on controls. Settings, Interaction lets you 
 
 Mail, account credentials, rules and sync metadata are AES-256-GCM encrypted in the app-data folder's `mail` directory. The app-data folder is `%APPDATA%/Emc²` on Windows and `~/Library/Application Support/Emc²` on macOS. Renamed from Aggregate Mail in `0.1.4`. The first launch under the new name moves the `mail` directory, `settings.env` and `Local State` from the old app-data folder into the new one, leaves the old folder behind, and records `.renamed-to-emc2` so it never runs twice. Electron safeStorage protects the database key using Windows DPAPI or the macOS Keychain. The renderer is sandboxed and has no Node access. Mail/configuration endpoints require a random desktop-session token, in addition to origin and CSRF checks.
 
-Developer OAuth settings and any optional Jev or OpenAI key are stored in the app-data folder's `settings.env`. Protect your operating-system account and app-data folder; these settings are not encrypted. Never commit them or attach them to issues. Ignore rules and packaging exclusions cover local environment files, private keys and mail databases. `.env.example` contains placeholders only. Review source changes, commit metadata, logs, screenshots and packaged contents before sharing; exclusions cannot detect every secret embedded in source.
+Managed Google OAuth, OpenAI and Typesafe connection settings are encrypted in the mail database with the existing installation key. Startup migrates managed entries from `settings.env` after committed encrypted readback and preserves unrelated settings. Launch-environment values retain precedence. Earlier filesystem or backup copies are not securely erased by migration. Protect your operating-system account and app-data folder. Never commit them or attach them to issues. Ignore rules and packaging exclusions cover local environment files, private keys and mail databases. `.env.example` contains placeholders only. Review source changes, commit metadata, logs, screenshots and packaged contents before sharing; exclusions cannot detect every secret embedded in source.
 
 The first development launch copies the earlier `.data` database using SQLite's backup API and preserves the original files. Packaged and development desktop builds share the app-data folder. `.data` and `.env` remain available to the earlier browser development target.
 
-This is a single-user desktop client. Its mail service runs while its window is open or hidden in the tray and stops when you quit. This version has no automatic updater or public-hosting configuration.
+This is a single-user desktop client. Its mail service runs while its window is open or hidden and stops when you quit. This version has no automatic updater or public-hosting configuration.
 
 ## Development
 
@@ -252,7 +252,7 @@ npm install
 npm run dev
 ```
 
-`npm run dev` launches the desktop app with React Fast Refresh and live CSS updates. Choose Quit in the tray menu to stop its development server. Restart this command after changing desktop or backend code. UI changes that require a full reload can reset an unsent draft. OAuth keeps the callback address above in development. `npm start` opens the last production build, created with `npm run build`. `npm run package` creates the Windows installer. `npm run check:desktop` checks production startup, database access and API isolation without driving the UI; `npm run dev -- --check-startup` also checks the hot reload client and development API proxy. `npm run dev:web` retains the earlier browser development target; it is not needed to use the app.
+`npm run dev` launches the desktop app with React Fast Refresh and live CSS updates. Choose Quit in the macOS application menu or the Windows/Linux tray menu to stop its development server. Restart this command after changing desktop or backend code. UI changes that require a full reload can reset an unsent draft. OAuth keeps the callback address above in development. `npm start` opens the last production build, created with `npm run build`. `npm run package` creates the Windows installer. `npm run check:desktop` checks production startup, database access and API isolation without driving the UI; `npm run dev -- --check-startup` also checks the hot reload client and development API proxy. `npm run dev:web` retains the earlier browser development target; it is not needed to use the app.
 
 ## CI
 

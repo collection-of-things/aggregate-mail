@@ -499,18 +499,16 @@ The V2 notification controls and exact-target flow are described in
 [ADR 0050](adr/0050-notification-details-and-local-audio.md). Native delivery,
 audible playback and hidden-window sound require separate OS acceptance.
 
-The desktop window hides to a tray icon when it is closed; the app, its mail
-service and its five-minute main-process sync keep running, and only the tray's
-Quit item, Linux Ctrl+Q, a system session end or an application quit ends the
-process. Linux Ctrl+Q uses normal application quit and retains the draft and
+Closing the desktop window hides it while the mail service and five-minute
+main-process sync keep running. macOS has no status-bar icon: Dock activation
+and a second launch restore the window, and the native application menu quits.
+Windows and Linux retain tray Open and Quit controls. Linux resizes its icon
+to 22 pixels; Windows keeps it unchanged. `desktop/main.test.ts` checks native
+menu roles, synthetic hide/reopen activation and platform tray selection. These
+source tests do not prove actual Dock or desktop-panel interaction.
+Linux Ctrl+Q uses normal application quit and retains the draft and
 unknown-send close warning; Keep editing cancels it. Additional modifiers and
-repeated key events do not invoke it. The tray reopens the window, and a second launch restores it.
-
-The macOS tray uses a 16-pixel template image so the system renders it for the
-menu bar appearance. Linux resizes the application icon to 22 pixels; Windows
-keeps it unchanged. `desktop/main.test.ts` checks platform image selection, size
-and macOS template mode. These source tests do not prove behavior in a Linux
-desktop panel.
+repeated key events do not invoke it.
 
 `startServer` accepts an `onNewMail` callback and emits `new-mail` with the
 count and sanitized accepted-message details from a completed sync. The desktop
@@ -791,81 +789,68 @@ latency, native UI behavior, deployment or release readiness.
 
 ### Bounded cached-mail reloads
 
-`server/store.ts` keeps ciphertext rows and account-routing metadata in memory.
-It does not retain decrypted Mail objects or write a plaintext cache. A cold
-read uses a separate read-only WAL connection and keyset pages of 32 rows.
-Committed writes during initialization are reconciled before publishing that
-index. Each read captures immutable ciphertext entries, decrypts fresh mutable
-objects, and yields every 32 entries. Sync reads use account metadata to skip
-other accounts once that metadata is known. The first account read after a
-cold start may still decrypt other accounts to learn their routing metadata.
+`server/store.ts` retains mail summaries in memory, including account routing,
+attachment metadata, a content version and the server-computed Inbox tab. It
+retains no full-body ciphertext index or normalized search documents. Encrypted
+`mailSummary` companion records use the existing codec and key, with source and
+rule digests. Source and companion writes commit atomically; removing mail
+removes its companion. Cold initialization reads source ciphertext to verify
+its digest and decrypts the smaller companion when valid. Missing or stale
+companions are rebuilt in bounded transactions with changed-source checks.
+Committed writes during initialization are reconciled before publication.
+Legacy source mail and installation keys are preserved. Companions add database
+space in exchange for less repeated body decoding.
 
-Mail revisions and removal history are volatile. Transactions publish them
-only after COMMIT; failed batches and rollback retain the prior read view.
-External SQLite writes invalidate the index and generation via `data_version`.
-Pending reads revalidate after initialization awaits and synchronously capture
-the current rows with their generation, revision history and status. One
-rebuild is allowed before failing closed if the index is invalidated again.
-`GET /api/state` without a cursor returns every cached message, including Sent,
-Archive, body and HTML. A valid `mailCursor` returns changed full records and
-explicit `removedMailIds`. An unchanged cursor returns no mail bodies.
-Restart, invalid/future cursors and history expiry return a complete snapshot.
-History retains at most 4,096 distinct changed IDs before advancing its floor.
-Account/progress metadata is captured with the mail view before decoding yields.
-The response serializes individual records with backpressure and bounded yields;
-the renderer accepts it only after complete JSON parsing.
-An already destroyed response returns before creating its cancellation controller
-or starting mail materialization. Response close during decoding cancels only
-that request's decoding at the next bounded yield
-and prevents an abandoned snapshot from being written. Its partially decoded
-output is discarded; shared cold initialization continues for other readers.
-The response-close listener is removed on success, cancellation or failure.
+Mail revisions and removal history remain volatile. Transactions publish them
+only after COMMIT; rollback retains the prior view. External SQLite writes
+invalidate the index and generation through `data_version`. Rule changes also
+invalidate summaries so body-conditioned Inbox tabs are recomputed. History
+retains at most 4,096 distinct changed IDs before advancing its floor.
 
-`src/App.tsx` advances its cursor only for an accepted reload. The existing
-coalescer retains one active request and a pending refresh. Deltas keep untouched
-record identities without stringifying their bodies, replace changed full
-records and remove explicit IDs. A full snapshot replaces the mail set. Body
-search, reader/reply fields and privacy/image handling use the complete records.
-Legacy responses without revision fields retain the existing equality fallback.
+`GET /api/state` returns summaries for all retained mail views. A valid
+`mailCursor` returns changed summaries and explicit `removedMailIds`; an
+unchanged cursor returns no messages. Invalid, future, expired and restarted
+cursors return a full summary snapshot. Response serialization still uses
+backpressure and bounded yields; disconnect cancellation discards that
+request's work without cancelling shared cold initialization.
 
-Workspace and proposal-list responses use one request-local mail view and one
-fingerprint per source. Approval and execution still revalidate against fresh
-store reads at their existing boundaries. Message lookups use the SQLite key
-and preserve the not-found error and HTTP status.
+`GET /api/messages/:id/body` requires exact `accountId` and `contentVersion`
+query values and reads only the local encrypted record. Missing or wrong-account
+mail returns 404; a changed version returns 409. The renderer holds content for
+its current opening or reply source, drops it on identity/version changes, and
+rejects stale responses. Closing and reopening does not retain a body cache.
+Image consent and privacy rendering remain tied to each opening.
 
-Focused regressions are `server/mail-materialization.test.ts`,
-`server/workspace.test.ts`, `server/sync-recovery.test.ts`,
-`src/sync-reload.test.tsx`, `src/mail-state.test.tsx` and
-`src/mail-actions.test.tsx`. They assert operation counts, snapshot coherence,
-rollback, corrupt-ciphertext rejection, history/generation recovery, full
-body/HTML updates, removals, duplicate notifications and mounted focus.
-The materialization tests also replay external-write invalidation of pending
-cursor/account reads and state-client disconnects during decoding and shared
-initialization, with another live request receiving all records and a valid
-cursor.
+`GET /api/messages/search?query=...` uses the shared search compiler and a
+read-only SQLite snapshot. It decrypts one mail at a time, yields every 32
+records, honours cancellation and returns matching account/message/version
+identities without bodies. Renderer lists and source pickers use those results
+with their existing view filters. Search errors do not imply an empty mailbox.
 
-Cold snapshots still decrypt and transfer every cached message, retain an
-encrypted in-memory index, and require a complete client JSON parse. A single
-large record can exceed one batch's usual processing cost. Workspace reads still
-decrypt one complete mail view when proposals cite mail. Approval, rule and
-account-removal paths retain their fresh synchronous scans. These source changes
-and synthetic checks do not establish installed-app latency, frame rate, memory
-usage, live-provider behavior or native improvement. Require a later isolated
-build/install and native remeasurement before making those claims.
+Internal `readMail`, `mailChanges`, direct record reads and body-sensitive MCP,
+Teach, rule, proposal and fingerprint operations retain full-mail contracts.
+Some of those callers still materialize a complete request-local mailbox.
+Summaries and search result IDs still scale with message count. A single large
+legacy record can cost more than a normal batch; source benchmarks do not prove
+installed-app latency or Electron/GPU memory use.
+
+Focused checks include `server/on-demand-mail.test.ts`,
+`src/on-demand-mail.test.tsx`, `server/mail-materialization.test.ts`,
+`src/mail-state.test.tsx`, search, reply recovery and workspace regressions.
+Native and real-provider acceptance remain separate from synthetic checks.
 
 ### Cached-mail tools
 
-`src/mail-search.ts` compiles a query once per query/accounts change. `filterMail` applies it with the existing view, account, Gmail-label, read and relevance filters. An empty query creates no body search strings. Recognized invalid operators, dates and unmatched quotes return a generic error without echoing the query. Unknown prefixes remain literal text. Dates use UTC start-of-day boundaries.
+`shared/mail-search.ts`, re-exported by `src/mail-search.ts`, defines the query semantics. Summary-only renderer lists use the authenticated local search route with their existing view, account, Gmail-label, read and relevance filters. An empty query creates no body search strings. Recognized invalid operators, dates and unmatched quotes return a generic error without echoing the query. Unknown prefixes remain literal text. Dates use UTC start-of-day boundaries.
 
 Search normalizes canonical Unicode and whitespace and folds Latin accents for
 ordinary text and account display names. Terms containing an email address keep
 their accents; account IDs and addresses keep their existing exact alias
 matching. Non-Latin combining marks remain significant. Phrases match within
-one field, while separate terms can match different fields. A memory-only cache
-reuses normalized message text and checks every searchable field for changes.
-Empty queries and flag/date-only queries skip this cache. The first text query
-builds documents as it scans; this costs more than a warmed query. There is no
-persisted plaintext index, fuzzy matching or remote mailbox search.
+one field, while separate terms can match different fields. Search keeps a
+process-local LRU of searchable strings, bounded to 256 entries and 4 MiB of
+accounted strings. Empty and flag/date-only queries skip body search strings.
+There is no persisted plaintext index, fuzzy matching or remote mailbox search.
 
 `src/dialogs/CommandPalette.tsx` consumes existing action callbacks from App. The modal uses the shared Dialog focus trap; the underlying frame is inert. The updater closes the palette before installation. The fixed Command/Control+K binding and list Up/Down behavior leave saved j/k preferences intact.
 
@@ -890,7 +875,7 @@ exists. The `closed` event clears only that window's reference so quit-time
 activation cannot call a destroyed Electron object. The desktop main-process
 tests cover callbacks both before and after the `closed` event.
 
-Run `npm test` and `npm run build` before packaging. The desktop startup check opens the encrypted database, loads the renderer, requires the desktop token for API access, checks native menu roles on macOS and closes the window to confirm the tray and the hidden service survive. Use a temporary user-data directory so checks cannot open a maintainer's accounts:
+Run `npm test` and `npm run build` before packaging. The desktop startup check opens the encrypted database, loads the renderer, requires the desktop token for API access, checks native menu roles on macOS and closes the window to confirm the hidden service survives and the platform tray policy holds. Use a temporary user-data directory so checks cannot open a maintainer's accounts:
 
 ```sh
 check_dir=$(mktemp -d)
@@ -935,6 +920,10 @@ The provider fixture calls [closeStore](../server/store.ts) before deleting its 
 Keep credentials, personal contact details, absolute machine paths, private hostnames, session records and mailbox contents out of source, commits, PRs and release attachments. Use synthetic test data and portable commands. Preserve the project's existing identity. Review commit author and committer metadata before pushing. Ignore rules and package exclusions are preventive controls; scan the final source diff and package contents too. A pattern scan cannot prove the absence of all sensitive information.
 
 ## CI
+
+The serial `npm test` step has a 20-minute deadline to accommodate slower
+hosted Intel macOS runners. The existing 20-minute job deadline still bounds
+the complete build and packaging job.
 
 [The CI workflow](../.github/workflows/ci.yml) runs on pull requests, pushes to `main` and manual dispatch. The tag-release workflow calls the same build jobs. Each matrix job uses Node 24, installs the lockfile with `npm ci`, runs `npm test`, runs the TypeScript and production build, runs an isolated production-startup check on Windows and macOS, then packages an installer without publishing. Linux runtime behavior needs separate proof.
 
@@ -1514,3 +1503,81 @@ calendar, draft, provider, mail and keyboard regressions in the journey map.
 They cover HTTP persistence, response loss, remount recovery, replay safety,
 privacy and synthetic narrow/focus behavior. They do not prove installed layout,
 physical input, real consent, provider access or delivery.
+
+
+## Encrypted connection settings and storage compaction
+
+`server/config.ts` stores managed Google OAuth, OpenAI and Typesafe settings in
+the encrypted `config` record using the existing installation key. Startup
+commits and reads back migrated values before replacing the legacy environment
+file with its unmanaged entries. Launch-environment values retain precedence.
+A failed cleanup retries later; no plaintext backup is created. Earlier copies
+and backups are not securely erased. Existing databases with missing or invalid
+keys fail closed. See [ADR 0057](adr/0057-encrypted-settings-and-storage-maintenance.md).
+
+Authenticated `POST /api/storage/compact` requires the existing desktop token,
+origin and CSRF checks and a strict `{"confirm":true}` JSON body. It pauses
+admission, drains admitted mail/provider work and checkpoints WAL before
+conservative orphan attachment cleanup and SQLite `VACUUM`. All retained mail
+views supply exact attachment references. Unknown record kinds or incomplete
+metadata skip deletion; corrupt encrypted records abort cleanup. Drafts remain
+inline and unchanged. Busy readers fail before deletion. Cleanup and vacuum
+are separate transactions, so a failed vacuum can follow successful orphan
+removal. Surviving ciphertext and installation keys are not rewritten by vacuum.
+The route resumes mail work after success or failure.
+
+Regression cases are in `server/config.test.ts` and
+`server/storage-maintenance.test.ts`. Native, power-loss and installed acceptance
+remain separate from synthetic source verification.
+
+`server/mime-limits.ts` caps raw messages at 8 MiB, Gmail responses at 12 MiB,
+MIME header size at 64 KiB and parser children at 128. Two parsers may run, with
+a bounded waiting queue. Decoded content validation follows parsing; it does
+not replace the raw transport and parser bounds. Oversized messages report an
+explicit failure while previous cached mail remains available. Image downloads
+use incremental byte limits. Decorative memory caches have entry/byte budgets
+and expiry; disposable logo files are trimmed to 256 entries and 16 MiB.
+Resource limits do not change mail retention or draft attachment encoding.
+
+Search documents use a 256-entry LRU cache with a 4 MiB accounted-string budget.
+The budget charges two bytes per UTF-16 unit for identity and raw, canonical
+and folded searchable strings. Oversized documents remain uncached. Entries
+retain no full mail objects, HTML or attachments. This bounds retained logical
+payload, not V8 heap or transient normalization allocations.
+
+### Storage and memory measurements
+
+Task #92 measured pristine `e166227` against the candidate on Linux x64 with
+Node 24.22.1, Electron 44.7.0 and electron-builder 26.17.0. Each size used one
+paired run, baseline first, with identical synthetic mail. The first mail-data
+call was the default snapshot: full mail before, summaries after. Candidate
+runs created missing encrypted summary companions during that cold call.
+
+| Messages | Cold Node RSS before / after, MiB | Cold snapshot before / after, ms | Closed-WAL database before / after, bytes |
+| --- | ---: | ---: | ---: |
+| 100 | 66.08 / 69.48 | 5.03 / 14.98 | 901,120 / 1,011,712 |
+| 1,000 | 99.57 / 85.45 | 36.77 / 89.76 | 8,916,992 / 9,973,760 |
+| 5,000 | 224.14 / 119.86 | 139.14 / 396.53 | 44,544,000 / 49,831,936 |
+
+At 5,000 messages, snapshot JSON fell from 32,682,613 to 2,307,613 bytes.
+Exact search returned identical result identities. After deleting alternate
+messages, candidate compaction reduced the database from 49,831,936 to
+24,924,160 bytes, with a zero-byte WAL and no free pages. Surviving source
+ciphertext and keys remained unchanged. This reclaims deleted pages and does
+not compress live mail. Summary companions increase live storage, and first
+initialization is slower. The 100-message cold RSS also increased. Node RSS
+does not measure Electron renderer, GPU or whole-app memory.
+
+Complete unpublished Linux x64 packages used identical production dependencies.
+Unpacked regular-file bytes were 376,723,623 before and 376,759,262 after.
+`app.asar` grew from 80,415,980 to 80,451,619 bytes; each delta is 35,639 bytes.
+Both archives contained all 215 production dependency versions. The candidate
+passed sandbox-enabled packaged startup using a fresh synthetic profile and
+the documented Linux local-key fallback. These totals are not compressed
+installer size or installed disk allocation.
+
+The candidate passed 1,016 tests, strict build and MCP checks. Synthetic active
+vacuum interruption and reopen preserved integrity, ciphertext, keys and
+uncertain drafts. Native macOS/Windows, installed acceptance, real providers,
+whole-app RAM and power loss remain unverified. These single synthetic runs
+support the stated observations, not a general performance guarantee.

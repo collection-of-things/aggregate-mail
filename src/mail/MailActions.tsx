@@ -1,5 +1,5 @@
 import type { ComponentType, MouseEvent } from "react";
-import type { Mail } from "../../shared/types";
+import type { RendererMail as Mail } from "../../shared/types";
 import { Archive, Calendar, CalendarPlus, Check, ChevronDown, ChevronUp, Clock, Close, Inbox, Pin, Reply, Trash } from "../ui/icons";
 
 type Icon = ComponentType<{ color?: string; size?: number }>;

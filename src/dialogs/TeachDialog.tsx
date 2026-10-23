@@ -1,5 +1,5 @@
 import { useContext, useRef, useState } from "react";
-import type { Category, Mail, Rule, RuleCondition } from "../../shared/types";
+import type { Category, RendererMail as Mail, Rule, RuleCondition } from "../../shared/types";
 import type { RulePreview } from "../../shared/workspace";
 import type { Api } from "../api";
 import { Dialog } from "../ui/Dialog";

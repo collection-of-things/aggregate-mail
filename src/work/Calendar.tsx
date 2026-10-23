@@ -1,7 +1,7 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import type { CalendarEvent } from "../../shared/calendar";
 import { eventDays, eventTime } from "../../shared/calendar";
-import type { Mail } from "../../shared/types";
+import type { RendererMail as Mail } from "../../shared/types";
 import type { Commitment } from "../../shared/workspace";
 import { deadlineDate, localDate, openCommitment } from "../../shared/commitment-dates";
 import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";

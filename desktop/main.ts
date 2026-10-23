@@ -432,15 +432,11 @@ else {
         // Hidden windows catch up from the encrypted cache when shown again.
         window.on("show", notifyMailChanged);
         window.on("restore", notifyMailChanged);
-        if (!tray) {
+        if (!isMac && !tray) {
           const trayImage = nativeImage.createFromPath(
-            path.join(app.getAppPath(), isMac ? "build/tray-icon.png" : "build/icon.png"),
+            path.join(app.getAppPath(), "build/icon.png"),
           );
-          if (isMac) {
-            const image = trayImage.resize({ width: 16, height: 16 });
-            image.setTemplateImage(true);
-            tray = new Tray(image);
-          } else if (process.platform === "linux") {
+          if (process.platform === "linux") {
             tray = new Tray(trayImage.resize({ width: 22, height: 22 }));
           } else {
             tray = new Tray(trayImage);
@@ -456,7 +452,7 @@ else {
           tray.on("click", showWindow);
         }
         // Closing the window leaves the app, its mail service and its sync
-        // running; Quit in the tray menu, Ctrl+Q on Linux or the system session ends it.
+        // running; an explicit quit (including Linux Ctrl+Q) or the system session ends it.
         window.on("close", (event) => {
           if (quitting) return;
           event.preventDefault();
@@ -631,11 +627,12 @@ else {
           if (blockedProxy.status !== 403)
             throw new Error("Development API isolation failed.");
         }
-        // Closing the window must leave the app and its tray in place.
+        // Closing keeps the app hidden, with a tray only outside macOS.
         const checkingWindow = window;
         if (!checkingWindow) throw new Error("The desktop window is unavailable.");
         checkingWindow.close();
-        if (checkingWindow.isDestroyed() || checkingWindow.isVisible() || !tray || tray.isDestroyed())
+        if (checkingWindow.isDestroyed() || checkingWindow.isVisible() ||
+            (isMac ? !!tray : !tray || tray.isDestroyed()))
           throw new Error("Closing the window did not preserve the background app.");
         console.log(
           JSON.stringify({

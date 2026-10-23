@@ -25,7 +25,7 @@ export const Avatar = memo(function Avatar({
   mail,
   provider,
 }: {
-  mail: Mail;
+  mail: Pick<Mail, "address" | "sender">;
   provider?: Provider;
 }) {
   const domain = logoDomain(mail.address);

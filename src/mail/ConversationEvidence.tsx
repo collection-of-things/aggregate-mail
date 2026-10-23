@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Mail } from "../../shared/types";
+import type { RendererMail as Mail } from "../../shared/types";
 import type { Conversation } from "../../shared/workspace";
 import type { Api } from "../api";
 import { MailPrivacy, Redact } from "../ui/Privacy";

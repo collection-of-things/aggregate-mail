@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
-import type { Mail } from "../shared/types";
+import type { RendererMail as Mail } from "../shared/types";
 import type { MailLocation } from "./navigation";
 import { dayGroup } from "./mail/format";
 
-export function MailListWindow({ messages, selectedId, focusSelection, density, sort, listRef, narrow = false, sizeByImportance = true, children }: {
-  messages: Mail[];
+export function MailListWindow<T extends Mail>({ messages, selectedId, focusSelection, density, sort, listRef, narrow = false, sizeByImportance = true, children }: {
+  messages: T[];
   selectedId: string | undefined;
   focusSelection: boolean;
   density: "comfortable" | "compact";
@@ -12,7 +12,7 @@ export function MailListWindow({ messages, selectedId, focusSelection, density, 
   listRef: RefObject<HTMLElement | null>;
   narrow?: boolean;
   sizeByImportance?: boolean;
-  children: (mail: Mail, index: number) => ReactNode;
+  children: (mail: T, index: number) => ReactNode;
 }) {
   const windowRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ top: 0, height: 600, offset: 0 });

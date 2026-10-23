@@ -203,8 +203,8 @@ if (!process.env.EMC2_RECOVERY_TEST_CHILD) {
             : Array.from({ length: 100 }, (_, i) => ({ id: String(i) })) } }),
           get: async (input: { id: string }) => {
             gets++;
-            if (Number(input.id) >= 10) { stalled.resolve(); await release.promise; }
-            if (input.id === "10") throw failure("ETIMEDOUT");
+            if (Number(input.id) >= 2) { stalled.resolve(); await release.promise; }
+            if (input.id === "2") throw failure("ETIMEDOUT");
             return { data: { raw: raw.toString("base64url"), internalDate: "1700000000000" } };
           },
         } } }), {});
@@ -213,11 +213,11 @@ if (!process.env.EMC2_RECOVERY_TEST_CHILD) {
           await stalled.promise;
           const pending = await state();
           assert.equal(pending.syncing, true);
-          assert.equal(pending.messages.length, 11, "the first ten fresh messages must be saved before later downloads settle");
-          assert.equal(events, 1); assert.equal(gets, 20);
+          assert.equal(pending.messages.length, 3, "the first two fresh messages must be saved before later downloads settle");
+          assert.equal(events, 1); assert.equal(gets, 4);
         } finally { release.resolve(); await run; }
         const final = await state();
-        assert.equal(final.messages.length, 20); assert.equal(gets, 20);
+        assert.equal(final.messages.length, 4); assert.equal(gets, 4);
         assert.equal(final.accounts[0].syncFailure?.kind, "transient");
         assert.equal(final.messages.find((m) => m.id === cached.id)?.archived, false);
         assert.deepEqual(all("account")[0].credentials, a.credentials);

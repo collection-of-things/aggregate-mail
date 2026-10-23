@@ -1,5 +1,5 @@
 import { useContext, useState } from "react";
-import type { State } from "../../shared/types";
+import type { RendererState as State } from "../../shared/types";
 import type { CalendarEvents } from "./events";
 import { monthRange } from "./events";
 import type { Api } from "../api";

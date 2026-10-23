@@ -1,15 +1,13 @@
 import { notificationMail, type MailArrival, type NotificationMail } from "../shared/notifications.js";
-import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { EventEmitter } from "node:events";
 import type { Server } from "node:http";
-import { loadEnvFile } from "node:process";
 import { randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import express from "express";
 import { google } from "googleapis";
 import { z } from "zod";
-import { all, get, readMail, mailChanges, count, put, putBatch, remove, removeAccountAttachments, account, transaction, type StoredAccount } from "./store.js";
+import { all, get, readMail, mailSummaryChanges, mailSummary, searchMail, count, put, putBatch, remove, removeAccountAttachments, account, transaction, compactStore, type StoredAccount } from "./store.js";
 import { matchesRule } from "../shared/rules.js";
 import { mountWorkspace } from "./workspace.js";
 import { mountAgentProvider } from "./agent-provider.js";
@@ -39,9 +37,9 @@ import { companyLogo } from "./avatars.js";
 import { companySvg, isFreeMail, normalizeDomain, syncLogos } from "./logos.js";
 import { jevProviderOf, type Provider, type Mail, type StateResponse, type SyncFailure } from "../shared/types.js";
 import { emptyComposePreferences } from "../shared/mail-features.js";
+import { loadConfiguration, saveConfiguration } from "./config.js";
 
-const configPath = process.env.MAIL_CONFIG_PATH || ".env";
-if (existsSync(configPath)) loadEnvFile(configPath);
+loadConfiguration();
 const desktopEvents = new EventEmitter();
 const app = express();
 const appUrl = process.env.APP_URL || "http://127.0.0.1:5173";
@@ -110,6 +108,7 @@ app.use("/api", (req, res, next) => {
     !req.path.startsWith("/calendar/") &&
     !req.path.startsWith("/send") &&
     req.path !== "/mcp" &&
+    req.path !== "/storage/compact" &&
     !(req.method === "PATCH" && /^\/accounts\/[^/]+$/.test(req.path)) &&
     !(req.method === "PATCH" && /^\/messages\/[^/]+$/.test(req.path) && ["read", "pin", "unpin"].includes(req.body?.action)) &&
     !(req.method === "POST" && (["/accounts/imap", "/sync"].includes(req.path) || /^\/accounts\/[^/]+\/reconnect$/.test(req.path)))
@@ -132,7 +131,7 @@ app.get("/api/state", async (req, res) => {
   res.once("close", cancel);
   try {
     let status!: Omit<StateResponse, "messages" | "mailCursor" | "mailMode" | "removedMailIds">;
-    const changes = await mailChanges(typeof req.query.mailCursor === "string" ? req.query.mailCursor : undefined, () => {
+    const changes = await mailSummaryChanges(typeof req.query.mailCursor === "string" ? req.query.mailCursor : undefined, () => {
       // Capture status at the same boundary as the encrypted mail view, before decoding yields.
       mailArrivals = mailArrivals.filter((arrival) => !!get("mail", arrival.mail.id));
       status = {
@@ -170,6 +169,28 @@ app.get("/api/state", async (req, res) => {
   } catch (error) {
     if (!controller.signal.aborted) throw error;
   } finally { res.off("close", cancel); }
+});
+app.get("/api/messages/search", async (req, res) => {
+  if (res.destroyed) return;
+  const query = z.string().max(8192).parse(req.query.query);
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  res.once("close", cancel);
+  try {
+    const result = await searchMail(query, all("account"), controller.signal);
+    if (!res.destroyed) res.json(result);
+  } catch (error) {
+    if (!controller.signal.aborted) throw error;
+  } finally { res.off("close", cancel); }
+});
+app.get("/api/messages/:id/body", (req, res) => {
+  const input = z.object({ accountId: z.string().min(1), contentVersion: z.string().min(1) }).parse(req.query);
+  const mail = get("mail", z.string().parse(req.params.id));
+  if (!mail || mail.accountId !== input.accountId) return res.status(404).json({ error: "Message not found." });
+  const contentVersion = mailSummary(mail).contentVersion;
+  if (contentVersion !== input.contentVersion) return res.status(409).json({ error: "Email changed. Reload before opening its content." });
+  // This endpoint reads only the local encrypted record, including legacy plain text.
+  res.json({ mail, contentVersion });
 });
 app.get("/api/compose-preferences", (_req, res) => {
   res.json(all("compose")[0] ?? emptyComposePreferences);
@@ -216,25 +237,22 @@ app.post("/api/config", (req, res) => {
     TYPESAFE_API_KEY: input.jevApiKey,
     TYPESAFE_PROVIDER: input.jevProvider,
   };
-  const entries = Object.entries(updates).filter(
-    (entry): entry is [string, string] => Boolean(entry[1]),
-  );
-  const previous = existsSync(configPath)
-    ? readFileSync(configPath, "utf8").split("\n")
-    : [];
-  const names = new Set(entries.map(([name]) => name));
-  const settings = previous.filter(
-    (line) => !names.has(line.split("=")[0].trim()),
-  );
-  settings.push(
-    ...entries.map(([name, setting]) => `${name}=${JSON.stringify(setting)}`),
-  );
-  writeFileSync(`${configPath}.tmp`, `${settings.join("\n")}\n`, {
-    mode: 0o600,
-  });
-  renameSync(`${configPath}.tmp`, configPath);
-  for (const [name, setting] of entries) process.env[name] = setting;
+  saveConfiguration(updates);
   res.json({ ok: true });
+});
+let storageMaintenance = false;
+app.post("/api/storage/compact", async (req, res) => {
+  z.object({ confirm: z.literal(true) }).strict().parse(req.body);
+  if (storageMaintenance || mailIsQuiesced())
+    return res.status(409).json({ error: "Wait for paused mail work to finish before storage maintenance." });
+  storageMaintenance = true;
+  try {
+    await drainMail(30000);
+    res.json(compactStore({ cleanupOrphans: true, isDrained: () => mailIsQuiesced() && !syncing }));
+  } finally {
+    storageMaintenance = false;
+    resumeMail();
+  }
 });
 app.get("/api/logo/:domain", async (req, res) => {
   // theSVG first, then the favicon service: a brand the library knows gets a
@@ -765,6 +783,10 @@ export function startServer(
   });
 }
 export async function quiesceMail(timeout: number) {
+  if (storageMaintenance) throw new Error("Storage maintenance is in progress. Try the update after it finishes.");
+  await drainMail(timeout);
+}
+async function drainMail(timeout: number) {
   // Block admission before closing watchers, including already queued sync and MCP sends.
   const drained = quiesceMailWork(timeout);
   imapWatch?.close();
@@ -772,6 +794,7 @@ export async function quiesceMail(timeout: number) {
   await drained;
 }
 export function resumeMail() {
+  if (storageMaintenance) return;
   resumeMailWork();
   imapWatch?.reconcile(all("account"));
   gmailWatch?.reconcile(all("account"));

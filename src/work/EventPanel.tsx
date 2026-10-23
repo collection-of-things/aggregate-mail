@@ -4,7 +4,7 @@ import { CalendarActions } from "./InvitationActions";
 import { Dialog } from "../ui/Dialog";
 import type { CalendarEvent, CalendarEventInput } from "../../shared/calendar";
 import { mailLink, privateMailLink } from "../../shared/mail-content";
-import type { Draft, Mail, State } from "../../shared/types";
+import type { Draft, RendererMail as Mail, RendererState as State } from "../../shared/types";
 import { accountLabel } from "../mail-ui";
 import { redactPrivateText } from "../privacy";
 import { Address, MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";

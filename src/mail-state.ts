@@ -1,4 +1,4 @@
-import type { MailChanges, State } from "../shared/types";
+import type { MailChanges, RendererMail, RendererState as State } from "../shared/types";
 
 function reuseRecords<T>(current: T[], incoming: T[], key: (record: T) => string) {
   const previous = new Map(current.map((record) => [key(record), record]));
@@ -11,7 +11,7 @@ function reuseRecords<T>(current: T[], incoming: T[], key: (record: T) => string
 }
 
 // Fresh snapshots keep unchanged records stable so polling need not redraw mail.
-export function reuseMailState(current: State, incoming: State & Partial<MailChanges>): State {
+export function reuseMailState<T extends State>(current: T, incoming: T & Partial<MailChanges<RendererMail>>): T {
   const { mailMode, mailCursor: _cursor, removedMailIds = [], ...snapshot } = incoming;
   let messages = current.messages;
   if (mailMode === "snapshot") messages = incoming.messages;
@@ -35,5 +35,5 @@ export function reuseMailState(current: State, incoming: State & Partial<MailCha
   };
   const entries = new Map(Object.entries(next));
   return entries.size === Object.keys(current).length &&
-    Object.entries(current).every(([key, value]) => entries.has(key) && entries.get(key) === value) ? current : next;
+    Object.entries(current).every(([key, value]) => entries.has(key) && entries.get(key) === value) ? current : next as T;
 }

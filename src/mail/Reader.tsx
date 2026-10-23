@@ -1,5 +1,5 @@
 import type { KeyboardEvent, MouseEvent } from "react";
-import type { Draft, GmailLabel, Mail, Provider, State } from "../../shared/types";
+import type { Draft, GmailLabel, RendererMail as Mail, Provider, RendererState as State } from "../../shared/types";
 import type { Api } from "../api";
 import { customLabels } from "../mail-ui";
 import { Address, MailPrivacy, Redact } from "../ui/Privacy";
@@ -9,6 +9,7 @@ import { ConversationEvidence } from "./ConversationEvidence";
 import { OfferTimes } from "../work/OfferTimes";
 import { InvitationPanel } from "../work/InvitationActions";
 import { ReaderContent } from "./MessageContent";
+import { mailBodyKey, useMailBody } from "../mail-body";
 
 // Today's mail shows its time, this year's its day and time, older mail the full date.
 function readerDate(date: number) {
@@ -40,6 +41,8 @@ export function Reader({ mail, provider, labels, busy, api, onLabels, onMenu, on
   onMenu: (event: MouseEvent<HTMLElement>, mail: Mail) => void;
   onMenuKey: (event: KeyboardEvent<HTMLElement>, mail: Mail) => void;
 }) {
+  const content = useMailBody(mail, api);
+  const hydrated = content.mail;
   return (
     <MailPrivacy mail={mail}>
       <article className="message" tabIndex={-1} onContextMenu={(event) => onMenu(event, mail)} onKeyDown={(event) => onMenuKey(event, mail)}>
@@ -69,10 +72,11 @@ export function Reader({ mail, provider, labels, busy, api, onLabels, onMenu, on
         {onReplyAll && <div className="message-labels"><button type="button" className="link" disabled={busy} onClick={onReplyAll}>Reply all</button></div>}
         {mail.snoozedUntil !== null && mail.snoozedUntil > Date.now() && <p className="message-return">Returns to Inbox <time dateTime={new Date(mail.snoozedUntil).toISOString()}>{new Date(mail.snoozedUntil).toLocaleString()}</time> (local time)</p>}
         {state && onOpenDraft && <OfferTimes key={`offers:${mail.id}`} mail={mail} state={state} api={api} onOpenDraft={onOpenDraft} />}
-        <InvitationPanel key={`invitation:${mail.id}`} mail={mail} api={api} onOpenDraft={onOpenDraft} onChanged={onChanged} />
-        <ReaderContent key={`content:${mail.id}`} mail={mail}
+        {hydrated && <InvitationPanel key={`invitation:${mailBodyKey(mail)}`} mail={hydrated} api={api} onOpenDraft={onOpenDraft} onChanged={onChanged} />}
+        {!hydrated && <p role="status">{content.error || "Loading cached email…"}{content.error && <> <button type="button" className="link" onClick={content.retry}>Try again</button></>}</p>}
+        {hydrated && <ReaderContent key={`content:${mailBodyKey(mail)}`} mail={hydrated}
           loadContent={(id) => api(`/messages/${encodeURIComponent(id)}/content`, "POST")}
-          loadImages={(id) => api(`/messages/${encodeURIComponent(id)}/images`, "POST")} />
+          loadImages={(id) => api(`/messages/${encodeURIComponent(id)}/images`, "POST")} />}
         {onOpen && onChanged && <ConversationEvidence key={`conversation:${mail.id}`} mail={mail} gmail={provider === "gmail"} api={api} onOpen={onOpen} onChanged={onChanged}/>}
       </article>
     </MailPrivacy>

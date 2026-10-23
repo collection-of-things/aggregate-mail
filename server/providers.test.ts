@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import { google } from "googleapis";
 import { ImapFlow } from "imapflow";
 import { createServer } from "node:http";
-import { providers, SyncError, syncError } from "./providers.js";
+import { providers, parse, SyncError, syncError } from "./providers.js";
 import type { StoredAccount } from "./store.js";
+import { rawMailLimit, gmailResponseLimit, imapSourceQuery } from "./mime-limits.js";
 import type { Mail } from "../shared/types.js";
 
 const account: StoredAccount = { id: "synthetic", email: "inbox@example.com", provider: "gmail", credentials: {} };
@@ -174,8 +175,8 @@ test("fresh Gmail batches appear before the next page, and all in-flight gets se
   } } }), {});
   try {
     const result = await providers.gmail.list(account, new Map(), (batch) => { observed += batch.length; visible.push(batch); });
-    assert.equal(result.length, 11); assert.equal(observed, 11); assert.equal(peak, 10); assert.equal(settled, 11);
-    assert.deepEqual(visible.map((batch) => batch.length), [10, 1]);
+    assert.equal(result.length, 11); assert.equal(observed, 11); assert.equal(peak, 2); assert.equal(settled, 11);
+    assert.deepEqual(visible.map((batch) => batch.length), [2, 2, 2, 2, 2, 1]);
   } finally { gmailMock.mock.restore(); }
   let outstanding = 0;
   const failureMock = mock.method(google, "gmail", () => ({ users: { messages: {
@@ -208,10 +209,10 @@ test("IMAP refreshes flags without downloading cached bodies and drains metadata
       return { release() {} };
     }),
     mock.method(ImapFlow.prototype, "close", () => {}),
-    mock.method(ImapFlow.prototype, "fetch", async function* (range: string, query: { source?: boolean }, options?: { uid?: boolean }) {
+    mock.method(ImapFlow.prototype, "fetch", async function* (range: string, query: { source?: boolean | { start: number; maxLength: number } }, options?: { uid?: boolean }) {
       assert.equal(iterating, false, "no IMAP command inside another fetch iterator");
-      calls.push({ range, source: query.source }); iterating = true;
-      if (query.source) assert.equal(options?.uid, true);
+      calls.push({ range, source: query.source ? true : undefined }); iterating = true;
+      if (query.source) { assert.equal(options?.uid, true); assert.deepEqual(query.source, imapSourceQuery); }
       const uids = query.source ? range.split(",").map(Number) : [1, 2, 3];
       try {
         for (const uid of uids) {
@@ -235,4 +236,81 @@ test("IMAP refreshes flags without downloading cached bodies and drains metadata
     assert.equal(bytes, 0); assert.equal(calls.length, 1);
     console.log("synthetic IMAP repeat: 3 cached bodies, 0 body bytes, 1 flag fetch");
   } finally { mocks.forEach((m) => m.mock.restore()); }
+});
+
+test("oversized or malformed Gmail mail rejects without replacing cached messages", async () => {
+  const saved = cachedMail("saved");
+  for (const source of ["a", "A".repeat(Math.ceil(rawMailLimit / 3) * 4 + 4)]) {
+    const gmailMock = mock.method(google, "gmail", () => ({ users: { messages: {
+      list: async (input: { labelIds: string[] }) => ({ data: { messages: input.labelIds.includes("UNREAD") ? [] : [{ id: "saved" }, { id: "bad" }] } }),
+      get: async () => ({ data: { raw: source } }),
+    } } }), {});
+    const cache = new Map([[saved.id, saved]]);
+    const batches: unknown[] = [];
+    try {
+      await assert.rejects(providers.gmail.list(account, cache, (batch) => batches.push(...batch)), (error: unknown) => {
+        assert.ok(error instanceof SyncError);
+        assert.deepEqual(error.failure, { kind: "message", phase: "parse", code: "PARSE_FAILED" });
+        return true;
+      });
+      assert.equal(cache.get(saved.id), saved);
+      assert.ok(batches.every((mail) => (mail as Mail).remoteId !== "bad"));
+    } finally { gmailMock.mock.restore(); }
+  }
+});
+
+test("oversized MIME is rejected before attachment persistence", async () => {
+  await assert.rejects(parse(account, "too-large", Buffer.alloc(rawMailLimit + 1), false), /Raw email byte limit/);
+});
+
+test("Gmail transport consumes a chunked oversized response with the SDK byte bound", async () => {
+  let requests = 0;
+  const server = createServer((req, res) => {
+    requests++;
+    res.writeHead(200, { "Content-Type": "application/json" });
+    if (!req.url?.includes("format=raw")) {
+      res.end(JSON.stringify({ messages: [{ id: "one" }] }));
+      return;
+    }
+    // No Content-Length: enforce the bound on actual bytes, not metadata.
+    let sent = 0;
+    const chunk = Buffer.alloc(64 * 1024, 65);
+    const write = () => {
+      while (sent <= gmailResponseLimit) {
+        sent += chunk.length;
+        if (!res.write(chunk)) { res.once("drain", write); return; }
+      }
+      res.end();
+    };
+    write();
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  const original = google.gmail;
+  const gmailMock = mock.method(google, "gmail", (options: Parameters<typeof google.gmail>[0]) => {
+    assert.ok(typeof options === "object" && options && typeof options.auth === "object");
+    const auth = options.auth as InstanceType<typeof google.auth.OAuth2>;
+    auth.setCredentials({ access_token: "synthetic-access", expiry_date: Date.now() + 3600000 });
+    return original.call(google, { ...options, rootUrl: `http://127.0.0.1:${address.port}/` });
+  }, {});
+  try {
+    await assert.rejects(providers.gmail.content(account, cachedMail("one")), /content size .* over limit/);
+    for (const read of [
+      () => providers.gmail.sent(account, 1),
+      () => providers.gmail.thread(account, "thread-one"),
+      () => providers.gmail.list(account, new Map()),
+    ]) {
+      await assert.rejects(read(), (error: unknown) => {
+        assert.ok(error instanceof SyncError);
+        assert.equal(error.failure.kind, "message");
+        assert.equal(error.failure.phase, "read");
+        return true;
+      });
+    }
+    assert.equal(requests, 7);
+  } finally {
+    gmailMock.mock.restore();
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });

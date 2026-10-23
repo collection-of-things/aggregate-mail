@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type FormEvent } from "react";
-import type { Mail } from "../../shared/types";
+import type { RendererMail as Mail } from "../../shared/types";
 import { ContextMenu } from "../ui/ContextMenu";
 import { followUpPreset } from "../../shared/follow-up-presets";
 

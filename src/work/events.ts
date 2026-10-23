@@ -3,7 +3,7 @@ import addressparser from "nodemailer/lib/addressparser/index.js";
 import type { CalendarEvent, CalendarEventInput, CalendarFeed, GoogleCalendarStatus } from "../../shared/calendar";
 import { EVENT_MAX_DAYS } from "../../shared/calendar";
 import { localDate, localTimeInput } from "../../shared/commitment-dates";
-import type { Mail } from "../../shared/types";
+import type { RendererMail as Mail } from "../../shared/types";
 import type { Api } from "../api";
 
 // The editable shape of one event. Dates are local YYYY-MM-DD; all-day end dates are inclusive here.

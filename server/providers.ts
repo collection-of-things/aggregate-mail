@@ -4,6 +4,8 @@ import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
+import { workLimit } from "./resource-limits.js";
+import { canonicalBase64Size, checkMimeSource, decodeGmailSource, gmailResponseLimit, imapSourceQuery, mimeParserOptions, rawMailLimit } from "./mime-limits.js";
 import { Parser } from "htmlparser2";
 import { imageSource } from "../shared/types.js";
 import { boundedMailHtml, previewText } from "../shared/mail-content.js";
@@ -164,6 +166,9 @@ export function imap(a: StoredAccount, watch = false) {
       pass: a.credentials.password!,
     },
     logger: false,
+    maxLineLength: 65536,
+    maxLiteralSize: rawMailLimit + 1,
+    maxResponseSize: rawMailLimit + 65536,
     connectionTimeout: 15000,
     greetingTimeout: 15000,
     socketTimeout: watch ? 30 * 60000 : 30000,
@@ -185,33 +190,42 @@ export type Incoming = Omit<
   Mail,
   "category" | "relevance" | "reason" | "archived" | "snoozedUntil"
 >;
-export async function parse(
+const parseLimit = workLimit(2, 16);
+export function parse(...args: Parameters<typeof parseMessage>): Promise<Incoming> {
+  return parseLimit(() => parseMessage(...args));
+}
+async function parseMessage(
   a: StoredAccount,
   remoteId: string,
   source: Buffer,
   unread: boolean,
   date?: number,
 ): Promise<Incoming> {
-  const m = await simpleParser(source, { skipImageLinks: true });
+  checkMimeSource(source);
+  const m = await simpleParser(source, mimeParserOptions);
+  const decodedBytes = Buffer.byteLength(m.text || "") + Buffer.byteLength(m.html || "") + m.attachments.reduce((size, part) => size + part.content.length, 0);
+  if (decodedBytes > 16 * 1024 * 1024 || m.attachments.length > 128 || m.headerLines.length > 512)
+    throw new Error("Decoded email limit exceeded.");
   const from = m.from?.value[0];
   const body = m.text || "";
   let total = 0;
-  const attachments = await Promise.all(m.attachments.map(async (attachment, index) => {
+  const attachments: MailAttachment[] = [];
+  for (const [index, attachment] of m.attachments.entries()) {
     const filename = attachment.filename || "attachment";
     const contentType = attachment.contentType || "application/octet-stream";
     const id = createHash("sha256").update(`${a.id}:${remoteId}:${index}:`).update(attachment.content).digest("hex");
     total += attachment.content.length;
     const eligible = index < 10 && attachment.content.length <= 524288 && total <= 1048576;
-    const content = eligible ? attachment.content.toString("base64") : "";
-    let valid = eligible && attachmentSchema.safeParse({ filename, contentType, content }).success;
+    let valid = eligible && attachmentMetadataSchema.safeParse({ filename, contentType }).success;
+    const content = valid ? attachment.content.toString("base64") : "";
     if (valid) {
       const { get, put } = await import("./store.js");
       const current = get("account", a.id);
       valid = Boolean(current && current.id === a.id && current.provider === a.provider && current.email === a.email && isDeepStrictEqual(current.credentials, a.credentials));
       if (valid) put("attachment", `${a.id}:${remoteId}:${id}`, { accountId: a.id, content });
     }
-    return { id, filename: filename.replace(/[\u0000-\u001f\u007f/\\]/g, "_").slice(0, 255), contentType: /^[\w!#$&^.+-]+\/[\w!#$&^.+-]+$/.test(contentType) ? contentType : "application/octet-stream", size: attachment.size, ...(!valid ? { unavailable: true } : {}) };
-  }));
+    attachments.push({ id, filename: filename.replace(/[\u0000-\u001f\u007f/\\]/g, "_").slice(0, 255), contentType: /^[\w!#$&^.+-]+\/[\w!#$&^.+-]+$/.test(contentType) ? contentType : "application/octet-stream", size: attachment.size, ...(!valid ? { unavailable: true } : {}) });
+  }
   const calendars = m.attachments.filter((part) => part.contentType.toLowerCase() === "text/calendar");
   const invitation = calendars.length > 1 ? { status: "unsupported" as const, reason: "multiple-calendars" } : calendars.length ? calendars[0].content.length > 131072 ? { status: "invalid" as const, reason: "limit" } : parseICalendar(calendars[0].content.toString("utf8")) : undefined;
   return {
@@ -298,9 +312,9 @@ export const providers: Record<
         if ((page.data.messages?.length || 0) > bound - messages.length) throw new Error("Sent listing exceeded its retrieval bound.");
         for (const item of page.data.messages || []) {
           if (!item.id || messages.some((m) => m.remoteId === item.id)) throw new Error("Sent email identity is unavailable.");
-          const result = await syncOperation(a.provider, "read", () => api.users.messages.get({ userId: "me", id: item.id!, format: "raw" }, { timeout: 30000, retry: false }));
+          const result = await syncOperation(a.provider, "read", () => api.users.messages.get({ userId: "me", id: item.id!, format: "raw" }, { timeout: 30000, retry: false, maxContentLength: gmailResponseLimit }));
           if (!result.data.raw || (result.data.id && result.data.id !== item.id) || !result.data.labelIds?.includes("SENT")) throw new Error("Sent email source or identity is unavailable.");
-          messages.push({ ...(await parse(a, item.id, Buffer.from(result.data.raw, "base64url"), false, Number(result.data.internalDate))), direction: "sent", threadId: result.data.threadId || item.threadId || undefined, labelIds: result.data.labelIds || [] });
+          messages.push({ ...(await parse(a, item.id, decodeGmailSource(result.data.raw), false, Number(result.data.internalDate))), direction: "sent", threadId: result.data.threadId || item.threadId || undefined, labelIds: result.data.labelIds || [] });
           if (messages.length >= bound) break;
         }
         pageToken = page.data.nextPageToken || undefined;
@@ -316,10 +330,10 @@ export const providers: Record<
       const messages: Incoming[] = [];
       for (const item of items) {
         if (!item.id) throw new Error("Conversation email identity is unavailable.");
-        const message = await syncOperation(a.provider, "read", () => api.users.messages.get({ userId: "me", id: item.id!, format: "raw" }, { timeout: 30000, retry: false }));
+        const message = await syncOperation(a.provider, "read", () => api.users.messages.get({ userId: "me", id: item.id!, format: "raw" }, { timeout: 30000, retry: false, maxContentLength: gmailResponseLimit }));
         if (!message.data.raw) throw new Error("Conversation email source is unavailable.");
         if (message.data.threadId !== threadId) throw new Error("Conversation identity changed. Sync before opening it.");
-        messages.push({ ...(await parse(a, item.id, Buffer.from(message.data.raw, "base64url"), message.data.labelIds?.includes("UNREAD") || false, Number(message.data.internalDate))), direction: message.data.labelIds?.includes("SENT") && !message.data.labelIds?.includes("INBOX") ? "sent" : "received", threadId, labelIds: message.data.labelIds || [] });
+        messages.push({ ...(await parse(a, item.id, decodeGmailSource(message.data.raw), message.data.labelIds?.includes("UNREAD") || false, Number(message.data.internalDate))), direction: message.data.labelIds?.includes("SENT") && !message.data.labelIds?.includes("INBOX") ? "sent" : "received", threadId, labelIds: message.data.labelIds || [] });
       }
       return messages;
     },
@@ -372,9 +386,9 @@ export const providers: Record<
         }, options));
         const items = page.data.messages || [];
         let pageBatch: Incoming[] = [];
-        for (let offset = 0; offset < items.length; offset += 10) {
+        for (let offset = 0; offset < items.length; offset += 2) {
           const results = await Promise.allSettled(
-            items.slice(offset, offset + 10).map(async (item) => {
+            items.slice(offset, offset + 2).map(async (item) => {
               const previous = cached.get(`${a.id}:${item.id}`);
               if (previous) return {
                 ...previous, unread: unreadIds.has(item.id!),
@@ -385,13 +399,13 @@ export const providers: Record<
                 userId: "me",
                 id: item.id!,
                 format: "raw",
-              }, options));
+              }, { ...options, maxContentLength: gmailResponseLimit }));
               const unread = result.data.labelIds?.includes("UNREAD") || false;
               return {
                 ...(await syncOperation(a.provider, "parse", () => parse(
                   a,
                   item.id!,
-                  Buffer.from(result.data.raw!, "base64url"),
+                  decodeGmailSource(result.data.raw),
                   unread,
                   Number(result.data.internalDate),
                 ))),
@@ -422,9 +436,9 @@ export const providers: Record<
     async content(a, m) {
       const result = await gmail(a).users.messages.get({
         userId: "me", id: m.remoteId, format: "raw",
-      });
+      }, { timeout: 30000, retry: false, maxContentLength: gmailResponseLimit });
       if (!result.data.raw) throw new Error("Email source is unavailable.");
-      const parsed = await parse(a, m.remoteId, Buffer.from(result.data.raw, "base64url"), m.unread);
+      const parsed = await parse(a, m.remoteId, decodeGmailSource(result.data.raw), m.unread);
       return { html: parsed.html ?? null, images: parsed.images!, attachments: parsed.attachments, ...(parsed.invitation ? { invitation: parsed.invitation } : {}) };
     },
     async update(a, m, action) {
@@ -500,7 +514,7 @@ function imapProvider() {
           const { exists, uidValidity, uidNext } = client.mailbox;
           if (!Number.isSafeInteger(exists) || exists < 0 || !/^[1-9]\d*$/.test(String(uidValidity))) throw new Error("Sent mailbox identity is unavailable.");
           const messages: Incoming[] = [];
-          if (exists) for await (const item of imapFetch(client, `${Math.max(1, exists - bound + 1)}:*`, { uid: true, source: true, flags: true })) {
+          if (exists) for await (const item of imapFetch(client, `${Math.max(1, exists - bound + 1)}:*`, { uid: true, source: imapSourceQuery, flags: true })) {
             if (!item.source || !item.flags || !Number.isSafeInteger(item.uid) || item.uid < 1 || item.uid > 4294967295 || messages.length >= bound) throw new Error("Sent email source or identity is unavailable.");
             const remoteId = `sent:${Buffer.from(mailbox).toString("base64url")}:${uidValidity}:${item.uid}`;
             if (messages.some((m) => m.remoteId === remoteId)) throw new Error("Sent mailbox changed during retrieval.");
@@ -554,11 +568,11 @@ function imapProvider() {
           if (seen.size !== exists) incomplete();
           complete();
           phase = "read";
-          for (let offset = 0; offset < missing.length; offset += 10) {
-            const expected = new Set(missing.slice(offset, offset + 10));
+          for (let offset = 0; offset < missing.length; offset += 2) {
+            const expected = new Set(missing.slice(offset, offset + 2));
             batch = [];
             for await (const m of imapFetch(client, [...expected].join(","), {
-              uid: true, source: true, flags: true,
+              uid: true, source: imapSourceQuery, flags: true,
             }, { uid: true })) {
               if (!expected.delete(m.uid)) incomplete();
               if (!m.source) throw Object.assign(new Error(), { code: "READ_FAILED" });
@@ -607,7 +621,7 @@ function imapProvider() {
         try {
           if (!client.mailbox || String(client.mailbox.uidValidity) !== identifiers[1])
             throw new Error("Mailbox identifiers changed. Sync before loading content.");
-          const result = await client.fetchOne(identifiers[2], { source: true }, { uid: true });
+          const result = await client.fetchOne(identifiers[2], { source: imapSourceQuery }, { uid: true });
           if (!result || !result.source) throw new Error("Email source is unavailable.");
           const parsed = await parse(a, m.remoteId, result.source, m.unread);
           if (m.messageId && parsed.messageId !== m.messageId)
@@ -787,9 +801,10 @@ function imapProvider() {
 export const attachmentSchema = z.object({
   filename: z.string().min(1).max(255).refine((value) => !/[\u0000-\u001f\u007f/\\:]/.test(value) && value !== "." && value !== "..", "Attachment filename is unsafe"),
   contentType: z.string().max(127).regex(/^[\w!#$&^.+-]+\/[\w!#$&^.+-]+$/),
-  content: z.string().max(699052).refine((value) => /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value) && Buffer.from(value, "base64").toString("base64") === value && Buffer.from(value, "base64").length <= 524288, "Attachment content must be canonical base64 of at most 512 KiB"),
+  content: z.string().max(699052).refine((value) => { const size = canonicalBase64Size(value); return size !== null && size <= 524288; }, "Attachment content must be canonical base64 of at most 512 KiB"),
 }).strict();
-export const attachmentsSchema = z.array(attachmentSchema).max(10).refine((attachments) => attachments.reduce((size, attachment) => size + Buffer.from(attachment.content, "base64").length, 0) <= 1048576, "Attachments exceed 1 MiB total");
+const attachmentMetadataSchema = attachmentSchema.omit({ content: true });
+export const attachmentsSchema = z.array(attachmentSchema).max(10).refine((attachments) => attachments.reduce((size, attachment) => size + (canonicalBase64Size(attachment.content) ?? Infinity), 0) <= 1048576, "Attachments exceed 1 MiB total");
 export const sendSchema = z.object({
   accountId: z.string(),
   calendarDraft: z.object({ id: z.uuid(), revision: z.number().int().min(1) }).strict().optional(),

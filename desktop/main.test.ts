@@ -133,13 +133,16 @@ await build({
           }
         };
         export const Menu = {
-          buildFromTemplate(template) { return { popup({callback, x, y}) {
+          buildFromTemplate(template) { return { roles: template.map(item => item.role), popup({callback, x, y}) {
             console.log(JSON.stringify({ nativeMailMenu: true, x, y }));
             template.find(item => item.enabled)?.click?.(); callback?.();
           }, items: [{ submenu: { items:
             ['quit','close','undo','cut','copy','paste','selectall'].map(role => ({role}))
           }}] }; },
-          setApplicationMenu(menu) { this.menu = menu; }, getApplicationMenu() { return this.menu; }
+          setApplicationMenu(menu) {
+            this.menu = menu;
+            if (config.backgroundActivation) console.log(JSON.stringify({ applicationMenuRoles: menu?.roles ?? [] }));
+          }, getApplicationMenu() { return this.menu; }
         };
         export const session = { fromPartition() { return {
           webRequest: { onBeforeSendHeaders() {} }, setPermissionRequestHandler() {}, setPermissionCheckHandler() {}
@@ -284,6 +287,17 @@ await build({
             if (setup(trusted, valid) !== 'saved' || readFileSync(file, 'utf8') !== before) throw Error('OpenCode setup was not idempotent');
             console.log(JSON.stringify({ opencodeSetupGuard: true, rejected, saved: true }));
           }
+          if (config.backgroundActivation && options) {
+            const hiddenWindow = lastWindow;
+            for (const event of ['activate', 'second-instance']) {
+              hiddenWindow.close();
+              if (hiddenWindow.isDestroyed() || hiddenWindow.isVisible()) throw Error('Close did not hide the window');
+              for (const handler of handlers.get(event) || []) handler();
+              if (lastWindow !== hiddenWindow || windows !== 1 || !hiddenWindow.isVisible())
+                throw Error('Activation did not restore the hidden window');
+            }
+            console.log(JSON.stringify({ backgroundActivation: 'passed', windows }));
+          }
           if (config.destroyedActivation && options) {
             const closedWindow = lastWindow;
             closedWindow.destroyed = true;
@@ -402,20 +416,32 @@ test("activation during window destruction never calls a destroyed native window
   preserved(current.profile, current);
 });
 
-test("tray image uses platform menu-bar dimensions and macOS template rendering", () => {
+test("macOS keeps native menus and background activation without a status-bar tray", () => {
+  const current = fixture("Emc²");
+  const result = launch(current.appData, { platform: "darwin", backgroundActivation: true });
+  passed(result, 0);
+  assert.doesNotMatch(result.stdout, /"trayImage":/);
+  assert.match(result.stdout, /"backgroundActivation":"passed","windows":1/);
+  const receipt = JSON.parse(result.stdout.match(/\{"applicationMenuRoles"[^\n]+/)?.[0] ?? "{}");
+  assert.deepEqual(receipt.applicationMenuRoles, ["appMenu", "fileMenu", "editMenu", "windowMenu"]);
+  preserved(current.profile, current);
+});
+
+test("Windows and Linux retain their tray image and background activation", () => {
   for (const [platform, size, template] of [
-    ["darwin", 16, true],
     ["linux", 22, false],
     ["win32", 256, false],
   ] as const) {
     const current = fixture("Emc²");
-    const result = launch(current.appData, { platform });
+    const result = launch(current.appData, { platform, backgroundActivation: true });
     passed(result, 0);
+    assert.match(result.stdout, /"backgroundActivation":"passed","windows":1/);
     const receipt = JSON.parse(result.stdout.match(/\{"trayImage"[^\n]+/)?.[0] ?? "{}");
-    assert.equal(path.basename(receipt.trayImage.path), platform === "darwin" ? "tray-icon.png" : "icon.png");
+    assert.equal(path.basename(receipt.trayImage.path), "icon.png");
     assert.equal(receipt.trayImage.width, size, `${platform} tray width`);
     assert.equal(receipt.trayImage.height, size, `${platform} tray height`);
     assert.equal(receipt.trayImage.template, template, `${platform} template mode`);
+    preserved(current.profile, current);
   }
 });
 

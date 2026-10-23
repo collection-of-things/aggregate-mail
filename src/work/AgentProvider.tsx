@@ -1,7 +1,7 @@
 import { useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { agentProviders, type AgentProvider as Provider, type AgentProviderSettings } from "../../shared/agent-provider";
 import type { AgentGrant, AgentProposal } from "../../shared/workspace";
-import type { State } from "../../shared/types";
+import type { RendererState as State } from "../../shared/types";
 import type { Api } from "../api";
 import { Segmented } from "../ui/Segmented";
 import { PrivateField } from "../ui/PrivateField";
@@ -44,7 +44,7 @@ export function AgentProvider({ grant, state, api, mcpEnabled, disabled, onPrepa
   }, [open, loaded, disabled, route, api]);
   const eligible: State = useMemo(() => ({ ...state, accounts: state.accounts.filter((account) => grant.accountIds.includes(account.id)), messages: state.messages.filter((mail) => mail.direction !== "sent" && grant.accountIds.includes(mail.accountId) && state.accounts.some((account) => account.id === mail.accountId)) }), [state, permission]);
   const source = eligible.messages.find((mail) => mail.id === selected[0]);
-  const evidence = source ? JSON.stringify([source.id, source.accountId, source.subject, source.address, source.replyTo, source.to, source.body, source.preview, source.messageId, source.threadId, source.references]) : "";
+  const evidence = source ? "contentVersion" in source ? source.contentVersion : JSON.stringify([source.id, source.accountId, source.subject, source.address, source.replyTo, source.to, source.body, source.preview, source.messageId, source.threadId, source.references]) : "";
   useLayoutEffect(() => {
     active.current = true; epoch.current++; setStatus("");
     return () => { active.current = false; epoch.current++; };

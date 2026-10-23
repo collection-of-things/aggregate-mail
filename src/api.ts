@@ -1,5 +1,5 @@
 // The renderer's typed call into the local mail service, and reload coalescing.
-export type Api = <T>(url: string, method?: string, body?: unknown) => Promise<T>;
+export type Api = <T>(url: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<T>;
 export type Perform = (task: () => Promise<unknown>, success?: string) => Promise<void>;
 
 export class ApiError extends Error {

@@ -153,3 +153,117 @@ test("every searchable field invalidates its document and same IDs cannot mix ac
     assert.equal(updated.matches(message), true, field);
   }
 });
+
+// These are fixed cache contracts, exercised through normalization work rather than a test-only API.
+const documentLimit = 256;
+const stringByteLimit = 4 * 1024 * 1024;
+
+function normalizationWork(work: () => void): number {
+  const normalize = String.prototype.normalize;
+  let calls = 0;
+  String.prototype.normalize = function(form) { calls++; return normalize.call(this, form); };
+  try { work(); return calls; }
+  finally { String.prototype.normalize = normalize; }
+}
+
+function cacheMail(id: string, body = "Résumé cache content"): Mail {
+  return { ...mail, id, accountId: "cache-budget", sender: "", address: "", to: "", cc: "", subject: "", preview: "", body };
+}
+
+function fillDocumentCache(prefix: string): void {
+  const search = compileMailSearch("body:resume");
+  for (let i = 0; i < documentLimit; i++) assert.equal(search.matches(cacheMail(`${prefix}-${i}`)), true);
+}
+
+test("search document entry budget evicts the least recently used identity without changing matches", () => {
+  fillDocumentCache("entry");
+  const search = compileMailSearch("body:resume -body:draft");
+  const oldest = cacheMail("entry-0");
+  const next = cacheMail("entry-1");
+  assert.equal(normalizationWork(() => assert.equal(search.matches(oldest), true)), 0, "a new Mail object reuses its identity's document");
+  assert.equal(search.matches(cacheMail("entry-overflow")), true);
+  assert.equal(normalizationWork(() => assert.equal(search.matches(oldest), true)), 0, "a hit refreshes recency");
+  assert.ok(normalizationWork(() => assert.equal(search.matches(next), true)) > 0, "the 257th entry evicts the least recently used document");
+});
+
+test("search document byte budget counts raw canonical folded and identity strings at the boundary", () => {
+  // Every field except body is empty. Each é occupies one UTF-16 code unit in all three forms.
+  let id = "byte-boundary";
+  while ((stringByteLimit / 2 - JSON.stringify(["cache-budget", id]).length) % 3) id += "x";
+  const bodyLength = (stringByteLimit / 2 - JSON.stringify(["cache-budget", id]).length) / 3;
+  const exact = cacheMail(id, "é".repeat(bodyLength));
+  const search = compileMailSearch("body:e -body:draft");
+  assert.equal(search.matches(exact), true);
+  assert.equal(normalizationWork(() => assert.equal(search.matches({ ...exact }), true)), 0, "a document exactly at the string-byte budget is reusable");
+  const small = cacheMail("byte-small");
+  assert.equal(search.matches(small), true);
+  assert.equal(normalizationWork(() => assert.equal(search.matches(small), true)), 0);
+  assert.ok(normalizationWork(() => assert.equal(search.matches(exact), true)) > 0, "string-byte pressure evicts before the entry limit");
+  const oversized = { ...exact, body: exact.body + "é" };
+  assert.ok(normalizationWork(() => assert.equal(search.matches(oversized), true)) > 0);
+  assert.equal(search.matches(small), true);
+  assert.ok(normalizationWork(() => assert.equal(search.matches(oversized), true)) > 0, "one extra character is not retained");
+  assert.equal(normalizationWork(() => assert.equal(search.matches(small), true)), 0, "oversized documents do not evict useful entries");
+});
+
+test("search document replacement releases its previous byte allowance", () => {
+  const search = compileMailSearch("body:e");
+  const large = cacheMail("byte-replacement", "é".repeat(400_000));
+  assert.equal(search.matches(large), true);
+  const small = { ...large, body: "Café" };
+  assert.equal(search.matches(small), true);
+  const peer = cacheMail("byte-peer", "é".repeat(400_000));
+  assert.equal(search.matches(peer), true);
+  assert.equal(normalizationWork(() => assert.equal(search.matches(small), true)), 0, "replacement subtracts its old retained strings");
+  assert.equal(normalizationWork(() => assert.equal(search.matches(peer), true)), 0);
+});
+
+test("search cache identities isolate accounts and read flags dates and unused content live", () => {
+  const first = cacheMail("same-id");
+  const other = { ...first, accountId: "other-cache-account" };
+  const search = compileMailSearch("body:resume");
+  assert.equal(search.matches(first), true);
+  assert.ok(normalizationWork(() => assert.equal(search.matches(other), true)) > 0, "accounts have separate documents even with identical IDs and text");
+  assert.equal(normalizationWork(() => assert.equal(search.matches(first), true)), 0);
+  assert.equal(normalizationWork(() => assert.equal(search.matches(other), true)), 0);
+  Object.defineProperties(first, {
+    html: { get() { throw Error("HTML is not search content"); } },
+    attachments: { get() { throw Error("Attachments are not search content"); } },
+  });
+  const flags = compileMailSearch("body:resume is:unread is:pinned after:2025-03-01 before:2025-03-02");
+  assert.equal(normalizationWork(() => assert.equal(flags.matches(first), true)), 0);
+  first.pinned = false;
+  assert.equal(flags.matches(first), false);
+  first.pinned = true;
+  first.date = Date.UTC(2025, 2, 2);
+  assert.equal(flags.matches(first), false);
+  first.date = mail.date;
+  first.unread = false;
+  assert.equal(flags.matches(first), false);
+  first.accountId = other.accountId;
+  assert.equal(normalizationWork(() => assert.equal(search.matches(first), true)), 0);
+  const flagsOnly = compileMailSearch("is:read before:2025-03-02");
+  const noBody = { ...mail, get body(): string { throw Error("non-text searches do not inspect bodies"); } };
+  assert.equal(compileMailSearch("").matches(noBody), true);
+  assert.equal(flagsOnly.matches(noBody), false);
+});
+
+test("cached evicted and oversized documents preserve Unicode phrase and exclusion semantics", () => {
+  const message = { ...cacheMail("semantic"), sender: "Jose\u0301", address: "josé@example.com", subject: "Title tail",
+    preview: "Preview head", body: "Réunion\u00a0du\n projet ก่า" };
+  const cases: [string, boolean][] = [
+    ['from:jose body:"reunion du projet" -body:draft', true],
+    ['body:"reunion du projet" -body:reunion', false],
+    ['"tail preview"', false], ["tail preview body:ก่า", true],
+    ["body:กา", false], ["from:jose@example.com", false], ["from:josé@example.com", true],
+  ];
+  const searches = cases.map(([query, expected]) => ({ search: compileMailSearch(query), expected, query }));
+  const check = (candidate: Mail) => {
+    for (const { search, expected, query } of searches) assert.equal(search.matches(candidate), expected, query);
+  };
+  check(message);
+  assert.equal(normalizationWork(() => check({ ...message })), 0);
+  fillDocumentCache("semantic-eviction");
+  assert.ok(normalizationWork(() => check(message)) > 0);
+  check({ ...message, body: message.body + " " + "x".repeat(750_000) });
+});

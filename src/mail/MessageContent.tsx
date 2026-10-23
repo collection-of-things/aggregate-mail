@@ -72,16 +72,16 @@ function ReaderImage({ image, index }: { image: MailImage; index: number }) {
 }
 export type ContentResult = { html: string | null; images?: MailImage[]; attachments?: MailAttachment[] };
 type ImageProps = {
-  mail: Pick<Mail, "id" | "images"> & Partial<Pick<Mail, "html" | "body" | "attachments">>;
+  mail: Pick<Mail, "id" | "images"> & Partial<Pick<Mail, "accountId" | "html" | "body" | "attachments">> & { contentVersion?: string };
   loadImages: (id: string) => Promise<{ images: MailImage[] }>;
   loadContent?: (id: string) => Promise<ContentResult>;
   body?: boolean;
 };
 export function MessageImages(props: ImageProps) {
-  return <ImageConsent key={props.mail.id} {...props} />;
+  return <ImageConsent key={JSON.stringify([props.mail.accountId, props.mail.id, props.mail.contentVersion])} {...props} />;
 }
 export function ReaderContent(props: ImageProps & { loadContent: (id: string) => Promise<ContentResult> }) {
-  return <ImageConsent key={props.mail.id} {...props} body />;
+  return <ImageConsent key={JSON.stringify([props.mail.accountId, props.mail.id, props.mail.contentVersion])} {...props} body />;
 }
 function ImageConsent({ mail, loadImages, loadContent, body }: ImageProps) {
   const { on: privacy, names } = useContext(PrivacyContext);
@@ -92,10 +92,11 @@ function ImageConsent({ mail, loadImages, loadContent, body }: ImageProps) {
   const [contentStatus, setContentStatus] = useState((mail.html === undefined || mail.attachments === undefined) && loadContent ? "loading" : "ready");
   const active = useRef(true);
   const imageRequest = useRef(0);
+  const contentRequest = useRef(0);
   const region = useId();
   useEffect(() => {
     active.current = true;
-    return () => { active.current = false; imageRequest.current++; };
+    return () => { active.current = false; imageRequest.current++; contentRequest.current++; };
   }, []);
   useEffect(() => {
     setConsentInPrivacy(false);
@@ -103,12 +104,13 @@ function ImageConsent({ mail, loadImages, loadContent, body }: ImageProps) {
   }, [privacy]);
   const recoverContent = async () => {
     if (!loadContent) return;
+    const request = ++contentRequest.current;
     setContentStatus("loading");
     try {
       const result = await loadContent(mail.id);
-      if (active.current) { setContent(result); setContentStatus("ready"); }
+      if (active.current && request === contentRequest.current) { setContent(result); setContentStatus("ready"); }
     } catch {
-      if (active.current) setContentStatus("error");
+      if (active.current && request === contentRequest.current) setContentStatus("error");
     }
   };
   useEffect(() => {

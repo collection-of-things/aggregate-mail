@@ -13,7 +13,7 @@ import {
 } from "react";
 import { inboxTab, inboxTabs, type InboxTab } from "../shared/inbox-tabs";
 import type { Commitment, SentCoverage } from "../shared/workspace";
-import type { Draft, Mail, State, StateResponse } from "../shared/types";
+import type { Draft, RendererMail as Mail, RendererState as State, StateResponse } from "../shared/types";
 import { emptyComposePreferences, type ComposePreferences } from "../shared/mail-features";
 import { initialCompose } from "./compose/ComposePreferences";
 import { replyRecipients } from "./compose/recipients";
@@ -45,7 +45,8 @@ import { Reader, ReaderEmpty } from "./mail/Reader";
 import { tabName, viewNames, viewOrder, type View } from "./mail/format";
 import { customLabels, textSizeShortcut, filterMail, matchesLabel, markMailRead } from "./mail-ui";
 import { reuseMailState } from "./mail-state";
-import { compileMailSearch } from "./mail-search";
+import { MailSearchApiContext, useMailSearch } from "./use-mail-search";
+import { replySource, useMailBody } from "./mail-body";
 import { useMailNavigation, type MailLocation } from "./navigation";
 import { collectPrivateNames, redactPrivateText } from "./privacy";
 import { SettingsPage } from "./settings/SettingsPage";
@@ -274,9 +275,10 @@ export function App() {
   const sendLock = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const api = useCallback(
-    async <T,>(url: string, method = "GET", body?: unknown): Promise<T> => {
+    async <T,>(url: string, method = "GET", body?: unknown, signal?: AbortSignal): Promise<T> => {
       const res = await fetch(`/api${url}`, {
         method,
+        signal,
         headers: {
           "Content-Type": "application/json",
           "X-CSRF-Token": csrf.current,
@@ -293,7 +295,7 @@ export function App() {
   const dueCount = work.loaded && !work.stale && !work.refreshing ? work.workspace.commitments.filter((item) =>
     (accountFilter === "all" || item.accountId === accountFilter) && openCommitment(item) && item.followUpAt !== undefined && item.followUpAt <= work.now).length : undefined;
   const openCompose = (value: Compose | Draft, source?: Mail) => {
-    setReplyContext(source || state.messages.find((mail) => mail.accountId === value.accountId && value.inReplyTo && mail.messageId === value.inReplyTo));
+    setReplyContext(source);
     const session = new DraftSession(api, value, (progress) => {
       if (draftSession.current === session) {
         setDraftProgress(progress);
@@ -474,10 +476,10 @@ export function App() {
   const now = Date.now();
   const isSnoozed = (m: Mail) =>
     m.snoozedUntil !== null && m.snoozedUntil > now;
-  const tabs = useMemo(() => new Map(state.messages.map((mail) => [mail.id, inboxTab(mail, state.rules)])),
+  const tabs = useMemo(() => new Map(state.messages.map((mail) => [mail.id, "inboxTab" in mail ? mail.inboxTab : inboxTab(mail, state.rules)])),
     [state.messages, state.rules]);
-  const tabOf = (mail: Mail) => tabs.get(mail.id) ?? inboxTab(mail, state.rules);
-  const search = useMemo(() => compileMailSearch(query, state.accounts), [query, state.accounts]);
+  const tabOf = (mail: Mail) => "inboxTab" in mail ? mail.inboxTab : tabs.get(mail.id) ?? inboxTab(mail, state.rules);
+  const search = useMailSearch(query, state.accounts, state.messages, api);
   const filtered = filterMail(state.messages, navigation.location, activeLabel, now, undefined, tabOf, search.matches);
   const selected = opened
     ? state.messages.find((m) => m.id === selectedId &&
@@ -486,6 +488,9 @@ export function App() {
   const accountOf = (m: Mail) =>
     state.accounts.find((a) => a.id === m.accountId);
   const selectedAccount = selected && accountOf(selected);
+  const currentReplySource = compose ? replyContext ? state.messages.find(mail => mail.id === replyContext.id && mail.accountId === compose.accountId &&
+    mail.accountId === replyContext.accountId && mail.messageId === compose.inReplyTo) : replySource(state.messages, compose) : undefined;
+  const hydratedReply = useMailBody(currentReplySource || undefined, api);
   // Inbox total for the sidebar and unread counts for each category tab.
   const inboxMail = state.messages.filter((m) => m.direction !== "sent" && !m.archived && !isSnoozed(m) &&
     matchesLabel(m, activeLabel) && (accountFilter === "all" || accountFilter === m.accountId));
@@ -954,7 +959,7 @@ export function App() {
       ({ id: `mail-${id}`, label, shortcut: key, disabled, run })) : []),
   ];
   return (
-    <PrivacyContext.Provider
+    <MailSearchApiContext.Provider value={api}><PrivacyContext.Provider
       value={privacyContext}
     >
       <div
@@ -1029,7 +1034,7 @@ export function App() {
               <div className="update-spacer" aria-hidden="true" />
             </PaneHeader>
             <div hidden={!searching || settings || workView} className="search-help">
-              <span id="mail-search-help" role={search.error ? "alert" : undefined}>{search.error || `Cached ${viewNames[view]} · current account and filters`}</span>
+              <span id="mail-search-help" role={search.error ? "alert" : undefined}>{search.error || (search.pending ? "Searching cached mail…" : `Cached ${viewNames[view]} · current account and filters`)}</span>
               <details><summary>Search help</summary><p>Use from:, to:, subject:, body:, account:, is:unread, is:pinned, before:YYYY-MM-DD or after:YYYY-MM-DD. Search stays on this device.</p></details>
             </div>
         {settings ? (
@@ -1249,7 +1254,7 @@ export function App() {
           <ComposePanel
             onAttachmentTask={(task) => { attachmentTask.current = task; void task.finally(() => { if (attachmentTask.current === task) attachmentTask.current = undefined; }); }}
             draft={compose}
-            source={replyContext}
+            source={hydratedReply.mail}
             setDraft={editCompose}
             accounts={state.accounts}
             preferences={state.composePreferences ?? emptyComposePreferences}
@@ -1337,6 +1342,6 @@ export function App() {
         )}
         {shortcuts && <ShortcutsDialog shortcut={shortcut} onClose={() => setShortcuts(false)} />}
       </div>
-    </PrivacyContext.Provider>
+    </PrivacyContext.Provider></MailSearchApiContext.Provider>
   );
 }

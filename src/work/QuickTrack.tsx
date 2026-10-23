@@ -1,5 +1,5 @@
 import { useContext, useEffect, useId, useRef, useState } from "react";
-import type { Mail } from "../../shared/types";
+import type { RendererMail as Mail } from "../../shared/types";
 import type { Commitment } from "../../shared/workspace";
 import { openCommitment } from "../../shared/commitment-dates";
 import { followUpPreset, type FollowUpPreset } from "../../shared/follow-up-presets";

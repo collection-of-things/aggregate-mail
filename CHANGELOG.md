@@ -2,13 +2,20 @@
 
 ## Unreleased
 
+- Allow the CI test step 20 minutes so the full serial suite can finish on hosted Intel macOS runners.
+
 - Restore Linux Ctrl+Q through normal application quit, retaining draft warnings and close-to-background behavior.
 - Disable invitation and cancellation drafts until an event has a connected account. Confirm local event deletion in the app dialog, with guarded pending requests and retained errors.
 - Use Emc² in the window title, left-align Calendar rows, and keep event dialog headings visible while the form scrolls.
 - Keep custom snooze forms inside the viewport as they grow, without moving focus out of the time input.
 - Remove the right-hand sender panel and its toolbar toggle.
 - Stack notices from their anchored edge with the newest nearest it, animate arrivals and dismissals, and add a labeled Dismiss button. Keep multiline notices and the count line reachable in a viewport-bounded scroll area with padding for shadows.
-- Allow the CI test step 12 minutes. The serial suite reached the 8-minute limit on hosted Intel macOS runners.
+- Load cached bodies and HTML on demand instead of sending them in mail-list snapshots. Keep exact local body search, offline reading, reply recovery and body-sensitive server operations. Retain summaries rather than a full ciphertext index.
+- Encrypt saved connection settings with the existing mail key and migrate managed values out of legacy environment files after committed readback. Add authenticated, drained storage compaction with conservative orphan attachment cleanup.
+- Bound raw mail, MIME parsing concurrency, image downloads and decorative caches. Reject oversized mail explicitly while retaining previously cached messages.
+- Remove the macOS status-bar icon. Keep native menus, Dock reopening, background sync and guarded quit; retain Windows and Linux tray controls.
+
+- Previously raised the CI test step from 8 to 12 minutes for hosted Intel macOS runners; the current deadline is 20 minutes.
 - Move the Filters and privacy buttons into the persistent toolbar, and put Inbox tabs, the cached-mail note and work-view controls on the same line as each pane title.
 - Give every pane header below the toolbar one 48px height and extend Transparency (Glass/Subtle) to the whole window with one shared tint over the toolbar and every working pane, transparent child panes, blurred sticky headings and brighter secondary text for built-in and custom themes.
 - Show Inbox tabs at full header height in secondary text with a 2px accent underline sliding under the active tab's content, group Settings controls into rounded cards with labeled rows and rotating expanding groups, put the assistants Refresh beside "Your assistants", and run the section divider the full pane height.

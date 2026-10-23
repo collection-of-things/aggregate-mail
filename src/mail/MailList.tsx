@@ -1,5 +1,5 @@
 import { useContext, type KeyboardEvent, type MouseEvent, type RefObject } from "react";
-import type { Account, Mail } from "../../shared/types";
+import type { Account, RendererMail as Mail } from "../../shared/types";
 import { previewText } from "../../shared/mail-content";
 import type { InteractionPreferences } from "../interaction";
 import { MailListWindow } from "../MailListWindow";
@@ -20,11 +20,11 @@ type RowLayout = "inline" | "stacked" | "brief" | "card";
  * its context menu, opened by the "More actions" button, right-click or the
  * menu key.
  */
-export function MailList({
+export function MailList<T extends Mail>({
   messages, selectedId, density, narrow, sort, opening, accounts, listRef, focusSelection, sizeByImportance = true,
   onOpen, onSelect, onMenu, onMenuKey,
 }: {
-  messages: Mail[];
+  messages: T[];
   listRef: RefObject<HTMLElement | null>;
   focusSelection: boolean;
   selectedId: string | undefined;
@@ -34,10 +34,10 @@ export function MailList({
   opening: InteractionPreferences["opening"];
   accounts: Account[];
   sizeByImportance?: boolean;
-  onOpen: (mail: Mail) => void;
+  onOpen: (mail: T) => void;
   onSelect: (id: string) => void;
-  onMenu: (event: MouseEvent<HTMLElement>, mail: Mail) => void;
-  onMenuKey: (event: KeyboardEvent<HTMLElement>, mail: Mail) => void;
+  onMenu: (event: MouseEvent<HTMLElement>, mail: T) => void;
+  onMenuKey: (event: KeyboardEvent<HTMLElement>, mail: T) => void;
 }) {
   const { on: privacy } = useContext(PrivacyContext);
   const provider = (mail: Mail) => accounts.find((account) => account.id === mail.accountId)?.provider;

@@ -157,6 +157,21 @@ export type Mail = {
   replyTo?: string;
   references?: string[];
 };
+// Renderer lists contain envelopes and local classification, never message content.
+export type MailSummary = Pick<Mail,
+  "id" | "accountId" | "remoteId" | "sender" | "address" | "to" | "cc" | "replyTo" |
+  "subject" | "preview" | "date" | "unread" | "pinned" | "labelIds" | "category" |
+  "relevance" | "reason" | "archived" | "snoozedUntil" | "messageId" | "threadId" |
+  "references" | "direction" | "inReplyTo" | "mailbox" | "attachments"
+> & { contentVersion: string; inboxTab: import("./inbox-tabs").InboxTab };
+// Full values remain accepted by isolated renderer fixtures and internal views.
+export type RendererMail = MailSummary | Mail;
+export type MailBodyResponse = { mail: Mail; contentVersion: string };
+export type MailSearchResult = {
+  mailCursor: string;
+  matches: Pick<MailSummary, "id" | "accountId" | "contentVersion">[];
+  error?: string;
+};
 export type Rule = {
   createdAt?: number;
   excludedMailIds?: string[];
@@ -168,21 +183,21 @@ export type Rule = {
   category: Category;
   relevance: 1 | 2 | 3;
 };
-export type MailChanges = {
+export type MailChanges<T = MailSummary> = {
   mailCursor: string;
   mailMode: "snapshot" | "delta";
-  messages: Mail[];
+  messages: T[];
   removedMailIds: string[];
 };
 export type StateResponse = Omit<State, "messages"> & MailChanges & { csrf: string };
 
-export type State = {
+export type State<T = Mail> = {
   draftCount?: number;
   composePreferences?: ComposePreferences;
   unreadArrivals?: number;
   mailArrivals?: import("./notifications").MailArrival[];
   accounts: Account[];
-  messages: Mail[];
+  messages: T[];
   labels: GmailLabel[];
   rules: Rule[];
   googleConfigured: boolean;
@@ -193,6 +208,7 @@ export type State = {
   lastSync: number | null;
   syncing: boolean;
 };
+export type RendererState = State<RendererMail>;
 
 export type GmailLabel = {
   id: string;

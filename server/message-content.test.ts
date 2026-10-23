@@ -6,6 +6,7 @@ import path from "node:path";
 import { google } from "googleapis";
 import { ImapFlow } from "imapflow";
 import { parse, providers } from "./providers.js";
+import { imapSourceQuery } from "./mime-limits.js";
 import { MAIL_HTML_LIMIT } from "../shared/mail-content.js";
 import type { StoredAccount } from "./store.js";
 import type { Mail } from "../shared/types.js";
@@ -69,7 +70,7 @@ test("IMAP content recovery refuses archives before connecting and verifies UIDV
   t.mock.method(ImapFlow.prototype, "fetchOne", async (uid: unknown, query: unknown, options: unknown) => {
     fetches++;
     assert.equal(uid, "7");
-    assert.deepEqual(query, { source: true });
+    assert.deepEqual(query, { source: imapSourceQuery });
     assert.deepEqual(options, { uid: true });
     return { source: mime } as Awaited<ReturnType<ImapFlow["fetchOne"]>>;
   });

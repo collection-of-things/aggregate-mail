@@ -1,7 +1,7 @@
 import { notificationDefaults, type NotificationPreferences } from "../notifications";
 import { NotificationSettings } from "./NotificationSettings";
 import { Fragment, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { jevProviders, type Account, type State } from "../../shared/types";
+import { jevProviders, type Account, type RendererState as State } from "../../shared/types";
 import { emptyComposePreferences, type ComposePreferences } from "../../shared/mail-features";
 import { ComposeSettings } from "./ComposeSettings";
 import type { Api, Perform } from "../api";

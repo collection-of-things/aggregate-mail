@@ -51,7 +51,7 @@ jobs:
     needs: workflows
     name: Test and package (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
+    timeout-minutes: 35
     defaults:
       run:
         shell: ${{ matrix.shell }}
@@ -102,8 +102,8 @@ jobs:
         run: node scripts/set-build-version.mjs
       - run: npm ci --no-audit --no-fund
       - run: npm test
-        # The serial suite takes about seven minutes on hosted Intel macOS runners.
-        timeout-minutes: 12
+        # Allow the full serial suite to finish on slower hosted Intel macOS runners.
+        timeout-minutes: 20
       - run: npm run build
       - name: Check desktop startup
         if: runner.os != 'Linux'

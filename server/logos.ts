@@ -1,11 +1,10 @@
 import {
-  existsSync,
   mkdirSync,
-  readFileSync,
   renameSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
+import { ByteCache, readCacheFile, readResponseBytes, trimImageCache, prepareImageCache, workLimit } from "./resource-limits.js";
 import { personalMailDomains } from "../shared/types.js";
 import type { LogoSummary } from "../shared/types.js";
 
@@ -63,7 +62,7 @@ export function normalizeDomain(value: string): string | null {
     .trim()
     .toLowerCase()
     .replace(/\.$/, "");
-  if (!hostPattern.test(host)) return null;
+  if (host.length > 253 || !hostPattern.test(host)) return null;
   return host.startsWith("www.") ? host.slice(4) : host;
 }
 
@@ -86,7 +85,7 @@ const nameKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "")
 
 function strings(value: unknown): string[] {
   return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
+    ? value.slice(0, 64).filter((item): item is string => typeof item === "string" && item.length <= 512)
     : [];
 }
 
@@ -100,7 +99,7 @@ function brandSite(value: unknown): { host: string; root: boolean } | null {
   }
   if (site.protocol !== "https:" && site.protocol !== "http:") return null;
   const host = site.hostname.replace(/^www\./, "").toLowerCase();
-  if (!hostPattern.test(host)) return null;
+  if (host.length > 253 || !hostPattern.test(host)) return null;
   return { host, root: site.pathname === "" || site.pathname === "/" };
 }
 
@@ -144,18 +143,18 @@ export function buildIndex(icons: unknown): RegistryIndex {
     if (hits) hits.push({ entry, root });
     else buckets.set(host, [{ entry, root }]);
   };
-  for (const icon of icons) {
+  for (const icon of icons.slice(0, 20000)) {
     if (!icon || typeof icon !== "object") continue;
     const { slug, title, aliases, variants, url } = icon as Record<
       string,
       unknown
     >;
-    if (typeof slug !== "string" || !slug) continue;
+    if (typeof slug !== "string" || !/^[a-zA-Z0-9_-]{1,200}$/.test(slug)) continue;
     const entry: LogoEntry = {
       slug,
-      title: typeof title === "string" ? title : "",
+      title: typeof title === "string" ? title.slice(0, 512) : "",
       aliases: strings(aliases),
-      variants: strings(variants),
+      variants: strings(variants).filter((value) => /^[a-zA-Z0-9_-]{1,64}$/.test(value)),
     };
     entries.push(entry);
     const site = brandSite(url);
@@ -202,14 +201,14 @@ export function variantOf(entry: LogoEntry): string {
   );
 }
 
-const dataDir = () => process.env.MAIL_DATA_DIR || ".data";
+const dataDir = () => path.resolve(process.env.MAIL_DATA_DIR || ".data");
 const cacheDir = (dir: string) => path.join(dir, "logos");
 const registryFile = (dir: string) => path.join(dir, "logo-registry.json");
 
 // Every cache is keyed by the data directory it belongs to, so a second data
 // directory in the same process cannot read another one's registry.
 type State = {
-  misses: Set<string>;
+  misses: ByteCache<boolean>;
   registry?: Promise<RegistryIndex | null>;
   retryAt?: number;
 };
@@ -217,7 +216,8 @@ const states = new Map<string, State>();
 function stateFor(dir: string) {
   let state = states.get(dir);
   if (!state) {
-    state = { misses: new Set() };
+    state = { misses: new ByteCache<boolean>(512, 512, registryRetry, () => 1) };
+    if (states.size >= 4) states.delete(states.keys().next().value!);
     states.set(dir, state);
   }
   return state;
@@ -228,26 +228,25 @@ async function downloadRegistry(): Promise<unknown[] | null> {
     const response = await fetch(registryUrl, {
       signal: AbortSignal.timeout(requestTimeout * 2),
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const { icons } = (await response.json()) as { icons?: unknown };
-    if (!Array.isArray(icons)) throw new Error("the registry listed no icons");
+    if (!response.ok) { await response.body?.cancel(); throw new Error("Registry unavailable."); }
+    const { icons } = JSON.parse((await readResponseBytes(response, 8 * 1024 * 1024)).toString("utf8")) as { icons?: unknown };
+    if (!Array.isArray(icons) || icons.length > 20000) throw new Error("Registry entry limit exceeded.");
     return icons;
-  } catch (error) {
-    console.warn(
-      `theSVG registry unavailable: ${error instanceof Error ? error.message : error}`,
-    );
+  } catch {
+    // Do not include untrusted provider text in logs.
     return null;
   }
 }
 
 function cachedRegistry(file: string) {
-  if (!existsSync(file)) return null;
+  const cached = readCacheFile(file, 9 * 1024 * 1024);
+  if (!cached) return null;
   try {
-    const { fetchedAt, icons } = JSON.parse(readFileSync(file, "utf8")) as {
+    const { fetchedAt, icons } = JSON.parse(cached.body.toString("utf8")) as {
       fetchedAt: number;
       icons: unknown;
     };
-    return Array.isArray(icons) ? { fetchedAt, icons } : null;
+    return Number.isFinite(fetchedAt) && Array.isArray(icons) && icons.length <= 20000 ? { fetchedAt, icons } : null;
   } catch {
     return null;
   }
@@ -285,10 +284,9 @@ function registry(dir: string): Promise<RegistryIndex | null> {
   const promise = readRegistry(dir);
   state.registry = promise;
   state.retryAt = 0;
-  // A loaded registry is kept for the session; a missing one is retried later
-  // rather than on every request.
+  // Refresh a loaded registry after expiry; retry an unavailable one later.
   void promise.then((index) => {
-    if (!index) state.retryAt = Date.now() + registryRetry;
+    state.retryAt = Date.now() + (index ? registryMaxAge : registryRetry);
   });
   return promise;
 }
@@ -299,8 +297,8 @@ async function downloadIcon(entry: LogoEntry): Promise<LogoImage | null> {
       `${iconUrl}/${encodeURIComponent(entry.slug)}/${variantOf(entry)}.svg`,
       { signal: AbortSignal.timeout(requestTimeout) },
     );
-    if (!response.ok) return null;
-    const body = Buffer.from(await response.arrayBuffer());
+    if (!response.ok) { await response.body?.cancel(); return null; }
+    const body = await readResponseBytes(response, maxBytes);
     // Sniffed rather than trusted: the bytes are served to the renderer from
     // this origin, so they must be the vector shape the file claims to be.
     if (!body.length || body.length > maxBytes) return null;
@@ -316,42 +314,55 @@ type Outcome =
   | { status: "found"; image: LogoImage }
   | { status: "missing" | "failed" };
 
-async function resolveLogo(value: string): Promise<Outcome> {
-  const dir = dataDir();
+async function resolveLogoIn(dir: string, value: string): Promise<Outcome> {
   const domain = normalizeDomain(value);
   if (!domain || isFreeMail(domain)) return { status: "missing" };
   const file = path.join(cacheDir(dir), `${domain}.svg`);
-  if (existsSync(file))
-    try {
-      return {
-        status: "found",
-        image: { body: readFileSync(file), type: "image/svg+xml" },
-      };
-    } catch {
-      // Fall through to a fresh download.
-    }
+  prepareImageCache(cacheDir(dir));
+  const disk = readCacheFile(file, maxBytes);
+  const previous = disk?.body.length && bodyPattern.test(disk.body.subarray(0, 256).toString("utf8"))
+    ? { status: "found" as const, image: { body: disk.body, type: "image/svg+xml" } } : null;
+  if (previous && disk?.fresh) return previous;
   const state = stateFor(dir);
-  if (state.misses.has(domain)) return { status: "missing" };
+  if (state.misses.get(domain)) return previous || { status: "missing" };
   const index = await registry(dir);
-  if (!index) return { status: "failed" };
+  if (!index) return previous || { status: "failed" };
   const entry = matchDomain(index, domain);
   if (!entry) {
-    // Not in the library, which will not change before the registry is
-    // refreshed, so the domain is not looked up again this session.
-    state.misses.add(domain);
-    return { status: "missing" };
+    // Cache unknown domains briefly with a fixed entry budget.
+    state.misses.set(domain, true);
+    return previous || { status: "missing" };
   }
   const image = await downloadIcon(entry);
   // A download failure is left unremembered: it is usually the network, and
   // the route's 404 is still cached by the renderer.
-  if (!image) return { status: "failed" };
+  if (!image) return previous || { status: "failed" };
   try {
     mkdirSync(cacheDir(dir), { recursive: true, mode: 0o700 });
-    writeFileSync(file, image.body, { mode: 0o600 });
+    writeFileSync(`${file}.tmp`, image.body, { mode: 0o600 });
+    renameSync(`${file}.tmp`, file);
+    trimImageCache(cacheDir(dir));
   } catch {
     // A logo is decorative: a cache that cannot be written is not an error.
   }
   return { status: "found", image };
+}
+
+const pending = new Map<string, Promise<Outcome>>();
+const limited = workLimit(4, 32);
+async function resolveLogo(value: string): Promise<Outcome> {
+  const dir = dataDir();
+  const domain = normalizeDomain(value);
+  if (!domain || isFreeMail(domain)) return { status: "missing" };
+  const key = path.join(dir, domain);
+  const existing = pending.get(key);
+  if (existing) return existing;
+  if (pending.size >= 36) return { status: "failed" };
+  const work = limited(() => resolveLogoIn(dir, domain))
+    .catch((): Outcome => ({ status: "failed" }))
+    .finally(() => { pending.delete(key); });
+  pending.set(key, work);
+  return work;
 }
 
 // The route asks for bytes and falls back to the favicon when there are none.

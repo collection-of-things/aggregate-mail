@@ -9,7 +9,7 @@ import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import http from "node:http";
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { Mail } from "../shared/types.js";
+import type { Mail, MailSummary } from "../shared/types.js";
 
 if (!process.env.EMC2_MATERIALIZATION_CHILD) {
   for (const scenario of ["contracts", "external-write-race", "state-disconnect", "state-disconnect-cold"]) test(`encrypted mail materialization: ${scenario}`, () => {
@@ -56,7 +56,7 @@ if (!process.env.EMC2_MATERIALIZATION_CHILD) {
     } finally { raw.close(); store.closeStore(); }
   });
 } else if (process.env.EMC2_MATERIALIZATION_CHILD?.startsWith("state-disconnect")) {
-  test("a disconnected state decode stops while another request receives a complete coherent snapshot", async () => {
+  test("a disconnected summary copy stops while another request receives a complete coherent snapshot", async () => {
     const store = await import("./store.js");
     const { startServer } = await import("./index.js");
     const { quietImapWatch, quietGmailRevision } = await import("./imap-watch-fixture.js");
@@ -70,6 +70,7 @@ if (!process.env.EMC2_MATERIALIZATION_CHILD) {
     const url = `http://127.0.0.1:${address.port}/api/state`;
     const headers = { "X-Desktop-Token": "synthetic-session", Connection: "close" };
     const parse = JSON.parse;
+    const clone = structuredClone;
     const emit = http.ServerResponse.prototype.emit;
     const serverEmit = http.Server.prototype.emit;
     const requestContext = new AsyncLocalStorage<string>();
@@ -103,16 +104,16 @@ if (!process.env.EMC2_MATERIALIZATION_CHILD) {
         }
         return Reflect.apply(emit, this, [event, ...args]);
       } as typeof emit;
-      JSON.parse = ((value: string, ...args: unknown[]) => {
-        const result = Reflect.apply(parse, JSON, [value, ...args]);
-        if (value.startsWith('{"id":') && value.includes("SYNTHETIC-DISCONNECT-BODY-")) {
+      globalThis.structuredClone = ((value: unknown, ...args: unknown[]) => {
+        const result = Reflect.apply(clone, globalThis, [value, ...args]);
+        if (value && typeof value === "object" && "contentVersion" in value) {
           if (requestContext.getStore() === "/api/state") {
             decoded++;
             if (!cold && decoded === 1) setImmediate(() => abandoned!.destroy());
           } else if (requestContext.getStore() === "/api/state?probe=live") liveDecoded++;
         }
         return result;
-      }) as typeof JSON.parse;
+      }) as typeof structuredClone;
       abandoned = http.get(url, { headers }); abandoned.on("error", () => {});
       // Keep a live caller while the first closes during initialization or decode.
       live = getLive();
@@ -124,7 +125,7 @@ if (!process.env.EMC2_MATERIALIZATION_CHILD) {
       const data = parse(liveBody);
       assert.equal(data.mailMode, "snapshot"); assert.equal(data.messages.length, 513);
       assert.equal(new Set(data.messages.map((m: Mail) => m.id)).size, 513);
-      assert.ok(data.messages.every((m: Mail) => m.body && m.html && m.archived && m.direction === "sent"));
+      assert.ok(data.messages.every((m: MailSummary) => !("body" in m) && !("html" in m) && m.contentVersion && m.archived && m.direction === "sent"));
       assert.equal(liveDecoded, 513);
       if (cold) assert.equal(decodedAtClose, 0, "disconnect during shared initialization precedes decoding");
       else assert.ok(decodedAtClose > 0 && decodedAtClose < 513, `closed after decoding ${decodedAtClose}/513 records`);
@@ -136,7 +137,7 @@ if (!process.env.EMC2_MATERIALIZATION_CHILD) {
       assert.equal(cursor.mailCursor, data.mailCursor); assert.equal(cursor.mailMode, "delta"); assert.deepEqual(cursor.messages, []);
       assert.equal((await (await fetch(url, { headers })).json()).messages.length, 513, "later clients can still bootstrap");
     } finally {
-      clearTimeout(deadline); JSON.parse = parse; http.ServerResponse.prototype.emit = emit; http.Server.prototype.emit = serverEmit;
+      clearTimeout(deadline); globalThis.structuredClone = clone; http.ServerResponse.prototype.emit = emit; http.Server.prototype.emit = serverEmit;
       abandoned?.destroy(); server.closeAllConnections();
       await new Promise<void>(resolve => server.close(() => resolve())); store.closeStore();
     }
@@ -213,7 +214,12 @@ if (!process.env.EMC2_MATERIALIZATION_CHILD) {
       try {
         const full = await fetch(url, { headers }); assert.equal(full.status, 200); assert.equal(full.headers.get("cache-control"), "no-store");
         const data = await full.json(); assert.equal(data.messages.length, 129); assert.equal(data.mailMode, "snapshot");
-        assert.ok(data.messages.every((m: Mail) => m.body && m.html && m.archived && m.direction === "sent"));
+        assert.ok(data.messages.every((m: MailSummary) => !("body" in m) && !("html" in m) && m.contentVersion && m.archived && m.direction === "sent"));
+        const first: MailSummary = data.messages[0];
+        const bodyResponse = await fetch(url.replace("/state", `/messages/${encodeURIComponent(first.id)}/body?accountId=${encodeURIComponent(first.accountId)}&contentVersion=${first.contentVersion}`), { headers });
+        assert.equal(bodyResponse.status, 200);
+        const body = await bodyResponse.json();
+        assert.equal(body.mail.body, store.get("mail", first.id)!.body); assert.equal(body.mail.html, store.get("mail", first.id)!.html);
         const same = await (await fetch(`${url}?mailCursor=${encodeURIComponent(data.mailCursor)}`, { headers })).json();
         assert.deepEqual(same.messages, []); assert.deepEqual(same.removedMailIds, []);
         const missing = await fetch(url.replace("/state", "/messages/missing"), { method: "PATCH", headers: { ...headers, "Content-Type": "application/json", "X-CSRF-Token": data.csrf }, body: JSON.stringify({ action: "pin" }) });

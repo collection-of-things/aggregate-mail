@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useId, type ReactNode } from "react";
-import type { Draft, Mail, State, McpSettings } from "../../shared/types";
+import type { Draft, RendererMail as Mail, RendererState as State, McpSettings } from "../../shared/types";
 import type { AgentGrant, AgentProposal, AgentTool, Commitment, CommitmentStatus, Project } from "../../shared/workspace";
 import type { Api } from "../api";
 import { accountLabel } from "../mail-ui";
@@ -7,7 +7,7 @@ import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
 import { PrivateField } from "../ui/PrivateField";
 import { useContext } from "react";
 import { collectPrivateNames } from "../privacy";
-import { compileMailSearch } from "../mail-search";
+import { useMailSearch } from "../use-mail-search";
 import { Segmented } from "../ui/Segmented";
 import { Dialog } from "../ui/Dialog";
 import { ArrowLeft } from "../ui/icons";
@@ -33,7 +33,7 @@ function Source({ id, state, onOpen }: { id: string; state: State; onOpen: (mail
 export function SourceSelect({ state, selected, onChange, multiple = false, accountFilter }: { state: State; selected: string[]; onChange: (ids: string[]) => void; multiple?: boolean; accountFilter: string }) {
   const [query, setQuery] = useState("");
   const sourceGroup = useId();
-  const search = useMemo(() => compileMailSearch(query, state.accounts), [query, state.accounts]);
+  const search = useMailSearch(query, state.accounts, state.messages);
   const matches = state.messages.filter((mail) => (accountFilter === "all" || mail.accountId === accountFilter) && search.matches(mail)).sort((a, b) => b.date - a.date);
   const visible = [...new Map([...state.messages.filter((mail) => selected.includes(mail.id)), ...matches.slice(0, query.trim() ? 10 : 5)].map((mail) => [mail.id, mail])).values()];
   const { on: privacy } = useContext(PrivacyContext);
@@ -42,7 +42,7 @@ export function SourceSelect({ state, selected, onChange, multiple = false, acco
     <details className="work-source-search"><summary>Find more emails</summary>
       <PrivateField label="Find a source email" value={query} onChange={setQuery} />
     </details>
-    <p className="work-meta">{search.error || (query.trim() ? `${matches.length} matches. Showing up to 10 plus selected emails.` : "Recent emails first. Selected emails stay visible.")}</p>
+    <p className="work-meta">{search.error || (search.pending ? "Searching cached mail…" : query.trim() ? `${matches.length} matches. Showing up to 10 plus selected emails.` : "Recent emails first. Selected emails stay visible.")}</p>
     <div>{selected.filter((id) => !state.messages.some((mail) => mail.id === id)).map((id) => <label key={id}><input type={multiple ? "checkbox" : "radio"} name={multiple ? undefined : sourceGroup} checked onChange={() => { if (multiple) onChange(selected.filter((value) => value !== id)); }} />Selected evidence unavailable in cache</label>)}
     {visible.map((mail) => <MailPrivacy key={mail.id} mail={mail}><label className="work-source-option">
       <input type={multiple ? "checkbox" : "radio"} name={multiple ? undefined : sourceGroup} checked={selected.includes(mail.id)} onChange={() => onChange(multiple ? selected.includes(mail.id) ? selected.filter((id) => id !== mail.id) : [...selected, mail.id] : [mail.id])} />

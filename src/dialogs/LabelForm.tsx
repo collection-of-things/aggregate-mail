@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { GmailLabel, Mail } from "../../shared/types";
+import type { GmailLabel, RendererMail as Mail } from "../../shared/types";
 import { Redact } from "../ui/Privacy";
 
 export function LabelForm({ mail, labels, busy, onSave }: {
