@@ -1630,8 +1630,53 @@ A separate passive Electron comparison did not produce an accepted paired
 result. The candidate completed its three-minute startup/idle and native
 hide/show sequence, but Fleet returned exit 125 at cleanup confirmation.
 Later empty-scope observations do not clear that failed containment result.
-No whole-app or per-process RAM reduction is established. The comparison used
+Those Linux runs establish no whole-app or per-process RAM reduction. The comparison used
 normal Today state in an external default-app wrapper, not installed macOS
 interaction. It did not exercise mail-list navigation or the five-minute
 automatic maintenance probe. Native, installed, real-provider and power-loss
 acceptance remain unverified.
+
+### Native Mac memory validation
+
+Native arm64 builds of `e166227` and `57a300c` used Node 26.12.1, npm 11.20.0,
+Electron 44.7.0 and Xcode 27.1. Both passed strict builds, unpublished packaging,
+deep strict ad-hoc signature checks, dependency closure, packaged startup and
+native Keychain protection. No installed app was replaced.
+
+Two valid paired runs used 1,000 synthetic messages; three used 5,000. Each ran
+the unchanged production ASAR through the same external default-app wrapper,
+with 120 seconds idle, five native hide/show cycles and final idle to 180
+seconds. Readiness required the exact snapshot count, Inbox badge, Today view,
+completed sync and zero body fetches. External provider traffic was blocked.
+The viewport and appearance were matched. The normal Today view had zero mail
+rows, so these runs measure retained state rather than mail-list interaction.
+
+Median final RSS across valid paired runs, in MiB:
+
+| Messages | Process | Baseline | Candidate |
+| --- | --- | ---: | ---: |
+| 1,000 | Main | 242.26 | 227.26 |
+| 1,000 | Renderer | 120.22 | 110.74 |
+| 5,000 | Main | 380.25 | 212.12 |
+| 5,000 | Renderer | 166.19 | 112.82 |
+| 5,000 | GPU | 82.09 | 70.78 |
+| 5,000 | Utility | 52.55 | 45.61 |
+
+The sum of measured process physical footprints fell by 24.96%, 27.62% and
+23.07% in the three 5,000-message pairs, a median decrease of 24.96%. This is
+repeatable within this synthetic larger-cache workload. The 1,000-message
+physical-footprint changes were inconsistent at -1.82% and +7.77%; no consistent
+overall saving is established for that size. RSS includes shared pages and
+must not be interpreted as unique physical memory.
+
+Every accepted arm passed payload exit, native supervisor cleanup, mail
+ciphertext, protected-key, identity and stable-account preservation checks.
+An interrupted arm was excluded. No completed passing pair was rerun. The
+original installed bundle was unchanged and reopened normally after each batch.
+All owned process groups and temporary LaunchAgents were removed.
+
+The wrapper reports `app.isPackaged=false`; packaged startup is separate proof.
+Interactive reads, long-running sync, the five-minute automatic-maintenance
+probe and exact installed-build performance equivalence remain unverified.
+These observations do not establish a general RAM guarantee or explain every
+large installed-profile footprint.
