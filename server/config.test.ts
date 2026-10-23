@@ -62,20 +62,54 @@ test("connection settings preserve other config and reject line injection", asyn
   }
 });
 
-function isolatedConfig(directory: string, source: string) {
+function isolatedConfig(directory: string, source: string, prototype?: "ordinary" | "null") {
   const env: NodeJS.ProcessEnv = { ...process.env, MAIL_DATA_DIR: directory, MAIL_DATA_KEY: "",
     MAIL_CONFIG_PATH: path.join(directory, "settings.env") };
   for (const name of ["NODE_TEST_CONTEXT", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "OPENAI_API_KEY", "TYPESAFE_API_KEY", "TYPESAFE_PROVIDER"]) delete env[name];
-  const child = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", source], { env, encoding: "utf8", timeout: 30000 });
+  const parser = prototype === undefined ? "" : `
+    import util from 'node:util';
+    import { syncBuiltinESMExports as syncParserExports } from 'node:module';
+    const parse = util.parseEnv;
+    util.parseEnv = (text) => {
+      const values = Object.fromEntries(Object.entries(parse(text)));
+      // Node 24 drops this fixture key. Exercise own-key handling on both runtimes.
+      if (text.split('\\n').includes('__proto__=kept-proto')) Object.defineProperty(values, '__proto__', { value: 'kept-proto', enumerable: true, configurable: true, writable: true });
+      return Object.setPrototypeOf(values, ${prototype === "null" ? "null" : "Object.prototype"});
+    };
+    const initialEnvPrototype = Object.getPrototypeOf(process.env);
+    const initialObjectPrototype = Object.getOwnPropertyDescriptors(Object.prototype);
+    syncParserExports();
+  `;
+  const child = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", parser + source], { env, encoding: "utf8", timeout: 30000 });
   assert.equal(child.status, 0, child.stdout + child.stderr);
 }
 
-test("encrypted settings migrate, retain launch precedence and recover after failed plaintext cleanup", () => {
+test("empty and missing configuration accept both parser prototypes", async (t) => {
+  for (const prototype of ["ordinary", "null"] as const) for (const present of [false, true]) await t.test(`${prototype}, ${present ? "empty" : "missing"}`, () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "emc2-config-empty-"));
+    if (present) writeFileSync(path.join(directory, "settings.env"), "");
+    try {
+      isolatedConfig(directory, `
+        import assert from 'node:assert/strict'; import fs from 'node:fs';
+        const c = await import('./server/config.ts'); const s = await import('./server/store.ts');
+        c.loadConfiguration();
+        assert.equal(s.get('config','connection'),undefined);
+        assert.equal(fs.existsSync(process.env.MAIL_CONFIG_PATH),${present});
+        if (${present}) assert.equal(fs.readFileSync(process.env.MAIL_CONFIG_PATH,'utf8'),'');
+        s.closeStore();
+      `, prototype);
+    } finally { rmSync(directory,{recursive:true,force:true}); }
+  });
+});
+
+for (const prototype of ["ordinary", "null"] as const) test(`encrypted settings migrate, retain launch precedence and recover after failed plaintext cleanup (${prototype} parser)`, () => {
   const directory = mkdtempSync(path.join(tmpdir(), "emc2-config-migration-"));
-  const legacy = '# Keep this\nAPP_URL=http://127.0.0.1:3001\nexport GOOGLE_CLIENT_SECRET="synthetic-first\nsecond-line"\nGOOGLE_CLIENT_ID=legacy-client\nOTHER="keep\nGOOGLE_CLIENT_ID=inside-unrelated-value"\n';
+  const legacy = '# Keep this\nAPP_URL=http://127.0.0.1:3001\nexport GOOGLE_CLIENT_SECRET="synthetic-first\nsecond-line"\nGOOGLE_CLIENT_ID=legacy-client\nOTHER="keep\nGOOGLE_CLIENT_ID=inside-unrelated-value"\n__proto__=kept-proto\nconstructor=kept-constructor\ntoString=kept-string\n';
+  const retained = '# Keep this\nAPP_URL=http://127.0.0.1:3001\nOTHER="keep\nGOOGLE_CLIENT_ID=inside-unrelated-value"\n__proto__=kept-proto\nconstructor=kept-constructor\ntoString=kept-string\n';
+  const run = (source: string) => isolatedConfig(directory, source, prototype);
   writeFileSync(path.join(directory, "settings.env"), legacy);
   try {
-    isolatedConfig(directory, `
+    run(`
       import assert from 'node:assert/strict';
       import fs from 'node:fs';
       import { syncBuiltinESMExports } from 'node:module';
@@ -87,10 +121,10 @@ test("encrypted settings migrate, retain launch precedence and recover after fai
       assert.throws(()=>c.loadConfiguration(),/synthetic cleanup failure/);
       fs.renameSync=original; syncBuiltinESMExports();
       assert.equal(s.get('config','connection').GOOGLE_CLIENT_ID,'legacy-client');
-      assert.ok(fs.readFileSync(process.env.MAIL_CONFIG_PATH,'utf8').includes('synthetic-first'));
+      assert.equal(fs.readFileSync(process.env.MAIL_CONFIG_PATH,'utf8'),${JSON.stringify(legacy)});
       s.closeStore();
     `);
-    isolatedConfig(directory, `
+    run(`
       import assert from 'node:assert/strict';
       import fs from 'node:fs';
       import { DatabaseSync } from 'node:sqlite';
@@ -101,20 +135,34 @@ test("encrypted settings migrate, retain launch precedence and recover after fai
       assert.equal(process.env.GOOGLE_CLIENT_ID,'launch-client');
       assert.equal(process.env.GOOGLE_CLIENT_SECRET,'synthetic-first\\nsecond-line');
       assert.equal(process.env.OTHER,'keep\\nGOOGLE_CLIENT_ID=inside-unrelated-value');
+      assert.equal(process.env.__proto__,'kept-proto');
+      assert.equal(process.env.constructor,'kept-constructor');
+      assert.equal(process.env.toString,'kept-string');
       const cleaned = fs.readFileSync(process.env.MAIL_CONFIG_PATH,'utf8');
+      assert.equal(cleaned,${JSON.stringify(retained)});
       assert.ok(!cleaned.includes('synthetic-first'));
       assert.ok(cleaned.includes('# Keep this'));
       assert.ok(cleaned.includes('GOOGLE_CLIENT_ID=inside-unrelated-value'));
       c.saveConfiguration({GOOGLE_CLIENT_SECRET:'synthetic-updated',OPENAI_API_KEY:'synthetic-openai'});
+      assert.equal(fs.readFileSync(process.env.MAIL_CONFIG_PATH,'utf8'),${JSON.stringify(retained)});
+      assert.equal(Object.getPrototypeOf(process.env),initialEnvPrototype);
+      assert.deepEqual(Object.getOwnPropertyDescriptors(Object.prototype),initialObjectPrototype);
       assert.equal(process.env.GOOGLE_CLIENT_ID,'launch-client');
       const raw = new DatabaseSync(process.env.MAIL_DATA_DIR+'/mail.sqlite');
       const value = raw.prepare("SELECT value FROM records WHERE kind='config'").get().value;
       assert.ok(!value.includes('synthetic-updated')); raw.close(); s.closeStore();
     `);
-    isolatedConfig(directory, `
+    run(`
       import assert from 'node:assert/strict';
+      import fs from 'node:fs';
       const c = await import('./server/config.ts'); const s = await import('./server/store.ts');
       c.loadConfiguration();
+      assert.equal(fs.readFileSync(process.env.MAIL_CONFIG_PATH,'utf8'),${JSON.stringify(retained)});
+      assert.equal(process.env.__proto__,'kept-proto');
+      assert.equal(process.env.constructor,'kept-constructor');
+      assert.equal(process.env.toString,'kept-string');
+      assert.equal(Object.getPrototypeOf(process.env),initialEnvPrototype);
+      assert.deepEqual(Object.getOwnPropertyDescriptors(Object.prototype),initialObjectPrototype);
       assert.equal(process.env.GOOGLE_CLIENT_ID,'legacy-client');
       assert.equal(process.env.GOOGLE_CLIENT_SECRET,'synthetic-updated');
       assert.equal(process.env.OPENAI_API_KEY,'synthetic-openai'); s.closeStore();
@@ -122,11 +170,12 @@ test("encrypted settings migrate, retain launch precedence and recover after fai
   } finally { rmSync(directory,{recursive:true,force:true}); }
 });
 
-test("settings write and readback failures retain legacy plaintext and prior durable settings", () => {
+for (const prototype of ["ordinary", "null"] as const) test(`settings write and readback failures retain legacy plaintext and prior durable settings (${prototype} parser)`, () => {
   const directory = mkdtempSync(path.join(tmpdir(), "emc2-config-failure-"));
+  const run = (source: string) => isolatedConfig(directory, source, prototype);
   writeFileSync(path.join(directory,"settings.env"),'GOOGLE_CLIENT_SECRET=synthetic-legacy\nKEEP=value\n');
   try {
-    isolatedConfig(directory, `
+    run(`
       import assert from 'node:assert/strict';
       import fs from 'node:fs'; import { DatabaseSync } from 'node:sqlite';
       const c = await import('./server/config.ts'); const s = await import('./server/store.ts');
@@ -143,7 +192,7 @@ test("settings write and readback failures retain legacy plaintext and prior dur
       raw.exec('DROP TRIGGER bad_readback');
       raw.close(); s.closeStore();
     `);
-    isolatedConfig(directory, `
+    run(`
       import assert from 'node:assert/strict';
       const c = await import('./server/config.ts'); const s = await import('./server/store.ts');
       c.loadConfiguration();

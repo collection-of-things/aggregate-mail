@@ -1515,6 +1515,12 @@ A failed cleanup retries later; no plaintext backup is created. Earlier copies
 and backups are not securely erased. Existing databases with missing or invalid
 keys fail closed. See [ADR 0057](adr/0057-encrypted-settings-and-storage-maintenance.md).
 
+Plaintext-cleanup validation compares the parser's own key/value entries. It
+accepts ordinary and null-prototype dictionaries, including Node 26 output,
+without changing encryption readback, launch precedence or cleanup atomicity.
+Regression cases exercise both parser shapes, empty and missing files, special
+property names, multiline settings and failure recovery.
+
 Authenticated `POST /api/storage/compact` requires the existing desktop token,
 origin and CSRF checks and a strict `{"confirm":true}` JSON body. It pauses
 admission, drains admitted mail/provider work and checkpoints WAL before
