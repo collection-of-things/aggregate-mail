@@ -1561,7 +1561,8 @@ payload, not V8 heap or transient normalization allocations.
 
 ### Storage and memory measurements
 
-Task #92 measured pristine `e166227` against the candidate on Linux x64 with
+Task #92 measured pristine `e166227` against the initial security/storage layer
+`7227d06` on Linux x64 with
 Node 24.22.1, Electron 44.7.0 and electron-builder 26.17.0. Each size used one
 paired run, baseline first, with identical synthetic mail. The first mail-data
 call was the default snapshot: full mail before, summaries after. Candidate
@@ -1607,3 +1608,30 @@ pairs fell from 246,000 and 150,045 to zero; median scan times changed from
 12.776 to 1.183 ms and 9.667 to 1.204 ms. The percent-encoded control retained
 its mapping allocations. These synthetic Node allocation and CPU observations
 do not establish lower Electron or installed macOS memory.
+
+### Combined stack verification
+
+The integrated automatic-maintenance and privacy candidate `a69cbea` passed
+1,032 tests across 110 files, a fresh strict build, MCP checks, sandboxed source
+startup, complete unpublished Linux packaging and sandboxed packaged startup.
+All eight checks returned both payload and Fleet exit zero with active memory,
+zero-swap and deadline limits and cleanup captured. Independent source review
+resolved both Calendar-drain and maintenance-diagnostic findings without new
+actionable findings.
+
+The final complete unpacked package contains all 215 production package
+versions and 351 dependency edges. Its logical regular-file size is
+376,764,296 bytes, 40,673 bytes above the verified `e166227` baseline.
+`app.asar` is 80,456,653 bytes. These replace the earlier layer's package totals
+for the integrated candidate; source-only privacy timing is still a separate
+experiment.
+
+A separate passive Electron comparison did not produce an accepted paired
+result. The candidate completed its three-minute startup/idle and native
+hide/show sequence, but Fleet returned exit 125 at cleanup confirmation.
+Later empty-scope observations do not clear that failed containment result.
+No whole-app or per-process RAM reduction is established. The comparison used
+normal Today state in an external default-app wrapper, not installed macOS
+interaction. It did not exercise mail-list navigation or the five-minute
+automatic maintenance probe. Native, installed, real-provider and power-loss
+acceptance remain unverified.
