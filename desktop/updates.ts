@@ -13,9 +13,13 @@ import { parseUpdateInfo } from "electron-updater/out/providers/Provider.js";
 import type { UpdateCommand, UpdateReason, UpdateState } from "../shared/updates.js";
 import { trustedWindowSender } from "./navigation.js";
 
-const repository = "screen-devs/aggregate-mail";
-const latestRelease = `https://api.github.com/repos/${repository}/releases/latest`;
-const downloadRoot = `https://github.com/${repository}/releases/download/`;
+// Releases move to collection-of-things. Check it first; until it publishes a
+// newer stable release, the original repository still serves updates. Each
+// release must link only to its own repository's downloads.
+const releaseSources = ["collection-of-things/aggregate-mail", "screen-devs/aggregate-mail"].map((repository) => ({
+  latest: `https://api.github.com/repos/${repository}/releases/latest`,
+  root: `https://github.com/${repository}/releases/download/`,
+}));
 const maxInstallerSize = 1024 * 1024 * 1024;
 const metadataTimeout = 15000;
 const downloadTimeout = 10 * 60000;
@@ -55,7 +59,7 @@ export function unsupportedReason(target: Target): UpdateReason | undefined {
   if (target.platform === "linux" && (!target.appImage || !path.isAbsolute(target.appImage))) return "appimage";
 }
 
-export function releaseAssets(value: unknown, target: Target) {
+export function releaseAssets(value: unknown, target: Target, roots = releaseSources.map((source) => source.root)) {
   if (!value || typeof value !== "object") return fail("candidate");
   const release = value as { draft?: unknown; prerelease?: unknown; tag_name?: unknown; assets?: unknown };
   if (release.draft !== false || release.prerelease !== false || typeof release.tag_name !== "string" ||
@@ -65,6 +69,9 @@ export function releaseAssets(value: unknown, target: Target) {
   if (!versionParts(target.version, false)) return fail("candidate");
   if (!isHigherStableVersion(version, target.version)) return null;
   const assets = release.assets as Asset[];
+  const first = assets[0]?.browser_download_url;
+  const downloadRoot = roots.find((root) => typeof first === "string" && first.startsWith(root));
+  if (!downloadRoot) return fail("candidate");
   const seen = new Set<string>();
   for (const asset of assets) {
     if (!asset || typeof asset.name !== "string" || asset.name.length > 200 || seen.has(asset.name) ||
@@ -366,7 +373,16 @@ export class Updates {
     this.candidate = undefined; this.updater = undefined; this.downloaded = undefined;
     this.set({ phase: "checking" });
     const read = this.deps.read || readMetadata;
-    const release = releaseAssets(JSON.parse(await read(latestRelease, 2 * 1024 * 1024)), this.deps.target);
+    let release: ReturnType<typeof releaseAssets> = null;
+    for (const [index, source] of releaseSources.entries()) {
+      try {
+        release = releaseAssets(JSON.parse(await read(source.latest, 2 * 1024 * 1024)), this.deps.target, [source.root]);
+      } catch (error) {
+        // A missing or unusable release in the new repository falls back to the original one.
+        if (index === releaseSources.length - 1) throw error;
+      }
+      if (release) break;
+    }
     if (!release) { this.set({ phase: "current" }); return; }
     const candidate = validateCandidate(release, await read(release.manifest.browser_download_url, 65536));
     const updater = await (this.deps.create || createUpdater)(candidate, this.deps.target);

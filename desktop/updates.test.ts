@@ -52,6 +52,18 @@ test("release preflight rejects foreign URLs, CI filenames, missing metadata and
   ]) assert.throws(() => releaseAssets(invalid, target));
 });
 
+test("releases from the transferred repository qualify, but one release cannot mix owners", () => {
+  const moved = (asset: { browser_download_url: string }) => ({ ...asset, browser_download_url: asset.browser_download_url.replace("/screen-devs/", "/collection-of-things/") });
+  const other = (asset: { browser_download_url: string }) => ({ ...asset, browser_download_url: asset.browser_download_url.replace("/screen-devs/", "/someone-else/") });
+  const transferred = { ...release(), assets: release().assets.map(moved) };
+  assert.equal(releaseAssets(transferred, target)!.asset.browser_download_url,
+    "https://github.com/collection-of-things/aggregate-mail/releases/download/v0.1.7/" + name);
+  assert.ok(validateCandidate(releaseAssets(transferred, target)!, manifest()));
+  assert.throws(() => releaseAssets({ ...release(), assets: [moved(asset(name)), asset("latest.yml", 300)] }, target));
+  assert.throws(() => releaseAssets({ ...release(), assets: [asset(name), moved(asset("latest.yml", 300))] }, target));
+  assert.throws(() => releaseAssets({ ...release(), assets: release().assets.map(other) }, target));
+});
+
 test("release filenames survive GitHub upload and match builder architecture names", () => {
   for (const [platform, filename, manifestName] of [
     ["win32", "Emc2-0.1.7-win-x64.exe", "latest.yml"],
@@ -596,6 +608,8 @@ function fixture(overrides: Partial<ConstructorParameters<typeof Updates>[0]> = 
   const updates = new Updates({ target, publish: (state) => states.push(state),
     read: async (url) => {
       calls.push("read");
+      // The new repository has no release yet, so the check falls back to the original one.
+      if (url === "https://api.github.com/repos/collection-of-things/aggregate-mail/releases/latest") throw new Error("Not Found");
       assert.ok(url === "https://api.github.com/repos/screen-devs/aggregate-mail/releases/latest" || url === root + "latest.yml");
       return url.includes("api.github.com") ? JSON.stringify(release()) : manifest();
     },
@@ -610,6 +624,23 @@ function fixture(overrides: Partial<ConstructorParameters<typeof Updates>[0]> = 
     setVerify: (fn: typeof verify) => { verify = fn; }, setAccept: (value: boolean) => { acceptClose = value; } };
 }
 type UpdaterCancellation = NonNullable<Awaited<ReturnType<NonNullable<ConstructorParameters<typeof Updates>[0]["cancellation"]>>>>;
+
+test("checks prefer the collection-of-things repository and fall back to the original one", async () => {
+  const newApi = "https://api.github.com/repos/collection-of-things/aggregate-mail/releases/latest";
+  const oldApi = "https://api.github.com/repos/screen-devs/aggregate-mail/releases/latest";
+  const moved = { ...release(), assets: release().assets.map((item) => ({ ...item, browser_download_url: item.browser_download_url.replace("/screen-devs/", "/collection-of-things/") })) };
+  const urls: string[] = [];
+  const fromNew = fixture({ read: async (url: string) => { urls.push(url); return url.includes("api.github.com") ? JSON.stringify(moved) : manifest(); } });
+  assert.equal((await fromNew.updates.command("check")).phase, "available");
+  assert.deepEqual(urls, [newApi, "https://github.com/collection-of-things/aggregate-mail/releases/download/v0.1.7/latest.yml"]);
+  urls.length = 0;
+  // A release in the new repository that links to the old one is not used; the original repository still serves it.
+  const crossLinked = fixture({ read: async (url: string) => { urls.push(url); return url.includes("api.github.com") ? JSON.stringify(release()) : manifest(); } });
+  assert.equal((await crossLinked.updates.command("check")).phase, "available");
+  assert.deepEqual(urls, [newApi, oldApi, root + "latest.yml"]);
+  const offline = fixture({ read: async () => { throw new Error("offline"); } });
+  assert.equal((await offline.updates.command("check")).phase, "error");
+});
 
 test("synthetic flow protects duplicate actions and reports progress, then drains and rehashes after accepted close", async () => {
   const f = fixture();

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Check `collection-of-things/aggregate-mail` for updates first, falling back to `screen-devs/aggregate-mail` until the new repository publishes a newer release, so installed Windows and Linux copies follow the move.
 - Allow the CI test step 20 minutes so the full serial suite can finish on hosted Intel macOS runners.
 
 - Restore Linux Ctrl+Q through normal application quit, retaining draft warnings and close-to-background behavior.
