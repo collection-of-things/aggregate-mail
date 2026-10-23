@@ -787,6 +787,7 @@ export function startServer(
         stats: storageStats,
         lastInventoryAt: () => get("maintenance", "storage")?.lastInventoryAt,
         maintain: maintainStorage,
+        report: (code) => console.warn("Automatic storage maintenance:", code),
       });
       resolve(server);
     });

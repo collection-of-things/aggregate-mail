@@ -42,6 +42,9 @@ encrypted maintenance record. Recheck space after cleanup and avoid vacuuming
 healthy databases. Success defers another attempt for six hours; failures back
 off from 30 minutes to six hours. Updates, shutdown and busy work defer attempts.
 The timer does not make synchronous SQLite vacuum cancellable.
+Explicit Calendar sync shares mail-work activity tracking and draining. Report
+automatic failures and cleanup skips with bounded allowlisted diagnostics,
+without raw errors or private data. Reporter failures do not alter backoff.
 
 ## Required proof
 

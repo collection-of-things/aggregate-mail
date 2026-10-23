@@ -15,6 +15,7 @@ type Maintenance = {
   stats: () => StorageStats;
   lastInventoryAt: () => number | undefined;
   maintain: (options: { cleanupOrphans: boolean; vacuum: "if-needed"; inventoryAt: number }) => Promise<unknown | false>;
+  report: (code: "maintenance-failed" | "cleanup-skipped" | "unknown-record-kind" | "incomplete-mail-metadata" | "incomplete-attachment-metadata") => void;
 };
 
 // The probe reads page counters only. Full attachment inventory requires an idle,
@@ -37,6 +38,11 @@ export class StorageMaintenance {
     // Synchronous SQLite VACUUM cannot be cancelled by this timer lifecycle.
   }
 
+  private report(code: Parameters<Maintenance["report"]>[0]) {
+    // Diagnostic failures must not change admission, cooldown or failure backoff.
+    try { this.service.report(code); } catch {}
+  }
+
   async probe() {
     if (this.stopped || this.running || this.now() < this.nextAttemptAt || this.service.unavailable()) return;
     this.running = true;
@@ -47,12 +53,18 @@ export class StorageMaintenance {
       const lastInventoryAt = this.service.lastInventoryAt();
       const cleanupOrphans = lastInventoryAt === undefined || this.now() < lastInventoryAt || this.now() - lastInventoryAt >= inventoryInterval;
       if (!cleanupOrphans && !storageNeedsVacuum(stats)) return;
-      if (await this.service.maintain({ cleanupOrphans, vacuum: "if-needed", inventoryAt: this.now() }) === false) return;
+      const result = await this.service.maintain({ cleanupOrphans, vacuum: "if-needed", inventoryAt: this.now() });
+      if (result === false) return;
       this.failures = 0;
       this.nextAttemptAt = this.now() + successCooldown;
+      if (typeof result === "object" && result !== null && "cleanupSkipped" in result && result.cleanupSkipped !== undefined) {
+        const code = result.cleanupSkipped;
+        this.report(code === "unknown-record-kind" || code === "incomplete-mail-metadata" || code === "incomplete-attachment-metadata" ? code : "cleanup-skipped");
+      }
     } catch {
       this.nextAttemptAt = this.now() + Math.min(failureBackoff * 2 ** this.failures, successCooldown);
       this.failures = Math.min(this.failures + 1, 4);
+      this.report("maintenance-failed");
     } finally { this.running = false; }
   }
 }

@@ -106,7 +106,7 @@ export function mountCalendar(app: express.Express) {
     const account = get("account", req.params.accountId);
     if (!account || account.provider !== "gmail") return fail(404, "Choose a Gmail account.");
     if (!get("googleCalendar", account.id)?.access) return fail(409, "Connect Google Calendar and grant calendar access first.");
-    const ok = await syncGoogleCalendar(account, from, to);
+    const ok = await trackMailWork(() => syncGoogleCalendar(account, from, to));
     res.json({ ok });
   });
   router.patch("/calendar/google/:accountId", (req, res) => {

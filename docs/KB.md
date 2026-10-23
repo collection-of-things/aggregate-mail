@@ -1535,6 +1535,10 @@ Daily cleanup does not force vacuum on a healthy database. Successful attempts
 wait six hours. Failures back off from 30 minutes to six hours. Attempt cooldowns
 are process-local. Updates and shutdown defer maintenance; failed drains resume
 ordinary admission. Closing the timer cannot cancel an active synchronous vacuum.
+Explicit Calendar sync participates in this activity and drain boundary.
+Automatic failures and conservative cleanup skips emit one allowlisted
+diagnostic per attempt; raw errors and mail data are excluded. Healthy attempts
+remain quiet, and a diagnostic reporter failure does not change backoff.
 
 Regression cases are in `server/config.test.ts` and
 `server/storage-maintenance.test.ts`. Native, power-loss and installed acceptance

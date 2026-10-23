@@ -29,6 +29,7 @@ test("optional Google Calendar OAuth, bounded provider reads and isolated encryp
   const accounts: string[] = [];
   t.mock.method(google, "calendar", (options: { auth: { credentials: { refresh_token: string } } }) => { accounts.push(options.auth.credentials.refresh_token); return api; }, {});
   let eventFailure: unknown, empty = false, looping = false, hold: Promise<void> | undefined;
+  let entered: (() => void) | undefined;
   const listCalls: calendar_v3.Params$Resource$Events$List[] = [];
   const allDay = { id: "allday", summary: "All day", start: { date: "2026-10-20" }, end: { date: "2026-10-22" } };
   t.mock.method(api.calendarList, "list", async (params: calendar_v3.Params$Resource$Calendarlist$List, options: any) => {
@@ -37,6 +38,7 @@ test("optional Google Calendar OAuth, bounded provider reads and isolated encryp
   });
   t.mock.method(api.events, "list", async (params: calendar_v3.Params$Resource$Events$List, options: any) => {
     listCalls.push(params); assert.equal(options.retry, false); assert.equal(params.singleEvents, true); assert.equal(params.showDeleted, false); assert.equal(params.maxAttendees, 50);
+    entered?.();
     await hold;
     if (eventFailure) throw eventFailure;
     if (looping) return { data: { items: [], nextPageToken: "loop" } };
@@ -46,6 +48,12 @@ test("optional Google Calendar OAuth, bounded provider reads and isolated encryp
   });
   for (const id of ["a", "b"]) store.put("account", id, { id, email: `${id}@example.test`, provider: "gmail", credentials: { refreshToken: `synthetic-${id}` } });
   store.put("calendarEvent", "local", { id: "local", source: "local", title: "Local preserved", start: "2026-10-20", end: "2026-10-21", allDay: true, attendees: [], revision: 1, updatedAt: 1 });
+  let maintenanceTick: (() => unknown) | undefined;
+  const originalInterval = globalThis.setInterval;
+  t.mock.method(globalThis, "setInterval", (callback: (...args: any[]) => void, delay?: number, ...args: any[]) => {
+    if (delay === 300000) maintenanceTick = () => callback(...args);
+    return originalInterval(callback, delay, ...args);
+  });
   const server = await backend.startServer(0, undefined, undefined, undefined, quietImapWatch, quietGmailRevision);
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
@@ -123,6 +131,61 @@ test("optional Google Calendar OAuth, bounded provider reads and isolated encryp
       assert.equal(value.events.length, 3); assert.equal(value.google?.[0].stale, false); assert.ok(store.get("calendarEvent", "local"));
       empty = false; looping = true; const before = listCalls.length; await sync(); assert.equal(listCalls.length - before, 2); assert.equal((await feed()).google?.[0].stale, true); looping = false;
       assert.equal((await sync("a", { ...range, to: "2027-01-01T00:00:00.000Z" })).status, 400);
+    });
+    await t.test("explicit sync defers maintenance, resets idle on completion and participates in update drain", async (t) => {
+      const actions = await import("./mail-actions.js");
+      let now = Date.now();
+      t.mock.method(Date, "now", () => now);
+      assert.ok(maintenanceTick);
+      let release = () => {};
+      let pending: Promise<Response> | undefined;
+      const begin = async () => {
+        const started = new Promise<void>(resolve => { entered = resolve; });
+        hold = new Promise<void>(resolve => { release = resolve; });
+        pending = sync();
+        await started;
+      };
+      try {
+        store.put("attachment", "idle-orphan", { accountId: "a", content: "YQ==" });
+        await begin();
+        assert.equal(actions.mailWorkActivity().active, 1, "explicit HTTP sync must be admitted work");
+        now += 300000; await maintenanceTick();
+        assert.equal(actions.mailIsQuiesced(), false);
+        assert.ok(store.get("attachment", "idle-orphan"));
+        release(); assert.deepEqual(await (await pending!).json(), { ok: true });
+        assert.equal(actions.mailWorkActivity().active, 0);
+        assert.equal(actions.mailWorkActivity().lastCompletedAt, now);
+        now += 59999; await maintenanceTick();
+        assert.ok(store.get("attachment", "idle-orphan"), "completion starts a fresh sixty-second idle interval");
+        now++; await maintenanceTick();
+        assert.equal(store.get("attachment", "idle-orphan"), undefined);
+
+        await begin();
+        let drained = false;
+        const drain = backend.quiesceMail(1000).then(() => { drained = true; });
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.equal(drained, false, "update/quit drain must wait for explicit sync");
+        assert.equal((await sync("b")).status, 503);
+        now += 1;
+        release(); assert.deepEqual(await (await pending!).json(), { ok: true });
+        await drain; assert.equal(drained, true);
+        assert.equal(actions.mailWorkActivity().lastCompletedAt, now);
+        backend.resumeMail();
+
+        await begin();
+        const account = store.get("account", "a")!;
+        store.put("account", "a", { ...account, credentials: { refreshToken: "synthetic-replacement" } });
+        release(); assert.deepEqual(await (await pending!).json(), { ok: false }, "a replaced account invalidates the held HTTP sync");
+        store.put("account", "a", account);
+        hold = undefined;
+        eventFailure = new Error("PRIVATE-PROVIDER-BODY");
+        now++;
+        assert.deepEqual(await (await sync()).json(), { ok: false });
+        assert.equal(actions.mailWorkActivity().lastCompletedAt, now, "failed provider reads also reset idle");
+      } finally {
+        release(); await pending; hold = undefined; entered = undefined; eventFailure = undefined;
+        backend.resumeMail();
+      }
     });
     await t.test("selection is account-bound, local-only and invalidates in-flight reads; removal cleans up", async () => {
       const before = accounts.length;
