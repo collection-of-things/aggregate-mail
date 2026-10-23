@@ -1595,3 +1595,15 @@ vacuum interruption and reopen preserved integrity, ciphertext, keys and
 uncertain drafts. Native macOS/Windows, installed acceptance, real providers,
 whole-app RAM and power loss remain unverified. These single synthetic runs
 support the stated observations, not a general performance guarantee.
+
+### Privacy scanning allocations
+
+Ordinary text without a percent sign uses direct UTF-16 offsets. Text containing
+percent signs retains the existing decoder and source-offset mapping. This
+avoids per-character mapping pairs without caching bodies or changing privacy
+ranges. Focused privacy, formatting, image-consent and reader checks passed
+90 tests with the strict build. In controlled ordinary-text fixtures, mapping
+pairs fell from 246,000 and 150,045 to zero; median scan times changed from
+12.776 to 1.183 ms and 9.667 to 1.204 ms. The percent-encoded control retained
+its mapping allocations. These synthetic Node allocation and CPU observations
+do not establish lower Electron or installed macOS memory.

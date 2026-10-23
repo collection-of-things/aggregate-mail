@@ -10,6 +10,8 @@
 - Keep custom snooze forms inside the viewport as they grow, without moving focus out of the time input.
 - Remove the right-hand sender panel and its toolbar toggle.
 - Stack notices from their anchored edge with the newest nearest it, animate arrivals and dismissals, and add a labeled Dismiss button. Keep multiline notices and the count line reachable in a viewport-bounded scroll area with padding for shadows.
+- Scan ordinary privacy text with direct UTF-16 offsets, avoiding per-character mapping arrays while preserving encoded-text decoding and masking behavior.
+
 - Automatically clean orphan attachments during idle maintenance and reclaim unused database pages when both space thresholds are met. Defer around active mail work, updates and shutdown; back off after failures.
 
 - Load cached bodies and HTML on demand instead of sending them in mail-list snapshots. Keep exact local body search, offline reading, reply recovery and body-sensitive server operations. Retain summaries rather than a full ciphertext index.

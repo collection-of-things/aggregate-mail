@@ -129,6 +129,44 @@ test("long ordinary words do not trigger quadratic address matching", () => {
   assert.ok(performance.now() - start < 1000, "scan non-address tokens once");
 });
 
+test("ordinary text scans without allocating per-character offset pairs", () => {
+  const text = `${"Public newsletter text. ".repeat(2000)}😀 Nora Lane <nora@example.com>`;
+  const push = Array.prototype.push;
+  let offsetPairs = 0;
+  let ranges: ReturnType<typeof privateRanges>;
+  // Count numeric mapping pairs without retaining calls or measuring the heap.
+  Array.prototype.push = function (...items: unknown[]) {
+    for (const item of items) {
+      if (Array.isArray(item) && item.length === 2 &&
+          typeof item[0] === "number" && typeof item[1] === "number") offsetPairs++;
+    }
+    return Reflect.apply(push, this, items);
+  };
+  try { ranges = privateRanges(text, ["Nora Lane"]); }
+  finally { Array.prototype.push = push; }
+  assert.deepEqual(ranges.map((range) => text.slice(range.start, range.end)),
+    ["Nora Lane", "nora@example.com"]);
+  assert.equal(offsetPairs, 0, "ordinary text needs no source-offset mapping pairs");
+});
+
+test("direct UTF-16 ranges match the decoder path across Unicode, surrogates and overlaps", () => {
+  const names = ["Nora Lane", "Nora", "Lane", "Élodie D’Arc", "𐐀Name", "nora@example.com"];
+  for (const text of [
+    "", "Public text", "😀Nora Lane! ÉLODIE D’ARC; nora@example.com.",
+    "\ud800Nora Lane\udc00 <nora@example.com>",
+    "𐐀Nora Lane; Nora Lane𐐀; 𐐀Name; e\u0301Nora; Nora\u0301",
+    "Nora\tLane Nora+Lane <nora@example.com> Nora Laneway",
+  ]) {
+    // A malformed literal percent prefix keeps the existing decoder reachable.
+    const prefix = "%zz; ";
+    assert.deepEqual(privateRanges(text, names), privateRanges(prefix + text, names)
+      .map((range) => ({ ...range, start: range.start - prefix.length, end: range.end - prefix.length })));
+    const segments = segmentPrivateText(text, names);
+    assert.equal(segments.map((part) => part.text).join(""), text);
+    for (const part of segments) assert.equal(text.slice(part.start, part.end), part.text);
+  }
+});
+
 test("previews drop plain-text image placeholders but keep ordinary brackets", async () => {
   const { previewText } = await import("../shared/mail-content");
   assert.equal(previewText("[https://cdn.example.test/logo.png] We didn't process  your transfer [cid:img1]\n[Action required]"), "We didn't process your transfer [Action required]");
