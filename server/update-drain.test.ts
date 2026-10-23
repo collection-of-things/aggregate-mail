@@ -33,6 +33,41 @@ test("update quiesce drains renderer sends and queued sync/mutations, approved a
   const { providers } = await import("./providers.js");
   const backend = await import("./index.js");
   const actions = await import("./mail-actions.js");
+  await t.test("activity counts queued and active work and timestamps success, rejection and synchronous throws", async (t) => {
+    let clock = Date.now();
+    t.mock.method(Date, "now", () => clock);
+    const initial = actions.mailWorkActivity().lastCompletedAt;
+    const first = deferred(), concurrent = deferred();
+    const queued = actions.runMailWork(() => first.promise);
+    const later = actions.runMailWork(async () => {});
+    const active = actions.trackMailWork(() => concurrent.promise);
+    assert.deepEqual(actions.mailWorkActivity(), { queued: 2, active: 1, lastCompletedAt: initial });
+    await Promise.resolve();
+    assert.deepEqual(actions.mailWorkActivity(), { queued: 1, active: 2, lastCompletedAt: initial });
+    clock += 100;
+    concurrent.resolve(); await active;
+    assert.deepEqual(actions.mailWorkActivity(), { queued: 1, active: 1, lastCompletedAt: clock });
+    clock += 100; first.resolve(); await queued; await later;
+    assert.deepEqual(actions.mailWorkActivity(), { queued: 0, active: 0, lastCompletedAt: clock });
+    clock += 100;
+    await assert.rejects(actions.trackMailWork(async () => { throw new Error("synthetic rejection"); }), /synthetic rejection/);
+    assert.equal(actions.mailWorkActivity().lastCompletedAt, clock);
+    clock += 100;
+    await assert.rejects(actions.trackMailWork(() => {
+      assert.equal(actions.mailWorkActivity().active, 1);
+      throw new Error("synthetic synchronous throw");
+    }), /synthetic synchronous throw/);
+    assert.equal(actions.mailWorkActivity().lastCompletedAt, clock);
+    clock += 100;
+    await assert.rejects(actions.runMailWork(() => { throw new Error("synthetic queued throw"); }), /synthetic queued throw/);
+    assert.deepEqual(actions.mailWorkActivity(), { queued: 0, active: 0, lastCompletedAt: clock });
+    await actions.quiesceMailWork(1000);
+    clock += 100;
+    await assert.rejects(actions.runMailWork(async () => {}), /paused/);
+    await assert.rejects(actions.trackMailWork(async () => {}), /paused/);
+    assert.deepEqual(actions.mailWorkActivity(), { queued: 0, active: 0, lastCompletedAt: clock - 100 });
+    actions.resumeMailWork();
+  });
   const { propose } = await import("./workspace.js");
   put("account", "a", { id: "a", email: "sender@example.test", provider: "gmail", credentials: { refreshToken: "synthetic-token" } });
   const mail: Mail = { id: "a:1", remoteId: "1", accountId: "a", sender: "Sender", address: "sender@example.test",

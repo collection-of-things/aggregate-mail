@@ -7,7 +7,7 @@ import path from "node:path";
 import express from "express";
 import { google } from "googleapis";
 import { z } from "zod";
-import { all, get, readMail, mailSummaryChanges, mailSummary, searchMail, count, put, putBatch, remove, removeAccountAttachments, account, transaction, compactStore, type StoredAccount } from "./store.js";
+import { all, get, readMail, mailSummaryChanges, mailSummary, searchMail, count, put, putBatch, remove, removeAccountAttachments, account, transaction, compactStore, storageStats, type StoredAccount } from "./store.js";
 import { matchesRule } from "../shared/rules.js";
 import { mountWorkspace } from "./workspace.js";
 import { mountAgentProvider } from "./agent-provider.js";
@@ -27,10 +27,12 @@ import {
   findMail,
   assertMailAvailable,
   mailIsQuiesced,
+  mailWorkActivity,
   trackMailWork,
   quiesceMailWork,
   resumeMailWork,
 } from "./mail-actions.js";
+import { StorageMaintenance } from "./storage-maintenance.js";
 import { mountMcp, authorizeMcp } from "./mcp.js";
 import { classify, sortMail, SortingUnavailable } from "./sorting.js";
 import { companyLogo } from "./avatars.js";
@@ -241,18 +243,29 @@ app.post("/api/config", (req, res) => {
   res.json({ ok: true });
 });
 let storageMaintenance = false;
+let mailServerStopping = false;
+async function maintainStorage(options: { cleanupOrphans: boolean; vacuum?: "if-needed"; inventoryAt?: number }) {
+  if (storageMaintenance || mailIsQuiesced() || mailServerStopping) return false;
+  storageMaintenance = true;
+  try {
+    await drainMail(30000);
+    if (mailServerStopping) return false;
+    return compactStore({ ...options, isDrained: () => {
+      const activity = mailWorkActivity();
+      return mailIsQuiesced() && !syncing && !activity.active && !activity.queued;
+    } });
+  } finally {
+    storageMaintenance = false;
+    if (!mailServerStopping) resumeMail();
+  }
+}
 app.post("/api/storage/compact", async (req, res) => {
   z.object({ confirm: z.literal(true) }).strict().parse(req.body);
   if (storageMaintenance || mailIsQuiesced())
     return res.status(409).json({ error: "Wait for paused mail work to finish before storage maintenance." });
-  storageMaintenance = true;
-  try {
-    await drainMail(30000);
-    res.json(compactStore({ cleanupOrphans: true, isDrained: () => mailIsQuiesced() && !syncing }));
-  } finally {
-    storageMaintenance = false;
-    resumeMail();
-  }
+  const result = await maintainStorage({ cleanupOrphans: true });
+  if (result === false) return res.status(409).json({ error: "Storage maintenance is unavailable. Try again shortly." });
+  res.json(result);
 });
 app.get("/api/logo/:domain", async (req, res) => {
   // theSVG first, then the favicon service: a brand the library knows gets a
@@ -753,7 +766,9 @@ export function startServer(
   if (onMailChanged) desktopEvents.on("mail-changed", onMailChanged);
   if (onNewMail) desktopEvents.on("new-mail", onNewMail);
   return new Promise((resolve, reject) => {
+    let automaticMaintenance: StorageMaintenance | undefined;
     const server = app.listen(port, "127.0.0.1", () => {
+      mailServerStopping = false;
       imapWatch = new ImapWatch((a) => {
         if (all("account").some((current) => sameImapAccount(current, a)))
           void requestSync([a.id], true);
@@ -766,12 +781,21 @@ export function startServer(
         return !!current && !current.error;
       }, gmailRevision);
       gmailWatch.reconcile(all("account"));
+      automaticMaintenance = new StorageMaintenance({
+        activity: mailWorkActivity,
+        unavailable: () => storageMaintenance || mailIsQuiesced() || mailServerStopping,
+        stats: storageStats,
+        lastInventoryAt: () => get("maintenance", "storage")?.lastInventoryAt,
+        maintain: maintainStorage,
+      });
       resolve(server);
     });
     server.once("error", reject);
     // A restarted server, such as the macOS keychain relaunch, must not leave
     // the previous window's listeners subscribed.
     server.once("close", () => {
+      mailServerStopping = true;
+      automaticMaintenance?.close();
       imapWatch?.close();
       imapWatch = undefined;
       gmailWatch?.close();

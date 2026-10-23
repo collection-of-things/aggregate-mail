@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { StorageMaintenance, storageNeedsVacuum, maintenanceProbeInterval } from "./storage-maintenance.js";
 
 // Fresh processes prove reopen behavior without opening a saved profile.
 function run(directory: string, source: string) {
@@ -152,6 +153,312 @@ test("the authenticated maintenance endpoint drains admitted parsing and blocks 
         release(); backend.resumeMail();
         await new Promise(resolve=>server.close(resolve)); s.closeStore();
       }
+    `);
+  } finally { rmSync(directory,{recursive:true,force:true}); }
+});
+
+test("automatic maintenance is installed at server startup without an HTTP trigger", () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "emc2-auto-start-"));
+  try {
+    run(directory, `
+      import assert from 'node:assert/strict';
+      const intervals=[];
+      let now=Date.now(); Date.now=()=>now;
+      const original=globalThis.setInterval;
+      globalThis.setInterval=(callback,delay,...args)=>{
+        const timer=original(callback,delay,...args); intervals.push({callback,delay,timer}); return timer;
+      };
+      const backend=await import('./server/index.ts');
+      const s=await import('./server/store.ts');
+      const {quietImapWatch,quietGmailRevision}=await import('./server/imap-watch-fixture.ts');
+      const server=await backend.startServer(0,undefined,undefined,undefined,quietImapWatch,quietGmailRevision);
+      try {
+        assert.equal(intervals.filter(x=>x.delay===300000).length,1,'startup must install one five-minute maintenance probe');
+        const timer=intervals.find(x=>x.delay===300000);
+        assert.equal(timer.timer.hasRef(),false);
+        s.put('attachment','orphan',{accountId:'a',content:'YQ=='});
+        s.compactStore({isDrained:()=>true});
+        assert.equal(s.storageStats().freePages,0);
+        now+=300000; await timer.callback();
+        assert.equal(s.count('attachment'),0,'startup timer cleans orphans without any HTTP request');
+        assert.equal(s.get('maintenance','storage').lastInventoryAt,now);
+        const actions=await import('./server/mail-actions.ts');
+        assert.equal(actions.mailIsQuiesced(),false);
+        for(let i=0;i<40;i++) s.put('attachment','large-'+i,{accountId:'a',content:'x'.repeat(512*1024)});
+        for(let i=0;i<40;i++) s.remove('attachment','large-'+i);
+        const before=s.storageStats(); assert.ok(before.freePages*before.pageSize>=16*1024*1024);
+        now+=6*60*60*1000; await timer.callback();
+        assert.equal(s.storageStats().freePages,0,'eligible timer performs threshold-gated vacuum');
+        assert.ok(s.storageStats().pageCount<before.pageCount);
+        await actions.trackMailWork(async()=>{});
+      }
+      finally { await new Promise(resolve=>server.close(resolve)); for(const x of intervals) clearInterval(x.timer); s.closeStore(); }
+    `);
+  } finally { rmSync(directory,{recursive:true,force:true}); }
+});
+
+test("mail activity exposes queued and active work and records completion", () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "emc2-auto-idle-"));
+  try {
+    run(directory, `
+      import assert from 'node:assert/strict';
+      const a=await import('./server/mail-actions.ts');
+      const s=await import('./server/store.ts');
+      try {
+        assert.equal(typeof a.mailWorkActivity,'function','automatic maintenance needs a read-only activity seam');
+        assert.deepEqual(Object.keys(a.mailWorkActivity()).sort(),['active','lastCompletedAt','queued']);
+      } finally { s.closeStore(); }
+    `);
+  } finally { rmSync(directory,{recursive:true,force:true}); }
+});
+
+const minute = 60_000;
+const hour = 60 * minute;
+function maintenanceFixture() {
+  let now = 100 * hour;
+  let unavailable = false;
+  let activity = { queued: 0, active: 0, lastCompletedAt: now - minute };
+  let stats = { pageSize: 4096, pageCount: 20480, freePages: 4096 };
+  let lastInventoryAt: number | undefined = now;
+  let attempts = 0, probes = 0, fail = false, defer = false;
+  let release: (() => void) | undefined;
+  let hold: Promise<void> | undefined;
+  const options: { cleanupOrphans: boolean; vacuum: "if-needed"; inventoryAt: number }[] = [];
+  const service = new StorageMaintenance({
+    activity: () => activity,
+    unavailable: () => unavailable,
+    stats: () => { probes++; return stats; },
+    lastInventoryAt: () => lastInventoryAt,
+    maintain: async (input) => {
+      attempts++; options.push(input);
+      if (hold) await hold;
+      if (fail) throw new Error("synthetic maintenance failure");
+      return !defer;
+    },
+  }, () => now);
+  return {
+    service, options,
+    get attempts() { return attempts; }, get probes() { return probes; },
+    advance: (delta: number) => { now += delta; },
+    unavailable: (value: boolean) => { unavailable = value; },
+    activity: (value: Partial<typeof activity>) => { activity = { ...activity, ...value }; },
+    stats: (value: Partial<typeof stats>) => { stats = { ...stats, ...value }; },
+    inventory: (value: number | undefined) => { lastInventoryAt = value; },
+    fail: (value: boolean) => { fail = value; }, defer: (value: boolean) => { defer = value; },
+    hold: () => { hold = new Promise<void>(resolve => { release = resolve; }); },
+    release: () => release?.(),
+  };
+}
+
+test("automatic vacuum requires both exact free-byte and free-page thresholds", () => {
+  assert.equal(maintenanceProbeInterval, 5 * minute);
+  const boundary = { pageSize: 4096, pageCount: 20480, freePages: 4096 };
+  assert.equal(storageNeedsVacuum(boundary), true);
+  assert.equal(storageNeedsVacuum({ ...boundary, freePages: 4095 }), false);
+  assert.equal(storageNeedsVacuum({ ...boundary, pageCount: 20481 }), false);
+  assert.equal(storageNeedsVacuum({ ...boundary, pageCount: 40960, freePages: 8192 }), true);
+  assert.equal(storageNeedsVacuum({ pageSize: 4096, pageCount: 0, freePages: 0 }), false);
+});
+
+test("automatic probes require genuine idle, skip unavailable work and close without overlap", async () => {
+  const f = maintenanceFixture();
+  try {
+    f.activity({ active: 1 }); await f.service.probe();
+    f.activity({ active: 0, queued: 1 }); await f.service.probe();
+    f.activity({ queued: 0, lastCompletedAt: 100 * hour - minute + 1 }); await f.service.probe();
+    assert.equal(f.probes, 0);
+    f.advance(1); f.unavailable(true); await f.service.probe(); assert.equal(f.probes, 0);
+    f.unavailable(false); f.hold(); const pending = f.service.probe();
+    await f.service.probe(); assert.equal(f.attempts, 1);
+    f.service.close(); f.release(); await pending;
+    f.advance(24 * hour); await f.service.probe(); assert.equal(f.attempts, 1);
+  } finally { f.release(); f.service.close(); }
+});
+
+test("automatic inventory is independently daily at zero freelist and success waits six hours", async () => {
+  const f = maintenanceFixture();
+  try {
+    f.stats({ freePages: 0 });
+    f.inventory(76 * hour + 1); await f.service.probe(); assert.equal(f.attempts, 0);
+    f.advance(1); await f.service.probe(); assert.equal(f.attempts, 1);
+    assert.equal(f.options[0].cleanupOrphans, true);
+    f.advance(6 * hour - 1); await f.service.probe(); assert.equal(f.attempts, 1);
+    f.inventory(100 * hour); f.stats({ freePages: 4096 });
+    f.advance(1); await f.service.probe(); assert.equal(f.attempts, 2);
+    assert.equal(f.options[1].cleanupOrphans, false);
+  } finally { f.service.close(); }
+});
+
+test("automatic failures back off once from thirty minutes to six hours, then success resets", async () => {
+  const f = maintenanceFixture();
+  try {
+    f.fail(true);
+    for (const delay of [30 * minute, hour, 2 * hour, 4 * hour, 6 * hour, 6 * hour]) {
+      const before = f.attempts;
+      await f.service.probe(); assert.equal(f.attempts, before + 1);
+      f.advance(delay - 1); await f.service.probe(); assert.equal(f.attempts, before + 1);
+      f.advance(1);
+    }
+    f.fail(false); await f.service.probe(); const successful = f.attempts;
+    f.advance(6 * hour - 1); await f.service.probe(); assert.equal(f.attempts, successful);
+    f.advance(1); f.fail(true); await f.service.probe();
+    f.advance(30 * minute); await f.service.probe(); assert.equal(f.attempts, successful + 2);
+  } finally { f.service.close(); }
+});
+
+test("automatic deferral applies no success cooldown and cheap probes do no inventory", async () => {
+  const f = maintenanceFixture();
+  try {
+    f.stats({ freePages: 0 }); await f.service.probe(); await f.service.probe();
+    assert.equal(f.probes, 2); assert.equal(f.attempts, 0);
+    f.inventory(undefined); f.defer(true); await f.service.probe();
+    f.defer(false); await f.service.probe(); assert.equal(f.attempts, 2);
+  } finally { f.service.close(); }
+});
+
+test("automatic cleanup can remove zero-freelist orphans without vacuum and persists encrypted timing", () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "emc2-auto-cleanup-"));
+  try {
+    run(directory, `
+      import assert from 'node:assert/strict';
+      import {readFileSync,writeFileSync} from 'node:fs';
+      import {DatabaseSync} from 'node:sqlite';
+      const s=await import('./server/store.ts');
+      const raw=new DatabaseSync(process.env.MAIL_DATA_DIR+'/mail.sqlite');
+      s.put('mail','a:sent',{id:'a:sent',accountId:'a',archived:true,direction:'sent',attachments:[{id:'keep'}]});
+      s.put('attachment','a:sent:keep',{accountId:'a',content:'YQ=='});
+      s.put('draft','d',{id:'d',accountId:'a',revision:7,sendUnknown:true,attachments:[]});
+      s.put('calendarEvent','e',{id:'e',revision:2}); s.put('project','p',{id:'p'});
+      s.put('config','connection',{GOOGLE_CLIENT_ID:'synthetic'});
+      s.put('attachment','orphan',{accountId:'a',content:'Yg=='});
+      s.compactStore({isDrained:()=>true});
+      assert.equal(s.storageStats().freePages,0);
+      const before=raw.prepare("SELECT * FROM records WHERE id!='orphan' ORDER BY kind,id").all();
+      const key=readFileSync(process.env.MAIL_DATA_DIR+'/key');
+      const result=s.compactStore({cleanupOrphans:true,vacuum:'if-needed',inventoryAt:123456,isDrained:()=>true});
+      assert.equal(result.vacuumed,false); assert.equal(result.removedAttachments,1);
+      assert.deepEqual(raw.prepare("SELECT * FROM records WHERE kind!='maintenance' ORDER BY kind,id").all(),before);
+      assert.deepEqual(readFileSync(process.env.MAIL_DATA_DIR+'/key'),key);
+      assert.equal(s.get('draft','d').revision,7); assert.equal(s.get('draft','d').sendUnknown,true);
+      const timing=raw.prepare("SELECT value FROM records WHERE kind='maintenance'").get().value;
+      assert.ok(!timing.includes('lastInventoryAt')); assert.ok(!timing.includes('123456'));
+      assert.equal(s.get('maintenance','storage').lastInventoryAt,123456);
+      s.put('attachment','orphan2',{accountId:'a',content:'Yg=='});
+      assert.equal(s.compactStore({cleanupOrphans:true,vacuum:false,isDrained:()=>true}).removedAttachments,1,'maintenance kind is recognized');
+      s.put('mail','legacy',{id:'legacy',accountId:'a'});
+      s.put('attachment','uncertain',{accountId:'a',content:'Yg=='});
+      assert.equal(s.compactStore({cleanupOrphans:true,vacuum:false,isDrained:()=>true}).cleanupSkipped,'incomplete-mail-metadata');
+      s.remove('mail','legacy');
+      s.put('attachment','bad',{});
+      assert.equal(s.compactStore({cleanupOrphans:true,vacuum:false,isDrained:()=>true}).cleanupSkipped,'incomplete-attachment-metadata');
+      assert.ok(s.get('attachment','uncertain')); s.remove('attachment','bad');
+      raw.prepare('INSERT INTO records VALUES (?,?,?)').run('mail','corrupt','invalid-ciphertext');
+      assert.doesNotThrow(()=>s.storageStats(),'cheap stats never decrypt the mailbox');
+      assert.throws(()=>s.compactStore({cleanupOrphans:true,vacuum:false,isDrained:()=>true}));
+      assert.ok(s.get('attachment','uncertain'));
+      raw.prepare("DELETE FROM records WHERE id='corrupt'").run();
+      writeFileSync(process.env.MAIL_DATA_DIR+'/expected.json',JSON.stringify(before));
+      raw.close();s.closeStore();
+    `);
+    run(directory, `
+      import assert from 'node:assert/strict';
+      const s=await import('./server/store.ts');
+      assert.equal(s.get('maintenance','storage').lastInventoryAt,123456);
+      assert.equal(s.get('draft','d').revision,7); assert.equal(s.get('draft','d').sendUnknown,true);
+      assert.ok(s.get('attachment','a:sent:keep')); assert.ok(s.get('calendarEvent','e')); assert.ok(s.get('project','p'));
+      s.closeStore();
+    `);
+  } finally { rmSync(directory,{recursive:true,force:true}); }
+});
+
+test("automatic busy-reader failure resumes work and backs off; UI reads do not reset genuine idle", () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "emc2-auto-busy-"));
+  try {
+    run(directory, `
+      import assert from 'node:assert/strict';
+      import {DatabaseSync} from 'node:sqlite';
+      let tick;
+      const original=setInterval; let now=Date.now(); Date.now=()=>now;
+      globalThis.setInterval=(callback,delay,...args)=>{if(delay===300000)tick=callback; return original(callback,delay,...args)};
+      const s=await import('./server/store.ts'); const a=await import('./server/mail-actions.ts');
+      const backend=await import('./server/index.ts');
+      const {quietImapWatch,quietGmailRevision}=await import('./server/imap-watch-fixture.ts');
+      const server=await backend.startServer(0,undefined,undefined,undefined,quietImapWatch,quietGmailRevision);
+      const raw=new DatabaseSync(process.env.MAIL_DATA_DIR+'/mail.sqlite');
+      const base='http://127.0.0.1:'+server.address().port;
+      try {
+        const stamp=a.mailWorkActivity().lastCompletedAt;
+        for(let i=0;i<3;i++) {
+          const response=await fetch(base+'/api/state',{headers:{'X-Desktop-Token':'synthetic-maintenance'}});
+          assert.equal(response.status,200); await response.json();
+        }
+        assert.equal(a.mailWorkActivity().lastCompletedAt,stamp);
+        s.put('attachment','parsing:file',{accountId:'a',content:'YQ=='});
+        let release;
+        const parsing=a.trackMailWork(async()=>{
+          await new Promise(resolve=>{release=resolve});
+          s.put('mail','parsing',{id:'parsing',accountId:'a',attachments:[{id:'file'}]});
+        });
+        const queued=a.runMailWork(async()=>{});
+        now+=300000;await tick();
+        assert.equal(a.mailIsQuiesced(),false);assert.equal(s.get('maintenance','storage'),undefined);
+        release();await parsing;await queued;
+        now+=59999;await tick();assert.equal(s.get('maintenance','storage'),undefined);
+        now++;
+        raw.exec('BEGIN');raw.prepare('SELECT * FROM records').all();
+        s.put('attachment','orphan',{accountId:'a',content:'YQ=='});
+        await tick();
+        assert.ok(s.get('attachment','orphan')); assert.equal(s.get('maintenance','storage'),undefined);
+        assert.equal(a.mailIsQuiesced(),false); await a.trackMailWork(async()=>{});
+        raw.exec('ROLLBACK');
+        now+=30*60*1000-1; await tick(); assert.ok(s.get('attachment','orphan'));
+        raw.exec("CREATE TRIGGER deny_auto_cleanup BEFORE DELETE ON records WHEN OLD.kind='attachment' BEGIN SELECT RAISE(ABORT,'synthetic cleanup failure'); END");
+        now++;await tick();assert.ok(s.get('attachment','orphan'));
+        assert.equal(a.mailIsQuiesced(),false);await a.trackMailWork(async()=>{});
+        raw.exec('DROP TRIGGER deny_auto_cleanup');
+        now+=60*60*1000;await tick();assert.equal(s.get('attachment','orphan'),undefined);
+        assert.ok(s.get('attachment','parsing:file'),'in-flight parsing retains its exact attachment');
+        assert.equal(a.mailIsQuiesced(),false);
+        await backend.quiesceMail(1000);
+        now+=24*60*60*1000; await tick(); assert.equal(a.mailIsQuiesced(),true,'update admission remains paused');
+        backend.resumeMail(); await a.trackMailWork(async()=>{});
+      } finally {raw.close(); backend.resumeMail(); await new Promise(resolve=>server.close(resolve));s.closeStore();}
+    `);
+  } finally { rmSync(directory,{recursive:true,force:true}); }
+});
+
+test("automatic maintenance defers updates and aborts a pending drain on server shutdown", () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "emc2-auto-close-"));
+  try {
+    run(directory, `
+      import assert from 'node:assert/strict';
+      let tick;const original=setInterval;let now=Date.now();Date.now=()=>now;
+      globalThis.setInterval=(callback,delay,...args)=>{if(delay===300000)tick=callback;return original(callback,delay,...args)};
+      const s=await import('./server/store.ts');const a=await import('./server/mail-actions.ts');
+      const backend=await import('./server/index.ts');
+      const {quietImapWatch,quietGmailRevision}=await import('./server/imap-watch-fixture.ts');
+      const server=await backend.startServer(0,undefined,undefined,undefined,quietImapWatch,quietGmailRevision);
+      s.put('attachment','orphan',{accountId:'a',content:'YQ=='});
+      const settled=Promise.allSettled;let release;
+      Promise.allSettled=()=>Promise.reject(new Error('synthetic drain failure'));
+      now+=300000;await tick();
+      assert.equal(a.mailIsQuiesced(),false);await a.trackMailWork(async()=>{});
+      assert.ok(s.get('attachment','orphan'));
+      Promise.allSettled=()=>new Promise(resolve=>{release=()=>resolve([])});
+      const deadlines=[];const originalTimeout=setTimeout;
+      globalThis.setTimeout=(callback,delay,...args)=>{deadlines.push(delay);return originalTimeout(callback,delay,...args)};
+      try {
+        now+=30*60*1000;const pending=tick();
+        assert.ok(deadlines.includes(30000),'automatic drain has a thirty-second deadline');
+        assert.equal(a.mailIsQuiesced(),true);
+        await assert.rejects(backend.quiesceMail(1000),/maintenance/);
+        backend.resumeMail(); assert.equal(a.mailIsQuiesced(),true);
+        await new Promise(resolve=>server.close(resolve));
+        release();await pending;
+        assert.ok(s.get('attachment','orphan'));assert.equal(s.get('maintenance','storage'),undefined);
+        assert.equal(a.mailIsQuiesced(),true,'shutdown does not restart mail admission');
+        now+=24*60*60*1000;await tick();assert.ok(s.get('attachment','orphan'));
+      } finally {Promise.allSettled=settled;globalThis.setTimeout=originalTimeout;release?.();s.closeStore();}
     `);
   } finally { rmSync(directory,{recursive:true,force:true}); }
 });

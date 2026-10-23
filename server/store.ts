@@ -4,6 +4,7 @@ import path from "node:path";
 import { randomBytes, randomUUID, createCipheriv, createDecipheriv, createHash } from "node:crypto";
 import type { Account, Mail, MailSummary, MailChanges, MailSearchResult, Rule, McpSettings, GmailLabel, Draft } from "../shared/types.js";
 import type { ComposePreferences } from "../shared/mail-features.js";
+import { storageNeedsVacuum } from "./storage-maintenance.js";
 import { inboxTab } from "../shared/inbox-tabs.js";
 import { compileMailSearch } from "../shared/mail-search.js";
 
@@ -57,6 +58,7 @@ type Records = {
   proposal: import("../shared/workspace.js").AgentProposal;
   agent: import("../shared/workspace.js").AgentGrant;
   agentProvider: import("./agent-provider.js").StoredAgentProvider;
+  maintenance: { lastInventoryAt: number };
   config: Partial<Record<"GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "OPENAI_API_KEY" | "TYPESAFE_API_KEY" | "TYPESAFE_PROVIDER", string>>;
   attachment: { accountId: string; content: string };
   compose: ComposePreferences;
@@ -340,9 +342,17 @@ export function removeAccountAttachments(accountId: string) {
   }
 }
 
+export function storageStats() {
+  return {
+    pageCount: Number(db.prepare("PRAGMA page_count").get()!.page_count),
+    freePages: Number(db.prepare("PRAGMA freelist_count").get()!.freelist_count),
+    pageSize: Number(db.prepare("PRAGMA page_size").get()!.page_size),
+  };
+}
+
 // Maintenance runs only after the service blocks admission and drains provider work.
 // VACUUM copies the existing encrypted values; it never exports decrypted records.
-export function compactStore(options: { cleanupOrphans?: boolean; isDrained: () => boolean }) {
+export function compactStore(options: { cleanupOrphans?: boolean; vacuum?: boolean | "if-needed"; inventoryAt?: number; isDrained: () => boolean }) {
   if (!options.isDrained() || pendingMail) throw new Error("Drain mail work before storage maintenance.");
   if (loadingMail) throw new Error("A mail reader is loading. Try maintenance after it finishes.");
   const checkpoint = () => {
@@ -356,7 +366,7 @@ export function compactStore(options: { cleanupOrphans?: boolean; isDrained: () 
   let removedAttachments = 0;
   let cleanupSkipped: "unknown-record-kind" | "incomplete-mail-metadata" | "incomplete-attachment-metadata" | undefined;
   if (options.cleanupOrphans) transaction(() => {
-    const knownKinds: (keyof Records)[] = ["availability", "calendarOffer", "calendarOperation", "commitment", "googleCalendar", "googleCalendarWindow", "calendarEvent", "project", "decision", "coverage", "proposal", "agent", "agentProvider", "attachment", "config", "compose", "account", "mail", "mailSummary", "label", "rule", "meta", "mcp", "draft"];
+    const knownKinds: (keyof Records)[] = ["availability", "calendarOffer", "calendarOperation", "commitment", "googleCalendar", "googleCalendarWindow", "calendarEvent", "project", "decision", "coverage", "proposal", "agent", "agentProvider", "attachment", "config", "maintenance", "compose", "account", "mail", "mailSummary", "label", "rule", "meta", "mcp", "draft"];
     if (db.prepare("SELECT DISTINCT kind FROM records").all().some(row => !knownKinds.includes(String(row.kind) as keyof Records))) {
       cleanupSkipped = "unknown-record-kind";
       return;
@@ -386,7 +396,10 @@ export function compactStore(options: { cleanupOrphans?: boolean; isDrained: () 
   });
   // SQLite's own transaction makes a failed/interrupted VACUUM recoverable. Cleanup
   // is a separate committed transaction because VACUUM cannot run inside one.
-  db.exec("VACUUM");
+  const vacuumed = options.vacuum === "if-needed" ? storageNeedsVacuum(storageStats()) : options.vacuum !== false;
+  if (vacuumed) db.exec("VACUUM");
   checkpoint();
-  return { beforeBytes, afterBytes: size(), removedAttachments, cleanupSkipped };
+  if (options.cleanupOrphans && options.inventoryAt !== undefined)
+    put("maintenance", "storage", { lastInventoryAt: options.inventoryAt });
+  return { beforeBytes, afterBytes: size(), removedAttachments, cleanupSkipped, vacuumed };
 }

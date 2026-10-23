@@ -34,6 +34,15 @@ separately because SQLite cannot vacuum inside that transaction. A later vacuum
 failure does not restore removed orphans, but surviving records remain intact.
 Compaction reclaims unused pages; it does not compress live message content.
 
+Automatic maintenance reuses the same drained operation. Probe every five
+minutes after at least 60 seconds of genuine mail-work idle. Vacuum only when
+free pages occupy at least 16 MiB and 20 percent of the database. Inventory
+orphan attachments independently every 24 hours, persisting its timestamp in an
+encrypted maintenance record. Recheck space after cleanup and avoid vacuuming
+healthy databases. Success defers another attempt for six hours; failures back
+off from 30 minutes to six hours. Updates, shutdown and busy work defer attempts.
+The timer does not make synchronous SQLite vacuum cancellable.
+
 ## Required proof
 
 Use synthetic migration, failure, restart, admission-drain and busy-reader

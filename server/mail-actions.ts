@@ -5,15 +5,24 @@ import { providers, sendSchema, SentCopyError, updateGmailLabels } from "./provi
 let mailWork = Promise.resolve();
 let quiesced = false;
 const activeWork = new Set<Promise<unknown>>();
+let queuedWork = 0;
+let admittedWork = 0;
+let lastCompletedAt = Date.now();
+export function mailWorkActivity(): Readonly<{ queued: number; active: number; lastCompletedAt: number }> {
+  return { queued: queuedWork, active: admittedWork - queuedWork, lastCompletedAt };
+}
 export function assertMailAvailable() {
   if (quiesced) throw new Error("Mail is paused for an application update. Try again shortly.");
 }
 export function mailIsQuiesced() { return quiesced; }
 export function trackMailWork<T>(task: () => Promise<T>): Promise<T> {
   try { assertMailAvailable(); } catch (error) { return Promise.reject(error); }
-  const result = task();
+  admittedWork++;
+  let result: Promise<T>;
+  try { result = Promise.resolve(task()); } catch (error) { result = Promise.reject(error); }
   activeWork.add(result);
-  void result.then(() => activeWork.delete(result), () => activeWork.delete(result));
+  const completed = () => { activeWork.delete(result); admittedWork--; lastCompletedAt = Date.now(); };
+  void result.then(completed, completed);
   return result;
 }
 export async function quiesceMailWork(timeout: number) {
@@ -32,7 +41,8 @@ export function resumeMailWork() { quiesced = false; }
 // Sync and provider mutations must finish in order so stale metadata cannot undo a read.
 export function runMailWork<T>(task: () => Promise<T>): Promise<T> {
   return trackMailWork(() => {
-    const result = mailWork.then(task);
+    queuedWork++;
+    const result = mailWork.then(() => { queuedWork--; return task(); });
     mailWork = result.then(() => {}, () => {});
     return result;
   });

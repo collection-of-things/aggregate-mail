@@ -1526,6 +1526,16 @@ are separate transactions, so a failed vacuum can follow successful orphan
 removal. Surviving ciphertext and installation keys are not rewritten by vacuum.
 The route resumes mail work after success or failure.
 
+The service also owns an automatic five-minute maintenance probe. It requires
+no queued or active admitted mail work and 60 seconds since the last completion.
+Automatic vacuum requires at least 16 MiB of free pages and a free-page ratio
+of at least 20 percent, rechecked after cleanup. Attachment inventory is due
+independently every 24 hours; its timestamp is encrypted and survives restart.
+Daily cleanup does not force vacuum on a healthy database. Successful attempts
+wait six hours. Failures back off from 30 minutes to six hours. Attempt cooldowns
+are process-local. Updates and shutdown defer maintenance; failed drains resume
+ordinary admission. Closing the timer cannot cancel an active synchronous vacuum.
+
 Regression cases are in `server/config.test.ts` and
 `server/storage-maintenance.test.ts`. Native, power-loss and installed acceptance
 remain separate from synthetic source verification.
