@@ -124,12 +124,13 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
   suite split into parallel shards, plus `npm run build`, isolated
   `check:desktop` (skipped on Linux) and an unpublished installer. The required
   `Test and package (<platform>)` checks pass only when all of it does.
-- `main` accepts changes only through a pull request with one approving review
-  from someone other than the last pusher, all conversations resolved and the
-  four required checks green. **Merge when ready** adds it to the merge queue,
-  which squashes it onto the latest `main`, reruns CI on that exact commit and
-  lands it only if CI passes. Direct pushes, force pushes and deleting `main` are
-  blocked. A new push dismisses earlier approvals.
+- `main` accepts changes only through a pull request with all conversations
+  resolved and the four required checks green. Reviews are welcome but not
+  required, so maintainers can merge their own work; a commit pushed to someone
+  else's pull request needs an approval. **Merge when ready** adds it to the
+  merge queue, which squashes it onto the latest `main`, reruns CI on that exact
+  commit and lands it only if CI passes. Direct pushes, force pushes and
+  deleting `main` are blocked.
 - The squash commit takes the PR title as its subject, so the title decides the
   release: a title starting with `Release ` or containing `[skip release]`
   publishes nothing. After the queue lands a commit, CI and the release lane

@@ -938,7 +938,7 @@ Each job uses Node 24 and `npm ci`. Electron and electron-builder downloads are 
 | macOS | Intel x64 | `.dmg` | `macos-15-intel` (Blacksmith has no Intel Macs) | 4 |
 | Linux | x64 | `.AppImage` | `blacksmith-4vcpu-ubuntu-2404` | 2 |
 
-The `main branch rules` ruleset requires a pull request with one approval from someone other than the last pusher, resolved conversations, the four `Test and package` checks and the merge queue (squash, PR title as subject, one PR per group, no wait). It blocks force pushes and deletion and has no bypass actors. The `release tags` ruleset blocks moving or deleting `v*` tags; Actions can still create them. Outside contributors' workflow runs need maintainer approval. See [ADR 0059](adr/0059-merge-queue-and-reviews.md).
+The `main branch rules` ruleset requires a pull request with resolved conversations (no approval count; an approval only when someone else's commits are pushed to the pull request), the four `Test and package` checks and the merge queue (squash, PR title as subject, one PR per group, no wait). It blocks force pushes and deletion and has no bypass actors. The `release tags` ruleset blocks moving or deleting `v*` tags; Actions can still create them. Outside contributors' workflow runs need maintainer approval. See [ADR 0059](adr/0059-merge-queue-and-reviews.md) and [ADR 0060](adr/0060-optional-review.md).
 
 Download `installer-<platform>` from the workflow run's Artifacts section. Each artifact expires after one day. Reruns replace artifacts for rebuilt platforms; successful platform jobs that are not rerun retain their earlier artifacts. Missing installer files fail the job. Superseded runs are canceled, and test and package jobs each have a 20-minute limit.
 
