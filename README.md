@@ -256,13 +256,13 @@ npm run dev
 
 ## CI
 
-GitHub Actions runs tests, TypeScript checks, production builds and installer packaging on every pull request and push to `main`. Windows and macOS also run an isolated production-startup check before packaging. Linux runtime behavior is not checked by this workflow. You can also run `CI` manually from the Actions tab.
+CI uses Blacksmith runners. Pull requests run the full serial Linux test suite and production build. The merge queue, releases and manual CI runs test and package Windows x64, macOS arm64, macOS x64 under Rosetta, and Linux x64. Windows and macOS also run an isolated production-startup check. Linux runtime behavior needs separate verification.
 
 Download the run's `installer-windows-x64` artifact for the Windows setup `.exe`, `installer-macos-arm64` or `installer-macos-x64` for a macOS `.dmg`, or `installer-linux-x64` for a Linux `.AppImage`. Artifacts expire after one day. These unsigned packages are build candidates; packaging does not verify native startup or account operations. macOS candidates are not notarized.
 
-Each CI run uses a distinct version such as `0.1.3-ci.123456.1`, where the last two numbers identify the workflow run and attempt. Reruns increment the attempt. This version appears in the application metadata and installer filename. Tagged releases retain the matching `package.json` version. Bump and commit that release version before creating each new release tag.
+Each CI run uses a distinct version such as `0.1.3-ci.123456.1`, where the last two numbers identify the workflow run and attempt. Reruns increment the attempt. This version appears in the application metadata and installer filename. Manual release tags must match the committed `package.json` version. Automatic patch releases stamp the computed next version during the build without changing the source version.
 
-This public repository uses free standard GitHub-hosted runners. Excess artifact storage above the owner's shared allowance costs $0.25 USD per GB-month under [GitHub's billing policy](https://docs.github.com/en/billing/concepts/product-billing/github-actions). One-day retention, npm caching, job timeouts and cancellation of superseded runs keep usage low. See [the CI contract](docs/KB.md#ci).
+Blacksmith runner time is billed separately from GitHub artifact storage. Linux-only PR checks, monthly dependency updates, weekly CodeQL, one-day artifact retention and cancellation of superseded CI runs limit use. See [the CI contract](docs/KB.md#ci).
 
 ## Contributing
 

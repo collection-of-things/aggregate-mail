@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: read
-  # The called CI workflow reads earlier check results for the same commit.
-  checks: read
 
 concurrency:
   group: auto-release

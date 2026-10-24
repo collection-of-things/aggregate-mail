@@ -2,12 +2,15 @@
 
 ## Unreleased
 
+- Simplify Blacksmith CI: run Linux tests/build on pull requests and fresh
+  four-platform tests/packages in the merge queue and release lanes. Remove
+  sharding and result-reuse scripts, combine workflow/privacy checks, schedule
+  monthly dependency updates and weekly CodeQL, and require maintainer review
+  of dependency updates. Use clean Bash for macOS Node architecture selection.
 - Move the macOS x64 jobs and CodeQL from GitHub-hosted runners to Blacksmith; x64 tests and packaging run under Rosetta on Apple silicon.
 - Block pull requests, including the merge queue's squash commit, when a commit author, committer or co-author email is not a GitHub noreply address.
-- Build with Node 24.22.1 from `.nvmrc` for the 21 October 2026 Node security release. Add weekly npm Dependabot updates with automatic merging of minor and patch updates after CI, dependency review on pull requests, CodeQL scanning and grouped release notes.
+- Build with Node 24.22.1 from `.nvmrc` for the 21 October 2026 Node security release. Add grouped monthly dependency updates, scheduled CodeQL and grouped release notes.
 - Run CI in GitHub's merge queue, so every pull request is tested on top of the latest `main` before it lands.
-- Balance CI test shards by measured file duration instead of Node's round-robin split, so one slow file no longer sets the pace.
-- Run CI on Blacksmith runners (Intel macOS stays GitHub-hosted), split every platform's full test suite into parallel shards, package alongside the tests, cache Electron downloads, and reuse a fast-forwarded commit's passing tests on `main` and in the release lanes.
 - Point the README, security policy, issue templates, code of conduct and publish settings at `collection-of-things/aggregate-mail`.
 - Check `collection-of-things/aggregate-mail` for updates first, falling back to `screen-devs/aggregate-mail` until the new repository publishes a newer release, so installed Windows and Linux copies follow the move.
 - Allow the CI test step 20 minutes so the full serial suite can finish on hosted Intel macOS runners.

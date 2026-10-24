@@ -921,31 +921,35 @@ Keep credentials, personal contact details, absolute machine paths, private host
 
 ## CI
 
-[The CI workflow](../.github/workflows/ci.yml) runs on pull requests, merge groups, pushes to `main` and manual dispatch. The tag-release and automatic patch-release workflows call it. Jobs, in order:
+[The CI workflow](../.github/workflows/ci.yml) runs on pull requests, merge groups and manual dispatch; the tag-release and automatic patch-release workflows call it. It does not run on pushes to `main`, because the merge queue already tested the commit that lands. Blacksmith minutes are budgeted, so each step runs where it adds coverage ([ADR 0062](adr/0062-simple-blacksmith-ci.md)):
 
-- **Plan** decides whether tests can be reused and whether installers are needed. Pull requests and merge groups always run everything. On a push (including the release lanes), it reuses tests only when the exact commit already has successful `Test and package (<platform>)` checks for all four platforms. `main` moves only through the merge queue, which lands the exact commit its merge group tested, so such a commit is the code those checks tested; any other commit runs the full suite. A plain push to `main` builds no installers, because the release lane packages them.
-- **Commit email privacy** (pull requests and merge groups only) runs `scripts/check-commit-emails.mjs` on the pull request's commits, or on the merge queue's squash commit, and fails on any author, committer or `Co-authored-by` address that is not a GitHub noreply address, GitHub's `noreply@github.com` web-flow committer or `noreply@anthropic.com`. It masks rejected addresses because CI logs are public. Each `Test and package` check requires it.
-- **Validate workflows** runs actionlint 1.7.12 with the Blacksmith labels in `.github/actionlint.yaml`.
-- **Test (`<platform>` `<n>`/`<total>`)** runs the whole serial suite on every platform, split by file into shards on separate runners. `scripts/test.mjs` reads `TEST_SHARD` and `scripts/test-shards.mjs` assigns files longest-first to the least-loaded shard, using measured seconds per file from `scripts/test-weights.json`. Files without a weight count as the median, so weights affect only balance, never coverage. Refresh the weights when a file becomes much slower. `npm test` without `TEST_SHARD` runs everything.
-- **Package (`<platform>`)** runs `npm run build`, the isolated startup check on Windows and macOS, then the installer without publishing. It runs alongside the tests.
-- **Test and package (`<platform>`)** is the check the `main` rule requires. It passes only when the plan, workflow validation, every shard and every required installer succeeded, or when tests were reused.
+| Event | Checks | Linux | Windows, macOS arm64, macOS x64 |
+| --- | --- | --- | --- |
+| Pull request | actionlint, commit emails | `npm test`, `npm run build` | skipped |
+| Merge group | actionlint, commit emails (on the squash commit) | test, build, installer | test, build, startup check, installer |
+| Release lane | actionlint | test, build, installer | test, build, startup check, installer |
+| Manual dispatch | actionlint | everything | everything |
 
-Each job uses Node 24 and `npm ci`. Electron and electron-builder downloads are cached per OS, architecture and lockfile. Linux runtime behavior needs separate proof.
+- **Checks** runs checksum-pinned actionlint 1.7.12 (Blacksmith labels in `.github/actionlint.yaml`) and the commit email check. The email check runs `scripts/check-commit-emails.mjs` on pull request commits or the merge queue's squash commit. It rejects author, committer and `Co-authored-by` addresses outside its noreply allowlist, and masks rejected addresses in public logs.
+- **Test and package (`<platform>`)** is one job per platform: checkout, Node, cached Electron downloads, `npm ci`, the full serial `npm test`, and `npm run build`. Non-PR runs also build an unpublished installer and run the isolated startup check on Windows and macOS. The four jobs share one YAML step list and literal required-check names. Windows and macOS skip pull requests; the merge queue runs them before landing the commit.
+- There is no test sharding or prior-check reuse planner. Release lanes run fresh tests. macOS jobs use Bash without startup profiles so the Node selected by `setup-node` stays on PATH; the x64 job fails if Node reports another architecture.
 
-| Platform | Architecture | Installer | Runner | Test shards |
-| --- | --- | --- | --- | --- |
-| Windows | x64 | NSIS `.exe` | `blacksmith-4vcpu-windows-2025` | 2 |
-| macOS | Apple silicon arm64 | `.dmg` | `blacksmith-6vcpu-macos-15` | 2 |
-| macOS | Intel x64 | `.dmg` | `blacksmith-6vcpu-macos-15`, x64 Node under Rosetta | 2 |
-| Linux | x64 | `.AppImage` | `blacksmith-4vcpu-ubuntu-2404` | 2 |
+Each job uses Node 24.22.1 from `.nvmrc` and `npm ci`. Linux runtime behavior needs separate proof.
 
-The `main branch rules` ruleset requires a pull request with resolved conversations (no approval count; an approval only when someone else's commits are pushed to the pull request), the four `Test and package` checks and the merge queue (squash, PR title as subject, one PR per group, no wait). It blocks force pushes and deletion and has no bypass actors. The `release tags` ruleset blocks moving or deleting `v*` tags; Actions can still create them. Outside contributors' workflow runs need maintainer approval. See [ADR 0059](adr/0059-merge-queue-and-reviews.md) and [ADR 0060](adr/0060-optional-review.md).
+| Platform | Architecture | Installer | Runner |
+| --- | --- | --- | --- |
+| Windows | x64 | NSIS `.exe` | `blacksmith-4vcpu-windows-2025` |
+| macOS | Apple silicon arm64 | `.dmg` | `blacksmith-6vcpu-macos-15` |
+| macOS | Intel x64 | `.dmg` | `blacksmith-6vcpu-macos-15`, x64 Node under Rosetta |
+| Linux | x64 | `.AppImage` | `blacksmith-4vcpu-ubuntu-2404` |
 
-Download `installer-<platform>` from the workflow run's Artifacts section. Each artifact expires after one day. Reruns replace artifacts for rebuilt platforms; successful platform jobs that are not rerun retain their earlier artifacts. Missing installer files fail the job. Superseded runs are canceled, and test and package jobs each have a 20-minute limit.
+The `main branch rules` ruleset requires a pull request with resolved conversations (no approval count; an approval only when someone else's commits are pushed to the pull request), the four `Test and package` checks and the merge queue (squash, PR title as subject, at most five entries built together and one merged at a time, no minimum wait). `Checks` is not a standalone required context; the required Linux job always evaluates it and fails before checkout unless it succeeded. It blocks force pushes and deletion and has no bypass actors. The `release tags` ruleset blocks moving or deleting `v*` tags; Actions can still create them. Outside contributors' workflow runs need maintainer approval. See [ADR 0059](adr/0059-merge-queue-and-reviews.md) and [ADR 0060](adr/0060-optional-review.md).
+
+Download `installer-<platform>` from the workflow run's Artifacts section. Each artifact expires after one day. Reruns replace artifacts for rebuilt platforms; successful platform jobs that are not rerun retain their earlier artifacts. Missing installer files fail the job. Superseded runs are canceled, and platform jobs have a 30-minute limit.
 
 [The build-version step](../scripts/set-build-version.mjs) gives non-tag runs the version `<release>-ci.<GITHUB_RUN_ID>.<GITHUB_RUN_ATTEMPT>`. It updates `package.json` and both root lockfile versions only in the runner checkout. Each new run or rerun has a distinct application version and installer filename. The macOS bundle build version and Windows file version use the workflow run number and attempt. The workflow passes the checked-out ref as `EMC2_BUILD_REF`; it takes precedence over the caller's `GITHUB_REF`. Manual stable tags must match the source version. The automatic patch lane computes the next version above the source version and existing stable tags, verifies that value again in the build jobs, and stamps it only in their runner checkouts. It builds the triggering commit SHA, then creates the tag after all four platform jobs pass. Branch and ordinary commit builds retain the CI suffix. See [ADR 0004](adr/0004-ci-build-versions.md) and [ADR 0041](adr/0041-post-build-automatic-release-tags.md).
 
-Every CI, release and CodeQL job runs on Blacksmith, which bills it; no job uses GitHub-hosted runners. Blacksmith has no Intel Macs, so the macOS x64 jobs install Rosetta if needed, run x64 Node through it, and fail early unless `process.arch` is `x64`; tests, the x64 installer and its startup check all run translated rather than on Intel hardware. CodeQL default setup uses the `blacksmith-2vcpu-ubuntu-2404` label. The repository is public. Standard GitHub-hosted runner execution is free under [GitHub's Actions billing policy](https://docs.github.com/en/billing/concepts/product-billing/github-actions). Artifact storage shares the owner's plan allowance with GitHub Packages; excess artifact storage is billed at $0.25 USD per GB-month. npm cache storage has a separate 10 GB included allowance per repository. One-day artifact retention limits storage use but does not set an account spending cap. Recheck billing before making the repository private or selecting larger runners.
+Every CI, release and CodeQL job runs on Blacksmith, which bills it; no job uses GitHub-hosted runners. Blacksmith has no Intel Macs, so the macOS x64 jobs install Rosetta if needed, run x64 Node through it, and fail early unless `process.arch` is `x64`; tests, the x64 installer and its startup check all run translated rather than on Intel hardware. CodeQL runs weekly and on demand from `.github/workflows/codeql.yml` on Blacksmith, not on every pull request. The repository is public. Standard GitHub-hosted runner execution is free under [GitHub's Actions billing policy](https://docs.github.com/en/billing/concepts/product-billing/github-actions). Artifact storage shares the owner's plan allowance with GitHub Packages; excess artifact storage is billed at $0.25 USD per GB-month. npm cache storage has a separate 10 GB included allowance per repository. One-day artifact retention limits storage use but does not set an account spending cap. Recheck billing before making the repository private or selecting larger runners.
 
 CI has read-only repository permissions, disables signing-certificate discovery, and passes `--publish never` to packaging. It needs no mail-provider keys or signing credentials. Installer creation proves packaging; it does not prove native launch, account sign-in, OS trust acceptance or mail delivery. Windows installers are unsigned; macOS apps use local ad-hoc signatures, while DMGs stay unsigned and not notarized. The [tag-release workflow](../.github/workflows/release.yml) and [automatic patch-release workflow](../.github/workflows/auto-release.yml) publish four installers, Windows/Linux updater manifests and SHA-256 checksums only after every build job passes. Manual tags must match `package.json`; automatic tags point to the triggering source commit and are created only after all build jobs pass. The automatic workflow writes no version commit to `main`.
 
@@ -956,8 +960,8 @@ and build jobs have read-only repository access; only publishing can push a tag.
 The publisher checks out source before downloading artifacts, calculates checksums
 before tagging, and reuses an existing tag only at the same source commit. Manual
 version commits beginning with `Release ` and commit messages containing
-`[skip release]` skip the automatic lane. The latter marker must survive in the
-actual final commit pushed to `main`; a PR label or title alone is insufficient.
+`[skip release]` skip the automatic lane. The marker must reach the final commit on `main`; the merge queue uses the
+PR title as that commit's subject, so put it in the PR title.
 Regular CI still runs, and explicit tag releases remain unchanged. Retry an
 automatic release through its original workflow run, since its tag points at source
 with the older committed version and cannot use the strict manual tag route.
@@ -966,23 +970,21 @@ Workflow source tests normalize LF and CRLF checkout line endings before checkin
 the release gates and executing the tag command.
 
 CI validates workflows with checksum-pinned actionlint 1.7.12 before running the
-four-platform matrix. Actions are pinned to full official release commit SHAs.
+platform jobs. Actions are pinned to full official release commit SHAs.
 Every workflow reads the build Node version from `.nvmrc` (24.22.1, the 21
 October 2026 security release), and `package.json` `engines` requires
 `>=24.22.1 <25`. The desktop app itself runs on the Node bundled with Electron.
 Hosted runners must support the actions' Node 24 runtime (runner 2.327.1 or
 newer). No unsafe fork-checkout opt-in is enabled.
 
-Dependabot opens one weekly grouped pull request for GitHub Actions (titled
-`[skip release] ci: …`, so it publishes nothing) and one for npm minor and patch
-updates; npm majors arrive one at a time, and Electron majors are ignored for a
-manual upgrade. [Dependabot auto-merge](../.github/workflows/dependabot-auto-merge.yml)
-queues minor and patch pull requests, which land only after the merge queue's CI
-passes; majors wait for a person. [Dependency review](../.github/workflows/dependency-review.yml)
-fails a pull request that adds a dependency with a high or critical advisory or
-a GPL or AGPL license. CodeQL default setup scans JavaScript, TypeScript and the
-workflows. `.github/release.yml` groups generated release notes by label and
-leaves out Dependabot pull requests.
+Dependabot opens monthly grouped pull requests for GitHub Actions (titled
+`[skip release] ci: …`) and npm minor/patch updates. npm majors are separate;
+Electron majors require a manual upgrade. Maintainers review advisories and
+licenses and queue dependency pull requests. Dependency review and automatic
+Dependabot merging have no dedicated workflows. CodeQL scans JavaScript,
+TypeScript and workflows weekly or on manual dispatch on Blacksmith.
+`.github/release.yml` groups generated release notes by label and leaves out
+Dependabot pull requests.
 
 Both release lanes fail artifact downloads on digest mismatch and run the shared
 [asset preparation gate](../scripts/prepare-release-assets.mjs) before publication.

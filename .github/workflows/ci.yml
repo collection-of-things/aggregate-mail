@@ -1,10 +1,9 @@
 name: CI
 
+# Pull requests run Linux tests and the build. The merge queue, manual runs and
+# the release lanes test and package all four platforms.
 on:
   pull_request:
-  push:
-    branches: [main]
-  # The merge queue tests each pull request on top of the latest main.
   merge_group:
   workflow_dispatch:
   workflow_call:
@@ -22,55 +21,14 @@ on:
 
 permissions:
   contents: read
-  # The plan job reads earlier check results for the same commit.
-  checks: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  plan:
-    name: Plan
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 5
-    outputs:
-      reuse: ${{ steps.plan.outputs.reuse }}
-      package: ${{ steps.plan.outputs.package }}
-    steps:
-      # Main only moves by fast-forward, through the merge queue, so a pushed
-      # commit that already passed every platform's tests in its merge group is
-      # the exact code being released. Its tests are reused instead of rerun;
-      # pull requests, merge groups and any other commit run them all.
-      - id: plan
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EVENT: ${{ github.event_name }}
-          REF: ${{ inputs.ref || github.sha }}
-          GIT_REF: ${{ github.ref }}
-          RELEASE_VERSION: ${{ inputs.release_version }}
-        run: |
-          reuse=false
-          package=true
-          # A plain push to main publishes nothing; the release lane packages it.
-          if [ "$EVENT" = push ] && [ "$GIT_REF" = refs/heads/main ] && [ -z "$RELEASE_VERSION" ]; then
-            package=false
-          fi
-          if [ "$EVENT" = push ]; then
-            sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${REF}" --jq .sha)"
-            passed="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/commits/${sha}/check-runs?per_page=100" \
-              --jq '.check_runs[] | select(.app.slug == "github-actions" and .conclusion == "success") | .name' | sort -u)"
-            reuse=true
-            for platform in windows-x64 macos-arm64 macos-x64 linux-x64; do
-              grep -qxF "Test and package (${platform})" <<<"$passed" || reuse=false
-            done
-            echo "Commit ${sha}: reuse earlier test results = ${reuse}"
-          fi
-          echo "reuse=${reuse}" >> "$GITHUB_OUTPUT"
-          echo "package=${package}" >> "$GITHUB_OUTPUT"
-
-  workflows:
-    name: Validate workflows
+  checks:
+    name: Checks
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
     steps:
@@ -78,6 +36,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0
       - name: Run actionlint
         shell: bash
         run: |
@@ -89,71 +48,60 @@ jobs:
           echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $directory/actionlint.tar.gz" | sha256sum --check --strict
           tar -xzf "$directory/actionlint.tar.gz" -C "$directory" actionlint
           "$directory/actionlint" -color
-
-  # The repository is public, so no commit may carry a personal email. In the
-  # merge queue this also checks the squash commit before it reaches main.
-  emails:
-    name: Commit email privacy
-    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ inputs.ref || github.sha }}
-          fetch-depth: 0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      # The repository is public, so no commit may carry a personal email. In
+      # the merge queue this also checks the squash commit before it lands.
+      - if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-      - env:
+      - name: Check commit email privacy
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
           HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
         run: node scripts/check-commit-emails.mjs "${BASE}..${HEAD}"
 
-  # Every platform runs the whole serial suite, split into shards that run on
-  # separate runners at the same time.
-  test:
-    needs: [plan, workflows]
-    if: needs.plan.outputs.reuse != 'true'
-    name: Test (${{ matrix.platform }} ${{ matrix.shard }}/${{ matrix.shards }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
+  # One job per platform. Windows and macOS skip pull requests; GitHub counts a
+  # skipped required check as passing, and the merge queue runs them before
+  # anything lands. Literal job names keep the required check names.
+  linux:
+    needs: checks
+    if: always()
+    name: Test and package (linux-x64)
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
     defaults:
       run:
-        shell: ${{ matrix.shell }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { platform: windows-x64, runner: blacksmith-4vcpu-windows-2025, shell: pwsh, shard: 1, shards: 2 }
-          - { platform: windows-x64, runner: blacksmith-4vcpu-windows-2025, shell: pwsh, shard: 2, shards: 2 }
-          - { platform: macos-arm64, runner: blacksmith-6vcpu-macos-15, shell: "zsh -e {0}", shard: 1, shards: 2 }
-          - { platform: macos-arm64, runner: blacksmith-6vcpu-macos-15, shell: "zsh -e {0}", shard: 2, shards: 2 }
-          # Blacksmith has no Intel Macs, so x64 runs under Rosetta on Apple silicon.
-          - { platform: macos-x64, runner: blacksmith-6vcpu-macos-15, shell: "zsh -e {0}", arch: x64, shard: 1, shards: 2 }
-          - { platform: macos-x64, runner: blacksmith-6vcpu-macos-15, shell: "zsh -e {0}", arch: x64, shard: 2, shards: 2 }
-          - { platform: linux-x64, runner: blacksmith-4vcpu-ubuntu-2404, shell: bash, shard: 1, shards: 2 }
-          - { platform: linux-x64, runner: blacksmith-4vcpu-ubuntu-2404, shell: bash, shard: 2, shards: 2 }
-    steps:
+        shell: bash
+    env:
+      PLATFORM: linux-x64
+      BUILDER_ARGS: --linux AppImage --x64
+      NODE_ARCH: ""
+      ARTIFACT: |
+        release/*.AppImage
+        release/latest-linux.yml
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps: &platform-steps
+      - name: Require successful checks
+        if: needs.checks.result != 'success'
+        run: exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0
       - name: Install Rosetta for x64 builds
-        if: matrix.arch == 'x64' && runner.os == 'macOS'
+        if: env.NODE_ARCH == 'x64' && runner.os == 'macOS'
         run: arch -x86_64 /usr/bin/true 2>/dev/null || sudo softwareupdate --install-rosetta --agree-to-license
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-          architecture: ${{ matrix.arch || '' }}
+          architecture: ${{ env.NODE_ARCH }}
           cache: npm
       - name: Confirm Node architecture
-        if: matrix.arch == 'x64'
+        if: env.NODE_ARCH == 'x64'
         run: node -e "if (process.arch !== 'x64') { console.error('Expected x64 Node, got ' + process.arch); process.exit(1) }"
-      - &electron-cache
-        name: Cache Electron downloads
+      - name: Cache Electron downloads
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -163,7 +111,7 @@ jobs:
             ~/Library/Caches/electron-builder
             ~/AppData/Local/electron/Cache
             ~/AppData/Local/electron-builder/Cache
-          key: electron-${{ runner.os }}-${{ matrix.arch || runner.arch }}-${{ hashFiles('package-lock.json') }}
+          key: electron-${{ runner.os }}-${{ env.NODE_ARCH || runner.arch }}-${{ hashFiles('package-lock.json') }}
       - name: Set build version
         env:
           EMC2_BUILD_REF: ${{ inputs.ref || github.ref }}
@@ -171,139 +119,97 @@ jobs:
         run: node scripts/set-build-version.mjs
       - run: npm ci --no-audit --no-fund
       - run: npm test
-        env:
-          TEST_SHARD: ${{ matrix.shard }}/${{ matrix.shards }}
-
-  package:
-    needs: [plan, workflows]
-    if: needs.plan.outputs.package == 'true'
-    name: Package (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
-    defaults:
-      run:
-        shell: ${{ matrix.shell }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: windows-x64
-            runner: blacksmith-4vcpu-windows-2025
-            shell: pwsh
-            args: --win nsis --x64
-            artifact: |
-              release/*.exe
-              release/latest.yml
-          - platform: macos-arm64
-            runner: blacksmith-6vcpu-macos-15
-            shell: zsh -e {0}
-            args: --mac dmg --arm64
-            artifact: release/*.dmg
-          - platform: macos-x64
-            runner: blacksmith-6vcpu-macos-15
-            arch: x64
-            shell: zsh -e {0}
-            args: --mac dmg --x64
-            artifact: release/*.dmg
-          - platform: linux-x64
-            runner: blacksmith-4vcpu-ubuntu-2404
-            shell: bash
-            args: --linux AppImage --x64
-            artifact: |
-              release/*.AppImage
-              release/latest-linux.yml
-    env:
-      CSC_IDENTITY_AUTO_DISCOVERY: "false"
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ inputs.ref || github.sha }}
-          fetch-depth: 0
-      - name: Install Rosetta for x64 builds
-        if: matrix.arch == 'x64' && runner.os == 'macOS'
-        run: arch -x86_64 /usr/bin/true 2>/dev/null || sudo softwareupdate --install-rosetta --agree-to-license
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .nvmrc
-          architecture: ${{ matrix.arch || '' }}
-          cache: npm
-      - name: Confirm Node architecture
-        if: matrix.arch == 'x64'
-        run: node -e "if (process.arch !== 'x64') { console.error('Expected x64 Node, got ' + process.arch); process.exit(1) }"
-      - *electron-cache
-      - name: Set build version
-        env:
-          EMC2_BUILD_REF: ${{ inputs.ref || github.ref }}
-          EMC2_RELEASE_VERSION: ${{ inputs.release_version }}
-        run: node scripts/set-build-version.mjs
-      - run: npm ci --no-audit --no-fund
       - run: npm run build
       - name: Check desktop startup
-        if: runner.os != 'Linux'
+        if: github.event_name != 'pull_request' && runner.os != 'Linux'
         timeout-minutes: 1
         run: npm run check:desktop -- --user-data-dir="${{ runner.temp }}/emc2-check"
       - name: Create installer
-        if: runner.os != 'macOS'
-        run: npx --no-install electron-builder ${{ matrix.args }} --publish never
-      # hdiutil intermittently fails ("Resource busy" / create failed) on hosted macOS runners.
+        if: github.event_name != 'pull_request' && runner.os != 'macOS'
+        run: npx --no-install electron-builder ${{ env.BUILDER_ARGS }} --publish never
+      # hdiutil intermittently fails ("Resource busy" / create failed) on macOS runners.
       # Retry the DMG build up to 3 times, force-detaching stale volumes between attempts.
       - name: Create installer (macOS, with hdiutil retry)
-        if: runner.os == 'macOS'
+        if: github.event_name != 'pull_request' && runner.os == 'macOS'
         run: |
+          shopt -s nullglob
           for attempt in 1 2 3; do
-            if npx --no-install electron-builder ${{ matrix.args }} --publish never; then
+            if npx --no-install electron-builder ${{ env.BUILDER_ARGS }} --publish never; then
               exit 0
             fi
             echo "::warning::electron-builder DMG attempt $attempt failed"
-            for volume in /Volumes/Emc*(N); do
+            for volume in /Volumes/Emc*; do
               hdiutil detach -force "$volume" || true
             done
-            rm -f release/*.dmg(N) release/*.blockmap(N)
+            rm -f release/*.dmg release/*.blockmap
             sleep $((attempt * 10))
           done
           echo "::error::electron-builder DMG failed after 3 attempts"
           exit 1
       - name: Verify updater metadata and installer integrity
-        if: runner.os != 'macOS'
-        run: node --import tsx scripts/check-release-assets.ts ${{ matrix.platform }}
+        if: github.event_name != 'pull_request' && runner.os != 'macOS'
+        run: node --import tsx scripts/check-release-assets.ts ${{ env.PLATFORM }}
       - name: Upload installer
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: installer-${{ matrix.platform }}
-          path: ${{ matrix.artifact }}
+          name: installer-${{ env.PLATFORM }}
+          path: ${{ env.ARTIFACT }}
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
           overwrite: true
 
-  # The main branch rule requires one check per platform. Each passes only when
-  # every test shard and every installer succeeded, or when the tests were
-  # reused from an earlier run of the same commit.
-  result:
-    needs: [plan, workflows, emails, test, package]
-    if: always()
-    name: Test and package (${{ matrix.platform }})
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 5
-    strategy:
-      matrix:
-        platform: [windows-x64, macos-arm64, macos-x64, linux-x64]
-    steps:
-      - env:
-          REUSE: ${{ needs.plan.outputs.reuse }}
-          PACKAGE: ${{ needs.plan.outputs.package }}
-          PLAN: ${{ needs.plan.result }}
-          WORKFLOWS: ${{ needs.workflows.result }}
-          EMAILS: ${{ needs.emails.result }}
-          EVENT: ${{ github.event_name }}
-          TEST: ${{ needs.test.result }}
-          PACKAGED: ${{ needs.package.result }}
-        run: |
-          echo "plan=${PLAN} workflows=${WORKFLOWS} emails=${EMAILS} tests=${TEST} (reused=${REUSE}) packages=${PACKAGED} (required=${PACKAGE})"
-          test "$PLAN" = success
-          test "$WORKFLOWS" = success
-          # Pull requests and merge groups must pass the email check; other events skip it.
-          case "$EVENT" in pull_request|merge_group) test "$EMAILS" = success ;; *) test "$EMAILS" = skipped ;; esac
-          if [ "$REUSE" = true ]; then test "$TEST" = skipped; else test "$TEST" = success; fi
-          if [ "$PACKAGE" = true ]; then test "$PACKAGED" = success; else test "$PACKAGED" = skipped; fi
+  windows:
+    needs: checks
+    if: github.event_name != 'pull_request'
+    name: Test and package (windows-x64)
+    runs-on: blacksmith-4vcpu-windows-2025
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      PLATFORM: windows-x64
+      BUILDER_ARGS: --win nsis --x64
+      NODE_ARCH: ""
+      ARTIFACT: |
+        release/*.exe
+        release/latest.yml
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps: *platform-steps
+
+  macos-arm64:
+    needs: checks
+    if: github.event_name != 'pull_request'
+    name: Test and package (macos-arm64)
+    runs-on: blacksmith-6vcpu-macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash --noprofile --norc -eo pipefail {0}
+    env:
+      PLATFORM: macos-arm64
+      BUILDER_ARGS: --mac dmg --arm64
+      NODE_ARCH: ""
+      ARTIFACT: release/*.dmg
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps: *platform-steps
+
+  # Blacksmith has no Intel Macs, so x64 runs under Rosetta on Apple silicon.
+  macos-x64:
+    needs: checks
+    if: github.event_name != 'pull_request'
+    name: Test and package (macos-x64)
+    runs-on: blacksmith-6vcpu-macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash --noprofile --norc -eo pipefail {0}
+    env:
+      PLATFORM: macos-x64
+      BUILDER_ARGS: --mac dmg --x64
+      NODE_ARCH: x64
+      ARTIFACT: release/*.dmg
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps: *platform-steps

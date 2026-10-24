@@ -4,18 +4,18 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     commit-message:
       prefix: "[skip release] ci"
     groups:
       github-actions:
         patterns: ["*"]
-  # One weekly pull request for minor and patch updates. Majors arrive one at
-  # a time for a person to review; Electron majors need a manual upgrade.
+  # One monthly pull request for minor and patch updates. Majors arrive one at
+  # a time; Electron majors need a manual upgrade.
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 5
     commit-message:
       prefix: deps

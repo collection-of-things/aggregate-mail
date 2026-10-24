@@ -70,52 +70,60 @@ test("release-only skip marker leaves ordinary CI active", () => {
   assert.match(workflow, /  publish:\n    needs: \[version, build\]/);
   assert.doesNotMatch(workflow, /always\(\)/);
   const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-  assert.match(ci, /on:\n  pull_request:\n  push:\n    branches: \[main\]\n(?:  #[^\n]*\n)?  merge_group:\n/);
-  assert.doesNotMatch(ci, /skip release|head_commit|paths-ignore/);
-  assert.match(ci, /  test:\n    needs: \[plan, workflows\]/);
-  assert.match(ci, /  package:\n    needs: \[plan, workflows\]/);
+  assert.match(ci, /on:\n  pull_request:\n  merge_group:\n  workflow_dispatch:\n  workflow_call:/);
+  assert.doesNotMatch(ci, /\n  push:|skip release|head_commit|paths-ignore/);
+  for (const job of ["linux", "windows", "macos-arm64", "macos-x64"]) assert.match(ci, new RegExp(`\\n  ${job}:\\n    needs: checks\\n`), job);
 });
 
-test("required platform checks pass only when validation, every shard and every needed installer did", () => {
+test("pull requests run Linux only; the merge queue and releases run every platform", () => {
   const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-  const result = ci.slice(ci.indexOf("\n  result:"));
-  assert.match(result, /needs: \[plan, workflows, emails, test, package\]/);
-  assert.match(result, /name: Test and package \(\$\{\{ matrix\.platform \}\}\)/);
-  assert.match(result, /platform: \[windows-x64, macos-arm64, macos-x64, linux-x64\]/);
-  for (const line of ['test "$PLAN" = success', 'test "$WORKFLOWS" = success',
-    'case "$EVENT" in pull_request|merge_group) test "$EMAILS" = success ;; *) test "$EMAILS" = skipped ;; esac',
-    'if [ "$REUSE" = true ]; then test "$TEST" = skipped; else test "$TEST" = success; fi',
-    'if [ "$PACKAGE" = true ]; then test "$PACKAGED" = success; else test "$PACKAGED" = skipped; fi']) assert.ok(result.includes(line), line);
-  for (const platform of ["windows-x64", "macos-arm64", "macos-x64", "linux-x64"])
-    assert.match(ci.slice(ci.indexOf("\n  test:"), ci.indexOf("\n  package:")), new RegExp(`platform: ${platform},.*shard: 1,`));
+  const job = (name) => ci.slice(ci.indexOf(`\n  ${name}:\n`) + 1).split(/\n  (?=[a-z0-9-]+:\n)/)[0];
+  const names = { linux: "linux-x64", windows: "windows-x64", "macos-arm64": "macos-arm64", "macos-x64": "macos-x64" };
+  for (const [key, platform] of Object.entries(names)) {
+    const body = job(key);
+    // Literal names, so a skipped job still reports the required check by name.
+    assert.match(body, new RegExp(`name: Test and package \\(${platform}\\)`), key);
+    assert.match(body, new RegExp(`PLATFORM: ${platform}\\n`), key);
+    if (key === "linux") assert.match(body, /\n    if: always\(\)\n/);
+    else assert.match(body, /\n    if: github\.event_name != 'pull_request'\n/, key);
+    assert.match(body, key === "linux" ? /steps: &platform-steps/ : /steps: \*platform-steps/, key);
+  }
+  assert.match(job("macos-x64"), /NODE_ARCH: x64/);
+  const steps = job("linux");
+  assert.match(steps, /- run: npm test\n      - run: npm run build/);
+  for (const step of ["Check desktop startup", "Create installer", "Create installer (macOS, with hdiutil retry)", "Verify updater metadata and installer integrity", "Upload installer"])
+    assert.match(steps, new RegExp(`- name: ${step.replace(/[()]/g, "\\$&")}\\n        if: github\\.event_name != 'pull_request'`), step);
+  assert.match(steps, /process\.arch !== 'x64'/);
+  const checks = job("checks");
+  assert.match(checks, /name: Checks/);
+  assert.match(checks, /node scripts\/check-commit-emails\.mjs "\$\{BASE\}\.\.\$\{HEAD\}"/);
+  assert.match(checks, /actionlint/);
 });
 
-test("tests are reused only for a pushed commit that passed all four platforms", { skip: process.platform === "win32" }, () => {
+test("required Linux check fails when workflow or privacy checks fail", () => {
   const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-  const script = ci.match(/      - id: plan\n[\s\S]*?        run: \|\n([\s\S]*?)\n\n/)[1].replace(/^ {10}/gm, "");
-  const dir = mkdtempSync(path.join(tmpdir(), "emc2-ci-plan-"));
-  try {
-    // A fake gh resolves the commit and lists the given successful check names.
-    const gh = path.join(dir, "gh");
-    execFileSync("bash", ["-c", `printf '%s\\n' '#!/usr/bin/env bash' 'case "$*" in *check-runs*) printf "%s\\n" "$FAKE_CHECKS";; *) echo 0123abcd;; esac' > "${gh}" && chmod +x "${gh}"`]);
-    const all = ["windows-x64", "macos-arm64", "macos-x64", "linux-x64"].map((platform) => `Test and package (${platform})`);
-    const plan = (event, checks, extra = {}) => {
-      const output = path.join(dir, "output");
-      execFileSync("bash", ["-e", "-c", `: > "${output}"\n${script}`], { env: { ...process.env, PATH: `${dir}:${process.env.PATH}`,
-        GITHUB_OUTPUT: output, GITHUB_REPOSITORY: "example/repo", EVENT: event, REF: "0123abcd", GIT_REF: "refs/heads/main",
-        RELEASE_VERSION: "", FAKE_CHECKS: checks.join("\n"), ...extra }, stdio: "pipe" });
-      return Object.fromEntries(readFileSync(output, "utf8").trim().split("\n").map((line) => line.split("=")));
-    };
-    assert.deepEqual(plan("push", all), { reuse: "true", package: "false" });
-    assert.deepEqual(plan("push", all, { RELEASE_VERSION: "1.2.3" }), { reuse: "true", package: "true" });
-    assert.deepEqual(plan("push", all.slice(1)), { reuse: "false", package: "false" });
-    assert.deepEqual(plan("push", ["build / Test and package (windows-x64)", ...all.slice(1)]), { reuse: "false", package: "false" });
-    assert.deepEqual(plan("push", all, { GIT_REF: "refs/tags/v1.2.3" }), { reuse: "true", package: "true" });
-    assert.deepEqual(plan("pull_request", all), { reuse: "false", package: "true" });
-    assert.deepEqual(plan("workflow_dispatch", all), { reuse: "false", package: "true" });
-    assert.deepEqual(plan("merge_group", all, { GIT_REF: "refs/heads/gh-readonly-queue/main/pr-1-0123abcd" }), { reuse: "false", package: "true" });
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
+  const linux = ci.slice(ci.indexOf("\n  linux:\n"), ci.indexOf("\n  windows:\n"));
+  assert.match(linux, /needs: checks\n    if: always\(\)/);
+  const guard = linux.match(/- name: Require successful checks\n        if: ([^\n]+)\n        run: ([^\n]+)/);
+  assert.ok(guard, "shared steps must reject an unsuccessful Checks job");
+  assert.ok(linux.indexOf(guard[0]) < linux.indexOf("uses: actions/checkout@"));
+  assert.equal(guard[2], "exit 1");
+  for (const result of ["success", "failure", "cancelled", "skipped"]) {
+    assert.equal(vm.runInNewContext(guard[1], { needs: { checks: { result } } }), result !== "success");
+  }
+});
+
+test("CI stays serial and runs fresh tests without a reuse planner", () => {
+  const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8").replace(/\r\n/g, "\n");
+  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.match(pkg.scripts.test, /^tsx --test --test-concurrency=1 --test-timeout=120000 /);
+  assert.doesNotMatch(ci, /TEST_SHARD|needs\.checks\.outputs|check-runs|id: plan/);
+  assert.match(ci, /- run: npm test\n      - run: npm run build/);
+  assert.match(ci, /key: electron-\$\{\{ runner\.os \}\}-\$\{\{ env\.NODE_ARCH \|\| runner\.arch \}\}/);
+  for (const name of ["macos-arm64", "macos-x64"]) {
+    const body = ci.slice(ci.indexOf(`\n  ${name}:\n`) + 1).split(/\n  (?=[a-z0-9-]+:\n)/)[0];
+    // A startup shell must not replace setup-node's PATH with the host's Node.
+    assert.match(body, /shell: bash --noprofile --norc -eo pipefail \{0\}/);
   }
 });
 
