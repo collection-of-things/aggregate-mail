@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  # The called CI workflow reads earlier check results for the same commit.
+  checks: read
 
 concurrency:
   group: auto-release
@@ -17,7 +19,7 @@ jobs:
   version:
     # Skip only the release lane; ordinary CI still validates this commit.
     if: "!startsWith(github.event.head_commit.message, 'Release ') && !contains(github.event.head_commit.message, '[skip release]')"
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -44,7 +46,7 @@ jobs:
 
   publish:
     needs: [version, build]
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
     permissions:
       contents: write

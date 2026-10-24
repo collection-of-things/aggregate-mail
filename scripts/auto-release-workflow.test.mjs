@@ -72,7 +72,49 @@ test("release-only skip marker leaves ordinary CI active", () => {
   const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8").replace(/\r\n/g, "\n");
   assert.match(ci, /on:\n  pull_request:\n  push:\n    branches: \[main\]/);
   assert.doesNotMatch(ci, /skip release|head_commit|paths-ignore/);
-  assert.match(ci, /  build:\n    needs: workflows/);
+  assert.match(ci, /  test:\n    needs: \[plan, workflows\]/);
+  assert.match(ci, /  package:\n    needs: \[plan, workflows\]/);
+});
+
+test("required platform checks pass only when validation, every shard and every needed installer did", () => {
+  const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8").replace(/\r\n/g, "\n");
+  const result = ci.slice(ci.indexOf("\n  result:"));
+  assert.match(result, /needs: \[plan, workflows, test, package\]/);
+  assert.match(result, /name: Test and package \(\$\{\{ matrix\.platform \}\}\)/);
+  assert.match(result, /platform: \[windows-x64, macos-arm64, macos-x64, linux-x64\]/);
+  for (const line of ['test "$PLAN" = success', 'test "$WORKFLOWS" = success',
+    'if [ "$REUSE" = true ]; then test "$TEST" = skipped; else test "$TEST" = success; fi',
+    'if [ "$PACKAGE" = true ]; then test "$PACKAGED" = success; else test "$PACKAGED" = skipped; fi']) assert.ok(result.includes(line), line);
+  for (const platform of ["windows-x64", "macos-arm64", "macos-x64", "linux-x64"])
+    assert.match(ci.slice(ci.indexOf("\n  test:"), ci.indexOf("\n  package:")), new RegExp(`platform: ${platform},.*shard: 1,`));
+});
+
+test("tests are reused only for a pushed commit that passed all four platforms", { skip: process.platform === "win32" }, () => {
+  const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8").replace(/\r\n/g, "\n");
+  const script = ci.match(/      - id: plan\n[\s\S]*?        run: \|\n([\s\S]*?)\n\n/)[1].replace(/^ {10}/gm, "");
+  const dir = mkdtempSync(path.join(tmpdir(), "emc2-ci-plan-"));
+  try {
+    // A fake gh resolves the commit and lists the given successful check names.
+    const gh = path.join(dir, "gh");
+    execFileSync("bash", ["-c", `printf '%s\\n' '#!/usr/bin/env bash' 'case "$*" in *check-runs*) printf "%s\\n" "$FAKE_CHECKS";; *) echo 0123abcd;; esac' > "${gh}" && chmod +x "${gh}"`]);
+    const all = ["windows-x64", "macos-arm64", "macos-x64", "linux-x64"].map((platform) => `Test and package (${platform})`);
+    const plan = (event, checks, extra = {}) => {
+      const output = path.join(dir, "output");
+      execFileSync("bash", ["-e", "-c", `: > "${output}"\n${script}`], { env: { ...process.env, PATH: `${dir}:${process.env.PATH}`,
+        GITHUB_OUTPUT: output, GITHUB_REPOSITORY: "example/repo", EVENT: event, REF: "0123abcd", GIT_REF: "refs/heads/main",
+        RELEASE_VERSION: "", FAKE_CHECKS: checks.join("\n"), ...extra }, stdio: "pipe" });
+      return Object.fromEntries(readFileSync(output, "utf8").trim().split("\n").map((line) => line.split("=")));
+    };
+    assert.deepEqual(plan("push", all), { reuse: "true", package: "false" });
+    assert.deepEqual(plan("push", all, { RELEASE_VERSION: "1.2.3" }), { reuse: "true", package: "true" });
+    assert.deepEqual(plan("push", all.slice(1)), { reuse: "false", package: "false" });
+    assert.deepEqual(plan("push", ["build / Test and package (windows-x64)", ...all.slice(1)]), { reuse: "false", package: "false" });
+    assert.deepEqual(plan("push", all, { GIT_REF: "refs/tags/v1.2.3" }), { reuse: "true", package: "true" });
+    assert.deepEqual(plan("pull_request", all), { reuse: "false", package: "true" });
+    assert.deepEqual(plan("workflow_dispatch", all), { reuse: "false", package: "true" });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("both publication lanes validate the exact asset set before publishing", () => {

@@ -921,24 +921,28 @@ Keep credentials, personal contact details, absolute machine paths, private host
 
 ## CI
 
-The serial `npm test` step has a 20-minute deadline to accommodate slower
-hosted Intel macOS runners. The existing 20-minute job deadline still bounds
-the complete build and packaging job.
+[The CI workflow](../.github/workflows/ci.yml) runs on pull requests, pushes to `main` and manual dispatch. The tag-release and automatic patch-release workflows call it. Jobs, in order:
 
-[The CI workflow](../.github/workflows/ci.yml) runs on pull requests, pushes to `main` and manual dispatch. The tag-release workflow calls the same build jobs. Each matrix job uses Node 24, installs the lockfile with `npm ci`, runs `npm test`, runs the TypeScript and production build, runs an isolated production-startup check on Windows and macOS, then packages an installer without publishing. Linux runtime behavior needs separate proof.
+- **Plan** decides whether tests can be reused and whether installers are needed. On a push (including the release lanes), it reuses tests only when the exact commit already has successful `Test and package (<platform>)` checks for all four platforms. `main` moves only by fast-forward, so such a commit is the code those checks tested; any other commit runs the full suite. A plain push to `main` builds no installers, because the release lane packages them.
+- **Validate workflows** runs actionlint 1.7.12 with the Blacksmith labels in `.github/actionlint.yaml`.
+- **Test (`<platform>` `<n>`/`<total>`)** runs the whole serial suite on every platform, split by file into shards on separate runners. `scripts/test.mjs` passes `TEST_SHARD` to Node's `--test-shard`; `npm test` without it runs everything.
+- **Package (`<platform>`)** runs `npm run build`, the isolated startup check on Windows and macOS, then the installer without publishing. It runs alongside the tests.
+- **Test and package (`<platform>`)** is the check the `main` rule requires. It passes only when the plan, workflow validation, every shard and every required installer succeeded, or when tests were reused.
 
-| Platform | Architecture | Installer | Standard runner |
-| --- | --- | --- | --- |
-| Windows | x64 | NSIS `.exe` | `windows-latest` |
-| macOS | Apple silicon arm64 | `.dmg` | `macos-15` |
-| macOS | Intel x64 | `.dmg` | `macos-15-intel` |
-| Linux | x64 | `.AppImage` | `ubuntu-24.04` |
+Each job uses Node 24 and `npm ci`. Electron and electron-builder downloads are cached per OS, architecture and lockfile. Linux runtime behavior needs separate proof.
 
-Download `installer-<platform>` from the workflow run's Artifacts section. Each artifact expires after one day. Reruns replace artifacts for rebuilt platforms; successful platform jobs that are not rerun retain their earlier artifacts. Missing installer files fail the job. Superseded runs are canceled, and each job has a 20-minute limit.
+| Platform | Architecture | Installer | Runner | Test shards |
+| --- | --- | --- | --- | --- |
+| Windows | x64 | NSIS `.exe` | `blacksmith-4vcpu-windows-2025` | 2 |
+| macOS | Apple silicon arm64 | `.dmg` | `blacksmith-6vcpu-macos-15` | 2 |
+| macOS | Intel x64 | `.dmg` | `macos-15-intel` (Blacksmith has no Intel Macs) | 3 |
+| Linux | x64 | `.AppImage` | `blacksmith-4vcpu-ubuntu-2404` | 2 |
+
+Download `installer-<platform>` from the workflow run's Artifacts section. Each artifact expires after one day. Reruns replace artifacts for rebuilt platforms; successful platform jobs that are not rerun retain their earlier artifacts. Missing installer files fail the job. Superseded runs are canceled, and test and package jobs each have a 20-minute limit.
 
 [The build-version step](../scripts/set-build-version.mjs) gives non-tag runs the version `<release>-ci.<GITHUB_RUN_ID>.<GITHUB_RUN_ATTEMPT>`. It updates `package.json` and both root lockfile versions only in the runner checkout. Each new run or rerun has a distinct application version and installer filename. The macOS bundle build version and Windows file version use the workflow run number and attempt. The workflow passes the checked-out ref as `EMC2_BUILD_REF`; it takes precedence over the caller's `GITHUB_REF`. Manual stable tags must match the source version. The automatic patch lane computes the next version above the source version and existing stable tags, verifies that value again in the build jobs, and stamps it only in their runner checkouts. It builds the triggering commit SHA, then creates the tag after all four platform jobs pass. Branch and ordinary commit builds retain the CI suffix. See [ADR 0004](adr/0004-ci-build-versions.md) and [ADR 0041](adr/0041-post-build-automatic-release-tags.md).
 
-The repository is public. Standard GitHub-hosted runner execution is free under [GitHub's Actions billing policy](https://docs.github.com/en/billing/concepts/product-billing/github-actions). Artifact storage shares the owner's plan allowance with GitHub Packages; excess artifact storage is billed at $0.25 USD per GB-month. npm cache storage has a separate 10 GB included allowance per repository. One-day artifact retention limits storage use but does not set an account spending cap. Recheck billing before making the repository private or selecting larger runners.
+Blacksmith runners are billed by Blacksmith; only the Intel macOS jobs use GitHub-hosted runners. The repository is public. Standard GitHub-hosted runner execution is free under [GitHub's Actions billing policy](https://docs.github.com/en/billing/concepts/product-billing/github-actions). Artifact storage shares the owner's plan allowance with GitHub Packages; excess artifact storage is billed at $0.25 USD per GB-month. npm cache storage has a separate 10 GB included allowance per repository. One-day artifact retention limits storage use but does not set an account spending cap. Recheck billing before making the repository private or selecting larger runners.
 
 CI has read-only repository permissions, disables signing-certificate discovery, and passes `--publish never` to packaging. It needs no mail-provider keys or signing credentials. Installer creation proves packaging; it does not prove native launch, account sign-in, OS trust acceptance or mail delivery. Windows installers are unsigned; macOS apps use local ad-hoc signatures, while DMGs stay unsigned and not notarized. The [tag-release workflow](../.github/workflows/release.yml) and [automatic patch-release workflow](../.github/workflows/auto-release.yml) publish four installers, Windows/Linux updater manifests and SHA-256 checksums only after every build job passes. Manual tags must match `package.json`; automatic tags point to the triggering source commit and are created only after all build jobs pass. The automatic workflow writes no version commit to `main`.
 

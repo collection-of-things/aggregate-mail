@@ -120,9 +120,13 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
 ## CI and releases
 
 - `.github/workflows/ci.yml` runs on every PR and push to `main` on Windows x64,
-  macOS arm64, macOS x64 and Linux x64: `npm ci`, `npm test`, `npm run build`,
-  isolated `check:desktop` (skipped on Linux), unpublished installer. All jobs
-  must pass.
+  macOS arm64, macOS x64 and Linux x64. Each platform runs the full `npm test`
+  suite split into parallel shards, plus `npm run build`, isolated
+  `check:desktop` (skipped on Linux) and an unpublished installer. The required
+  `Test and package (<platform>)` checks pass only when all of it does.
+- Merge by fast-forwarding `main` to the tested PR head. CI and the release lane
+  then reuse that commit's test results instead of rerunning them. A GitHub
+  merge or squash commit is new code and reruns the full suite.
 - CI stamps non-tag builds with a `-ci.` version (`scripts/set-build-version.mjs`,
   ADR 0004). Do not change `version` in a PR.
 - Every push to `main` except `Release ` commits and commits containing
