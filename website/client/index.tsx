@@ -8,7 +8,7 @@ import { Inbox } from "./inbox";
 
 const client = createClient<typeof app>();
 
-const GITHUB_REPO = "https://github.com/Zns-Nexus/aggregate-mail";
+const GITHUB_REPO = "https://github.com/collection-of-things/aggregate-mail";
 const CAFE_REPO = "https://git.cafe/screen/aggregate-mail";
 const RELEASES = `${GITHUB_REPO}/releases/latest`;
 

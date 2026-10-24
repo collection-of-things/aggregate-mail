@@ -4,7 +4,7 @@ import { githubDownloads } from "./downloads";
 // Star counts for the two hosts that carry the repository. GitHub allows about
 // sixty anonymous reads an hour per address and the capsule shares one, so the
 // answer is held for ten minutes and a failed read falls back to the last one.
-const GITHUB_REPO = "Zns-Nexus/aggregate-mail";
+const GITHUB_REPO = "collection-of-things/aggregate-mail";
 const CAFE_REPO = "screen/aggregate-mail";
 const cacheMs = 10 * 60 * 1000;
 
