@@ -21,7 +21,7 @@ An installable desktop email client for Windows, with a macOS build target, base
 
 ## Install
 
-Download the newest published Windows setup installer from [Releases](https://github.com/screen-devs/aggregate-mail/releases), named `Emc2-<version>-win-x64.exe` in new releases. It installs for the current user and creates Start menu and desktop shortcuts. Launch Emc² and connect accounts in Settings.
+Download the newest published Windows setup installer from [Releases](https://github.com/collection-of-things/aggregate-mail/releases), named `Emc2-<version>-win-x64.exe` in new releases. It installs for the current user and creates Start menu and desktop shortcuts. Launch Emc² and connect accounts in Settings.
 
 To build it yourself instead, run `npm run package` and open the installer it writes to `release/`. You can also run `release/win-unpacked/Emc².exe` directly; keep its surrounding files together. The installer is unsigned, so Windows may show an unknown-publisher or SmartScreen warning.
 
@@ -36,7 +36,7 @@ xcode-select --install
 Clone the source with Git, install the locked dependencies and build the app:
 
 ```sh
-git clone https://github.com/screen-devs/aggregate-mail.git
+git clone https://github.com/collection-of-things/aggregate-mail.git
 cd aggregate-mail
 npm ci
 npm run package:mac:dir

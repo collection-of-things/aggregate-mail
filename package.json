@@ -110,7 +110,7 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "screen-devs",
+      "owner": "collection-of-things",
       "repo": "aggregate-mail"
     }
   },

@@ -60,7 +60,7 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement at
-[@screen-devs](https://github.com/screen-devs) on GitHub, by direct message or
+[@collection-of-things](https://github.com/collection-of-things) on GitHub, by direct message or
 through the repository's issue tracker when the report is not sensitive.
 
 All complaints will be reviewed and investigated promptly and fairly.
