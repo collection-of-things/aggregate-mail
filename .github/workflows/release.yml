@@ -2,10 +2,9 @@ name: Build installers and release
 
 # Eligible pushes to main build the next patch, then tag and publish it after
 # every installer job passes. Manual dispatch on an existing stable tag rebuilds
-# and publishes that tag. Minutes are balanced across both 3000-minute monthly
-# allowances: Linux, checks and publishing run on GitHub (1x Linux rate); Windows
-# and macOS run on Blacksmith (GitHub bills those at 2x and 10x). Tests run once,
-# on Linux; other platforms only build, startup-check and package.
+# and publishes that tag. Every job runs on GitHub-hosted runners; Windows and
+# macOS are billed at 2x and 10x the Linux minute rate. Tests run once, on
+# Linux; other platforms only build, startup-check and package.
 on:
   push:
     branches: [main]
@@ -168,8 +167,8 @@ jobs:
   windows:
     needs: checks
     name: Test and package (windows-x64)
-    runs-on: blacksmith-4vcpu-windows-2025
-    timeout-minutes: 30
+    runs-on: windows-2025
+    timeout-minutes: 45
     defaults:
       run:
         shell: pwsh
@@ -186,8 +185,8 @@ jobs:
   macos-arm64:
     needs: checks
     name: Test and package (macos-arm64)
-    runs-on: blacksmith-6vcpu-macos-15
-    timeout-minutes: 30
+    runs-on: macos-15
+    timeout-minutes: 45
     defaults:
       run:
         shell: bash --noprofile --norc -eo pipefail {0}
@@ -199,12 +198,12 @@ jobs:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps: *platform-steps
 
-  # Blacksmith has no Intel Macs, so x64 runs under Rosetta on Apple silicon.
+  # macos-15-intel is GitHub's native Intel image; the x64 Node guard stays.
   macos-x64:
     needs: checks
     name: Test and package (macos-x64)
-    runs-on: blacksmith-6vcpu-macos-15
-    timeout-minutes: 30
+    runs-on: macos-15-intel
+    timeout-minutes: 45
     defaults:
       run:
         shell: bash --noprofile --norc -eo pipefail {0}

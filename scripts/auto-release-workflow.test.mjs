@@ -12,7 +12,7 @@ const job = (name) => workflow.slice(workflow.indexOf(`\n  ${name}:\n`) + 1).spl
 test("only the budgeted CI and release workflows remain", () => {
   assert.deepEqual(readdirSync(new URL("../.github/workflows/", import.meta.url)).sort(), ["ci.yml", "release.yml"]);
   const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
-  assert.deepEqual(ci.match(/runs-on: \S+/g), ["runs-on: ubuntu-latest", "runs-on: ubuntu-latest", "runs-on: blacksmith-2vcpu-ubuntu-2404"]);
+  assert.deepEqual(ci.match(/runs-on: \S+/g), ["runs-on: ubuntu-latest", "runs-on: ubuntu-latest", "runs-on: ubuntu-latest"]);
   assert.match(ci, /types: \[labeled, synchronize, reopened\]/);
   assert.match(ci, /contains\(github\.event\.pull_request\.labels\.\*\.name, 'ci'\)/);
   assert.match(ci, /MAX_RUNS: 150/);
@@ -60,19 +60,19 @@ test("manual release requires an existing stable tag at the immutable build comm
 
 test("every platform tests and packages with its existing architecture and runner", () => {
   const platforms = [
-    ["linux", "linux-x64", "ubuntu-latest", "--linux AppImage --x64"],
-    ["windows", "windows-x64", "blacksmith-4vcpu-windows-2025", "--win nsis --x64"],
-    ["macos-arm64", "macos-arm64", "blacksmith-6vcpu-macos-15", "--mac dmg --arm64"],
-    ["macos-x64", "macos-x64", "blacksmith-6vcpu-macos-15", "--mac dmg --x64"],
+    ["linux", "linux-x64", "ubuntu-latest", "--linux AppImage --x64", 30],
+    ["windows", "windows-x64", "windows-2025", "--win nsis --x64", 45],
+    ["macos-arm64", "macos-arm64", "macos-15", "--mac dmg --arm64", 45],
+    ["macos-x64", "macos-x64", "macos-15-intel", "--mac dmg --x64", 45],
   ];
-  for (const [key, platform, runner, args] of platforms) {
+  for (const [key, platform, runner, args, timeout] of platforms) {
     const body = job(key);
     assert.match(body, /needs: checks\n/);
     assert.ok(body.includes(`name: Test and package (${platform})`), key);
     assert.ok(body.includes(`PLATFORM: ${platform}\n`), key);
     assert.ok(body.includes(`runs-on: ${runner}\n`), key);
     assert.ok(body.includes(`BUILDER_ARGS: ${args}\n`), key);
-    assert.match(body, /timeout-minutes: 30/);
+    assert.ok(body.includes(`timeout-minutes: ${timeout}\n`), key);
     assert.match(body, /CSC_IDENTITY_AUTO_DISCOVERY: "false"/);
     assert.match(body, key === "linux" ? /steps: &platform-steps/ : /steps: \*platform-steps/, key);
     if (key.startsWith("macos")) assert.match(body, /shell: bash --noprofile --norc -eo pipefail \{0\}/);

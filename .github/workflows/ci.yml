@@ -3,12 +3,11 @@ name: CI
 # Opt-in only: runs on pull requests labelled `ci` (when labelled and on later
 # pushes) and on manual dispatch. Unlabelled PRs use no minutes.
 #
-# Budget: GitHub and Blacksmith minutes are each capped at 3000 a month, so the
-# work is split. The budget gate and typecheck run on GitHub, tests run on
-# Blacksmith, each job capped at 8 minutes. After MAX_RUNS runs in a calendar
-# month (at most about 1350 GitHub and 1200 Blacksmith minutes, leaving room for
-# manual releases) the gate disables this workflow. Re-enable it in the Actions
-# tab the next month.
+# Budget: every job runs on GitHub-hosted runners. The budget gate, typecheck
+# and test jobs are capped at 2, 8 and 15 minutes. After MAX_RUNS runs in a
+# calendar month (at most about 3750 minutes, leaving room for manual releases)
+# the gate disables this workflow. Re-enable it in the Actions tab the next
+# month.
 on:
   pull_request:
     branches: [main]
@@ -71,11 +70,11 @@ jobs:
       - run: npx tsc --noEmit
 
   test:
-    name: Test (Blacksmith)
+    name: Test (GitHub)
     needs: budget
     if: needs.budget.outputs.ok == 'true'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 8
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

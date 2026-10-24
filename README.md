@@ -263,7 +263,8 @@ Automatic releases, CodeQL workflows and Dependabot configuration are removed.
 Local verification remains documented in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 An authorized manual release tests, builds and packages Windows x64, macOS
-arm64, macOS x64 under Rosetta, and Linux x64 on Blacksmith. Windows and macOS
+arm64, macOS x64 on the native Intel image, and Linux x64, all on
+GitHub-hosted runners. Windows and macOS
 also run an isolated production-startup check. Publishing waits for all four
 platforms and complete asset validation. Packages and startup checks do not
 establish native account-operation or installed acceptance.

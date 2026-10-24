@@ -923,16 +923,18 @@ Keep credentials, personal contact details, absolute machine paths, private host
 
 [CI](../.github/workflows/ci.yml) is opt-in: it runs only on pull requests to
 `main` labelled `ci` (when labelled and on later pushes) and on manual dispatch.
-Work is split across both 3000-minute monthly allowances: a budget gate and
-`tsc --noEmit` on GitHub's `ubuntu-latest`, `npm test` on
-`blacksmith-2vcpu-ubuntu-2404`, each job capped at 8 minutes. After 150
+Every job runs on GitHub-hosted runners: a budget gate and
+`tsc --noEmit` on `ubuntu-latest` capped at 2 and 8 minutes, and `npm test` on
+`ubuntu-latest` capped at 15 minutes. After 150
 completed runs in a calendar month the gate disables the workflow until a
 maintainer re-enables it. [Build installers and release](../.github/workflows/release.yml) runs on pushes
 to `main` (next patch version, tagged and published after all four installer
 jobs pass) and on manual dispatch of an existing stable tag. Docs-only pushes,
 `[skip release]` and `Release ` commits are skipped. Checks, Linux and
-publishing use GitHub's `ubuntu-latest`; Windows and macOS use Blacksmith; tests
-run once, on Linux. See [ADR 0064](adr/0064-balanced-auto-release.md). Merge groups, other branch pushes, tag pushes
+publishing use `ubuntu-latest`; Windows and macOS also use GitHub-hosted
+runners; tests
+run once, on Linux. See [ADR 0064](adr/0064-balanced-auto-release.md) and
+[ADR 0065](adr/0065-github-hosted-runners.md). Merge groups, other branch pushes, tag pushes
 and schedules start no workflow. Automatic patch release, the earlier CI and CodeQL workflow files and the Dependabot configuration
 are removed. Dependency review and auto-merge helpers remain absent. See
 [ADR 0063](adr/0063-manual-release-only-actions.md); ADRs 0061 and 0062 remain
@@ -960,19 +962,20 @@ No workflow creates a version commit; only the push lane creates a patch tag.
 
 | Platform | Architecture | Installer | Runner |
 | --- | --- | --- | --- |
-| Windows | x64 | NSIS `.exe` | `blacksmith-4vcpu-windows-2025` |
-| macOS | Apple silicon arm64 | `.dmg` | `blacksmith-6vcpu-macos-15` |
-| macOS | Intel x64 | `.dmg` | `blacksmith-6vcpu-macos-15`, x64 Node under Rosetta |
-| Linux | x64 | `.AppImage` | `blacksmith-4vcpu-ubuntu-2404` |
+| Windows | x64 | NSIS `.exe` | `windows-2025` |
+| macOS | Apple silicon arm64 | `.dmg` | `macos-15` |
+| macOS | Intel x64 | `.dmg` | `macos-15-intel`, x64 Node |
+| Linux | x64 | `.AppImage` | `ubuntu-latest` |
 
 Build jobs read Node 24.22.1 from `.nvmrc`; `package.json` requires
 `>=24.22.1 <25`. The app uses Electron's bundled Node. Actions retain their
 full release-commit pins and require runners supporting their Node 24 runtime.
 macOS jobs use Bash without startup profiles, and x64 jobs fail unless Node
-reports x64. Rosetta execution does not prove behavior on Intel hardware.
+reports x64.
 
 Manual runs for the same ref serialize without cancelling publication. Platform
-jobs retain their 30-minute limits and artifacts expire after one day. Signing
+jobs keep a 30-minute limit on Linux and 45 minutes on Windows and macOS, and
+artifacts expire after one day. Signing
 certificate discovery stays disabled, builds use `--publish never`, and only
 the publisher has repository write permission. Windows installers are unsigned;
 macOS apps use local ad-hoc signatures and are not notarized. Build or startup

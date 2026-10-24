@@ -129,8 +129,9 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
   advisories, licenses and updates manually.
 - An authorized manual release runs actionlint, tests, strict builds and installer
   creation for Windows x64, macOS arm64, macOS x64 and Linux x64. Windows and
-  macOS also run isolated startup checks. The jobs use Blacksmith; macOS x64
-  uses Rosetta and an x64 Node guard. See
+  macOS also run isolated startup checks. Every job uses a GitHub-hosted
+  runner; macOS x64 runs on the native Intel image and keeps its x64 Node
+  guard. See
   [ADR 0063](docs/adr/0063-manual-release-only-actions.md).
 - Publishing waits for every platform job. It validates the complete installer
   and updater manifest set, rejects artifact digest mismatches, generates
