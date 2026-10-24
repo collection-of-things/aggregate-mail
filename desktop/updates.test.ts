@@ -642,6 +642,76 @@ test("checks prefer the collection-of-things repository and fall back to the ori
   assert.equal((await offline.updates.command("check")).phase, "error");
 });
 
+for (const [failure, raw] of [
+  ["read failure", null],
+  ["malformed manifest", "invalid: ["],
+  ["version mismatch", manifest({ version: "0.1.8" })],
+  ["foreign source", manifest({ files: [{ url: root + name, size: bytes.length, sha512: digest }] })],
+  ["size mismatch", manifest({ files: [{ url: name, size: bytes.length + 1, sha512: digest }] })],
+  ["invalid SHA512", manifest({ files: [{ url: name, size: bytes.length, sha512: "invalid" }] })],
+] as const) {
+  test(`preferred manifest ${failure} falls back to a fully validated original-source candidate`, async () => {
+    const newApi = "https://api.github.com/repos/collection-of-things/aggregate-mail/releases/latest";
+    const oldApi = "https://api.github.com/repos/screen-devs/aggregate-mail/releases/latest";
+    const newManifest = root.replace("/screen-devs/", "/collection-of-things/") + "latest.yml";
+    const moved = { ...release(), assets: release().assets.map((item) => ({ ...item,
+      browser_download_url: item.browser_download_url.replace("/screen-devs/", "/collection-of-things/") })) };
+    const urls: string[] = [], selected: ReturnType<typeof candidate>[] = [];
+    const f = fixture({
+      read: async (url) => {
+        urls.push(url);
+        if (url === newApi) return JSON.stringify(moved);
+        if (url === newManifest) {
+          if (raw === null) throw new Error("Synthetic manifest read failure");
+          return raw;
+        }
+        if (url === oldApi) return JSON.stringify(release());
+        assert.equal(url, root + "latest.yml");
+        return manifest();
+      },
+      create: async (value) => { selected.push(value); return f.driver; },
+    });
+    assert.deepEqual(await f.updates.command("check"), { phase: "available", version: "0.1.7" });
+    assert.deepEqual(urls, [newApi, newManifest, oldApi, root + "latest.yml"]);
+    assert.deepEqual(selected, [candidate()]);
+    assert.deepEqual(f.states, [{ phase: "checking" }, { phase: "available", version: "0.1.7" }]);
+    assert.deepEqual(f.calls, []);
+  });
+}
+
+for (const [failure, raw, phase, reason] of [
+  ["read failure", null, "error", "network"],
+  ["malformed manifest", "invalid: [", "unavailable", "metadata"],
+  ["invalid manifest", manifest({ version: "0.1.8" }), "unavailable", "candidate"],
+] as const) {
+  test(`both sources' manifest ${failure} preserves the final failure state without creating an updater`, async () => {
+    const urls: string[] = [];
+    let created = 0;
+    const f = fixture({
+      read: async (url) => {
+        urls.push(url);
+        if (url.includes("api.github.com")) return JSON.stringify({ ...release(), assets: release().assets.map((item) => ({
+          ...item, browser_download_url: url.includes("/collection-of-things/")
+            ? item.browser_download_url.replace("/screen-devs/", "/collection-of-things/") : item.browser_download_url,
+        })) });
+        if (raw === null) throw new Error("Synthetic manifest read failure");
+        return raw;
+      },
+      create: async () => { created++; return f.driver; },
+    });
+    const state = { phase, version: undefined, reason };
+    assert.deepEqual(await f.updates.command("check"), state);
+    assert.deepEqual(urls, [
+      "https://api.github.com/repos/collection-of-things/aggregate-mail/releases/latest",
+      root.replace("/screen-devs/", "/collection-of-things/") + "latest.yml",
+      "https://api.github.com/repos/screen-devs/aggregate-mail/releases/latest", root + "latest.yml",
+    ]);
+    assert.deepEqual(f.states, [{ phase: "checking" }, state]);
+    assert.equal(created, 0);
+    assert.deepEqual(f.calls, []);
+  });
+}
+
 test("synthetic flow protects duplicate actions and reports progress, then drains and rehashes after accepted close", async () => {
   const f = fixture();
   assert.equal((await f.updates.command("check")).phase, "available");

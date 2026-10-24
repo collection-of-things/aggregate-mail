@@ -373,18 +373,18 @@ export class Updates {
     this.candidate = undefined; this.updater = undefined; this.downloaded = undefined;
     this.set({ phase: "checking" });
     const read = this.deps.read || readMetadata;
-    let release: ReturnType<typeof releaseAssets> = null;
+    let candidate: Candidate | undefined;
     for (const [index, source] of releaseSources.entries()) {
       try {
-        release = releaseAssets(JSON.parse(await read(source.latest, 2 * 1024 * 1024)), this.deps.target, [source.root]);
+        const release = releaseAssets(JSON.parse(await read(source.latest, 2 * 1024 * 1024)), this.deps.target, [source.root]);
+        if (release) candidate = validateCandidate(release, await read(release.manifest.browser_download_url, 65536));
       } catch (error) {
         // A missing or unusable release in the new repository falls back to the original one.
         if (index === releaseSources.length - 1) throw error;
       }
-      if (release) break;
+      if (candidate) break;
     }
-    if (!release) { this.set({ phase: "current" }); return; }
-    const candidate = validateCandidate(release, await read(release.manifest.browser_download_url, 65536));
+    if (!candidate) { this.set({ phase: "current" }); return; }
     const updater = await (this.deps.create || createUpdater)(candidate, this.deps.target);
     updater.on("error", () => {
       if (this.updater !== updater) return;

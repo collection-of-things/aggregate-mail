@@ -477,6 +477,12 @@ separate checks.
 
 ### App updates
 
+Source selection requires both release metadata and its manifest to pass validation.
+If the preferred manifest cannot be read or validated, the check tries the original
+repository once with the same source, version, architecture, size and SHA512 checks.
+If both sources fail, the final source's failure keeps the existing error or
+unavailable state; no updater is created.
+
 `desktop/updates.ts` checks the latest stable release once at normal startup and on explicit request. Releases publish from `collection-of-things/aggregate-mail` from v0.2.2. The check reads that repository first and falls back to `screen-devs/aggregate-mail` when it has no usable newer release, and every release must link only to its own repository's downloads. Development builds, current macOS builds and Linux processes outside an AppImage show an unsupported state without requesting a release. Compatible Windows NSIS and Linux AppImage candidates require a strictly higher stable version, the running process architecture, one unambiguous installer, matching manifest version and size, and a canonical SHA512 digest. CI-suffixed asset names under a stable tag are rejected. Metadata reads and downloads have size and time bounds.
 
 `electron-updater` is pinned to 6.8.10. Its provider uses the validated candidate; the renderer cannot supply a URL, path or executable arguments. IPC accepts only the current window's main frame at the application origin. Automatic download, install on ordinary quit, prereleases, downgrades, web installers and differential downloads are disabled. Packaged updater configuration supplies the library cache location and any configured Windows publisher check. The app preserves that signature check; SHA512 verification establishes file integrity against the selected release metadata, not an independent publisher identity.
