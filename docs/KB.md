@@ -924,8 +924,10 @@ Keep credentials, personal contact details, absolute machine paths, private host
 [CI](../.github/workflows/ci.yml) runs one `blacksmith-2vcpu-ubuntu-2404` job
 (`npm ci`, `tsc --noEmit`, `npm test`) on pull requests to `main` and manual
 dispatch. It skips Markdown, `docs/`, `website/` and `.impeccable/` changes,
-cancels superseded runs and stops after 10 minutes, to stay inside the 3000
-monthly minutes on Blacksmith and GitHub. [Build installers and release](../.github/workflows/release.yml)
+skips drafts, cancels superseded runs and stops after 8 minutes. After 250
+runs in a calendar month (2000 minutes at most) it disables itself until a
+maintainer re-enables it, staying inside the 3000 monthly minutes on Blacksmith
+and GitHub. [Build installers and release](../.github/workflows/release.yml)
 is triggered only by `workflow_dispatch`. Merge groups, branch pushes, tag pushes
 and schedules start no workflow. Automatic patch release, the earlier CI and CodeQL workflow files and the Dependabot configuration
 are removed. Dependency review and auto-merge helpers remain absent. See

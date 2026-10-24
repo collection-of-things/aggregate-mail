@@ -13,7 +13,9 @@ test("only the budgeted CI and manual release workflows remain", () => {
   assert.deepEqual(readdirSync(new URL("../.github/workflows/", import.meta.url)).sort(), ["ci.yml", "release.yml"]);
   const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
   assert.equal((ci.match(/runs-on:/g) || []).length, 1);
-  assert.match(ci, /runs-on: blacksmith-2vcpu-ubuntu-2404\n    timeout-minutes: 10\n/);
+  assert.match(ci, /runs-on: blacksmith-2vcpu-ubuntu-2404\n    timeout-minutes: 8\n/);
+  assert.match(ci, /MAX_RUNS: 250/);
+  assert.match(ci, /actions\/workflows\/ci\.yml\/disable/);
   assert.match(ci, /cancel-in-progress: true/);
   assert.doesNotMatch(ci, /\n  (push|schedule|merge_group|workflow_call):/);
   assert.equal(existsSync(new URL("../.github/dependabot.yml", import.meta.url)), false);

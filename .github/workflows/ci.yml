@@ -1,11 +1,14 @@
 name: CI
 
-# One small Linux job per pull request. Blacksmith and GitHub minutes are each
-# capped at 3000 a month, so docs-only changes are skipped, superseded runs are
-# cancelled and the job is hard-limited to 10 minutes.
+# Budget: Blacksmith and GitHub minutes are each capped at 3000 a month. This
+# is one Blacksmith job (no GitHub-hosted minutes) limited to 8 minutes. After
+# MAX_RUNS runs in a calendar month (250 x 8 = 2000 minutes at most, leaving
+# room for manual releases) the job disables this workflow so nothing else
+# runs. A maintainer re-enables it in the Actions tab the next month.
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore:
       - "**/*.md"
       - "docs/**"
@@ -23,16 +26,41 @@ concurrency:
 jobs:
   test:
     name: Typecheck and test
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 10
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      actions: write
+    env:
+      MAX_RUNS: 250
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Enforce monthly run budget
+        id: budget
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          since="$(date -u +%Y-%m-01)"
+          runs="$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?created=>=$since&per_page=1" --jq .total_count)"
+          echo "CI runs this month: $runs of $MAX_RUNS"
+          if [ "$runs" -gt "$MAX_RUNS" ]; then
+            gh api -X PUT "repos/$REPO/actions/workflows/ci.yml/disable"
+            echo "::warning::Monthly CI budget reached; workflow disabled until re-enabled."
+            echo "over=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.budget.outputs.over != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - if: steps.budget.outputs.over != 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci --no-audit --no-fund
-      - run: npx tsc --noEmit
-      - run: npm test
+      - if: steps.budget.outputs.over != 'true'
+        run: npm ci --no-audit --no-fund
+      - if: steps.budget.outputs.over != 'true'
+        run: npx tsc --noEmit
+      - if: steps.budget.outputs.over != 'true'
+        run: npm test

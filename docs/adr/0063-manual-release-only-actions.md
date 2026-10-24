@@ -19,7 +19,8 @@ historical Actions entries also obscures the one release operation still needed.
 - Keep `release.yml`, with `workflow_dispatch` as its sole trigger, and one
   budgeted `ci.yml`: a single `blacksmith-2vcpu-ubuntu-2404` job (typecheck and
   `npm test`) on pull requests to `main` and manual dispatch, skipping docs-only
-  changes, cancelling superseded runs and limited to 10 minutes. Blacksmith and
+  changes and drafts, cancelling superseded runs, limited to 8 minutes and
+  disabling itself after 250 runs in a calendar month (2000 minutes at most). Blacksmith and
   GitHub minutes are each capped at 3000 a month. No merge-group, push, tag-push
   or scheduled event starts Actions.
 - Fold the existing shared platform jobs into this manual workflow. Preserve
