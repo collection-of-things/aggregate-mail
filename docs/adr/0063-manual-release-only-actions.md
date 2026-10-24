@@ -16,8 +16,12 @@ historical Actions entries also obscures the one release operation still needed.
 
 - Delete standalone CI, automatic patch-release and CodeQL workflow files and
   Dependabot configuration. Keep dependency review and auto-merge helpers absent.
-- Keep only `release.yml`, with `workflow_dispatch` as its sole trigger. No PR,
-  merge-group, push, tag-push or scheduled event starts Actions.
+- Keep `release.yml`, with `workflow_dispatch` as its sole trigger, and one
+  budgeted `ci.yml`: a single `blacksmith-2vcpu-ubuntu-2404` job (typecheck and
+  `npm test`) on pull requests to `main` and manual dispatch, skipping docs-only
+  changes, cancelling superseded runs and limited to 10 minutes. Blacksmith and
+  GitHub minutes are each capped at 3000 a month. No merge-group, push, tag-push
+  or scheduled event starts Actions.
 - Fold the existing shared platform jobs into this manual workflow. Preserve
   platform/architecture checks, pins, signing policy, installer integrity,
   artifact validation and publication gates. Add no replacement automation.
@@ -33,7 +37,7 @@ historical Actions entries also obscures the one release operation still needed.
 
 ## Consequences and proof limits
 
-Pull requests and ordinary development no longer start Actions. Releases and
+Pull requests start at most one short Linux job; ordinary pushes start nothing. Releases and
 security/dependency maintenance become deliberate maintainer operations. Local
 release scripts remain available without automatic invocation. Older ADRs stay
 unchanged as history.

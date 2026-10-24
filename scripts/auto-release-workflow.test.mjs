@@ -9,8 +9,13 @@ import vm from "node:vm";
 const workflow = readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const job = (name) => workflow.slice(workflow.indexOf(`\n  ${name}:\n`) + 1).split(/\n  (?=[a-z0-9-]+:\n)/)[0];
 
-test("only the manually dispatched installer release workflow remains", () => {
-  assert.deepEqual(readdirSync(new URL("../.github/workflows/", import.meta.url)).sort(), ["release.yml"]);
+test("only the budgeted CI and manual release workflows remain", () => {
+  assert.deepEqual(readdirSync(new URL("../.github/workflows/", import.meta.url)).sort(), ["ci.yml", "release.yml"]);
+  const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+  assert.equal((ci.match(/runs-on:/g) || []).length, 1);
+  assert.match(ci, /runs-on: blacksmith-2vcpu-ubuntu-2404\n    timeout-minutes: 10\n/);
+  assert.match(ci, /cancel-in-progress: true/);
+  assert.doesNotMatch(ci, /\n  (push|schedule|merge_group|workflow_call):/);
   assert.equal(existsSync(new URL("../.github/dependabot.yml", import.meta.url)), false);
   assert.equal(workflow.split("on:\n")[1].split("\npermissions:")[0], "  workflow_dispatch:\n");
   assert.doesNotMatch(workflow, /workflow_call|inputs\.|release_version|EMC2_RELEASE_VERSION|head_commit|pull_request|merge_group|skip release/);
