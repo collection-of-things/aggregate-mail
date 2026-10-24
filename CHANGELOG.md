@@ -22,6 +22,7 @@
 
 - Restore Linux Ctrl+Q through normal application quit, retaining draft warnings and close-to-background behavior.
 - Disable invitation and cancellation drafts until an event has a connected account. Confirm local event deletion in the app dialog, with guarded pending requests and retained errors.
+- Warn before quitting with unsaved Calendar event changes through the same close prompt as a composer draft, and never block quit for an untouched form.
 - Use Emc² in the window title, left-align Calendar rows, and keep event dialog headings visible while the form scrolls.
 - Keep custom snooze forms inside the viewport as they grow, without moving focus out of the time input.
 - Remove the right-hand sender panel and its toolbar toggle.

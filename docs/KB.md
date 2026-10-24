@@ -512,9 +512,9 @@ Windows and Linux retain tray Open and Quit controls. Linux resizes its icon
 to 22 pixels; Windows keeps it unchanged. `desktop/main.test.ts` checks native
 menu roles, synthetic hide/reopen activation and platform tray selection. These
 source tests do not prove actual Dock or desktop-panel interaction.
-Linux Ctrl+Q uses normal application quit and retains the draft and
-unknown-send close warning; Keep editing cancels it. Additional modifiers and
-repeated key events do not invoke it.
+Linux Ctrl+Q uses normal application quit and retains the unsaved-draft,
+unsaved-event and unknown-send close warning; Keep editing cancels it. Additional
+modifiers and repeated key events do not invoke it.
 
 `startServer` accepts an `onNewMail` callback and emits `new-mail` with the
 count and sanitized accepted-message details from a completed sync. The desktop
@@ -1325,6 +1325,11 @@ Invitation and cancellation draft controls stay disabled until the local event h
 The shared `EventForm` disables all editable controls while either caller saves.
 Cancel, dialog close and app navigation remain guarded during the request. A
 failed save unlocks the retained inputs; retry keeps the form's event UUID.
+`sameEventFields` compares every field with the form's initial values and reports
+the result to App's existing `beforeunload` guard. Quitting with unsaved event
+changes therefore shows the same native prompt as a composer draft, while an
+untouched form never blocks quit. This covers New event, Edit event and
+Schedule meeting.
 
 `src/work/Calendar.tsx` merges events with deadlines, follow-ups, undated open
 work and active snoozes. `src/work/EventPanel.tsx` holds the shared event form,

@@ -42,6 +42,12 @@ export function eventFields(event: CalendarEvent): EventFields {
   return { ...base, startDate: localDate(start), startTime: time(start), endDate: localDate(end), endTime: time(end) };
 }
 
+// True when the form still holds its initial values, so an untouched form never blocks quitting.
+export function sameEventFields(a: EventFields, b: EventFields) {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)] as (keyof EventFields)[]);
+  return [...keys].every((key) => a[key] === b[key]);
+}
+
 // Moving the start keeps the event's length, as in other calendars.
 export function moveStart(fields: EventFields, startDate: string, startTime: string): EventFields {
   if (fields.allDay) {

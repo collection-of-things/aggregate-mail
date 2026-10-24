@@ -180,13 +180,15 @@ function OpenCodeSetup({ token, enabled, api, onEnabled, onNotice }: {
   </>;
 }
 
-export function Workbench({ mode, state, api, work, accountFilter, initialSource, initialItem, initialDraft, onSourceConsumed, onOpen, onMailChanged, onNotice, onModalChange, reader, readerOpened = false, onCloseReader, fullReading = false, onManageAssistants, onOpenDraft, renderHead }: {
+export function Workbench({ mode, state, api, work, accountFilter, initialSource, initialItem, initialDraft, onSourceConsumed, onOpen, onMailChanged, onNotice, onModalChange, onEventDirtyChange, reader, readerOpened = false, onCloseReader, fullReading = false, onManageAssistants, onOpenDraft, renderHead }: {
   mode: "actions" | "calendar" | "projects" | "agents" | "assistants"; state: State; api: Api; work: WorkspaceState; accountFilter: string; initialSource?: string; initialItem?: Commitment; initialDraft?: Partial<Commitment>;
   onOpen: (mail: Mail) => void; onMailChanged: () => Promise<unknown>; onNotice: (text: string) => void;
   onManageAssistants?: () => void;
   onOpenDraft?: (draft: Draft) => void;
   reader?: ReactNode; readerOpened?: boolean; onCloseReader?: () => void; fullReading?: boolean;
   onSourceConsumed?: () => void; onModalChange?: (open: boolean) => void;
+  // Reports unsaved event-form changes to App's shared unload guard.
+  onEventDirtyChange?: (dirty: boolean) => void;
   // Places the view's header controls beside the pane title.
   renderHead: (tools: ReactNode) => ReactNode;
 }) {
@@ -508,7 +510,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       </Dialog>}
       {eventEditor && <Dialog title={eventEditor.existing ? "Edit event" : "New event"} className="event-dialog" onClose={() => { if (!calendar.pending) setEventEditor(null); }}>
         <EventForm key={eventEditor.id} initial={eventEditor.fields} existing={eventEditor.existing} state={state} pending={calendar.pending}
-          onCancel={() => setEventEditor(null)} onSave={saveEvent} />
+          onCancel={() => setEventEditor(null)} onSave={saveEvent} onDirtyChange={onEventDirtyChange} />
       </Dialog>}
   </div></PrivacyContext.Provider>;
 }

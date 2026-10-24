@@ -1,4 +1,4 @@
-import { forwardRef, useContext, useEffect, useState, type ReactNode } from "react";
+import { forwardRef, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Api } from "../api";
 import { CalendarActions } from "./InvitationActions";
 import { Dialog } from "../ui/Dialog";
@@ -9,17 +9,29 @@ import { accountLabel } from "../mail-ui";
 import { redactPrivateText } from "../privacy";
 import { Address, MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
 import { PrivateField } from "../ui/PrivateField";
-import { addDays, eventInput, meetingFields, moveStart, type EventFields } from "./events";
+import { addDays, eventInput, meetingFields, moveStart, sameEventFields, type EventFields } from "./events";
 
-export function EventForm({ initial, state, pending, existing, onSave, onCancel }: {
+// A missing account is not editable state; the form shows No account either way.
+const normalizedFields = (fields: EventFields, state: State): EventFields =>
+  ({ ...fields, accountId: state.accounts.some((account) => account.id === fields.accountId) ? fields.accountId : "" });
+
+export function EventForm({ initial, state, pending, existing, onSave, onCancel, onDirtyChange }: {
   initial: EventFields; state: State; pending: boolean; existing?: CalendarEvent;
   onSave: (input: CalendarEventInput) => Promise<string | null>; onCancel: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
-  const [fields, setFields] = useState(() => ({ ...initial, accountId: state.accounts.some((account) => account.id === initial.accountId) ? initial.accountId : "" }));
+  const [fields, setFields] = useState(() => normalizedFields(initial, state));
+  const [baseline] = useState(() => normalizedFields(initial, state));
   const [error, setError] = useState("");
   const { on: privacy } = useContext(PrivacyContext);
   const set = (patch: Partial<EventFields>) => setFields((current) => ({ ...current, ...patch }));
   const lostAccount = !!initial.accountId && !state.accounts.some((account) => account.id === initial.accountId);
+  // The shared unload guard blocks quitting only while the form differs from its saved or blank values.
+  const reportDirty = useRef(onDirtyChange);
+  reportDirty.current = onDirtyChange;
+  const dirty = !sameEventFields(fields, baseline);
+  useEffect(() => { reportDirty.current?.(dirty); }, [dirty]);
+  useEffect(() => () => reportDirty.current?.(false), []);
   return <form className="settings-form work-form event-form" aria-label={existing ? "Edit event" : "New event"} onSubmit={async (event) => {
     event.preventDefault();
     if (pending) return;
@@ -103,14 +115,14 @@ export const EventDetail = forwardRef<HTMLElement, {
 });
 
 // Schedules a meeting from an email. One ID per dialog makes a retried save idempotent.
-export function MeetingDialog({ mail, state, api, onClose, onSaved }: { mail: Mail; state: State; api: Api; onClose: () => void; onSaved: () => void }) {
+export function MeetingDialog({ mail, state, api, onClose, onSaved, onDirtyChange }: { mail: Mail; state: State; api: Api; onClose: () => void; onSaved: () => void; onDirtyChange?: (dirty: boolean) => void }) {
   const [id] = useState(() => crypto.randomUUID());
   const [initial] = useState(() => meetingFields(mail, state.accounts.map((account) => account.email), Date.now()));
   const [pending, setPending] = useState(false);
   return <Dialog title="Schedule meeting" className="event-dialog" onClose={() => { if (!pending) onClose(); }}>
     <MailPrivacy mail={mail}>
       <p className="note event-source">From email: <Redact text={mail.subject || "(no subject)"} /></p>
-      <EventForm initial={initial} state={state} pending={pending} onCancel={onClose} onSave={async (input) => {
+      <EventForm initial={initial} state={state} pending={pending} onCancel={onClose} onDirtyChange={onDirtyChange} onSave={async (input) => {
         setPending(true);
         try { await api("/calendar/events", "POST", { ...input, id }); }
         catch (error) { setPending(false); return error instanceof Error && error.message ? error.message : "The meeting could not be saved."; }

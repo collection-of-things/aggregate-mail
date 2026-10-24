@@ -504,7 +504,7 @@ else {
               buttons: ["Keep editing", "Close anyway"],
               defaultId: 0,
               cancelId: 0,
-              message: "Close with a draft still open?",
+              message: "Close with unsaved changes?",
               detail: "Saved drafts remain on this device. Changes not yet saved will be lost. If the send status is unknown, this message may already have been sent.",
             }) === 1
           )

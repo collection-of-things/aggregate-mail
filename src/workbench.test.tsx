@@ -1162,3 +1162,34 @@ for (const exit of ["Cancel", "Escape"]) test(`event deletion response loss rest
   assert.equal(ui.requests.filter(request=>request.method==="DELETE").length,1,"cancellation never retries a possibly applied delete");
  }finally{await ui.close();}
 });
+
+test("quitting with a dirty event form uses the same unload guard as a draft", async () => {
+ const ui = await mount("actions", true);
+ try {
+  const unload = () => {
+   const event = new ui.dom.window.Event("beforeunload", { cancelable: true });
+   window.dispatchEvent(event);
+   return event.defaultPrevented;
+  };
+  await ui.click(sidebarButton(ui, "Calendar"));
+  assert.equal(unload(), false, "Calendar without an event form does not block quit");
+  await ui.click(ui.button("New event"));
+  assert.equal(unload(), false, "a pristine new event form does not block quit");
+  await ui.fill("Title", "Synthetic unsaved event");
+  assert.equal(unload(), true, "a changed new event form blocks quit");
+  await ui.fill("Title", "");
+  assert.equal(unload(), false, "restoring the initial values clears the guard");
+  await ui.fill("Location", "Room 4");
+  await ui.click(ui.button("Cancel"));
+  assert.equal(unload(), false, "Cancel clears the guard");
+  await ui.click(ui.button("New event"));
+  await ui.fill("Title", "Synthetic saved event");
+  await saveEventForm(ui);
+  await ui.click(ui.button("Edit event"));
+  assert.equal(unload(), false, "a pristine edit event form does not block quit");
+  await ui.fill("Location", "Room 5");
+  assert.equal(unload(), true, "a changed edit event form blocks quit");
+  await ui.click(ui.button("Cancel"));
+  assert.equal(unload(), false, "Cancel returns to the saved event without the guard");
+ } finally { await ui.close(); }
+});

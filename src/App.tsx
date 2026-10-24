@@ -136,6 +136,8 @@ export function App() {
   const [palette, setPalette] = useState(false);
   const [settingsModal, setSettingsModal] = useState(false);
   const [workModal, setWorkModal] = useState(false);
+  // The shared unload guard also protects an event form with unsaved changes.
+  const [eventDirty, setEventDirty] = useState(false);
   useEffect(() => { if (updateInstalling) setPalette(false); }, [updateInstalling]);
   const navigationBlocked = !!(compose || teach || snooze || trashMail || shortcuts || labelMail || connecting || updateInstalling || settingsModal || workModal || quickSource || meetingMail);
   const navigate = (patch: Partial<MailLocation>, search = false) => {
@@ -786,12 +788,12 @@ export function App() {
   });
   useEffect(() => {
     const handle = (e: BeforeUnloadEvent) => {
-      if (sendLock.current || draftLock.current || attachmentTask.current || draftSession.current?.dirty || compose?.sendUnknown)
+      if (sendLock.current || draftLock.current || attachmentTask.current || draftSession.current?.dirty || compose?.sendUnknown || eventDirty)
         e.preventDefault();
     };
     window.addEventListener("beforeunload", handle);
     return () => window.removeEventListener("beforeunload", handle);
-  }, [compose]);
+  }, [compose, eventDirty]);
   const workPrivateNames = useMemo(() => [...new Set(state.messages.flatMap((mail) => collectPrivateNames(state.accounts, mail)))], [state.accounts, state.messages]);
 
   // Pick the entrance once per pane so re-renders never restart its animation.
@@ -1117,7 +1119,7 @@ export function App() {
           </main>
         ) : workView ? (
           <main className="work-pane">
-            <Workbench key={`${view}:${accountFilter}:${trackingSession}`} work={work} initialSource={trackingSource} initialItem={trackingItem} initialDraft={trackingDraft} onSourceConsumed={() => { setTrackingSource(undefined); setTrackingItem(undefined); setTrackingDraft(undefined); }} onModalChange={setWorkModal} mode={view as "actions" | "calendar" | "projects" | "agents"} state={state} api={api} accountFilter={accountFilter} onOpen={inlineWorkView ? openWorkSource : jumpTo} onMailChanged={reload} onNotice={setNotice} onManageAssistants={() => navigate({ page: "settings", settingsSection: "mcp", opened: false })} onOpenDraft={openCompose}
+            <Workbench key={`${view}:${accountFilter}:${trackingSession}`} work={work} initialSource={trackingSource} initialItem={trackingItem} initialDraft={trackingDraft} onSourceConsumed={() => { setTrackingSource(undefined); setTrackingItem(undefined); setTrackingDraft(undefined); }} onModalChange={setWorkModal} onEventDirtyChange={setEventDirty} mode={view as "actions" | "calendar" | "projects" | "agents"} state={state} api={api} accountFilter={accountFilter} onOpen={inlineWorkView ? openWorkSource : jumpTo} onMailChanged={reload} onNotice={setNotice} onManageAssistants={() => navigate({ page: "settings", settingsSection: "mcp", opened: false })} onOpenDraft={openCompose}
               renderHead={(tools) => <PaneHeader className="main-head" corner={null} maximized={maximized}><h1 className="pane-title">{viewNames[view]}</h1><div className="head-tools">{tools}</div></PaneHeader>}
               readerOpened={opened} fullReading={!splitRoom} onCloseReader={closeReader}
               reader={selected && opened ? <div ref={readerRef} className="today-mail">{actions}{reader}</div> : undefined} />
@@ -1248,7 +1250,7 @@ export function App() {
               navigation.visit({ view: "actions", opened: false });
             }} /> : <p role="alert">Source unavailable in cache. Existing saved work remains in Today.</p>}
         </Dialog>}
-        {meetingMail && <MeetingDialog key={meetingMail.id} mail={meetingMail} state={state} api={api} onClose={() => setMeetingMail(null)}
+        {meetingMail && <MeetingDialog key={meetingMail.id} mail={meetingMail} state={state} api={api} onClose={() => setMeetingMail(null)} onDirtyChange={setEventDirty}
           onSaved={() => { setMeetingMail(null); pushToast("Meeting added to your Emc² calendar. No invitation was sent.", "success"); }} />}
         {compose && (
           <ComposePanel
