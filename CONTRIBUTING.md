@@ -124,21 +124,29 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
   suite split into parallel shards, plus `npm run build`, isolated
   `check:desktop` (skipped on Linux) and an unpublished installer. The required
   `Test and package (<platform>)` checks pass only when all of it does.
-- Merge by fast-forwarding `main` to the tested PR head. CI and the release lane
-  then reuse that commit's test results instead of rerunning them. A GitHub
-  merge or squash commit is new code and reruns the full suite.
+- `main` accepts changes only through a pull request with one approving review
+  from someone other than the last pusher, all conversations resolved and the
+  four required checks green. **Merge when ready** adds it to the merge queue,
+  which squashes it onto the latest `main`, reruns CI on that exact commit and
+  lands it only if CI passes. Direct pushes, force pushes and deleting `main` are
+  blocked. A new push dismisses earlier approvals.
+- The squash commit takes the PR title as its subject, so the title decides the
+  release: a title starting with `Release ` or containing `[skip release]`
+  publishes nothing. After the queue lands a commit, CI and the release lane
+  reuse its merge-group test results instead of rerunning them.
 - CI stamps non-tag builds with a `-ci.` version (`scripts/set-build-version.mjs`,
   ADR 0004). Do not change `version` in a PR.
 - Every push to `main` except `Release ` commits and commits containing
   `[skip release]` runs `auto-release.yml`: it builds the next patch from
   the triggering commit, then creates the tag and publishes only after all four
-  platform jobs pass. It does not modify `main` or the source version. Rebase
-  onto `main` after each merge. Merge only release-ready work.
-- CI-only changes can suppress automatic publication by including `[skip release]`
-  in the final commit message that reaches `main` (the squash/merge commit, or
-  final rebased commit). Keep the marker in the PR title as a reminder, but verify
-  the actual merge message before merging. The marker does not disable ordinary
-  CI or explicit tag releases. Do not use `[skip ci]` for workflow upgrades.
+  platform jobs pass. It does not modify `main` or the source version. Merge
+  only release-ready work.
+- CI-only and docs-only changes suppress automatic publication with `[skip release]`
+  in the PR title. The marker does not disable ordinary CI or explicit tag
+  releases. Do not use `[skip ci]` for workflow upgrades.
+- Release tags (`v*`) cannot be moved or deleted once created.
+- Outside contributors' pull requests run CI only after a maintainer approves the
+  run. Read the diff, especially workflow, script and dependency changes, first.
 - Workflow changes also require `actionlint` (1.7.12), the release/workflow tests,
   and the complete four-platform hosted CI run. CI runs workflow validation
   before packaging; Dependabot groups weekly GitHub Actions updates.

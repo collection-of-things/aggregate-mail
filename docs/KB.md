@@ -921,9 +921,9 @@ Keep credentials, personal contact details, absolute machine paths, private host
 
 ## CI
 
-[The CI workflow](../.github/workflows/ci.yml) runs on pull requests, pushes to `main` and manual dispatch. The tag-release and automatic patch-release workflows call it. Jobs, in order:
+[The CI workflow](../.github/workflows/ci.yml) runs on pull requests, merge groups, pushes to `main` and manual dispatch. The tag-release and automatic patch-release workflows call it. Jobs, in order:
 
-- **Plan** decides whether tests can be reused and whether installers are needed. On a push (including the release lanes), it reuses tests only when the exact commit already has successful `Test and package (<platform>)` checks for all four platforms. `main` moves only by fast-forward, so such a commit is the code those checks tested; any other commit runs the full suite. A plain push to `main` builds no installers, because the release lane packages them.
+- **Plan** decides whether tests can be reused and whether installers are needed. Pull requests and merge groups always run everything. On a push (including the release lanes), it reuses tests only when the exact commit already has successful `Test and package (<platform>)` checks for all four platforms. `main` moves only through the merge queue, which lands the exact commit its merge group tested, so such a commit is the code those checks tested; any other commit runs the full suite. A plain push to `main` builds no installers, because the release lane packages them.
 - **Validate workflows** runs actionlint 1.7.12 with the Blacksmith labels in `.github/actionlint.yaml`.
 - **Test (`<platform>` `<n>`/`<total>`)** runs the whole serial suite on every platform, split by file into shards on separate runners. `scripts/test.mjs` reads `TEST_SHARD` and `scripts/test-shards.mjs` assigns files longest-first to the least-loaded shard, using measured seconds per file from `scripts/test-weights.json`. Files without a weight count as the median, so weights affect only balance, never coverage. Refresh the weights when a file becomes much slower. `npm test` without `TEST_SHARD` runs everything.
 - **Package (`<platform>`)** runs `npm run build`, the isolated startup check on Windows and macOS, then the installer without publishing. It runs alongside the tests.
@@ -937,6 +937,8 @@ Each job uses Node 24 and `npm ci`. Electron and electron-builder downloads are 
 | macOS | Apple silicon arm64 | `.dmg` | `blacksmith-6vcpu-macos-15` | 2 |
 | macOS | Intel x64 | `.dmg` | `macos-15-intel` (Blacksmith has no Intel Macs) | 4 |
 | Linux | x64 | `.AppImage` | `blacksmith-4vcpu-ubuntu-2404` | 2 |
+
+The `main branch rules` ruleset requires a pull request with one approval from someone other than the last pusher, resolved conversations, the four `Test and package` checks and the merge queue (squash, PR title as subject, one PR per group, no wait). It blocks force pushes and deletion and has no bypass actors. The `release tags` ruleset blocks moving or deleting `v*` tags; Actions can still create them. Outside contributors' workflow runs need maintainer approval. See [ADR 0059](adr/0059-merge-queue-and-reviews.md).
 
 Download `installer-<platform>` from the workflow run's Artifacts section. Each artifact expires after one day. Reruns replace artifacts for rebuilt platforms; successful platform jobs that are not rerun retain their earlier artifacts. Missing installer files fail the job. Superseded runs are canceled, and test and package jobs each have a 20-minute limit.
 

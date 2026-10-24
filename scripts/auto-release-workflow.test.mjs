@@ -70,7 +70,7 @@ test("release-only skip marker leaves ordinary CI active", () => {
   assert.match(workflow, /  publish:\n    needs: \[version, build\]/);
   assert.doesNotMatch(workflow, /always\(\)/);
   const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-  assert.match(ci, /on:\n  pull_request:\n  push:\n    branches: \[main\]/);
+  assert.match(ci, /on:\n  pull_request:\n  push:\n    branches: \[main\]\n(?:  #[^\n]*\n)?  merge_group:\n/);
   assert.doesNotMatch(ci, /skip release|head_commit|paths-ignore/);
   assert.match(ci, /  test:\n    needs: \[plan, workflows\]/);
   assert.match(ci, /  package:\n    needs: \[plan, workflows\]/);
@@ -112,6 +112,7 @@ test("tests are reused only for a pushed commit that passed all four platforms",
     assert.deepEqual(plan("push", all, { GIT_REF: "refs/tags/v1.2.3" }), { reuse: "true", package: "true" });
     assert.deepEqual(plan("pull_request", all), { reuse: "false", package: "true" });
     assert.deepEqual(plan("workflow_dispatch", all), { reuse: "false", package: "true" });
+    assert.deepEqual(plan("merge_group", all, { GIT_REF: "refs/heads/gh-readonly-queue/main/pr-1-0123abcd" }), { reuse: "false", package: "true" });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Run CI in GitHub's merge queue, so every pull request is tested on top of the latest `main` before it lands.
 - Balance CI test shards by measured file duration instead of Node's round-robin split, so one slow file no longer sets the pace.
 - Run CI on Blacksmith runners (Intel macOS stays GitHub-hosted), split every platform's full test suite into parallel shards, package alongside the tests, cache Electron downloads, and reuse a fast-forwarded commit's passing tests on `main` and in the release lanes.
 - Point the README, security policy, issue templates, code of conduct and publish settings at `collection-of-things/aggregate-mail`.

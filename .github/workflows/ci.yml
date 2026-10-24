@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  # The merge queue tests each pull request on top of the latest main.
+  merge_group:
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -36,9 +38,10 @@ jobs:
       reuse: ${{ steps.plan.outputs.reuse }}
       package: ${{ steps.plan.outputs.package }}
     steps:
-      # Main only moves by fast-forward, so a commit that already passed every
-      # platform's tests in a pull request is the exact code being released.
-      # Its tests are reused instead of rerun; any other commit runs them all.
+      # Main only moves by fast-forward, through the merge queue, so a pushed
+      # commit that already passed every platform's tests in its merge group is
+      # the exact code being released. Its tests are reused instead of rerun;
+      # pull requests, merge groups and any other commit run them all.
       - id: plan
         env:
           GH_TOKEN: ${{ github.token }}
