@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Move the macOS x64 jobs and CodeQL from GitHub-hosted runners to Blacksmith; x64 tests and packaging run under Rosetta on Apple silicon.
 - Block pull requests, including the merge queue's squash commit, when a commit author, committer or co-author email is not a GitHub noreply address.
 - Build with Node 24.22.1 from `.nvmrc` for the 21 October 2026 Node security release. Add weekly npm Dependabot updates with automatic merging of minor and patch updates after CI, dependency review on pull requests, CodeQL scanning and grouped release notes.
 - Run CI in GitHub's merge queue, so every pull request is tested on top of the latest `main` before it lands.
