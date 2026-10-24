@@ -1,19 +1,18 @@
 name: CI
 
-# Budget: Blacksmith and GitHub minutes are each capped at 3000 a month. This
-# is one Blacksmith job (no GitHub-hosted minutes) limited to 8 minutes. After
-# MAX_RUNS runs in a calendar month (250 x 8 = 2000 minutes at most, leaving
-# room for manual releases) the job disables this workflow so nothing else
-# runs. A maintainer re-enables it in the Actions tab the next month.
+# Opt-in only: runs on pull requests labelled `ci` (when labelled and on later
+# pushes) and on manual dispatch. Unlabelled PRs use no minutes.
+#
+# Budget: GitHub and Blacksmith minutes are each capped at 3000 a month, so the
+# work is split. The budget gate and typecheck run on GitHub, tests run on
+# Blacksmith, each job capped at 8 minutes. After MAX_RUNS runs in a calendar
+# month (at most about 1350 GitHub and 1200 Blacksmith minutes, leaving room for
+# manual releases) the gate disables this workflow. Re-enable it in the Actions
+# tab the next month.
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "website/**"
-      - ".impeccable/**"
+    types: [labeled, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
@@ -24,43 +23,66 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Typecheck and test
-    if: ${{ !github.event.pull_request.draft }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 8
+  budget:
+    name: Budget gate
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.action == 'labeled' && github.event.label.name == 'ci') ||
+      (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'ci'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
     permissions:
-      contents: read
       actions: write
     env:
-      MAX_RUNS: 250
+      MAX_RUNS: 150
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    outputs:
+      ok: ${{ steps.count.outputs.ok }}
     steps:
-      - name: Enforce monthly run budget
-        id: budget
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
+      - id: count
         run: |
           since="$(date -u +%Y-%m-01)"
-          runs="$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?created=>=$since&per_page=1" --jq .total_count)"
-          echo "CI runs this month: $runs of $MAX_RUNS"
-          if [ "$runs" -gt "$MAX_RUNS" ]; then
+          runs="$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?created=>=$since&status=completed&per_page=1" --jq .total_count)"
+          echo "Completed CI runs this month: $runs of $MAX_RUNS"
+          if [ "$runs" -ge "$MAX_RUNS" ]; then
             gh api -X PUT "repos/$REPO/actions/workflows/ci.yml/disable"
             echo "::warning::Monthly CI budget reached; workflow disabled until re-enabled."
-            echo "over=true" >> "$GITHUB_OUTPUT"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
           fi
-      - if: steps.budget.outputs.over != 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+  typecheck:
+    name: Typecheck (GitHub)
+    needs: budget
+    if: needs.budget.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - if: steps.budget.outputs.over != 'true'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
-      - if: steps.budget.outputs.over != 'true'
-        run: npm ci --no-audit --no-fund
-      - if: steps.budget.outputs.over != 'true'
-        run: npx tsc --noEmit
-      - if: steps.budget.outputs.over != 'true'
-        run: npm test
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc --noEmit
+
+  test:
+    name: Test (Blacksmith)
+    needs: budget
+    if: needs.budget.outputs.ok == 'true'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm test

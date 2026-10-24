@@ -921,13 +921,13 @@ Keep credentials, personal contact details, absolute machine paths, private host
 
 ## CI
 
-[CI](../.github/workflows/ci.yml) runs one `blacksmith-2vcpu-ubuntu-2404` job
-(`npm ci`, `tsc --noEmit`, `npm test`) on pull requests to `main` and manual
-dispatch. It skips Markdown, `docs/`, `website/` and `.impeccable/` changes,
-skips drafts, cancels superseded runs and stops after 8 minutes. After 250
-runs in a calendar month (2000 minutes at most) it disables itself until a
-maintainer re-enables it, staying inside the 3000 monthly minutes on Blacksmith
-and GitHub. [Build installers and release](../.github/workflows/release.yml)
+[CI](../.github/workflows/ci.yml) is opt-in: it runs only on pull requests to
+`main` labelled `ci` (when labelled and on later pushes) and on manual dispatch.
+Work is split across both 3000-minute monthly allowances: a budget gate and
+`tsc --noEmit` on GitHub's `ubuntu-latest`, `npm test` on
+`blacksmith-2vcpu-ubuntu-2404`, each job capped at 8 minutes. After 150
+completed runs in a calendar month the gate disables the workflow until a
+maintainer re-enables it. [Build installers and release](../.github/workflows/release.yml)
 is triggered only by `workflow_dispatch`. Merge groups, branch pushes, tag pushes
 and schedules start no workflow. Automatic patch release, the earlier CI and CodeQL workflow files and the Dependabot configuration
 are removed. Dependency review and auto-merge helpers remain absent. See
