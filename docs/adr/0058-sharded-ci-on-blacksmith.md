@@ -21,8 +21,8 @@ candidate.
   macOS stays on GitHub's `macos-15-intel`, because Blacksmith has no Intel
   Macs.
 - Every platform still runs the whole suite. `scripts/test.mjs` splits it by
-  file with Node's `--test-shard`; shards run on separate runners at once, and
-  each shard stays serial.
+  file, balanced by measured duration; shards run on separate runners at once,
+  and each shard stays serial.
 - Packaging runs alongside the tests instead of after them.
 - One `Test and package (<platform>)` job per platform keeps the check names
   the `main` rule requires, and passes only when every shard and installer did.
