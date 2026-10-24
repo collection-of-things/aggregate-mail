@@ -927,8 +927,12 @@ Work is split across both 3000-minute monthly allowances: a budget gate and
 `tsc --noEmit` on GitHub's `ubuntu-latest`, `npm test` on
 `blacksmith-2vcpu-ubuntu-2404`, each job capped at 8 minutes. After 150
 completed runs in a calendar month the gate disables the workflow until a
-maintainer re-enables it. [Build installers and release](../.github/workflows/release.yml)
-is triggered only by `workflow_dispatch`. Merge groups, branch pushes, tag pushes
+maintainer re-enables it. [Build installers and release](../.github/workflows/release.yml) runs on pushes
+to `main` (next patch version, tagged and published after all four installer
+jobs pass) and on manual dispatch of an existing stable tag. Docs-only pushes,
+`[skip release]` and `Release ` commits are skipped. Checks, Linux and
+publishing use GitHub's `ubuntu-latest`; Windows and macOS use Blacksmith; tests
+run once, on Linux. See [ADR 0064](adr/0064-balanced-auto-release.md). Merge groups, other branch pushes, tag pushes
 and schedules start no workflow. Automatic patch release, the earlier CI and CodeQL workflow files and the Dependabot configuration
 are removed. Dependency review and auto-merge helpers remain absent. See
 [ADR 0063](adr/0063-manual-release-only-actions.md); ADRs 0061 and 0062 remain
@@ -938,7 +942,7 @@ A manual dispatch requires an existing stable `v<major>.<minor>.<patch>` tag
 resolving to the run commit. The build-version script also requires the tag to
 match the committed package version. An ordinary branch selection cannot pass
 this release gate. Only an explicitly authorized release should dispatch it.
-No workflow creates a version commit or tag.
+No workflow creates a version commit; only the push lane creates a patch tag.
 
 - **Checks** verifies the selected tag and runs checksum-pinned actionlint
   1.7.12 before the platform jobs.

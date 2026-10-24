@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Restore automatic patch releases on pushes to `main`, balanced across GitHub (checks, Linux, publish) and Blacksmith (Windows, macOS), with tests run once and docs-only pushes skipped.
 - Added opt-in CI for pull requests labelled `ci`: typecheck on GitHub, tests on Blacksmith, 8-minute job cap, self-disabling after 150 runs a month.
 - Remove standalone CI, automatic releases, CodeQL workflows and Dependabot configuration. Keep one manually dispatched installer/release workflow, with existing platform builds and release integrity gates. No workflow runs on merge groups, pushes or schedules.
 - Simplify Blacksmith CI: run Linux tests/build on pull requests and fresh

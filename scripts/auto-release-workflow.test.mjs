@@ -9,7 +9,7 @@ import vm from "node:vm";
 const workflow = readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const job = (name) => workflow.slice(workflow.indexOf(`\n  ${name}:\n`) + 1).split(/\n  (?=[a-z0-9-]+:\n)/)[0];
 
-test("only the budgeted CI and manual release workflows remain", () => {
+test("only the budgeted CI and release workflows remain", () => {
   assert.deepEqual(readdirSync(new URL("../.github/workflows/", import.meta.url)).sort(), ["ci.yml", "release.yml"]);
   const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
   assert.deepEqual(ci.match(/runs-on: \S+/g), ["runs-on: ubuntu-latest", "runs-on: ubuntu-latest", "runs-on: blacksmith-2vcpu-ubuntu-2404"]);
@@ -20,9 +20,13 @@ test("only the budgeted CI and manual release workflows remain", () => {
   assert.match(ci, /cancel-in-progress: true/);
   assert.doesNotMatch(ci, /\n  (push|schedule|merge_group|workflow_call):/);
   assert.equal(existsSync(new URL("../.github/dependabot.yml", import.meta.url)), false);
-  assert.equal(workflow.split("on:\n")[1].split("\npermissions:")[0], "  workflow_dispatch:\n");
-  assert.doesNotMatch(workflow, /workflow_call|inputs\.|release_version|EMC2_RELEASE_VERSION|head_commit|pull_request|merge_group|skip release/);
+  const triggers = workflow.split("\non:\n")[1].split("\npermissions:")[0];
+  assert.match(triggers, /^  push:\n    branches: \[main\]\n    paths-ignore:\n/);
+  assert.match(triggers, /\n  workflow_dispatch:\n/);
+  assert.doesNotMatch(workflow, /workflow_call|inputs\.|pull_request|merge_group|schedule:/);
   assert.doesNotMatch(workflow, /npm version|git tag|git commit|git push/);
+  assert.match(job("checks"), /!contains\(github\.event\.head_commit\.message, '\[skip release\]'\)/);
+  assert.match(job("checks"), /run: echo "version=\$\(node scripts\/release-version\.mjs\)" >> "\$GITHUB_OUTPUT"/);
 });
 
 test("manual release requires an existing stable tag at the immutable build commit", { skip: process.platform === "win32" }, () => {
@@ -30,7 +34,7 @@ test("manual release requires an existing stable tag at the immutable build comm
   assert.match(checks, /ref: \$\{\{ github\.sha \}\}/);
   assert.match(checks, /fetch-depth: 0/);
   assert.ok(checks.indexOf("name: Require an existing stable version tag") < checks.indexOf("name: Run actionlint"));
-  const command = checks.match(/- name: Require an existing stable version tag\n        shell: bash\n        run: \|\n([\s\S]*?)(?=      - name: Run actionlint)/)[1].replace(/^ {10}/gm, "");
+  const command = checks.match(/- name: Require an existing stable version tag\n        if: github.event_name == 'workflow_dispatch'\n        shell: bash\n        run: \|\n([\s\S]*?)(?=      - )/)[1].replace(/^ {10}/gm, "");
   const dir = mkdtempSync(path.join(tmpdir(), "emc2-release-tag-"));
   try {
     const env = { ...process.env, GIT_AUTHOR_NAME: "Example", GIT_AUTHOR_EMAIL: "example@example.test", GIT_COMMITTER_NAME: "Example", GIT_COMMITTER_EMAIL: "example@example.test" };
@@ -56,7 +60,7 @@ test("manual release requires an existing stable tag at the immutable build comm
 
 test("every platform tests and packages with its existing architecture and runner", () => {
   const platforms = [
-    ["linux", "linux-x64", "blacksmith-4vcpu-ubuntu-2404", "--linux AppImage --x64"],
+    ["linux", "linux-x64", "ubuntu-latest", "--linux AppImage --x64"],
     ["windows", "windows-x64", "blacksmith-4vcpu-windows-2025", "--win nsis --x64"],
     ["macos-arm64", "macos-arm64", "blacksmith-6vcpu-macos-15", "--mac dmg --arm64"],
     ["macos-x64", "macos-x64", "blacksmith-6vcpu-macos-15", "--mac dmg --x64"],
@@ -76,9 +80,10 @@ test("every platform tests and packages with its existing architecture and runne
   }
   const steps = job("linux");
   assert.match(steps, /ref: \$\{\{ github\.sha \}\}/);
-  assert.match(steps, /EMC2_BUILD_REF: \$\{\{ github\.ref \}\}/);
+  assert.match(steps, /EMC2_BUILD_REF: \$\{\{ github\.event_name == 'push' && github\.sha \|\| github\.ref \}\}/);
+  assert.match(steps, /EMC2_RELEASE_VERSION: \$\{\{ needs\.checks\.outputs\.version \}\}/);
   assert.match(steps, /run: node scripts\/set-build-version\.mjs/);
-  assert.match(steps, /- run: npm ci --no-audit --no-fund\n      - run: npm test\n      - run: npm run build/);
+  assert.match(steps, /- run: npm ci --no-audit --no-fund\n      - if: runner.os == 'Linux'\n        run: npm test\n      - run: npm run build/);
   assert.match(steps, /name: Check desktop startup\n        if: runner.os != 'Linux'/);
   assert.match(steps, /--user-data-dir="\$\{\{ runner.temp \}\}\/emc2-check"/);
   assert.match(steps, /name: Install Rosetta for x64 builds\n        if: env.NODE_ARCH == 'x64' && runner.os == 'macOS'/);
@@ -89,7 +94,7 @@ test("every platform tests and packages with its existing architecture and runne
 
 test("failed workflow or tag checks fail the required Linux job before checkout", () => {
   const linux = job("linux");
-  assert.match(linux, /needs: checks\n    if: always\(\)/);
+  assert.match(linux, /needs: checks\n    if: always\(\) && needs\.checks\.result != 'skipped'/);
   const guard = linux.match(/- name: Require successful checks\n        if: ([^\n]+)\n        run: ([^\n]+)/);
   assert.ok(guard, "shared steps must reject an unsuccessful Checks job");
   assert.ok(linux.indexOf(guard[0]) < linux.indexOf("uses: actions/checkout@"));
@@ -133,7 +138,7 @@ test("installer steps preserve unpublished builds and updater integrity before u
   assert.equal(pkg.build.mac.identity, null);
   assert.equal(pkg.build.mac.notarize, false);
   assert.equal(pkg.build.dmg.sign, false);
-  assert.doesNotMatch(workflow, /TEST_SHARD|needs\.checks\.outputs|check-runs|id: plan/);
+  assert.doesNotMatch(workflow, /TEST_SHARD|check-runs|id: plan/);
   assert.match(steps, /key: electron-\$\{\{ runner\.os \}\}-\$\{\{ env\.NODE_ARCH \|\| runner\.arch \}\}/);
 });
 
@@ -143,17 +148,19 @@ test("publication needs all four successful builds and validates artifacts befor
   assert.match(builds, /permissions:\n  contents: read/);
   assert.doesNotMatch(builds, /contents: write/);
   assert.match(publish, /needs: \[checks, linux, windows, macos-arm64, macos-x64\]/);
-  assert.match(publish, /if: startsWith\(github.ref, 'refs\/tags\/v'\)/);
+  assert.match(publish, /if: github.event_name == 'push' \|\| startsWith\(github.ref, 'refs\/tags\/v'\)/);
   assert.doesNotMatch(publish, /always\(|continue-on-error/);
   assert.match(publish, /permissions:\n      contents: write/);
   assert.ok(publish.indexOf("actions/checkout@") < publish.indexOf("actions/download-artifact@"));
   assert.match(publish, /digest-mismatch: error/);
   assert.ok(publish.indexOf("node scripts/prepare-release-assets.mjs") < publish.indexOf("gh release create"));
-  assert.match(publish, /prepare-release-assets.mjs release "\$\{GITHUB_REF_NAME#v\}"/);
-  assert.match(publish, /gh release create "\$\{GITHUB_REF_NAME\}"/);
+  assert.match(publish, /prepare-release-assets.mjs release "\$\{RELEASE_VERSION:-\$\{GITHUB_REF_NAME#v\}\}"/);
+  assert.ok(publish.indexOf("name: Create the release tag") < publish.indexOf("gh release create"));
+  assert.match(publish, /test "\$sha" = "\$GITHUB_SHA"/);
+  assert.match(publish, /gh release create "\$\{TAG\}"/);
   assert.match(publish, /\.\/\*\.exe \.\/\*\.dmg \.\/\*\.AppImage latest.yml latest-linux.yml SHA256SUMS.txt/);
   assert.match(publish, /--verify-tag/);
   assert.doesNotMatch(publish, /sha256sum/);
-  assert.match(workflow, /group: manual-release-\$\{\{ github.ref \}\}/);
+  assert.match(workflow, /group: release\n/);
   assert.match(workflow, /cancel-in-progress: false/);
 });

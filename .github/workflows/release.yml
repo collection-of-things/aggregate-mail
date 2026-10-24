@@ -1,21 +1,42 @@
 name: Build installers and release
 
+# Eligible pushes to main build the next patch, then tag and publish it after
+# every installer job passes. Manual dispatch on an existing stable tag rebuilds
+# and publishes that tag. Minutes are balanced across both 3000-minute monthly
+# allowances: Linux, checks and publishing run on GitHub (1x Linux rate); Windows
+# and macOS run on Blacksmith (GitHub bills those at 2x and 10x). Tests run once,
+# on Linux; other platforms only build, startup-check and package.
 on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "website/**"
+      - ".impeccable/**"
+      - ".github/ISSUE_TEMPLATE/**"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 # A retry for the same ref must not publish concurrently with its original run.
+# Never cancel a publish in progress; a newer push replaces any queued run.
 concurrency:
-  group: manual-release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
   checks:
     name: Checks
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (!startsWith(github.event.head_commit.message, 'Release ') &&
+       !contains(github.event.head_commit.message, '[skip release]'))
+    runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -23,10 +44,19 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
       - name: Require an existing stable version tag
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           [[ "${GITHUB_REF}" =~ ^refs/tags/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           test "$(git rev-parse --verify "${GITHUB_REF}^{commit}")" = "${GITHUB_SHA}"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: github.event_name == 'push'
+        with:
+          node-version-file: .nvmrc
+      - name: Choose the next patch version
+        id: version
+        if: github.event_name == 'push'
+        run: echo "version=$(node scripts/release-version.mjs)" >> "$GITHUB_OUTPUT"
       - name: Run actionlint
         shell: bash
         run: |
@@ -41,9 +71,9 @@ jobs:
 
   linux:
     needs: checks
-    if: always()
+    if: always() && needs.checks.result != 'skipped'
     name: Test and package (linux-x64)
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
       run:
@@ -89,10 +119,12 @@ jobs:
           key: electron-${{ runner.os }}-${{ env.NODE_ARCH || runner.arch }}-${{ hashFiles('package-lock.json') }}
       - name: Set build version
         env:
-          EMC2_BUILD_REF: ${{ github.ref }}
+          EMC2_BUILD_REF: ${{ github.event_name == 'push' && github.sha || github.ref }}
+          EMC2_RELEASE_VERSION: ${{ needs.checks.outputs.version }}
         run: node scripts/set-build-version.mjs
       - run: npm ci --no-audit --no-fund
-      - run: npm test
+      - if: runner.os == 'Linux'
+        run: npm test
       - run: npm run build
       - name: Check desktop startup
         if: runner.os != 'Linux'
@@ -185,9 +217,9 @@ jobs:
     steps: *platform-steps
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' || startsWith(github.ref, 'refs/tags/v')
     needs: [checks, linux, windows, macos-arm64, macos-x64]
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: write
@@ -206,14 +238,28 @@ jobs:
           merge-multiple: true
           digest-mismatch: error
       - name: Validate release assets and create checksums
-        run: node scripts/prepare-release-assets.mjs release "${GITHUB_REF_NAME#v}"
+        env:
+          RELEASE_VERSION: ${{ needs.checks.outputs.version }}
+        run: node scripts/prepare-release-assets.mjs release "${RELEASE_VERSION:-${GITHUB_REF_NAME#v}}"
+      - name: Create the release tag
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.checks.outputs.version }}
+        run: |
+          if sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha 2>/dev/null)"; then
+            test "$sha" = "$GITHUB_SHA"
+          else
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" > /dev/null
+          fi
       - name: Publish the release
         working-directory: release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event_name == 'push' && format('v{0}', needs.checks.outputs.version) || github.ref_name }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
+          gh release create "${TAG}" \
             ./*.exe ./*.dmg ./*.AppImage latest.yml latest-linux.yml SHA256SUMS.txt \
             --repo "${GITHUB_REPOSITORY}" --verify-tag \
-            --title "${GITHUB_REF_NAME}" \
+            --title "${TAG}" \
             --generate-notes
