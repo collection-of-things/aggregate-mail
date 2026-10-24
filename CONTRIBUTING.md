@@ -37,7 +37,7 @@ Use the templates in `.github/ISSUE_TEMPLATE/` and apply one type label:
 
 ## Set up
 
-Node 24+ (CI uses 24) and npm. From the repository root:
+Node 24.22.1 or a newer 24.x (see `.nvmrc`) and npm. From the repository root:
 
 ```sh
 npm ci
@@ -150,7 +150,12 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
   run. Read the diff, especially workflow, script and dependency changes, first.
 - Workflow changes also require `actionlint` (1.7.12), the release/workflow tests,
   and the complete four-platform hosted CI run. CI runs workflow validation
-  before packaging; Dependabot groups weekly GitHub Actions updates.
+  before packaging.
+- Dependabot opens weekly grouped GitHub Actions and npm minor/patch updates;
+  minor and patch pull requests merge themselves once CI passes in the merge
+  queue. Review npm majors by hand. Dependency review blocks pull requests that
+  add high or critical advisories or GPL/AGPL licenses.
+- Use Node 24.22.1 (`.nvmrc`; `nvm use` picks it up) for local builds and tests.
 - Minor and major releases are manual: bump the source version, then push the
   matching `v*` tag (`release.yml`).
 - Retry an automatic release through its original workflow run. Its tag points

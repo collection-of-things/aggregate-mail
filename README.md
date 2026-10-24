@@ -245,7 +245,7 @@ This is a single-user desktop client. Its mail service runs while its window is 
 
 ## Development
 
-Node 24 or newer is needed only for development:
+Node 24.22.1 or a newer 24.x (see `.nvmrc`) is needed only for development:
 
 ```powershell
 npm install

@@ -965,10 +965,23 @@ Workflow source tests normalize LF and CRLF checkout line endings before checkin
 the release gates and executing the tag command.
 
 CI validates workflows with checksum-pinned actionlint 1.7.12 before running the
-four-platform matrix. Actions are pinned to full official release commit SHAs;
-weekly grouped GitHub Actions-only Dependabot PRs propose updates. Hosted runners
-must support the actions' Node 24 runtime (runner 2.327.1 or newer). No unsafe
-fork-checkout opt-in is enabled.
+four-platform matrix. Actions are pinned to full official release commit SHAs.
+Every workflow reads the build Node version from `.nvmrc` (24.22.1, the 21
+October 2026 security release), and `package.json` `engines` requires
+`>=24.22.1 <25`. The desktop app itself runs on the Node bundled with Electron.
+Hosted runners must support the actions' Node 24 runtime (runner 2.327.1 or
+newer). No unsafe fork-checkout opt-in is enabled.
+
+Dependabot opens one weekly grouped pull request for GitHub Actions (titled
+`[skip release] ci: …`, so it publishes nothing) and one for npm minor and patch
+updates; npm majors arrive one at a time, and Electron majors are ignored for a
+manual upgrade. [Dependabot auto-merge](../.github/workflows/dependabot-auto-merge.yml)
+queues minor and patch pull requests, which land only after the merge queue's CI
+passes; majors wait for a person. [Dependency review](../.github/workflows/dependency-review.yml)
+fails a pull request that adds a dependency with a high or critical advisory or
+a GPL or AGPL license. CodeQL default setup scans JavaScript, TypeScript and the
+workflows. `.github/release.yml` groups generated release notes by label and
+leaves out Dependabot pull requests.
 
 Both release lanes fail artifact downloads on digest mismatch and run the shared
 [asset preparation gate](../scripts/prepare-release-assets.mjs) before publication.

@@ -116,5 +116,8 @@
   },
   "bin": {
     "emc2": "scripts/emc2.mjs"
+  },
+  "engines": {
+    "node": ">=24.22.1 <25"
   }
 }

@@ -1,9 +1,27 @@
 version: 2
 updates:
+  # Workflow pins change CI only, so their pull requests publish nothing.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    commit-message:
+      prefix: "[skip release] ci"
     groups:
       github-actions:
         patterns: ["*"]
+  # One weekly pull request for minor and patch updates. Majors arrive one at
+  # a time for a person to review; Electron majors need a manual upgrade.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: electron
+        update-types: [version-update:semver-major]
