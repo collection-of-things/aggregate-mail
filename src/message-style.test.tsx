@@ -57,7 +57,9 @@ test("image status styles preserve body paragraph size, spacing and sender prese
     };
     const paragraphs = [...document.querySelectorAll(".message-body p")];
     assert.deepEqual(paragraphs.map(fontSize), [15, 15, 24].map(size => `calc(${size}px * var(--text-scale, 1))`));
-    assert.deepEqual(paragraphs.map((p) => dom.window.getComputedStyle(p).marginBottom), ["0.85em", "0.85em", "0.85em"]);
+    // jsdom resolves em margins against the 16px default because the calc()
+    // font-size has no numeric value: 0.85em is 13.6px.
+    assert.deepEqual(paragraphs.map((p) => dom.window.getComputedStyle(p).marginBottom), ["13.6px", "13.6px", "13.6px"]);
     assert.equal(fontSize(document.querySelector('[role="status"]')!), "calc(13px * var(--text-scale, 1))");
   } finally { dom.window.close(); }
 });

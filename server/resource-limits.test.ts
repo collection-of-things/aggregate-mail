@@ -5,7 +5,7 @@ import { simpleParser } from "mailparser";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readResponseBytes, ByteCache, workLimit, trimImageCache } from "./resource-limits.js";
-import { decodeGmailSource, checkMimeSource, rawMailLimit, canonicalBase64Size, mimeParserOptions } from "./mime-limits.js";
+import { decodeGmailSource, checkMimeSource, rawMailLimit, canonicalBase64Size, mimeParserOptions, parseMailSource } from "./mime-limits.js";
 
 test("streamed responses cancel at the byte bound without trusting Content-Length", async () => {
   let cancelled = false;
@@ -86,5 +86,5 @@ test("decorative disk cache budgets preserve unrelated files", () => {
 
 test("HTML-to-text conversion has a decoded input bound", async () => {
   const source = Buffer.from(`Content-Type: text/html; charset=utf-8\r\n\r\n<p>${"x".repeat(2 * 1024 * 1024)}</p>`);
-  await assert.rejects(simpleParser(source, mimeParserOptions), /HTML too long/);
+  await assert.rejects(parseMailSource(source), /HTML too long/);
 });

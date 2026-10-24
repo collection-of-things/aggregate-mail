@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Update mail parsing (mailparser 3.12, nodemailer 10.2, explicit HTML conversion error check), Electron 44.9 and electron-builder 26.18, react/react-dom 19.3, express 5.3, zod 4.6, htmlparser2 12, electron-updater 6.8.11, jsdom 30, happy-dom 21, concurrently 10, fast-uri 3.1.9 and undici 6.29.1/7.30.1.
 - Keep automatic release versions stable across full-run and build-job retries after tagging succeeds. Reuse a newer stable tag only at the exact source commit; keep manual source-version matching.
 - Fall back to the original update repository when the preferred release's manifest cannot be read or validated, preserving source and installer integrity checks.
 - Move every workflow job to GitHub-hosted runners: Windows on `windows-2025`, macOS on `macos-15` and the native Intel `macos-15-intel`, and all Linux jobs on `ubuntu-latest`. Raise the Windows/macOS release deadlines to 45 minutes and the CI test job to 15 minutes.

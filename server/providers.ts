@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { workLimit } from "./resource-limits.js";
-import { canonicalBase64Size, checkMimeSource, decodeGmailSource, gmailResponseLimit, imapSourceQuery, mimeParserOptions, rawMailLimit } from "./mime-limits.js";
+import { canonicalBase64Size, checkMimeSource, decodeGmailSource, gmailResponseLimit, imapSourceQuery, parseMailSource, rawMailLimit } from "./mime-limits.js";
 import { Parser } from "htmlparser2";
 import { imageSource } from "../shared/types.js";
 import { boundedMailHtml, previewText } from "../shared/mail-content.js";
@@ -202,7 +202,7 @@ async function parseMessage(
   date?: number,
 ): Promise<Incoming> {
   checkMimeSource(source);
-  const m = await simpleParser(source, mimeParserOptions);
+  const m = await parseMailSource(source);
   const decodedBytes = Buffer.byteLength(m.text || "") + Buffer.byteLength(m.html || "") + m.attachments.reduce((size, part) => size + part.content.length, 0);
   if (decodedBytes > 16 * 1024 * 1024 || m.attachments.length > 128 || m.headerLines.length > 512)
     throw new Error("Decoded email limit exceeded.");

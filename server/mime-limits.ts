@@ -1,3 +1,5 @@
+import { simpleParser } from "mailparser";
+
 export const rawMailLimit = 8 * 1024 * 1024;
 export const gmailResponseLimit = 12 * 1024 * 1024;
 export const imapSourceQuery = { start: 0, maxLength: rawMailLimit + 1 };
@@ -35,4 +37,13 @@ export const mimeParserOptions = {
 
 export function checkMimeSource(source: Buffer) {
   if (source.length > rawMailLimit) throw new Error("Raw email byte limit exceeded.");
+}
+
+// mailparser >= 3.10 reports a bounded HTML part as textConversionError instead
+// of rejecting, so enforce the bound here.
+export async function parseMailSource(source: Buffer) {
+  const parsed = await simpleParser(source, mimeParserOptions);
+  const error = parsed.textConversionError;
+  if (error) throw error instanceof Error ? error : new Error(String(error));
+  return parsed;
 }
