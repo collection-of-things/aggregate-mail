@@ -988,9 +988,29 @@ macOS apps use local ad-hoc signatures and are not notarized. Build or startup
 success does not establish installation, real-account use or delivery.
 
 The [build-version script](../scripts/set-build-version.mjs) retains stable-tag
-version validation and platform bundle build metadata. Automatic patch version
-overrides have no workflow caller. The local release/version helper scripts
-remain available; their presence does not schedule automation.
+version validation and platform bundle build metadata. Push releases select a
+version with [release-version.mjs](../scripts/release-version.mjs), then pass it
+to each build as `EMC2_RELEASE_VERSION`. Both scripts use the same selection:
+reuse the highest stable tag above the committed package version that resolves
+to `HEAD`, including annotated tags. Otherwise, choose the next patch above
+both the source version and all stable tags. Tags at other commits never
+authorize reuse. Stamping also requires `EMC2_BUILD_REF` to match `HEAD` before
+writing package or lockfile versions.
+
+Retry an automatic release through its original push workflow run. After tag
+creation succeeds and publication fails, a full-run retry selects the same
+version; a build-job retry validates the retained Checks output against that
+source tag. Later tags at other commits do not change this selection. Native
+build metadata still records the current run number and attempt. Manual
+dispatch still requires the tag to match the committed package version, so it
+rejects automatic tags whose source retains an older version.
+
+`node --test scripts/set-build-version.test.mjs` covers both retry paths with
+lightweight and annotated tags in temporary synthetic Git repositories, before
+and after a higher tag appears at another commit. It also checks wrong-source
+rejection before writes, tags at other commits, strict manual matching and
+package/lockfile/native metadata stamping. These checks do not prove a hosted
+release, publication recovery or downloaded installer behavior.
 
 There is no automatic PR or merge-queue commit-email job. Keep the local
 `scripts/check-commit-emails.mjs origin/main..HEAD` gate for authors, committers

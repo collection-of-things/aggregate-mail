@@ -8,7 +8,7 @@ function parts(version) {
   return match.slice(1).map(Number);
 }
 
-export function nextReleaseVersion(current, tags) {
+function highestReleaseVersion(current, tags) {
   let highest = parts(current);
   assert.ok(highest.every(Number.isSafeInteger), "Current version is out of range");
   for (const tag of tags) {
@@ -20,12 +20,27 @@ export function nextReleaseVersion(current, tags) {
       (candidate[0] === highest[0] && candidate[1] === highest[1] && candidate[2] > highest[2]))
       highest = candidate;
   }
+  return highest;
+}
+
+export function nextReleaseVersion(current, tags) {
+  const highest = highestReleaseVersion(current, tags);
   assert.ok(Number.isSafeInteger(highest[2] + 1), "Next patch version is out of range");
   return `${highest[0]}.${highest[1]}.${highest[2] + 1}`;
 }
 
+export function releaseVersion(current, tags, sourceTags = []) {
+  const existing = highestReleaseVersion(current, sourceTags).join(".");
+  return existing !== current ? existing : nextReleaseVersion(current, tags);
+}
+
+export function releaseTags() {
+  const list = (...args) => execFileSync("git", ["tag", "--list", "v[0-9]*", ...args], { encoding: "utf8" }).trim().split(/\s+/).filter(Boolean);
+  return { tags: list(), sourceTags: list("--points-at", "HEAD") };
+}
+
 if (import.meta.main) {
   const { version } = JSON.parse(readFileSync("package.json", "utf8"));
-  const tags = execFileSync("git", ["tag", "--list", "v[0-9]*"], { encoding: "utf8" }).trim().split(/\s+/).filter(Boolean);
-  console.log(nextReleaseVersion(version, tags));
+  const { tags, sourceTags } = releaseTags();
+  console.log(releaseVersion(version, tags, sourceTags));
 }

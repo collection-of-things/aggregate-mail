@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Keep automatic release versions stable across full-run and build-job retries after tagging succeeds. Reuse a newer stable tag only at the exact source commit; keep manual source-version matching.
 - Fall back to the original update repository when the preferred release's manifest cannot be read or validated, preserving source and installer integrity checks.
 - Move every workflow job to GitHub-hosted runners: Windows on `windows-2025`, macOS on `macos-15` and the native Intel `macos-15-intel`, and all Linux jobs on `ubuntu-latest`. Raise the Windows/macOS release deadlines to 45 minutes and the CI test job to 15 minutes.
 - Restore automatic patch releases on pushes to `main`, balanced across GitHub (checks, Linux, publish) and Blacksmith (Windows, macOS), with tests run once and docs-only pushes skipped.
