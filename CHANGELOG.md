@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Block pull requests, including the merge queue's squash commit, when a commit author, committer or co-author email is not a GitHub noreply address.
 - Build with Node 24.22.1 from `.nvmrc` for the 21 October 2026 Node security release. Add weekly npm Dependabot updates with automatic merging of minor and patch updates after CI, dependency review on pull requests, CodeQL scanning and grouped release notes.
 - Run CI in GitHub's merge queue, so every pull request is tested on top of the latest `main` before it lands.
 - Balance CI test shards by measured file duration instead of Node's round-robin split, so one slow file no longer sets the pace.

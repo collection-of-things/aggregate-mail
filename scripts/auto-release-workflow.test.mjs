@@ -79,10 +79,11 @@ test("release-only skip marker leaves ordinary CI active", () => {
 test("required platform checks pass only when validation, every shard and every needed installer did", () => {
   const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8").replace(/\r\n/g, "\n");
   const result = ci.slice(ci.indexOf("\n  result:"));
-  assert.match(result, /needs: \[plan, workflows, test, package\]/);
+  assert.match(result, /needs: \[plan, workflows, emails, test, package\]/);
   assert.match(result, /name: Test and package \(\$\{\{ matrix\.platform \}\}\)/);
   assert.match(result, /platform: \[windows-x64, macos-arm64, macos-x64, linux-x64\]/);
   for (const line of ['test "$PLAN" = success', 'test "$WORKFLOWS" = success',
+    'case "$EVENT" in pull_request|merge_group) test "$EMAILS" = success ;; *) test "$EMAILS" = skipped ;; esac',
     'if [ "$REUSE" = true ]; then test "$TEST" = skipped; else test "$TEST" = success; fi',
     'if [ "$PACKAGE" = true ]; then test "$PACKAGED" = success; else test "$PACKAGED" = skipped; fi']) assert.ok(result.includes(line), line);
   for (const platform of ["windows-x64", "macos-arm64", "macos-x64", "linux-x64"])

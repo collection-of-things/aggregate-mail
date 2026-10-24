@@ -90,6 +90,27 @@ jobs:
           tar -xzf "$directory/actionlint.tar.gz" -C "$directory" actionlint
           "$directory/actionlint" -color
 
+  # The repository is public, so no commit may carry a personal email. In the
+  # merge queue this also checks the squash commit before it reaches main.
+  emails:
+    name: Commit email privacy
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+        run: node scripts/check-commit-emails.mjs "${BASE}..${HEAD}"
+
   # Every platform runs the whole serial suite, split into shards that run on
   # separate runners at the same time.
   test:
@@ -247,7 +268,7 @@ jobs:
   # every test shard and every installer succeeded, or when the tests were
   # reused from an earlier run of the same commit.
   result:
-    needs: [plan, workflows, test, package]
+    needs: [plan, workflows, emails, test, package]
     if: always()
     name: Test and package (${{ matrix.platform }})
     runs-on: blacksmith-2vcpu-ubuntu-2404
@@ -261,11 +282,15 @@ jobs:
           PACKAGE: ${{ needs.plan.outputs.package }}
           PLAN: ${{ needs.plan.result }}
           WORKFLOWS: ${{ needs.workflows.result }}
+          EMAILS: ${{ needs.emails.result }}
+          EVENT: ${{ github.event_name }}
           TEST: ${{ needs.test.result }}
           PACKAGED: ${{ needs.package.result }}
         run: |
-          echo "plan=${PLAN} workflows=${WORKFLOWS} tests=${TEST} (reused=${REUSE}) packages=${PACKAGED} (required=${PACKAGE})"
+          echo "plan=${PLAN} workflows=${WORKFLOWS} emails=${EMAILS} tests=${TEST} (reused=${REUSE}) packages=${PACKAGED} (required=${PACKAGE})"
           test "$PLAN" = success
           test "$WORKFLOWS" = success
+          # Pull requests and merge groups must pass the email check; other events skip it.
+          case "$EVENT" in pull_request|merge_group) test "$EMAILS" = success ;; *) test "$EMAILS" = skipped ;; esac
           if [ "$REUSE" = true ]; then test "$TEST" = skipped; else test "$TEST" = success; fi
           if [ "$PACKAGE" = true ]; then test "$PACKAGED" = success; else test "$PACKAGED" = skipped; fi

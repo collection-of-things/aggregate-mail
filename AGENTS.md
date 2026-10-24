@@ -92,6 +92,12 @@ encrypted SQLite. The installed app needs no separate browser, terminal or Node.
 - Keep credentials, tokens, mailbox data, personal details, private hostnames,
   machine paths and session records out of source, fixtures, logs, screenshots,
   commit metadata, PRs, task records and release attachments.
+- The repository is public. Commit only as a GitHub noreply address
+  (`<id>+<login>@users.noreply.github.com`) for author, committer and every
+  `Co-authored-by` trailer. Before pushing, run
+  `node scripts/check-commit-emails.mjs origin/main..HEAD`; CI runs the same
+  check on every pull request and on the merge queue's squash commit, and a
+  failure blocks the merge. Never print a rejected address in full.
 
 ## Completion
 

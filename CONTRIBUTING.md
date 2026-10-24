@@ -156,6 +156,14 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
   queue. Review npm majors by hand. Dependency review blocks pull requests that
   add high or critical advisories or GPL/AGPL licenses.
 - Use Node 24.22.1 (`.nvmrc`; `nvm use` picks it up) for local builds and tests.
+- Commits must use your GitHub noreply email. Turn on GitHub's **Keep my email
+  addresses private** and **Block command line pushes that expose my email**,
+  then set `git config user.email <id>+<login>@users.noreply.github.com`. The
+  squash commit uses the email set on your GitHub account, so the setting
+  matters even if your local commits are clean. Check before pushing with
+  `node scripts/check-commit-emails.mjs origin/main..HEAD`. CI's
+  **Commit email privacy** job checks every pull request commit and the merge
+  queue's squash commit, and blocks the merge on any other address.
 - Minor and major releases are manual: bump the source version, then push the
   matching `v*` tag (`release.yml`).
 - Retry an automatic release through its original workflow run. Its tag points
