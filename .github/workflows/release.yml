@@ -1,8 +1,6 @@
 name: Build installers and release
 
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -14,11 +12,181 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
-    uses: ./.github/workflows/ci.yml
+  checks:
+    name: Checks
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Require an existing stable version tag
+        shell: bash
+        run: |
+          [[ "${GITHUB_REF}" =~ ^refs/tags/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$(git rev-parse --verify "${GITHUB_REF}^{commit}")" = "${GITHUB_SHA}"
+      - name: Run actionlint
+        shell: bash
+        run: |
+          directory="$(mktemp -d)"
+          trap 'rm -rf "$directory"' EXIT
+          curl --fail --silent --show-error --location \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            --output "$directory/actionlint.tar.gz"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $directory/actionlint.tar.gz" | sha256sum --check --strict
+          tar -xzf "$directory/actionlint.tar.gz" -C "$directory" actionlint
+          "$directory/actionlint" -color
+
+  linux:
+    needs: checks
+    if: always()
+    name: Test and package (linux-x64)
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      PLATFORM: linux-x64
+      BUILDER_ARGS: --linux AppImage --x64
+      NODE_ARCH: ""
+      ARTIFACT: |
+        release/*.AppImage
+        release/latest-linux.yml
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps: &platform-steps
+      - name: Require successful checks
+        if: needs.checks.result != 'success'
+        run: exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Install Rosetta for x64 builds
+        if: env.NODE_ARCH == 'x64' && runner.os == 'macOS'
+        run: arch -x86_64 /usr/bin/true 2>/dev/null || sudo softwareupdate --install-rosetta --agree-to-license
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          architecture: ${{ env.NODE_ARCH }}
+          cache: npm
+      - name: Confirm Node architecture
+        if: env.NODE_ARCH == 'x64'
+        run: node -e "if (process.arch !== 'x64') { console.error('Expected x64 Node, got ' + process.arch); process.exit(1) }"
+      - name: Cache Electron downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: electron-${{ runner.os }}-${{ env.NODE_ARCH || runner.arch }}-${{ hashFiles('package-lock.json') }}
+      - name: Set build version
+        env:
+          EMC2_BUILD_REF: ${{ github.ref }}
+        run: node scripts/set-build-version.mjs
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - run: npm run build
+      - name: Check desktop startup
+        if: runner.os != 'Linux'
+        timeout-minutes: 1
+        run: npm run check:desktop -- --user-data-dir="${{ runner.temp }}/emc2-check"
+      - name: Create installer
+        if: runner.os != 'macOS'
+        run: npx --no-install electron-builder ${{ env.BUILDER_ARGS }} --publish never
+      # hdiutil intermittently fails ("Resource busy" / create failed) on macOS runners.
+      # Retry the DMG build up to 3 times, force-detaching stale volumes between attempts.
+      - name: Create installer (macOS, with hdiutil retry)
+        if: runner.os == 'macOS'
+        run: |
+          shopt -s nullglob
+          for attempt in 1 2 3; do
+            if npx --no-install electron-builder ${{ env.BUILDER_ARGS }} --publish never; then
+              exit 0
+            fi
+            echo "::warning::electron-builder DMG attempt $attempt failed"
+            for volume in /Volumes/Emc*; do
+              hdiutil detach -force "$volume" || true
+            done
+            rm -f release/*.dmg release/*.blockmap
+            sleep $((attempt * 10))
+          done
+          echo "::error::electron-builder DMG failed after 3 attempts"
+          exit 1
+      - name: Verify updater metadata and installer integrity
+        if: runner.os != 'macOS'
+        run: node --import tsx scripts/check-release-assets.ts ${{ env.PLATFORM }}
+      - name: Upload installer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: installer-${{ env.PLATFORM }}
+          path: ${{ env.ARTIFACT }}
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+          overwrite: true
+
+  windows:
+    needs: checks
+    name: Test and package (windows-x64)
+    runs-on: blacksmith-4vcpu-windows-2025
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      PLATFORM: windows-x64
+      BUILDER_ARGS: --win nsis --x64
+      NODE_ARCH: ""
+      ARTIFACT: |
+        release/*.exe
+        release/latest.yml
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps: *platform-steps
+
+  macos-arm64:
+    needs: checks
+    name: Test and package (macos-arm64)
+    runs-on: blacksmith-6vcpu-macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash --noprofile --norc -eo pipefail {0}
+    env:
+      PLATFORM: macos-arm64
+      BUILDER_ARGS: --mac dmg --arm64
+      NODE_ARCH: ""
+      ARTIFACT: release/*.dmg
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps: *platform-steps
+
+  # Blacksmith has no Intel Macs, so x64 runs under Rosetta on Apple silicon.
+  macos-x64:
+    needs: checks
+    name: Test and package (macos-x64)
+    runs-on: blacksmith-6vcpu-macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash --noprofile --norc -eo pipefail {0}
+    env:
+      PLATFORM: macos-x64
+      BUILDER_ARGS: --mac dmg --x64
+      NODE_ARCH: x64
+      ARTIFACT: release/*.dmg
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps: *platform-steps
+
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [checks, linux, windows, macos-arm64, macos-x64]
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
     permissions:

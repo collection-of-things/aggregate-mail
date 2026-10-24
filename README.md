@@ -256,13 +256,22 @@ npm run dev
 
 ## CI
 
-CI uses Blacksmith runners. Pull requests run the full serial Linux test suite and production build. The merge queue, releases and manual CI runs test and package Windows x64, macOS arm64, macOS x64 under Rosetta, and Linux x64. Windows and macOS also run an isolated production-startup check. Linux runtime behavior needs separate verification.
+[Build installers and release](.github/workflows/release.yml) is the only Actions
+workflow. It runs only when manually dispatched for an existing stable version
+tag. Pull requests, merge queues, pushes and schedules start no workflow.
+Automatic releases, CodeQL workflows and Dependabot configuration are removed.
+Local verification remains documented in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Download the run's `installer-windows-x64` artifact for the Windows setup `.exe`, `installer-macos-arm64` or `installer-macos-x64` for a macOS `.dmg`, or `installer-linux-x64` for a Linux `.AppImage`. Artifacts expire after one day. These unsigned packages are build candidates; packaging does not verify native startup or account operations. macOS candidates are not notarized.
+An authorized manual release tests, builds and packages Windows x64, macOS
+arm64, macOS x64 under Rosetta, and Linux x64 on Blacksmith. Windows and macOS
+also run an isolated production-startup check. Publishing waits for all four
+platforms and complete asset validation. Packages and startup checks do not
+establish native account-operation or installed acceptance.
 
-Each CI run uses a distinct version such as `0.1.3-ci.123456.1`, where the last two numbers identify the workflow run and attempt. Reruns increment the attempt. This version appears in the application metadata and installer filename. Manual release tags must match the committed `package.json` version. Automatic patch releases stamp the computed next version during the build without changing the source version.
-
-Blacksmith runner time is billed separately from GitHub artifact storage. Linux-only PR checks, monthly dependency updates, weekly CodeQL, one-day artifact retention and cancellation of superseded CI runs limit use. See [the CI contract](docs/KB.md#ci).
+Installer artifacts expire after one day. Manual release execution consumes
+runner time and artifact storage, so dispatch requires explicit authorization.
+Repository Actions enablement and required-check settings are separate from
+these source files. See [the workflow contract](docs/KB.md#ci).
 
 ## Contributing
 
@@ -271,7 +280,13 @@ AI contributors must also read the project instructions in [AGENTS.md](AGENTS.md
 
 ## Releasing
 
-GitHub hosts CI and release downloads. Each non-release push to `main` runs `auto-release.yml`, which builds the next patch version from that commit without modifying the source version, then creates its tag after all builds pass. Manual `v*` tags use `.github/workflows/release.yml` and must match `package.json`. Both routes reuse the CI build jobs and publish the Windows setup installer, both macOS DMGs, the Linux AppImage, `latest.yml`, `latest-linux.yml` and `SHA256SUMS.txt` after all jobs pass. Retry automatic releases through their original workflow run; their tags retain the older source version and cannot use the strict manual tag route. Manual CI runs create build artifacts without publishing releases.
+GitHub hosts release downloads. Create a stable `v<major>.<minor>.<patch>` tag
+that matches `package.json`, then explicitly dispatch
+`.github/workflows/release.yml` against that existing tag. A tag push alone
+runs nothing. The workflow publishes the Windows installer, both macOS DMGs,
+the Linux AppImage, `latest.yml`, `latest-linux.yml` and `SHA256SUMS.txt` only
+after every build and release-asset check passes. Releases are never created
+from an ordinary push to `main`.
 
 New installer filenames use the GitHub-safe `Emc2-` prefix; the application name stays Emc². Linux x64 installers end in `linux-x86_64.AppImage`. CI validates the Windows/Linux manifest version, filename, size and SHA512 against the packaged installer before upload. See [ADR 0039](docs/adr/0039-release-update-assets.md).
 

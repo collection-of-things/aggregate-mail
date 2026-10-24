@@ -95,9 +95,9 @@ encrypted SQLite. The installed app needs no separate browser, terminal or Node.
 - The repository is public. Commit only as a GitHub noreply address
   (`<id>+<login>@users.noreply.github.com`) for author, committer and every
   `Co-authored-by` trailer. Before pushing, run
-  `node scripts/check-commit-emails.mjs origin/main..HEAD`; CI runs the same
-  check on every pull request and on the merge queue's squash commit, and a
-  failure blocks the merge. Never print a rejected address in full.
+  `node scripts/check-commit-emails.mjs origin/main..HEAD`. There is no
+  automatic pull-request or merge-queue workflow enforcing this check.
+  Never print a rejected address in full.
 
 ## Completion
 

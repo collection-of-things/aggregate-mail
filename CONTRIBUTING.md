@@ -55,7 +55,7 @@ npm run dev      # Electron with React/CSS hot reload; restart after desktop or 
   `chore` or `test`.
 - Imperative commit subjects; `feat:`, `fix:` or `test:` prefixes are common.
 - Never start a subject with `Release `; it is reserved for manual version
-  commits and skips the auto-release.
+  commits.
 - Check author/committer metadata for private details before pushing.
 
 ## Verify
@@ -119,62 +119,44 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
 
 ## CI and releases
 
-- `.github/workflows/ci.yml` runs one **Checks** job for workflow validation and
-  commit email privacy. Pull requests run the full serial Linux test suite and
-  build. The merge queue, manual runs and release lanes test and package all
-  four platforms: Windows x64, macOS arm64, macOS x64 and Linux x64.
-  Every job uses Blacksmith. macOS x64 runs under Rosetta rather than on Intel
-  hardware. See [ADR 0062](docs/adr/0062-simple-blacksmith-ci.md).
-- `main` accepts changes only through a pull request with all conversations
-  resolved and the four required checks green. Reviews are welcome but not
-  required, so maintainers can merge their own work; a commit pushed to someone
-  else's pull request needs an approval. **Merge when ready** adds it to the
-  merge queue, which squashes it onto the latest `main`, reruns CI on that exact
-  commit and lands it only if CI passes. Direct pushes, force pushes and
-  deleting `main` are blocked.
-- The squash commit takes the PR title as its subject, so the title decides the
-  release: a title starting with `Release ` or containing `[skip release]`
-  publishes nothing. Release lanes run fresh tests before publishing.
-- CI stamps non-tag builds with a `-ci.` version (`scripts/set-build-version.mjs`,
-  ADR 0004). Do not change `version` in a PR.
-- Every push to `main` except `Release ` commits and commits containing
-  `[skip release]` runs `auto-release.yml`: it builds the next patch from
-  the triggering commit, then creates the tag and publishes only after all four
-  platform jobs pass. It does not modify `main` or the source version. Merge
-  only release-ready work.
-- CI-only and docs-only changes suppress automatic publication with `[skip release]`
-  in the PR title. The marker does not disable ordinary CI or explicit tag
-  releases. Do not use `[skip ci]` for workflow upgrades.
-- Release tags (`v*`) cannot be moved or deleted once created.
-- Outside contributors' pull requests run CI only after a maintainer approves the
-  run. Read the diff, especially workflow, script and dependency changes, first.
-- Workflow changes also require `actionlint` (1.7.12), the release/workflow tests,
-  and the complete four-platform hosted CI run. CI runs workflow validation
-  before packaging.
-- Dependabot opens monthly grouped GitHub Actions and npm minor/patch updates.
-  Maintainers review and queue these pull requests; there is no dependency
-  auto-merge workflow. Review advisories and license changes before merging.
-  CodeQL runs weekly and on manual dispatch on Blacksmith.
+- [Build installers and release](.github/workflows/release.yml) is the only
+  workflow. It runs only on an explicit manual dispatch selecting an existing
+  stable `v<major>.<minor>.<patch>` tag. The tag must resolve to the run commit
+  and match the source version. Creating or pushing the tag does not run it.
+- Pull requests, merge groups, branch pushes and schedules start no workflows.
+  Automatic patch releases, scheduled CodeQL, dependency review, dependency
+  auto-merge and Dependabot update configuration are removed. Review dependency
+  advisories, licenses and updates manually.
+- An authorized manual release runs actionlint, tests, strict builds and installer
+  creation for Windows x64, macOS arm64, macOS x64 and Linux x64. Windows and
+  macOS also run isolated startup checks. The jobs use Blacksmith; macOS x64
+  uses Rosetta and an x64 Node guard. See
+  [ADR 0063](docs/adr/0063-manual-release-only-actions.md).
+- Publishing waits for every platform job. It validates the complete installer
+  and updater manifest set, rejects artifact digest mismatches, generates
+  checksums and publishes only against the selected existing tag. Tags cannot
+  be moved or deleted. This workflow never creates a tag or version commit.
+- Repository protections and Actions enablement are separate settings. Deleting
+  workflows does not remove required checks, merge-queue rules or approvals.
+  A maintainer must reconcile any requirements for removed CI before merging;
+  do not fabricate passing statuses or bypass protections. Direct pushes,
+  force pushes and deleting `main` remain prohibited.
+- Local verification in the table above and independent review remain required
+  unless the task owner explicitly prohibits execution. Report such checks as
+  unrun. Do not dispatch Actions as a substitute without authorization.
+- Workflow changes normally use actionlint 1.7.12 and the release/workflow source
+  tests locally. PR creation does not authorize hosted execution or publishing.
 - Use Node 24.22.1 (`.nvmrc`; `nvm use` picks it up) for local builds and tests.
-- Commits must use your GitHub noreply email. Turn on GitHub's **Keep my email
+- Commits must use your GitHub noreply email. Enable GitHub's **Keep my email
   addresses private** and **Block command line pushes that expose my email**,
-  then set `git config user.email <id>+<login>@users.noreply.github.com`. The
-  squash commit uses the email set on your GitHub account, so the setting
-  matters even if your local commits are clean. Check before pushing with
-  `node scripts/check-commit-emails.mjs origin/main..HEAD`. CI's
-  **Checks** job checks every pull request commit and the merge
-  queue's squash commit, and blocks the merge on any other address.
-- Minor and major releases are manual: bump the source version, then push the
-  matching `v*` tag (`release.yml`).
-- Retry an automatic release through its original workflow run. Its tag points
-  at source with the older committed version, so the strict manual tag workflow
-  cannot rebuild it. A publish retry reuses a tag only when its commit matches.
+  then set `git config user.email <id>+<login>@users.noreply.github.com`.
+  Before pushing, run `node scripts/check-commit-emails.mjs origin/main..HEAD`.
+  Commit privacy is no longer checked automatically by a PR workflow.
 - Local packaging: `npm run package` (Windows NSIS), `npm run package:mac`
   (DMG and ZIP), `npm run package:mac:dir` (app bundle, source-install route).
   Mac builds need Xcode Command Line Tools. Output goes to `release/`.
-- `npm run release` builds and publishes only the Windows installer locally.
-  Tags, this script and workflow dispatch all publish; use only with explicit
-  release authorization.
+- `npm run release` builds and publishes the Windows installer locally. It and
+  manual workflow dispatch require explicit release authorization.
 - Never commit generated output or local app data.
 
 ## Pull requests

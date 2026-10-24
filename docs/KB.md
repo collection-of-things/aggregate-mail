@@ -921,20 +921,33 @@ Keep credentials, personal contact details, absolute machine paths, private host
 
 ## CI
 
-[The CI workflow](../.github/workflows/ci.yml) runs on pull requests, merge groups and manual dispatch; the tag-release and automatic patch-release workflows call it. It does not run on pushes to `main`, because the merge queue already tested the commit that lands. Blacksmith minutes are budgeted, so each step runs where it adds coverage ([ADR 0062](adr/0062-simple-blacksmith-ci.md)):
+[Build installers and release](../.github/workflows/release.yml) is the only
+workflow. Its sole trigger is `workflow_dispatch`. Pull requests, merge groups,
+branch pushes, tag pushes and schedules start no workflow. Automatic patch
+release, standalone CI and CodeQL workflow files and the Dependabot configuration
+are removed. Dependency review and auto-merge helpers remain absent. See
+[ADR 0063](adr/0063-manual-release-only-actions.md); ADRs 0061 and 0062 remain
+historical decisions.
 
-| Event | Checks | Linux | Windows, macOS arm64, macOS x64 |
-| --- | --- | --- | --- |
-| Pull request | actionlint, commit emails | `npm test`, `npm run build` | skipped |
-| Merge group | actionlint, commit emails (on the squash commit) | test, build, installer | test, build, startup check, installer |
-| Release lane | actionlint | test, build, installer | test, build, startup check, installer |
-| Manual dispatch | actionlint | everything | everything |
+A manual dispatch requires an existing stable `v<major>.<minor>.<patch>` tag
+resolving to the run commit. The build-version script also requires the tag to
+match the committed package version. An ordinary branch selection cannot pass
+this release gate. Only an explicitly authorized release should dispatch it.
+No workflow creates a version commit or tag.
 
-- **Checks** runs checksum-pinned actionlint 1.7.12 (Blacksmith labels in `.github/actionlint.yaml`) and the commit email check. The email check runs `scripts/check-commit-emails.mjs` on pull request commits or the merge queue's squash commit. It rejects author, committer and `Co-authored-by` addresses outside its noreply allowlist, and masks rejected addresses in public logs.
-- **Test and package (`<platform>`)** is one job per platform: checkout, Node, cached Electron downloads, `npm ci`, the full serial `npm test`, and `npm run build`. Non-PR runs also build an unpublished installer and run the isolated startup check on Windows and macOS. The four jobs share one YAML step list and literal required-check names. Windows and macOS skip pull requests; the merge queue runs them before landing the commit.
-- There is no test sharding or prior-check reuse planner. Release lanes run fresh tests. macOS jobs use Bash without startup profiles so the Node selected by `setup-node` stays on PATH; the x64 job fails if Node reports another architecture.
-
-Each job uses Node 24.22.1 from `.nvmrc` and `npm ci`. Linux runtime behavior needs separate proof.
+- **Checks** verifies the selected tag and runs checksum-pinned actionlint
+  1.7.12 before the platform jobs.
+- **Test and package (`<platform>`)** uses the existing shared step list for
+  checkout, Node setup, cached Electron downloads, `npm ci`, serial tests,
+  strict build, installer creation and artifact upload. Windows and macOS also
+  run an isolated production-startup check. Linux rejects an unsuccessful
+  Checks dependency before checkout; publication requires every build job.
+- **Publish** downloads all installers with digest mismatch rejection. The
+  [asset preparation gate](../scripts/prepare-release-assets.mjs) requires the
+  four expected nonempty regular installer files and both updater manifests,
+  rejects symlinks and unexpected files, and generates deterministic SHA-256
+  checksums. Per-platform Windows/Linux version, filename, size and SHA512
+  validation remains before upload. Publication verifies the existing tag.
 
 | Platform | Architecture | Installer | Runner |
 | --- | --- | --- | --- |
@@ -943,57 +956,39 @@ Each job uses Node 24.22.1 from `.nvmrc` and `npm ci`. Linux runtime behavior ne
 | macOS | Intel x64 | `.dmg` | `blacksmith-6vcpu-macos-15`, x64 Node under Rosetta |
 | Linux | x64 | `.AppImage` | `blacksmith-4vcpu-ubuntu-2404` |
 
-The `main branch rules` ruleset requires a pull request with resolved conversations (no approval count; an approval only when someone else's commits are pushed to the pull request), the four `Test and package` checks and the merge queue (squash, PR title as subject, at most five entries built together and one merged at a time, no minimum wait). `Checks` is not a standalone required context; the required Linux job always evaluates it and fails before checkout unless it succeeded. It blocks force pushes and deletion and has no bypass actors. The `release tags` ruleset blocks moving or deleting `v*` tags; Actions can still create them. Outside contributors' workflow runs need maintainer approval. See [ADR 0059](adr/0059-merge-queue-and-reviews.md) and [ADR 0060](adr/0060-optional-review.md).
+Build jobs read Node 24.22.1 from `.nvmrc`; `package.json` requires
+`>=24.22.1 <25`. The app uses Electron's bundled Node. Actions retain their
+full release-commit pins and require runners supporting their Node 24 runtime.
+macOS jobs use Bash without startup profiles, and x64 jobs fail unless Node
+reports x64. Rosetta execution does not prove behavior on Intel hardware.
 
-Download `installer-<platform>` from the workflow run's Artifacts section. Each artifact expires after one day. Reruns replace artifacts for rebuilt platforms; successful platform jobs that are not rerun retain their earlier artifacts. Missing installer files fail the job. Superseded runs are canceled, and platform jobs have a 30-minute limit.
+Manual runs for the same ref serialize without cancelling publication. Platform
+jobs retain their 30-minute limits and artifacts expire after one day. Signing
+certificate discovery stays disabled, builds use `--publish never`, and only
+the publisher has repository write permission. Windows installers are unsigned;
+macOS apps use local ad-hoc signatures and are not notarized. Build or startup
+success does not establish installation, real-account use or delivery.
 
-[The build-version step](../scripts/set-build-version.mjs) gives non-tag runs the version `<release>-ci.<GITHUB_RUN_ID>.<GITHUB_RUN_ATTEMPT>`. It updates `package.json` and both root lockfile versions only in the runner checkout. Each new run or rerun has a distinct application version and installer filename. The macOS bundle build version and Windows file version use the workflow run number and attempt. The workflow passes the checked-out ref as `EMC2_BUILD_REF`; it takes precedence over the caller's `GITHUB_REF`. Manual stable tags must match the source version. The automatic patch lane computes the next version above the source version and existing stable tags, verifies that value again in the build jobs, and stamps it only in their runner checkouts. It builds the triggering commit SHA, then creates the tag after all four platform jobs pass. Branch and ordinary commit builds retain the CI suffix. See [ADR 0004](adr/0004-ci-build-versions.md) and [ADR 0041](adr/0041-post-build-automatic-release-tags.md).
+The [build-version script](../scripts/set-build-version.mjs) retains stable-tag
+version validation and platform bundle build metadata. Automatic patch version
+overrides have no workflow caller. The local release/version helper scripts
+remain available; their presence does not schedule automation.
 
-Every CI, release and CodeQL job runs on Blacksmith, which bills it; no job uses GitHub-hosted runners. Blacksmith has no Intel Macs, so the macOS x64 jobs install Rosetta if needed, run x64 Node through it, and fail early unless `process.arch` is `x64`; tests, the x64 installer and its startup check all run translated rather than on Intel hardware. CodeQL runs weekly and on demand from `.github/workflows/codeql.yml` on Blacksmith, not on every pull request. The repository is public. Standard GitHub-hosted runner execution is free under [GitHub's Actions billing policy](https://docs.github.com/en/billing/concepts/product-billing/github-actions). Artifact storage shares the owner's plan allowance with GitHub Packages; excess artifact storage is billed at $0.25 USD per GB-month. npm cache storage has a separate 10 GB included allowance per repository. One-day artifact retention limits storage use but does not set an account spending cap. Recheck billing before making the repository private or selecting larger runners.
+There is no automatic PR or merge-queue commit-email job. Keep the local
+`scripts/check-commit-emails.mjs origin/main..HEAD` gate for authors, committers
+and co-author trailers, and mask any rejected address. Review dependency
+advisories, licenses and upgrades manually. `.github/release.yml` still groups
+release notes; it is release-note configuration, not an executable workflow.
 
-CI has read-only repository permissions, disables signing-certificate discovery, and passes `--publish never` to packaging. It needs no mail-provider keys or signing credentials. Installer creation proves packaging; it does not prove native launch, account sign-in, OS trust acceptance or mail delivery. Windows installers are unsigned; macOS apps use local ad-hoc signatures, while DMGs stay unsigned and not notarized. The [tag-release workflow](../.github/workflows/release.yml) and [automatic patch-release workflow](../.github/workflows/auto-release.yml) publish four installers, Windows/Linux updater manifests and SHA-256 checksums only after every build job passes. Manual tags must match `package.json`; automatic tags point to the triggering source commit and are created only after all build jobs pass. The automatic workflow writes no version commit to `main`.
+Actions enablement, required checks, merge queues and tag protections are
+repository settings, outside these files. This source deletion changes none of
+them. A maintainer must reconcile requirements for removed CI before merging.
+Do not synthesize passing statuses or treat a manual release of a different
+commit as PR validation. See [CONTRIBUTING](../CONTRIBUTING.md#ci-and-releases).
 
-See [README](../README.md#ci) for usage and [ADR 0002](adr/0002-cross-platform-ci.md) for the decision.
-
-Automatic release version overrides require an exact commit SHA. Version resolution
-and build jobs have read-only repository access; only publishing can push a tag.
-The publisher checks out source before downloading artifacts, calculates checksums
-before tagging, and reuses an existing tag only at the same source commit. Manual
-version commits beginning with `Release ` and commit messages containing
-`[skip release]` skip the automatic lane. The marker must reach the final commit on `main`; the merge queue uses the
-PR title as that commit's subject, so put it in the PR title.
-Regular CI still runs, and explicit tag releases remain unchanged. Retry an
-automatic release through its original workflow run, since its tag points at source
-with the older committed version and cannot use the strict manual tag route.
-
-Workflow source tests normalize LF and CRLF checkout line endings before checking
-the release gates and executing the tag command.
-
-CI validates workflows with checksum-pinned actionlint 1.7.12 before running the
-platform jobs. Actions are pinned to full official release commit SHAs.
-Every workflow reads the build Node version from `.nvmrc` (24.22.1, the 21
-October 2026 security release), and `package.json` `engines` requires
-`>=24.22.1 <25`. The desktop app itself runs on the Node bundled with Electron.
-Hosted runners must support the actions' Node 24 runtime (runner 2.327.1 or
-newer). No unsafe fork-checkout opt-in is enabled.
-
-Dependabot opens monthly grouped pull requests for GitHub Actions (titled
-`[skip release] ci: …`) and npm minor/patch updates. npm majors are separate;
-Electron majors require a manual upgrade. Maintainers review advisories and
-licenses and queue dependency pull requests. Dependency review and automatic
-Dependabot merging have no dedicated workflows. CodeQL scans JavaScript,
-TypeScript and workflows weekly or on manual dispatch on Blacksmith.
-`.github/release.yml` groups generated release notes by label and leaves out
-Dependabot pull requests.
-
-Both release lanes fail artifact downloads on digest mismatch and run the shared
-[asset preparation gate](../scripts/prepare-release-assets.mjs) before publication.
-It requires the exact four versioned platform installers plus the two updater
-manifests, all nonempty regular files, and rejects extras and symlinks. Only after
-validation does it generate deterministic SHA-256 checksums. Existing per-platform
-manifest/SHA512 verification remains in the build jobs. Manual runs for the same
-ref serialize without cancelling publication. See
-[ADR 0055](adr/0055-ci-release-workflow-maintenance.md).
+No workflows, tests, builds or lint were executed for this deletion. Source
+inspection establishes the intended configuration only. Hosted/manual release
+behavior remains unverified for the new workflow.
 
 ## Email links
 
