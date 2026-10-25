@@ -80,7 +80,7 @@ type ImageProps = {
 export function MessageImages(props: ImageProps) {
   return <ImageConsent key={JSON.stringify([props.mail.accountId, props.mail.id, props.mail.contentVersion])} {...props} />;
 }
-export function ReaderContent(props: ImageProps & { loadContent: (id: string) => Promise<ContentResult> }) {
+export function ReaderContent(props: ImageProps) {
   return <ImageConsent key={JSON.stringify([props.mail.accountId, props.mail.id, props.mail.contentVersion])} {...props} body />;
 }
 function ImageConsent({ mail, loadImages, loadContent, body }: ImageProps) {

@@ -21,7 +21,7 @@ export function Dropdown<T extends string>({
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (open) document.getElementById(`${id}-${active}`)?.scrollIntoView({ block: "nearest" });
+    if (open) document.getElementById(`${id}-${active}`)?.scrollIntoView?.({ block: "nearest" });
   }, [open, active, id]);
   useEffect(() => {
     if (!open) return;
@@ -32,7 +32,9 @@ export function Dropdown<T extends string>({
     window.addEventListener("mousedown", away);
     return () => window.removeEventListener("mousedown", away);
   }, [open, value]);
+  useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
   const commit = (next: T) => {
+    if (disabled) return;
     setOpen(false);
     trigger.current?.focus();
     if (next !== value) onChange(next);
@@ -42,7 +44,7 @@ export function Dropdown<T extends string>({
     setActive(options[Math.min(options.length - 1, Math.max(0, index + step))].value);
   };
   return (
-    <div className="dropdown" ref={root}>
+    <div className="dropdown" ref={root} data-escape-owner={open || undefined}>
       <button
         type="button"
         ref={trigger}
@@ -56,13 +58,23 @@ export function Dropdown<T extends string>({
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
         onKeyDown={(event) => {
-          if (!open) return;
+          if (event.key === "Tab") { setOpen(false); return; }
+          if (!open) {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              setOpen(true);
+            }
+            return;
+          }
           if (event.key === "ArrowDown") {
             event.preventDefault();
             move(1);
           } else if (event.key === "ArrowUp") {
             event.preventDefault();
             move(-1);
+          } else if (event.key === "Home" || event.key === "End") {
+            event.preventDefault();
+            setActive(options[event.key === "Home" ? 0 : options.length - 1].value);
           } else if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             commit(active);
@@ -72,7 +84,7 @@ export function Dropdown<T extends string>({
           }
         }}
       >
-        {options.find((option) => option.value === value)?.label}
+        <span>{options.find((option) => option.value === value)?.label}</span>
         <ChevronDown color="currentColor" size={12} className={open ? "up" : undefined} />
       </button>
       {open && (
@@ -92,7 +104,7 @@ export function Dropdown<T extends string>({
               onMouseEnter={() => setActive(option.value)}
               onClick={() => commit(option.value)}
             >
-              {option.label}
+              <span>{option.label}</span>
               {option.value === value && <Check color="currentColor" size={12} />}
             </li>
           ))}

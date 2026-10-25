@@ -99,11 +99,13 @@ export function save(value: InteractionPreferences): boolean {
   } catch { return false; }
 }
 
-export function matches(event: KeyboardEvent, action: InteractionAction, value: InteractionPreferences, platform = ""): boolean {
+export function matches(event: KeyboardEvent, action: InteractionAction, value: InteractionPreferences, platform = "", allowCompose = false): boolean {
   if (event.defaultPrevented || event.isComposing || event.repeat || event.getModifierState?.("AltGraph")) return false;
   const target = event.target;
   if (target && "closest" in target && typeof target.closest === "function" &&
-    target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), dialog, [role="dialog"], [data-interaction-settings]')) return false;
+    (target.closest('input, textarea, select, [role="combobox"], [contenteditable]:not([contenteditable="false"]), [data-interaction-settings]') ||
+      target.closest('dialog, [role="dialog"]') && !(allowCompose && target.closest('.compose-dialog')) &&
+      !(target.closest('dialog, [role="dialog"]')?.matches('.settings-dialog') && ["search", "privacy", "back", "forward", "settings"].includes(action)))) return false;
   const binding = shortcutFromEvent(event);
   if (same(binding, value.shortcuts[action])) return true;
   if (action === "teach" && same(value.shortcuts.teach, defaults.shortcuts.teach) && same(binding, { key: "t" })) return true;

@@ -138,7 +138,7 @@
 .compose-dialog .dialog-title { position: absolute; z-index: 1; top: 10px; right: 18px; margin: 0; padding: 0; border: 0; background: transparent; }
 .compose-dialog .dialog-title h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .compose-from-row { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
-.compose-from-row > label { flex: 1; border-bottom: 0; }
+.compose-from-row > .compose-from-field { flex: 1; border-bottom: 0; }
 .compose-from-row .compose-discard { flex-shrink: 0; margin-right: 32px; }
 .compose-dialog .compose-envelope label > span { width: calc(48px * var(--text-scale, 1)); }
 .compose-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 18px; min-height: 44px; flex-shrink: 0; }
@@ -474,8 +474,8 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
 .app[data-view="drafts"] .compose-dialog .dialog-title { top: -42px; right: 16px; height: 42px; }
 .app[data-view="drafts"]:has(.compose-dialog) .draft-account-tabs { padding-right: 150px; }
 .compose-dialog .compose-form :is(input, select) { min-height: 34px; padding-block: 6px; }
-.compose-dialog .compose-from-row > label { padding-right: 136px; }
-.app[data-view="drafts"] .compose-dialog .compose-from-row > label { padding-right: 0; }
+.compose-dialog .compose-from-row > .compose-from-field { padding-right: 136px; }
+.app[data-view="drafts"] .compose-dialog .compose-from-row > .compose-from-field { padding-right: 0; }
 .compose-dialog .compose-toolbar { min-height: 32px; gap: 8px 12px; }
 .compose-dialog .compose-scroll { padding-inline: 18px; }
 .compose-reply-layout > .compose-context { padding: 16px 18px; }
@@ -486,7 +486,7 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
 .compose-dialog .compose-format { margin-top: 3px; }
 @media (max-width: 760px) {
   .app.desktop[data-view="drafts"] .compose-dialog .dialog-title { top: 0; }
-  .app.desktop[data-view="drafts"] .compose-dialog .compose-from-row > label { padding-right: 136px; }
+  .app.desktop[data-view="drafts"] .compose-dialog .compose-from-row > .compose-from-field { padding-right: 136px; }
 }
 .compose-format-tools { display: flex; align-items: center; flex-wrap: wrap; flex-shrink: 0; gap: 3px; min-height: 30px; border-block: 1px solid var(--line); }
 .compose-format-tools button { min-width: 28px; height: 28px; padding: 0 7px; color: var(--text-2); font-size: calc(11px * var(--text-scale, 1)); border-radius: 4px; }
@@ -514,7 +514,7 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
   .app:has(.sidebar.closed) .compose-with-context { width: 100%; }
   .app.desktop[data-view="drafts"] .dialog-backdrop.compose-backdrop { padding-top: 42px; }
   .app.desktop[data-view="drafts"] .compose-dialog .dialog-title { top: -42px; }
-  .app.desktop[data-view="drafts"] .compose-dialog .compose-from-row > label { padding-right: 0; }
+  .app.desktop[data-view="drafts"] .compose-dialog .compose-from-row > .compose-from-field { padding-right: 0; }
 }
 .compose-dialog .compose-footer { min-height: 30px; padding: 1px 12px; display: flex; flex-direction: column; justify-content: center; }
 .compose-dialog .compose-actions > button { height: 26px; }
@@ -601,3 +601,28 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
   .draft-row-delete:hover { color: var(--danger); background: var(--hover); }
 }
 @media (hover: none) { .draft-row-delete { opacity: 1; pointer-events: auto; } .draft-list .draft-row-meta { padding-right: 34px; } }
+
+/* The nonmodal composer shares navigation chrome while covered mail stays inert. */
+.dialog-backdrop.compose-backdrop { pointer-events: none; }
+.dialog.compose-dialog { pointer-events: auto; }
+
+.compose-link-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding-block: 6px; }
+.compose-link-controls input { flex: 1; min-width: 140px; }
+.compose-link-controls button { min-height: 30px; padding-inline: 8px; font-size: calc(12px * var(--text-scale, 1)); }
+
+/* Keep the sender picker in the envelope, using the same themed menu as the app. */
+.compose-from-field { display: flex; align-items: center; gap: 14px; min-width: 0; min-height: 44px; color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
+.compose-from-field > span { width: calc(48px * var(--text-scale, 1)); flex-shrink: 0; }
+.compose-from-field .dropdown { flex: 1; min-width: 0; }
+.compose-from-field .dropdown-trigger { height: 30px; min-height: 30px; padding: 0 8px; border-color: transparent; border-radius: 6px; background: transparent; font-size: inherit; }
+.compose-from-field .dropdown-trigger:hover:not(:disabled), .compose-from-field .dropdown-trigger[aria-expanded="true"] { background: var(--selected); }
+.compose-from-field .dropdown-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.compose-from-field .dropdown-menu { max-height: 240px; overflow-y: auto; border-radius: 8px; background: var(--raised); backdrop-filter: none; animation: none; }
+.compose-from-field .dropdown-menu li { min-height: 32px; padding: 6px 8px; font-size: inherit; }
+.compose-from-field .dropdown :is(button, li) > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.compose-from-field .dropdown-menu svg { flex-shrink: 0; }
+
+/* Original email uses the reader allowlist and owns its own image consent. */
+.compose-context-body { white-space: normal; }
+.compose-context-body .message-body { max-width: 100%; font-size: calc(14px * var(--text-scale, 1)); line-height: 1.6; }
+.compose-context-body .message-images { min-width: 0; }

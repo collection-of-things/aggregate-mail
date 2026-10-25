@@ -251,6 +251,26 @@
   background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--text); font-size: calc(10px * var(--text-scale, 1)); line-height: 1.4; }
 .calendar-chip.more { background: none; color: var(--text-2); padding-left: 0; }
 .calendar-agenda .calendar-event[aria-pressed="true"] { background: var(--selected); box-shadow: inset 2px 0 var(--accent); padding-left: 10px; }
+/* Day/Week keeps horizontal overflow inside a keyboard-scrollable schedule. */
+.work-calendar[data-layout="day"], .work-calendar[data-layout="week"] { min-width: 0; max-width: 100%; }
+.calendar-schedule { overflow: auto; max-width: 100%; max-height: 70vh; border-block: 1px solid var(--line); }
+.calendar-schedule-columns { display: grid; grid-template-rows: auto auto auto auto; }
+.calendar-columns-week { grid-template-columns: repeat(7, minmax(200px, 1fr)); }
+.calendar-schedule-day { display: grid; grid-row: 1 / span 4; grid-template-rows: subgrid; min-width: 0; border-inline-end: 1px solid var(--line); padding: 0 8px; }
+.calendar-schedule-day h3, .calendar-schedule-day h4 { font-size: inherit; font-weight: 500; margin: 12px 0 8px; }
+.calendar-schedule-day h3 { font-variant-numeric: tabular-nums; }
+.calendar-date-only { min-height: 100px; }
+.calendar-axis { position: relative; margin-block: 16px 30px; font-variant-numeric: tabular-nums; }
+.calendar-tick { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); font-size: calc(10px * var(--text-scale, 1)); color: var(--text-2); }
+.calendar-spans { position: absolute; inset: 0 0 0 98px; }
+.calendar-span, .calendar-point { position: absolute; overflow: hidden; padding-inline: 2px; color: var(--text); font-size: calc(11px * var(--text-scale, 1)); overflow-wrap: anywhere; }
+.calendar-span { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); border-inline-start: 2px solid var(--accent); }
+.calendar-point { border-top: 2px solid var(--accent); }
+.calendar-outside-day { position: absolute; inset-inline: 0; background: var(--selected); color: var(--text-2); }
+.calendar-timed-entry { min-height: 32px; }
+.calendar-timed-entry[aria-pressed="true"] { background: var(--selected); box-shadow: inset 2px 0 var(--accent); padding-left: 8px; }
+.calendar-timed-list { border-top: 1px solid var(--line); }
+.google-calendar-month { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-block: 6px; }
 .event-detail .event-people { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .event-notes { white-space: pre-wrap; }
 .event-detail .form-actions { justify-content: flex-start; margin-top: 18px; }
@@ -278,5 +298,28 @@
 .offer-times fieldset { min-width: 0; }
 .offer-weekdays, .offer-slot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .offer-results { max-height: 320px; overflow: auto; }
+/* Offer controls share the reader's text size and theme tokens. */
+.offer-preferences-summary { margin-block: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.offer-preferences > summary { cursor: pointer; padding-block: 6px; }
+.offer-preferences > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.offer-coverage-sources { margin-block: 0; padding-inline-start: 20px; overflow-wrap: anywhere; }
+.offer-day { margin-block: 8px; }
+.offer-choice { align-items: flex-start; padding-block: 5px; overflow-wrap: anywhere; }
+.offer-recipient-time { display: block; color: var(--text-2); font-size: inherit; }
 .offer-saved { margin-block: 12px; }
 .offer-slot { justify-content: space-between; padding-block: 4px; }
+
+/* Linked local sessions use the existing compact forms and pane scrolling. */
+.work-sessions { min-width: 0; margin-block: 12px; padding-block: 8px; border-block: 1px solid var(--line); }
+.work-sessions h3 { font-size: inherit; margin: 0 0 6px; }
+.work-sessions ul { list-style: none; padding: 0; margin: 0; }
+.work-sessions li { padding-block: 8px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.work-sessions li p { margin-block: 3px; }
+.work-sessions .form-actions, .session-recovery { display: flex; flex-wrap: wrap; gap: 6px; }
+.session-recovery { align-items: center; padding-block: 8px; }
+.session-dialog { overflow-y: auto; overflow-wrap: anywhere; }
+.session-dialog fieldset { min-width: 0; }
+.session-form .form-actions { flex-wrap: wrap; }
+@media (max-width: 600px) {
+  .session-form .work-form-dates { grid-template-columns: minmax(0, 1fr); }
+}

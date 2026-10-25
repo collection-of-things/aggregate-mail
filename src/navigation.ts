@@ -44,12 +44,12 @@ export function useMailNavigation() {
   };
   const travel = (direction: -1 | 1, resolve: (location: MailLocation) => MailLocation) => {
     const current = history.current;
-    if (direction === -1 && location.opened) {
+    if (direction === -1 && location.opened && location.page !== "settings") {
       current.reader = location;
       update(resolve({ ...location, opened: false }));
       return;
     }
-    if (direction === 1 && current.reader && !location.opened) {
+    if (direction === 1 && current.reader && !location.opened && location.page !== "settings") {
       const reader = current.reader;
       current.reader = null;
       update(resolve(reader));
@@ -57,11 +57,12 @@ export function useMailNavigation() {
     }
     const index = current.index + direction;
     if (index < 0 || index >= current.entries.length) return;
+    const settingsVisit = location.page === "settings" || current.entries[index].page === "settings";
     current.reader = null;
     current.entries[current.index] = location;
     current.index = index;
     current.editingSearch = false;
-    update(resolve({ ...current.entries[index], selectedId: null, opened: false }));
+    update(resolve({ ...current.entries[index], ...(settingsVisit ? {} : { selectedId: null, opened: false }) }));
   };
   return {
     location, visit, travel,

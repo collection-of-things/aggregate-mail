@@ -1,4 +1,4 @@
-import type { Account, Mail } from "./types.js";
+import type { Account, Mail, MailSummary } from "./types.js";
 
 type SearchDocument = { canonical: string[]; folded: string[] };
 type CachedDocument = SearchDocument & { raw: string[]; bytes: number };
@@ -104,10 +104,11 @@ function dateValue(value: string): number | null {
     : null;
 }
 
-export function compileMailSearch(query: string, accounts: Account[] = []): { matches: (mail: Mail) => boolean; error?: string } {
+export function compileMailSearch(query: string, accounts: Account[] = []): { matches: (mail: Mail) => boolean; matchesSummary: (mail: MailSummary) => boolean | undefined; error?: string } {
   const tokens = tokenize(query);
-  if (!tokens) return { matches: () => false, error };
+  if (!tokens) return { matches: () => false, matchesSummary: () => false, error };
   const terms: SearchTerm[] = [];
+  const summaryTerms: ((mail: Mail, document: SearchDocument) => boolean | undefined)[] = [];
   const lower = (value: string) => value.toLowerCase();
   let needsDocument = false;
 
@@ -118,23 +119,24 @@ export function compileMailSearch(query: string, accounts: Account[] = []): { ma
       negative = true;
       token = token.slice(1);
     }
-    if (!token) return { matches: () => false, error };
+    if (!token) return { matches: () => false, matchesSummary: () => false, error };
 
     const colon = token.indexOf(":");
     const prefix = colon < 0 ? "" : token.slice(0, colon).toLowerCase();
     const value = colon < 0 ? "" : token.slice(colon + 1);
-    if (fields.has(prefix) && !value) return { matches: () => false, error };
+    if (fields.has(prefix) && !value) return { matches: () => false, matchesSummary: () => false, error };
 
     let term: SearchTerm;
+    let bodyDependent = false;
     if (prefix === "is") {
       const state = lower(value);
-      if (state !== "read" && state !== "unread" && state !== "pinned") return { matches: () => false, error };
+      if (state !== "read" && state !== "unread" && state !== "pinned") return { matches: () => false, matchesSummary: () => false, error };
       term = state === "read" ? (mail) => !mail.unread
         : state === "unread" ? (mail) => mail.unread
         : (mail) => mail.pinned === true;
     } else if (prefix === "before" || prefix === "after") {
       const date = dateValue(value);
-      if (date === null) return { matches: () => false, error };
+      if (date === null) return { matches: () => false, matchesSummary: () => false, error };
       term = prefix === "before" ? (mail) => mail.date < date : (mail) => mail.date >= date;
     } else if (prefix === "account") {
       const needle = lower(value);
@@ -149,10 +151,11 @@ export function compileMailSearch(query: string, accounts: Account[] = []): { ma
       const text = fields.has(prefix) ? value : token;
       const exact = text.includes("@");
       const needle = exact ? canonical(text) : foldLatin(canonical(text));
-      if (!needle) return { matches: () => false, error };
+      if (!needle) return { matches: () => false, matchesSummary: () => false, error };
       const indexes = prefix === "from" ? [0, 1] : prefix === "to" ? [2, 3]
         : prefix === "subject" ? [4] : prefix === "body" ? [6] : [0, 1, 2, 3, 4, 5, 6];
       needsDocument = true;
+      bodyDependent = indexes.includes(6);
       const fuzzy = !negative && !phrase && colon < 0 && /^\p{L}{4,32}$/u.test(needle);
       term = (_mail, document) => indexes.some((index) => {
         const text = (exact ? document.canonical : document.folded)[index];
@@ -162,10 +165,25 @@ export function compileMailSearch(query: string, accounts: Account[] = []): { ma
       });
     }
     terms.push(negative ? (mail, document) => !term(mail, document) : term);
+    // A header hit proves a positive plain term (or rejects its exclusion).
+    // A header miss cannot rule out a body hit, including quoted/body terms.
+    summaryTerms.push(bodyDependent
+      ? (mail, document) => term(mail, document) ? !negative : undefined
+      : negative ? (mail, document) => !term(mail, document) : term);
   }
 
   return { matches: (mail) => {
     const document = needsDocument ? indexMail(mail) : emptyDocument;
     return terms.every((term) => term(mail, document));
+  }, matchesSummary: (mail) => {
+    const metadata = { ...mail, body: "" };
+    const document = needsDocument ? indexMail(metadata) : emptyDocument;
+    let unknown = false;
+    for (const term of summaryTerms) {
+      const match = term(metadata, document);
+      if (match === false) return false;
+      if (match === undefined) unknown = true;
+    }
+    return unknown ? undefined : true;
   } };
 }

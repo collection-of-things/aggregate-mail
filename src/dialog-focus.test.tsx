@@ -86,3 +86,62 @@ test("dialog falls back to a safe button when its fields are disabled", async ()
   try { assert.ok(document.activeElement === document.querySelector('[aria-label="Close dialog"]'), "safe button receives initial focus"); }
   finally { await ui.unmount(); await ui.close(); }
 });
+
+test("compose focus cycle skips controls inside an inert sidebar while busy", async () => {
+  const dom = { window: new DOMWindow({ url: "http://localhost/" }) };
+  const globals = { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true };
+  const previous = new Map(Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, value });
+  document.body.innerHTML = '<div id="root"></div>';
+  const { createRoot } = await import("react-dom/client"); const root = createRoot(document.getElementById("root")!);
+  try {
+    await act(async () => root.render(<><aside className="sidebar"><button id="toggle">Toggle</button><div inert><button id="unavailable">New message</button></div></aside><header className="app-toolbar"><button data-compose-access id="privacy">Privacy</button></header><Dialog toolbarAccess title="New message" onClose={() => {}}><button>Keep draft</button></Dialog></>));
+    document.getElementById("toggle")!.focus();
+    await act(async () => dom.window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })));
+    assert.equal(document.activeElement?.id, "privacy", "inert descendants are excluded from the allowed cycle");
+  } finally {
+    await act(async () => root.unmount()); await dom.window.happyDOM.close();
+    for (const [key, value] of previous) if (value) Object.defineProperty(globalThis, key, value); else Reflect.deleteProperty(globalThis, key);
+  }
+});
+
+
+test("nested dialog owns Escape and Tab, then restores its opener before the outer closes", async () => {
+  const dom = { window: new DOMWindow({ url: "http://localhost/" }) };
+  const globals = { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true };
+  const previous = new Map(Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, value });
+  document.body.innerHTML = '<button id="opener">Settings</button><div id="root"></div>';
+  const opener = document.getElementById("opener")!; opener.focus();
+  const { createRoot } = await import("react-dom/client"); const root = createRoot(document.getElementById("root")!);
+  function Nested() {
+    const [outer, setOuter] = useState(true), [inner, setInner] = useState(false);
+    return outer && <Dialog title="Settings" onClose={() => setOuter(false)}>
+      <button id="inner-opener" onClick={() => setInner(true)}>Edit theme</button>
+      {inner && <Dialog title="Edit theme" onClose={() => setInner(false)}><input aria-label="Theme name" /><button id="save">Save theme</button></Dialog>}
+    </Dialog>;
+  }
+  try {
+    await act(async () => root.render(<Nested />));
+    const innerOpener = document.getElementById("inner-opener")!; innerOpener.focus();
+    await act(async () => innerOpener.click());
+    const inner = document.querySelector<HTMLElement>('[aria-label="Edit theme"][role="dialog"]')!;
+    assert.ok(inner.contains(document.activeElement));
+    const close = inner.querySelector<HTMLElement>('[aria-label="Close dialog"]')!, save = document.getElementById("save")!;
+    close.focus();
+    await act(async () => dom.window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true })));
+    assert.equal(document.activeElement, save);
+    await act(async () => dom.window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })));
+    assert.equal(document.activeElement, close);
+    await act(async () => dom.window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+    assert.equal(inner.isConnected, false);
+    assert.ok(document.querySelector('[role="dialog"][aria-label="Settings"]'));
+    assert.equal(document.activeElement, innerOpener);
+    await act(async () => dom.window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+    assert.equal(document.querySelector('[role="dialog"]'), null);
+    assert.equal(document.activeElement, opener);
+  } finally {
+    await act(async () => root.unmount()); await dom.window.happyDOM.close();
+    for (const [key, value] of previous) if (value) Object.defineProperty(globalThis, key, value); else Reflect.deleteProperty(globalThis, key);
+  }
+});

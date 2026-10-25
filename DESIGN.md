@@ -93,8 +93,11 @@ without changing its layout, so text cannot show behind the editor. Controls and
 their own fills. Off and unsupported platforms remain opaque.
 
 Compose retains its dialog role, Escape handling and save/send guards below
-the window toolbar. It is nonmodal: its keyboard cycle includes toolbar Search
-and Privacy, while underlying mail/work panes remain inert. Other dialogs
+the window toolbar. It is nonmodal: its keyboard cycle includes the sidebar and available toolbar controls,
+while covered mail/work panes remain inert. Navigation, Commands, Filters and
+new-message actions first keep the current draft, waiting for saves and
+attachments. Failed saves keep the composer open. Search and Privacy work
+without closing it. Other dialogs
 retain their modal focus traps. New messages keep the list visible when there
 is room; replies use the full working area. Narrow windows use the available
 width. Replies place the original email and editor in equal side-by-side columns
@@ -128,8 +131,15 @@ and projects and Agent permissions and review use the same pane header and
 compact forms. Keep coverage gaps visible beside work, account combinations
 explicit and proposed actions reviewable before execution.
 
-Calendar has month and agenda views, with selected-day entries and expandable
-overdue and undated lists. Deadline days never shift with timezone changes.
+Calendar defaults to Month and also offers Day, Monday-based Week and Agenda.
+Previous/Next follows the selected view; Today keeps that view. Date-only deadlines
+and all-day events use a separate row. Timed spans use elapsed instants clipped to
+each local day, with clock and UTC-offset ticks for DST changes. Short events and
+zero-duration follow-up/snooze points have full labeled entry buttons below the
+timeline. Shorter DST columns end with an outside-day region. The schedule scrolls
+within its own bounds, including horizontally in a narrow Week. Overdue and
+undated entries retain their existing meanings. Deadline days never shift with
+timezone changes.
 Timed follow-ups use local time, appear in Today when due, and leave the deadline
 and completion status unchanged. Use existing theme tokens and native date
 inputs. No operating-system reminders in V2.
@@ -146,10 +156,38 @@ commitment or snoozed email opens it in the
 right-hand pane beside the calendar, never as a separate view. Escape or Back to
 calendar closes the pane and returns focus. See [ADR 0054](docs/adr/0054-emc2-calendar-events.md).
 
+Plan work beside Edit task opens a compact local-session dialog. The default
+length is 60 minutes. Native start/end fields use the device zone and reject
+missing or repeated local clock times. Busy starts selected; Free explicitly
+allows overlap and does not block offered times. The dialog states that conflict
+checks exclude Google. Account, source and task title stay bound to the task.
+The whole session dialog scrolls when its content exceeds the available height,
+including explanatory text and form actions.
+Session form actions wrap when they cannot fit on one row.
+
+Today/details lists sessions independently of the visible Calendar month.
+Calendar labels each session Planned or Finished and Busy or Free. Edit session,
+Finish session and Remove session affect only that session. Finished sessions
+remain as history; removed sessions disappear from normal lists. Session details
+omit meeting notification, invitation and source-unlink controls.
+When Finish or Remove removes its Today trigger, closing the operation dialog
+focuses the rendered Local work sessions heading. This applies after direct
+success and after explicit recovery review; connected triggers keep normal
+dialog focus restoration.
+
+Pending or uncertain session operations freeze their input and revision and
+block dismissal/navigation. Check saved session uses GET only, then requires
+review. A saved result with an unavailable refresh stays acknowledged and cannot
+be submitted again. A genuine remount reloads saved sessions without replaying a
+write. Session controls reuse privacy masking, dialog focus trapping, native
+fields, theme tokens and the existing narrow layout without new animation.
+
 Optional Google Calendar controls sit above the calendar. Each Gmail OAuth
 account shows Not connected, Needs consent, Connected or Calendar API disabled.
-Connect and Reconnect open consent only when activated. Sync refreshes the visible
-month; changing month or returning to the app reads the local cache only.
+Connect and Reconnect open consent only when activated. Sync explicitly refreshes
+one exact month. A cross-month Week lists both months
+and their coverage separately. Navigation, focus and Refresh read the local cache
+only. Partial or conflicting cached coverage stays visible.
 Calendar choices use labeled checkboxes. Cached failures stay visible in the
 controls and their disclosure summary. Synced events use the same views and
 right-hand pane, with the calendar name and read-only event fields. RSVP uses
@@ -171,6 +209,21 @@ messages explain the limit without guessing a date or response. Unknown Google
 outcomes retain the submitted request; Check submitted Google action reads the
 provider and never repeats the write. Privacy and keyboard controls follow the
 existing reader, composer and event pane.
+
+Offer times keeps saved duration, weekdays, hours, buffer and IANA zone in a
+compact summary. Edit preferences opens native disclosure controls; collapsing
+never saves. Busy coverage stays outside the disclosure, with selected account
+and calendar labels using the existing privacy controls, or an explicit local-only
+exclusion. Slots group by saved-zone date and retain their original indexes.
+Each endpoint shows its full date, time and numeric UTC offset. An optional,
+manually entered recipient IANA zone adds display text only and resets on source
+change. Ten selected slots disable further unchecked choices until one is cleared.
+Changing offered dates, busy-source selection or saved availability clears the
+active preview and selection. Slot checkboxes preserve the preview. A new check
+clears the preceding result before it runs. Unknown requests keep exact source,
+fingerprint, offer identity and selected indexes frozen for recovery. Draft
+prepared means acknowledged preparation; the panel has no delivery receipt and
+never treats a missing draft as confirmed Send. Booking remains explicit.
 
 Offer times expands inside the reader with working days, hours, meeting length,
 buffer, an explicit IANA zone, date range and calendar checkboxes. Require an
@@ -216,7 +269,15 @@ Transparency uses the operating system's own material behind the window. On Wind
 - On macOS, the native traffic lights sit at (20px, 20px). The app draws no dots of its own there. The header of the leftmost pane, the sidebar or the mail or Settings header while the sidebar is closed, reserves 84px for them. Native application, File, Edit and Window menus provide standard Command shortcuts.
 - The 208px sidebar runs the full window height. Its header holds the app name, collapse toggle and platform window-control space. New Message and Drafts come first. Workspace and Mail views remain in separate folding groups, followed by account filters and Add account. Settings and sync share a fixed footer. The current view and account use a neutral selection wash. Navigation rows are 34px with outline icons, 8px radii and muted counts. Account labels may truncate within the rail. Keyboard account hints remain in the shortcuts help. Snoozed appears when it has mail or is open.
 - The sidebar toggle hides or shows the sidebar and remembers the choice between launches. When the sidebar is closed, the toggle moves into the persistent toolbar at the same spot. The sidebar collapses and expands by width on a spring; its content keeps a fixed width so it clips instead of reflowing. Below 760px window width the sidebar is hidden and its toggle with it.
-- Settings keeps the main sidebar and adds its own ten-section rail beside the content; the rail's divider runs the full pane height. Accounts, AI and agents, Google and connections, Sorting and Teach, Templates and signatures, Notifications, Keyboard and mouse, Appearance, Sender logos, and About and storage each get a 17px semibold title over a one-line secondary description. Controls live in rounded cards: a soft 3% text fill, a 1px hairline and 10px corners, holding 44px rows with 16px insets and hairlines inset to match. Optional 12px semibold secondary labels sit 8px above their card, and groups sit 20px apart — no separators live outside a card. Expandable groups such as Google setup and Connection controls are cards whose summary is the row and whose chevron rotates open. In AI and agents, the assistants list carries a "Your assistants" label row with Refresh as a small button at its right. Visible segmented choices replace dropdowns. The section rail moves above the content in narrow panes. Section changes are immediate.
+- Settings floats in a compact modal above the mounted mail or work view. The
+  background sidebar and toolbar are inert. Its header keeps Back, Forward and
+  Close settings reachable; Escape closes only the foremost dialog and restores
+  its opener. Ten existing sections retain their rail and controls. The rail and
+  content scroll separately, with the rail above the content in narrow panes.
+  Section changes reset content scrolling. Unsaved templates and signatures and
+  pending-save locks survive section changes and closing. Search shortcuts leave
+  Settings for cached mail; Privacy shortcuts remain available outside editors
+  and shortcut-capture fields. Nested dialogs retain keyboard ownership.
 - Inbox shows six category tabs in its header beside the title: Primary, Social, Promotions, Newsletters, Transactions and Updates, each with an outline icon and a muted unread count. The tabs fill the header's 48px height in secondary text; the active tab reads in primary text at weight 600, and a 2px accent underline on the header's bottom hairline marks it - exactly as wide as the tab's icon, label and count, sliding between tabs on the spring. Search spans every tab, so the strip hides while searching. See [ADR 0024](docs/adr/0024-inbox-category-tabs.md). Beside the reader the inactive tabs show only their icon and count (only the icon below a 400px column); the name stays in the accessible label and tooltip.
 - Sliding lists (sidebar groups, Settings sections and the tabs) draw one hover wash that glides under the pointer on a 320ms spring and fades out when the pointer leaves, instead of a per-item hover background.
 - The mail list sits under its header and scrolls on its own. The Filters button, in the persistent toolbar, opens a 300px popover under it with labeled dropdowns for read status (Show), relevance, sort (Sort by) and Gmail label, plus Reset filters and sort. The popover stays open while choices change and closes on Escape (before Escape closes an email) or a click elsewhere. While any choice differs from its default, the button stays accent-colored with a small dot. Rows run edge to edge with no insets, corner radii or vertical margins, so hover and selected washes meet the pane dividers: high relevance 48px on two lines, medium 34px inline, low 28px; compact density uses 24px rows. Appearance's Size rows by importance switch (on by default) can instead give every row the medium layout and height. Sender sits in a 150px column with an 8px gap before the subject; two-line previews align under the subject. Circular avatars (22px, 18px on low rows): the sender's company logo on a light disc when the domain has one, otherwise a gray initial, each with a small provider badge. The sender is context and stays muted while the subject carries the message in near-white; unread is a bold subject plus a white time. The selected row takes a 22% accent tint, keeping its normal text colors, while the list has focus, and a gray wash otherwise; hover is a 3% wash. Unread mail has a 7px accent dot in the row's left gutter. Hairlines inset to the text divide rows and give way around the selected and hovered rows and before date headings. High-relevance reasons use the theme's sorting-reason color before the time: peach in dark mode and rust in light mode.
@@ -305,8 +366,10 @@ The Filters popover combines All mail/Unread, relevance, sort and Gmail labels w
 
 While Emc² runs, each IMAP account watches its inbox for arrival, flag and removal events. Gmail API accounts check their mailbox revision every 15 seconds; a changed revision requests an account sync through the same queue. The interval starts after the previous request and sync finish, and failures back off up to five minutes. A failed sync never advances the revision. Event bursts coalesce. The first complete import and failed syncs do not notify, including recovery after a partial first import. Account removal or replacement stops the old watcher. The five-minute full sync remains a recovery path. Desktop cache-change events refresh visible windows; hidden windows catch up when shown. The renderer's own periodic timers serve only the browser target. Native notification timing depends on the provider and operating system.
 
-Search stays visible in mail, Today, Calendar, Projects, Agent review and Settings.
-Typing from work or Settings opens All cached within the selected account and
+Search stays visible in mail, Today, Calendar, Projects and Agent review.
+While Settings is open, the background toolbar remains visible and inert.
+The Search shortcut leaves Settings and focuses All cached within the selected
+account with mail filters cleared. Typing from work also opens All cached and
 clears mail filters. In mail it retains the current view and filters. Search
 keystrokes remain one history visit. Commands includes work views and drafts.
 
@@ -366,3 +429,11 @@ focus, always visible on touch. Confirm before deletion, including the existing
 unknown-send warning. Use the exact account, draft ID and saved revision; remove
 the row only after confirmed success. Retain failed rows with refresh guidance,
 refresh the sidebar count and return focus to the next row or Refresh.
+
+Attachment reads finish before edit freezing; failed reads retain the composer
+and error. Inert descendants are excluded from the explicit keyboard cycle.
+Insert link uses a compact inline address field with Add link and Cancel link.
+Enter applies the validated link without submitting email; Escape cancels only
+link entry. Selected text, plain alternatives and safe URL rules are retained.
+
+The composer From selector uses the shared themed dropdown: a 30px trigger, compact account rows, arrow/Home/End selection, Enter to confirm and Escape or Tab to dismiss. Private mode omits account addresses. Account switching retains the existing signature and saved-copy behavior.

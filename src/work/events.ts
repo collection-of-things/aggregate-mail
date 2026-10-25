@@ -91,6 +91,21 @@ export function eventInput(fields: EventFields): { input: CalendarEventInput } |
     ...(meetLink ? { meetLink } : {}), ...(fields.sourceMailId ? { sourceMailId: fields.sourceMailId } : {}) } };
 }
 
+// Session scheduling rejects both missing and repeated device-local clock times.
+// Ordinary meeting conversion deliberately keeps its existing behavior.
+export function sessionInput(fields: EventFields, busy: boolean) {
+  const result = eventInput({ ...fields, title: "Work session", allDay: false, attendees: "", location: "", notes: "", meetLink: "" });
+  if ("error" in result) return result;
+  for (const value of [result.input.start, result.input.end]) {
+    const at = Date.parse(value), local = localTimeInput(at), offsets = new Set<number>();
+    for (let delta = -36 * 60; delta <= 36 * 60; delta += 30) offsets.add(new Date(at + delta * 60000).getTimezoneOffset());
+    const original = new Date(at).getTimezoneOffset();
+    if ([...offsets].some(offset => offset !== original && localTimeInput(at + (offset - original) * 60000) === local))
+      return { error: "This local time occurs twice. Choose an unambiguous time." };
+  }
+  return { input: { start: result.input.start, end: result.input.end, busy, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" } };
+}
+
 // A meeting from an email takes its subject and everyone on it except the user's own addresses.
 export function meetingFields(mail: Mail, ownEmails: string[], now: number): EventFields {
   const own = new Set(ownEmails.map((email) => email.toLowerCase()));
@@ -111,37 +126,81 @@ export function monthRange(month: string) {
   return { from: first.toISOString(), to: next.toISOString() };
 }
 
+export type MonthCoverage = { month: string; google: GoogleCalendarStatus[]; failed: boolean };
+// Full provider identity prevents an account/calendar collision from merging unrelated events.
+export const eventIdentity = (event: CalendarEvent) => JSON.stringify([event.source, event.accountId || "", event.calendarId || "", event.remoteId || event.id]);
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value && typeof value === "object") return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${JSON.stringify(key)}:${canonical(value)}`).join(",")}}`;
+  return JSON.stringify(value) ?? "null";
+}
+export function mergeCalendarFeeds(feeds: CalendarFeed[]) {
+  const events = new Map<string, CalendarEvent>();
+  let conflict = false;
+  for (const feed of feeds) for (const event of feed.events) {
+    const key = eventIdentity(event), before = events.get(key);
+    if (!before) { events.set(key, event); continue; }
+    const order = (event.source === "local" ? event.revision - before.revision : 0) || event.updatedAt - before.updatedAt;
+    if (order > 0) events.set(key, event);
+    else if (order === 0) {
+      const a = canonical(event), b = canonical(before);
+      if (a !== b) { conflict = true; if (a > b) events.set(key, event); }
+    }
+  }
+  return { events: [...events.values()].sort((a, b) => a.start.localeCompare(b.start) || eventIdentity(a).localeCompare(eventIdentity(b))), conflict };
+}
+function aggregateGoogle(coverage: MonthCoverage[]) {
+  const ids = new Set(coverage.flatMap(value => value.google.map(status => status.accountId)));
+  return [...ids].map(accountId => {
+    const values = coverage.map(value => value.google.find(status => status.accountId === accountId));
+    const present = values.filter((value): value is GoogleCalendarStatus => !!value);
+    const rank = { connected: 0, "not-connected": 1, "needs-consent": 2, "api-disabled": 3 };
+    const conservative = [...present].sort((a, b) => rank[b.status] - rank[a.status])[0];
+    return { ...conservative, stale: coverage.some(value => value.failed) || values.some(value => !value || value.stale || !value.syncedAt), syncedAt: Math.min(...values.map(value => value?.syncedAt || 0)) };
+  });
+}
 export type CalendarEvents = ReturnType<typeof useCalendarEvents>;
 
-// Events for the visible month. Writes are serialized and always followed by a fresh read.
-export function useCalendarEvents(api: Api, month: string, enabled = true) {
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [google, setGoogle] = useState<GoogleCalendarStatus[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState("");
+// Exact existing month windows only. Range reads are serial and never sync a provider.
+export function useCalendarEvents(api: Api, months: string | string[], enabled = true, accountKey = "all") {
+  const monthKey = (typeof months === "string" ? [months] : months).join(",");
+  const [snapshot, setSnapshot] = useState<{ key: string; events: CalendarEvent[]; google: GoogleCalendarStatus[]; coverage: MonthCoverage[]; loaded: boolean; error: string }>({ key: "", events: [], google: [], coverage: [], loaded: false, error: "" });
+  const key = `${enabled}:${accountKey}:${monthKey}`;
+  const current = useRef(key); current.current = key;
+  const cache = useRef<{ key: string; feeds: Map<string, CalendarFeed> }>({ key, feeds: new Map() });
   const [pending, setPending] = useState(false);
   const live = useRef(true);
   const latest = useRef(0);
   const lock = useRef(false);
-  const { from, to } = monthRange(month);
   const refresh = useCallback(async () => {
     if (!enabled) return false;
     const id = ++latest.current;
-    try {
-      const value = await api<CalendarFeed>(`/calendar/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
-      if (!Array.isArray(value.events)) throw new Error();
-      if (!live.current || id !== latest.current) return false;
-      setEvents(value.events); setGoogle(value.google || []); setLoaded(true); setError("");
-      return true;
-    } catch {
-      if (live.current && id === latest.current) {
-        setError("Calendar events could not be loaded. Cached events may be stale. Refresh to try again.");
-        setGoogle((values) => values.map((value) => ({ ...value, stale: true })));
+    const active = () => live.current && current.current === key && id === latest.current;
+    if (cache.current.key !== key) cache.current = { key, feeds: new Map() };
+    const feeds = new Map(cache.current.feeds), coverage: MonthCoverage[] = [];
+    let failed = false;
+    for (const month of monthKey.split(",")) {
+      const { from, to } = monthRange(month);
+      try {
+        const value = await api<CalendarFeed>(`/calendar/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+        if (!active()) return false;
+        if (!Array.isArray(value.events)) throw new Error();
+        feeds.set(month, value);
+        coverage.push({ month, google: value.google || [], failed: false });
+      } catch {
+        if (!active()) return false;
+        failed = true;
+        coverage.push({ month, google: (feeds.get(month)?.google || []).map(value => ({ ...value, stale: true })), failed: true });
       }
-      return false;
     }
-  }, [api, from, to, enabled]);
-  useEffect(() => { live.current = true; setEvents([]); setGoogle([]); setLoaded(false); void refresh(); return () => { live.current = false; }; }, [refresh]);
+    if (!active()) return false;
+    cache.current = { key, feeds };
+    const merged = mergeCalendarFeeds([...feeds.values()]);
+    setSnapshot({ key, events: merged.events, google: aggregateGoogle(coverage), coverage, loaded: true,
+      error: failed ? "Calendar coverage is incomplete. Cached events may be stale. Refresh to try again." : merged.conflict ? "Conflicting cached event versions. Cached events may be stale. Sync the affected months to refresh." : "" });
+    return !failed;
+  }, [api, monthKey, enabled, key]);
+  useEffect(() => { live.current = true; void refresh(); return () => { live.current = false; ++latest.current; }; }, [refresh]);
   useEffect(() => {
     const focus = () => { if (!lock.current) void refresh(); };
     window.addEventListener("focus", focus);
@@ -162,5 +221,6 @@ export function useCalendarEvents(api: Api, month: string, enabled = true) {
       if (live.current) setPending(false);
     }
   }, [refresh]);
-  return { events, google, loaded, error, pending, refresh, mutate };
+  const visible = snapshot.key === key ? snapshot : { events: [], google: [], coverage: [], loaded: false, error: "" };
+  return { events: visible.events, google: visible.google, coverage: visible.coverage, loaded: visible.loaded, error: visible.error, pending, refresh, mutate };
 }

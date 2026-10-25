@@ -60,6 +60,8 @@ test("mounted Offer times saves a reviewed reply, recovers lost responses and bo
     await act(async () => root.render(<App />)); await settle(() => !!container.querySelector(".sidebar")); await open();
     await click(button("Offer times")); await settle(() => !button("Save availability").matches(":disabled"));
     assert.equal(button("Check free times").disabled, true, "Local-only mode needs an explicit choice");
+    await click(container.querySelector<HTMLElement>(".offer-preferences > summary")!);
+    assert.equal(container.querySelector<HTMLDetailsElement>(".offer-preferences")!.open, true);
     await set("IANA time zone", "UTC"); await click(button("Save availability")); await settle(() => !button("Save availability").matches(":disabled"));
     await set("First offered day", day); await set("Last offered day", day);
     const googleCheckbox = [...container.querySelectorAll<HTMLLabelElement>(".offer-times label")].find((label) => label.textContent === "Private Reader calendar")!.querySelector<HTMLInputElement>("input")!;
@@ -74,18 +76,50 @@ test("mounted Offer times saves a reviewed reply, recovers lost responses and bo
     await click(button("Recover availability check")); await settle(() => !!container.querySelector(".offer-results input") && !container.querySelector(".offer-results input")!.matches(":disabled"));
     const checks = requests.filter((value) => value.route === "/api/calendar/offers/check" && value.body.google.length === 0); assert.equal(checks.length, 2); assert.deepEqual(checks[0].body, checks[1].body);
     const checkedId = store.all("calendarOffer")[0].id, checkCount = requests.filter((value) => value.route.endsWith("/check")).length;
+    await set("Last offered day", new Date(Date.parse(day) + 86400000).toISOString().slice(0, 10));
+    assert.equal(!!container.querySelector(".offer-results"), false, "Changing offered dates invalidates the actionable preview");
     await remount(); await open(); await settle(() => [...container.querySelectorAll("button")].some((control) => control.textContent === "Resume checked offer"));
     await click(button("Resume checked offer"));
     assert.equal(store.all("calendarOffer")[0].id, checkedId); assert.equal(requests.filter((value) => value.route.endsWith("/check")).length, checkCount);
     assert.equal(field("IANA time zone").value, "UTC"); assert.equal(field("First offered day").value, day);
+    assert.equal(container.querySelector<HTMLDetailsElement>(".offer-preferences")!.open, false);
+    assert.match(container.querySelector(".offer-preferences-summary")!.textContent!, /30 minutes.*09:00 to 11:00.*UTC/);
+    assert.match(container.querySelector(".offer-results")!.textContent!, /Checked snapshot.*UTC\+00:00/);
+    await set("Recipient IANA time zone (display only, optional)", "Pacific/Kiritimati");
+    assert.match(container.querySelector(".offer-recipient-time")!.textContent!, /UTC\+14:00.*Pacific\/Kiritimati/);
+    await set("Recipient IANA time zone (display only, optional)", "Invalid/Zone");
+    assert.equal(field("Recipient IANA time zone (display only, optional)").getAttribute("aria-invalid"), "true");
+    assert.equal(!!container.querySelector(".offer-recipient-time"), false);
+    await set("Recipient IANA time zone (display only, optional)", "Asia/Kathmandu");
+    assert.match(container.querySelector(".offer-recipient-time")!.textContent!, /UTC\+05:45/);
+    const resume = async () => { await click(button("Resume checked offer")); assert.equal(!!container.querySelector(".offer-results"), true); };
+    await click([...container.querySelectorAll<HTMLLabelElement>(".offer-times label")].find((label) => label.textContent === "Private Reader calendar")!.querySelector<HTMLInputElement>("input")!);
+    assert.equal(!!container.querySelector(".offer-results"), false, "Busy-source changes invalidate previews");
+    assert.match(container.querySelector(".offer-coverage-sources")!.textContent!, /b@example.test.*Private Reader calendar/);
+    await resume();
+    await click([...container.querySelectorAll<HTMLLabelElement>(".offer-times label")].find((label) => label.textContent?.startsWith("Local-only mode"))!.querySelector<HTMLInputElement>("input")!);
+    assert.equal(!!container.querySelector(".offer-results"), false, "Local-only changes invalidate previews");
+    await resume();
+    await set("First offered day", new Date(Date.parse(day) - 86400000).toISOString().slice(0, 10));
+    assert.equal(!!container.querySelector(".offer-results"), false, "First offered day also invalidates previews");
+    await resume();
+    await click(container.querySelector<HTMLElement>(".offer-preferences > summary")!);
+    await set("Buffer minutes", "5");
+    assert.equal(button("Check free times").disabled, true, "Unsaved preferences block new checks");
+    await set("Buffer minutes", "0");
+    assert.equal(!!container.querySelector(".offer-coverage-sources")!.closest("details"), false);
+    await click(button("Save availability")); await settle(() => !button("Save availability").matches(":disabled"));
+    assert.equal(!!container.querySelector(".offer-results"), false, "Saving availability invalidates previews");
+    await resume();
+
     const slots = container.querySelectorAll<HTMLInputElement>(".offer-results input[type=checkbox]"); await click(slots[0]); await click(slots[1]);
-    assert.equal(slots[0].checked && slots[1].checked, true); assert.equal(button("Prepare offered-times reply draft").matches(":disabled"), false);
+    assert.equal(!!container.querySelector(".offer-results"), true, "Slot selection preserves the preview"); assert.equal(slots[0].checked && slots[1].checked, true); assert.equal(button("Prepare offered-times reply draft").matches(":disabled"), false);
     await click(button("Prepare offered-times reply draft")); await settle(() => /Synthetic lost draft response/.test(container.textContent!)); assert.equal(store.all("draft").length, 1);
     assert.equal(slots[0].matches(":disabled"), true, "Unconfirmed draft preparation freezes the exact selection");
     assert.equal(field("First offered day").matches(":disabled"), true);
     await click(button("Prepare offered-times reply draft")); await settle(() => !!container.querySelector(".compose-form")); assert.equal(store.all("draft").length, 1);
-    const preparations = requests.filter((value) => value.route.endsWith("/draft")); assert.equal(preparations.length, 2); assert.deepEqual(preparations[0], preparations[1]); assert.equal(preparations[0].route, `/api/calendar/offers/${checkedId}/draft`);
-    assert.equal(container.querySelector<HTMLInputElement>('.compose-envelope input[type="email"]')?.value, "guest@example.test"); assert.match(container.querySelector<HTMLTextAreaElement>(".compose-body")!.value, /Time zone: UTC/); assert.equal(sends, 0);
+    const preparations = requests.filter((value) => value.route.endsWith("/draft")); assert.equal(preparations.length, 2); assert.deepEqual(preparations[0], preparations[1]); assert.equal(preparations[0].route, `/api/calendar/offers/${checkedId}/draft`); assert.deepEqual(preparations[0].body.selected, [0, 1]); assert.equal(store.all("calendarEvent").length, 0, "Preparation never books");
+    assert.equal(container.querySelector<HTMLInputElement>('.compose-envelope input[type="email"]')?.value, "guest@example.test"); assert.match(container.querySelector<HTMLTextAreaElement>(".compose-body")!.value, /Time zone: UTC/); assert.doesNotMatch(container.querySelector<HTMLTextAreaElement>(".compose-body")!.value, /Kathmandu/); assert.match(container.querySelector<HTMLTextAreaElement>(".compose-body")!.value, /UTC\+00:00/); assert.equal(sends, 0);
     await click(button("Keep draft")); await settle(() => !container.querySelector(".compose-form"));
     await settle(() => !!container.querySelector(".offer-saved"));
     const book = button("Book agreed time");
@@ -113,5 +147,55 @@ test("mounted Offer times saves a reviewed reply, recovers lost responses and bo
     for (const [key, value] of prior) { if (value) Object.defineProperty(globalThis, key, value); else Reflect.deleteProperty(globalThis, key); }
     await new Promise<void>((resolve) => server.close(() => resolve())); store.closeStore(); rmSync(directory, { recursive: true, force: true });
     for (const [key, value] of oldEnv) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+  }
+});
+
+
+test("grouped offered slots retain original indexes, ten-slot limit and removed-draft protection", async () => {
+  const { OfferTimes } = await import("./work/OfferTimes");
+  const { createRoot } = await import("react-dom/client");
+  const { ApiError } = await import("./api");
+  const dom = new JSDOM('<!doctype html><div id="root"></div>');
+  const globals = { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true };
+  const prior = new Map(Object.keys(globals).map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, value });
+  const settings = { days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00", durationMinutes: 30, bufferMinutes: 0, timeZone: "UTC" };
+  const slots = Array.from({ length: 12 }, (_, index) => ({ start: `2030-01-${index % 2 ? "08" : "07"}T${String(9 + Math.floor(index / 2)).padStart(2, "0")}:00:00Z`, end: `2030-01-${index % 2 ? "08" : "07"}T${String(9 + Math.floor(index / 2)).padStart(2, "0")}:30:00Z` }));
+  const offer: import("../shared/offers").CalendarOffer = { id: "synthetic-offer", accountId: "a", sourceMailId: "source", sourceFingerprint: "synthetic-fingerprint", recipient: "guest@example.test", settings, google: [], from: "2030-01-07T00:00:00Z", to: "2030-01-09T00:00:00Z", input: "synthetic", createdAt: 1, slots };
+  const context = { fingerprint: "synthetic-fingerprint", settings, google: [], offers: [{ offer }] };
+  const requests: { route: string; body: unknown }[] = [];
+  const api: import("./api").Api = async <T,>(route: string, _method?: string, body?: unknown) => {
+    if (route.endsWith("/draft")) { requests.push({ route, body }); throw new ApiError(409, "The prepared draft was sent or removed. No replacement was created."); }
+    assert.match(route, /^\/calendar\/offers\?/); return structuredClone(context) as T;
+  };
+  const container = dom.window.document.getElementById("root")!, root = createRoot(container);
+  const click = async (control: HTMLElement) => { await act(async () => control.click()); };
+  const button = (text: string) => { const found = [...container.querySelectorAll<HTMLButtonElement>("button")].find((value) => value.textContent === text); assert.ok(found, text); return found; };
+  let opened = 0;
+  try {
+    await act(async () => root.render(<OfferTimes mail={{ id: "source" } as import("../shared/types").RendererMail} state={{ accounts: [] } as unknown as import("../shared/types").RendererState} api={api} onOpenDraft={() => opened++} />));
+    await click(button("Resume checked offer"));
+    assert.equal(container.querySelectorAll(".offer-day").length, 2);
+    const choices = () => [...container.querySelectorAll<HTMLInputElement>(".offer-results input[type=checkbox]")];
+    for (const input of choices().slice(0, 10)) await click(input);
+    assert.equal(choices().filter((input) => input.checked).length, 10);
+    assert.equal(choices().slice(10).every((input) => input.matches(":disabled")), true);
+    await click(choices()[0]); assert.equal(choices()[10].matches(":disabled"), false);
+    for (const input of choices().filter((input) => input.checked)) await click(input);
+    await click(choices()[1]); await click(choices()[6]);
+    await click(button("Prepare offered-times reply draft"));
+    assert.deepEqual(requests[0], { route: "/calendar/offers/synthetic-offer/draft", body: { sourceMailId: "source", fingerprint: "synthetic-fingerprint", selected: [2, 1] } });
+    assert.equal(choices().every((input) => input.matches(":disabled")), true);
+    const disclosure = container.querySelector<HTMLDetailsElement>(".offer-preferences")!;
+    await click(disclosure.querySelector<HTMLElement>("summary")!); await click(disclosure.querySelector<HTMLElement>("summary")!);
+    assert.equal(choices().every((input) => input.matches(":disabled")), true, "Disclosure changes preserve frozen draft selection");
+    assert.equal(button("Resume checked offer").disabled, true);
+    await click(button("Prepare offered-times reply draft"));
+    assert.deepEqual(requests[1], requests[0]); assert.equal(opened, 0);
+    assert.doesNotMatch(container.textContent!, /Reply draft prepared/);
+    assert.match(container.textContent!, /sent or removed/);
+  } finally {
+    await act(async () => root.unmount()); dom.window.close();
+    for (const [key, value] of prior) { if (value) Object.defineProperty(globalThis, key, value); else Reflect.deleteProperty(globalThis, key); }
   }
 });

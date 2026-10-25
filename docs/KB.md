@@ -1,5 +1,14 @@
 # Repository knowledge
 
+## Source release version
+
+The source package and both lockfile version fields are 0.2.5. Dependencies and
+release workflows are unchanged. The automatic main-push lane chooses the next
+unused patch above both source and stable tags, so this source selects 0.2.6
+unless a higher stable tag exists. Manual publication of 0.2.5 requires an
+immutable matching tag at the approved source commit and separate publication
+authority. Source version metadata does not establish installer acceptance.
+
 ## Responsiveness and composition
 
 Gmail and Calendar share `server/google-api.ts`, which imports their specific
@@ -10,6 +19,12 @@ stream batches without retaining a second completed-mailbox array when the
 service opts into streaming. Missing mail is archived only after a successful
 complete listing. New-mail classification and notifications retain IDs and
 hydrate current records, preserving account and message identity checks.
+
+The 25,000-message flag-batching case in `server/sync-recovery.test.ts` seeds
+mail and its encrypted summary companions through `putBatch` before installing
+or resetting operation counters. Raw mail-only fixtures also trigger legacy
+summary repair and do not isolate flag reconciliation. Workload size, sync
+transaction/event counts and zero provider body reads remain asserted.
 
 Compose leaves toolbar Search and Privacy reachable and keeps underlying
 mail/work panes inert. Search can change the cached view without replacing the
@@ -25,6 +40,29 @@ retain exact semantics. Typo matching stays local to the existing cached search.
 
 The sidebar footer and collapsed coverage bar are 42px tall. Today status-tab
 counts and Refresh/Add task share one row. See [ADR 0069](adr/0069-responsiveness-and-compose-toolbar.md).
+
+## Floating Settings
+
+Settings uses the shared `Dialog` above the mounted mail, Drafts or work pane.
+The background frame and update control are inert. Settings retains its ten
+sections, with separately scrolling rail and content; the rail moves above the
+content in narrow panes. Its fixed header contains Back, Forward and Close.
+Opening Settings focuses Close so hidden private fields remain hidden.
+The Linux local-key warning mounts only in the active Settings or mail surface,
+reading its session collapse preference when moving between them.
+
+Settings history preserves the existing reader and validates its account and
+message on historical restore. Other menu and reader history retains its
+existing behavior. Search and Privacy shortcuts work from the Settings shell;
+Search closes Settings and focuses All cached. Editors, shortcut-capture fields
+and nested dialogs retain their keyboard ownership. Commands stays blocked
+until Settings closes. Compose navigation still flushes the draft before
+opening Settings; unsaved compose preferences and pending-save locks remain in
+App state across closing and section changes.
+
+See [ADR 0077](adr/0077-floating-settings.md). Mounted source tests cover focus,
+history, guards and retained edits. They do not prove installed native layout
+or input.
 
 ## Shared application styling
 
@@ -1244,7 +1282,7 @@ Sources: [reader](../src/mail/Reader.tsx), [styles](../src/styles/reader.css),
 
 [The reader](../src/mail/MessageContent.tsx) loads missing formatting on open, shows cached text during loading or failure and offers one manual retry. Show images sits above the body. No body image element exists until activation; consent resets on closure, message change or privacy activation. Delayed content and image responses cannot reveal another message. Formatted images stay inline without a duplicate gallery. Privacy ranges use the full text and map back to the original text leaves with UTF-16 offsets. This keeps supported sender formatting and image/caption order while masking tokens split across tags or images. Split segments share the whole source token as their reveal key; revealing a full name does not reveal a separate surname. Privacy mode suppresses private link and image destinations while allowing explicit display of other supported images. Scrollbar indicators are hidden by CSS without changing scrollable overflow or input handling.
 
-Reply shows cached plain-text context from the source message supplied when opening the reply. When reopening a draft, it uses the first cached message matching the draft account and `inReplyTo` message ID. A missing match shows no original. The context uses the cached body or preview, does not load images or request provider content, and does not change the outgoing draft. It uses the source message's recipient names for privacy masking.
+Replies use the safe formatted reader for the original message. Reopened drafts require exactly one cached source matching the draft account and `inReplyTo` message ID; a missing or ambiguous match shows no original. Authenticated single-message recovery can load missing HTML, while remote images require explicit per-opening consent. Rejected or unavailable HTML retains the cached body or preview. Privacy uses the source recipients and clears image consent. The outgoing draft and source mail are unchanged. See [ADR 0074](adr/0074-formatted-reply-context.md).
 
 [Privacy matching](../src/privacy.ts) learns names from optional account display names and the current To/Cc display names tied to connected account addresses. It covers full names, first names and surnames, including one-letter Unicode components, with Unicode-aware boundaries, case/whitespace variation and URL encoding. The opened message's dictionary also protects Gmail label filter options and the label editor. A sender avatar uses a neutral dot when its displayed initial matches a known private name component; ordinary company initials stay visible. Sender-markup splits cannot expose a known name. Hidden bars have no private children, title or accessibility text. Explicit reveal applies to the clicked token; re-enabling privacy clears it. Unknown names that appear only in a body cannot be identified. A name that is also an ordinary word can hide that word while privacy is on. Editable compose fields retain their focus-to-reveal behavior.
 
@@ -1403,7 +1441,7 @@ Cleared, expired, sent and archived snoozes are excluded.
 
 Ctrl/Cmd +, - and 0 resize or reset text. D still changes density. Page Up/Down
 moves through the complete filtered email list outside editors and dialogs.
-Reply context uses safe cached text. File drops and file selection share validation.
+Reply context uses the safe formatted reader with cached text fallback and explicit image consent. File drops and file selection share validation.
 
 Notification Preview obeys delivery toggles and shows enabled options. It uses
 synthetic sample text, honors privacy and cannot open a real message.
@@ -1445,8 +1483,10 @@ all-day last day) to the API shape and rejects skipped daylight-saving times
 instead of shifting them. `meetingFields` builds the Schedule meeting prefill:
 the subject without `Re:`/`Fwd:` prefixes, the sender, To and Cc without any
 connected account address, the email's account and source. `useCalendarEvents`
-loads the visible local month, refreshes on window focus and Refresh, and
-serializes writes, refreshing after each one. New events keep one UUID per form,
+loads the one or two exact local month windows intersecting the visible range,
+serially. It refreshes on window focus and Refresh and serializes writes, refreshing
+after each one. Account/range changes discard obsolete reads and clear prior
+results. New events keep one UUID per form,
 so retrying an uncertain save cannot create a copy.
 
 Calendar day-list and agenda rows stretch their text across the row instead of centering each line. Event dialogs keep the heading and close control outside the scrolling form. The renderer document title is Emc², matching the native window title.
@@ -1471,12 +1511,96 @@ Saving local events sends no invitations. Separate explicit notification and
 reviewed draft actions are described under Phase 3 below.
 See [ADR 0054](adr/0054-emc2-calendar-events.md) for the phase boundaries.
 
+`src/work/calendar-layout.ts` calculates inclusive Day, Monday-based Week and
+month/Agenda ranges, local-midnight boundaries, elapsed-time clipping and stable
+overlap lanes. DST days can have 23, 25 or fractional hours; each column shows
+local clock/UTC-offset ticks and pads only outside its day. Date-only/all-day work
+stays separate from timed spans. Follow-ups and snoozes are zero-duration points;
+full textual buttons keep short events and point markers reachable. Navigation
+changes no event or commitment and invokes no provider operation.
+
+Cross-month reads preserve full source/account/calendar/event identity. Local
+copies prefer revision, then `updatedAt`; Google copies prefer `updatedAt` because
+imported revisions remain 1. Equal-version conflicts choose a canonical field
+ordering independent of response order and keep a stale warning. Coverage is
+retained per month. Failed or missing month coverage cannot become a fresh full
+range. Google controls retain one explicit Sync for each exact month window.
+
+Focused source checks are `src/calendar-layout.test.tsx`, `src/calendar.test.tsx`,
+`src/workbench.test.tsx` and `src/google-calendar.test.tsx`, plus the strict build.
+They use synthetic data. Installed, native, visual-layout and real-provider
+acceptance require separate evidence.
+
 Calendar retains the originating button for events, commitments and snoozed mail.
 Workbench restores focus after the destination renders: the event or commitment
 pane after source-reader return, or the originating row after Back/Escape.
 `src/workbench.test.tsx` exercises these paths through the mounted App. Its narrow
 fixture applies the current CSS hiding selector and models refusal to focus a
 `display:none` ancestor. This synthetic check does not prove native layout or focus.
+
+### Linked local work sessions
+
+`CalendarEvent.workSession` stores a commitment ID, Busy Boolean, planned/finished/
+removed status and the SHA256 of the canonical initial request. Account, source
+and title are captured from the parent on creation. Existing encrypted
+`calendarEvent` storage needs no schema migration or plaintext index. Events
+without metadata retain their ordinary busy meaning. Malformed metadata blocks
+scheduling and availability rather than becoming Free.
+
+`server/calendar.ts` mounts these authenticated routes:
+
+| Method and path | Request | Result |
+| --- | --- | --- |
+| GET `/api/calendar/work-sessions?commitmentId` | Exact parent ID | Nonremoved sessions, availability and unavailable-parent/source/account reason; independent of Calendar month |
+| GET `/api/calendar/work-sessions/:id` | Saved session ID | Saved state, including removed tombstones, for recovery |
+| POST `/api/calendar/work-sessions` | UUID `id`, `commitmentId`, `commitmentRevision`, offset ISO `start`/`end`, Boolean `busy`, IANA `timeZone` | 201 new; 200 canonical replay returning current state; 409 UUID collision or unavailable/stale scheduling state |
+| PATCH `/api/calendar/work-sessions/:id` | Current session `revision`, `commitmentRevision`, `start`, `end`, `busy`, `timeZone` | Move/edit a planned session only; immutable bindings; increment session revision |
+| POST `/api/calendar/work-sessions/:id/finish` | Current `revision` | Planned to finished; parent unchanged |
+| DELETE `/api/calendar/work-sessions/:id` | Current `revision` | Retain encrypted removed tombstone; hide from normal feeds/lists |
+
+Malformed input returns 400; absent saved ID returns 404. Stale revisions,
+conflicts and unavailable scheduling state return 409. Writes retain update
+quiescence checks. New scheduling requires a current open parent, connected
+account and same-account source inside the write transaction. Session duration
+stays within the existing 14-day maximum. The device form rejects DST gaps and
+folds; the API receives explicit offset instants and a validated IANA zone.
+
+`server/calendar-busy.ts` supplies shared local busy periods for sessions and
+offers. Planned Busy sessions block; Free, finished and removed sessions do not.
+Busy edits exclude only their own event. Touching edges are permitted. Google
+calendars are excluded from session conflict checks. Offered-time booking still
+performs its own fresh local and explicitly included Google checks. Ordinary
+calendar PATCH/DELETE, invitation preparation and Google creation reject session
+IDs before side effects.
+
+Exact create replay returns current saved state without resetting later edits,
+finish or removal. Removed is terminal, including finish at the tombstone's
+current revision. Parent closure or account/source loss blocks scheduling and
+moves but permits local finish/removal using the saved session revision. No
+session operation updates the parent or mail, sends or prepares mail, or reads
+providers. Explicit source opening retains its existing separate behavior.
+
+`src/work/WorkSessions.tsx` keeps request/recovery state mounted at Workbench
+level. Pending/unknown inputs freeze until a same-ID GET and explicit review.
+Acknowledged writes with failed refresh say saved, refresh unavailable and block
+resubmission. A genuine remount reads saved sessions; it never automatically
+recreates an unknown operation. There is no private localStorage persistence.
+The rendered session heading receives focus when the dialog closes with focus
+on the document body after Finish or Remove removes its Today trigger. Direct
+success and explicit recovery acknowledgement use the same fallback; a connected
+trigger retains normal dialog focus restoration.
+`src/styles/work.css` gives `.session-dialog` vertical scrolling within the
+shared dialog height limit, including explanatory text and form actions.
+Its `.session-form .form-actions` row wraps at the available width.
+
+Focused synthetic coverage is `server/work-sessions.test.ts` and
+`src/work-sessions.test.tsx`, plus the calendar, offers, event-panel, workbench
+and invitation checks in the [journey map](user-journeys.md). Mounted JSDOM checks
+use independently seeded edit, finish and remove scenarios. The edit targets the
+create request's retained UUID and 13:00 interval while a 15:00 session sorts
+first. Finish and Remove check focus after both direct and recovered outcomes.
+These checks cover control behavior; they do not prove viewport geometry, native focus,
+theme rendering or installed behavior. See [ADR 0076](adr/0076-local-work-sessions-and-calendar-views.md).
 
 ### Optional Google Calendar read sync
 
@@ -1621,6 +1745,25 @@ free/busy integration, automatic booking and Calendar MCP sending are not part
 of Phase 3.
 
 ### Offer times (phase 4)
+
+The renderer shows saved preferences above an Edit preferences disclosure.
+Coverage remains outside it and names the selected accounts/calendars through
+privacy controls, or states that every Google calendar is excluded. Results group
+by the saved IANA zone's dates while preserving original slot indexes and the ten
+selection limit. `shared/offers.ts` formats both endpoint dates, times and numeric
+UTC offsets, including DST and date rollover, for both the preview and reply body.
+An optional recipient IANA zone is manually chosen, validated with `Intl` and
+used only for display. It resets when the source email changes; it never changes
+saved instants, check inputs or reply text.
+
+Date-range, included-source and acknowledged availability saves clear the active
+preview and selection. Slot checkboxes leave the preview intact. New checks clear
+previous results before starting, including failed checks. Unconfirmed requests
+freeze their exact identity, source fingerprint and selected indexes. Only an
+explicitly rejected check permits changing its request. Acknowledged draft
+preparation is separate from ordinary composer Send. A missing draft supplies no
+delivery proof. Preparing offers never books; booking still requires fresh server
+validation and an explicit Book agreed time action.
 
 `server/offers.ts` stores availability and checked offers in encrypted
 `availability` and `calendarOffer` records. The reader's Offer times form saves
@@ -1970,3 +2113,55 @@ measured 22,218ms elapsed / 20,548ms CPU / 528.4MB peak heap before, versus
 231MiB. These are workload-specific observations, not startup guarantees or
 proof of every native memory spike. Settings, encryption and stored records
 are unchanged. See [ADR 0072](adr/0072-conversation-scoped-proposal-refresh.md).
+
+## Compose navigation and input ownership
+
+The nonmodal compose backdrop is pointer-transparent, while the composer itself
+accepts pointer input and covered mail/work panes remain inert. Sidebar and
+exposed toolbar controls share its explicit Tab cycle. Back/Forward, sidebar
+view/account/Settings changes, New message, Add account, Commands and Filters
+first drain attachments and flush the current draft using the existing shared
+lock. Only a successful save queues the requested action. A fresh post-close
+render consumes it; failed or uncertain saves keep the text open. Forward at a
+history edge does not close a draft. No automatic send or draft deletion occurs.
+
+Mouse side buttons work over composer fields; native selects/menus retain their
+own pointer handling. Native history IPC remains the sole side-button source
+on Windows/Linux. Safe shortcuts work from nonediting compose controls; text
+fields, dropdown arrows, rich editing and native undo/copy/paste retain ownership.
+Search and Privacy remain usable without leaving composition. Other modal
+dialogs keep their existing navigation and focus guards. No saved interaction
+preferences change. See [ADR 0073](adr/0073-compose-navigation-access.md).
+
+Attachment reads finish before edit freezing; failed reads retain the composer
+and error. Inert descendants are excluded from the explicit keyboard cycle.
+Insert link uses a compact inline address field with Add link and Cancel link.
+Enter applies the validated link without submitting email; Escape cancels only
+link entry. Selected text, plain alternatives and safe URL rules are retained.
+
+The composer From selector uses the shared themed dropdown: a 30px trigger, compact account rows, arrow/Home/End selection, Enter to confirm and Escape or Tab to dismiss. Private mode omits account addresses. Account switching retains the existing signature and saved-copy behavior.
+
+
+## Formatted original messages in replies
+
+New replies and reopened saved drafts use the same `ReaderContent` allowlist,
+content recovery and opening-specific image consent as the reading pane.
+Cached HTML keeps link labels instead of displaying plaintext tracking URLs.
+Rejected or unavailable HTML uses the original plain text without dropping it.
+Privacy clears image consent; changing source identity/content remounts the
+original-message view. Draft content and existing settings are unchanged.
+See [ADR 0074](adr/0074-formatted-reply-context.md).
+
+
+## Summary-first cached search
+
+The shared search compiler can prove header matches or misses from summaries;
+queries involving unknown body text remain unresolved. Conjunctions, exclusions,
+quoted text, account filters and invalid operators retain their exact rules.
+The server decrypts only unresolved records in the existing coherent WAL scan.
+Header-only searches need no body reads. Known summary matches remain visible
+while body searches run and after source-version refresh; unresolved hits still
+require the exact account/message/content-version response. Empty pending views
+show a searching state rather than claiming no matches. No index migration,
+plaintext search storage or preference changes are introduced. See
+[ADR 0075](adr/0075-summary-first-search.md).

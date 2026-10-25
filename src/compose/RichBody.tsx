@@ -18,6 +18,9 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
   const pending = useRef<{ command: Command; value?: string; start: number; end: number } | undefined>(undefined);
   const selection = useRef<Range | undefined>(undefined);
   const [error, setError] = useState("");
+  const [link, setLink] = useState<string | null>(null);
+  const linkSelection = useRef({ start: 0, end: 0 });
+  const cancelLink = () => { setLink(null); setError(""); (editor.current || plain.current)?.focus(); };
   const remember = () => {
     const range = window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : undefined;
     if (range && editor.current?.contains(range.commonAncestorContainer)) selection.current = range.cloneRange();
@@ -79,22 +82,25 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
     const range = document.createRange(); range.setStart(...point(action.start)); range.setEnd(...point(action.end));
     selection.current = range; execute(action.command, action.value);
   }, [draft.html]);
-  const format = (command: Command) => {
+  const format = (command: Command, linkValue?: string) => {
     if (disabled) return;
     if (typeof document.execCommand !== "function" || typeof document.queryCommandSupported !== "function" || !document.queryCommandSupported(command)) {
       setError("Formatting is unavailable here. Your plain-text message is unchanged."); return;
     }
     let value: string | undefined;
     if (command === "createLink") {
-      const input = window.prompt("Link address (https://, http:// or mailto:)");
-      if (typeof input !== "string") return;
-      value = composeLink(input.trim());
+      if (linkValue === undefined) {
+        linkSelection.current = { start: plain.current?.selectionStart || 0, end: plain.current?.selectionEnd || 0 };
+        remember(); setLink(""); setError(""); return;
+      }
+      value = composeLink(linkValue.trim());
       if (!value) { setError("Enter a valid web or email link without credentials."); return; }
+      setLink(null);
     }
     if (command === "formatBlock") value = "blockquote";
     if (draft.html === undefined) {
       const node = plain.current;
-      pending.current = { command, value, start: node?.selectionStart || 0, end: node?.selectionEnd || 0 };
+      pending.current = { command, value, ...(command === "createLink" ? linkSelection.current : { start: node?.selectionStart || 0, end: node?.selectionEnd || 0 }) };
       try { onChange({ ...draft, ...composeMarkup(plainComposeHtml(draft.body)) }); }
       catch { pending.current = undefined; setError("This message is too large for formatting. Your plain text is unchanged."); }
     } else execute(command, value);
@@ -109,6 +115,17 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
       {commands.map(({ label, text, command }) => <button key={command} type="button" aria-label={label} title={label}
         disabled={disabled} onMouseDown={event => { event.preventDefault(); remember(); }} onClick={() => format(command)}>{text}</button>)}
     </div>
+    {link !== null && <div className="compose-link-controls" role="group" aria-label="Insert link" data-escape-owner
+      onKeyDown={event => {
+        if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancelLink(); }
+      }}>
+      <input autoFocus type="url" aria-label="Link address" placeholder="https://example.com" value={link} disabled={disabled}
+        onChange={event => setLink(event.target.value)} onKeyDown={event => {
+          if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); format("createLink", link); }
+        }} />
+      <button type="button" disabled={disabled} onClick={() => format("createLink", link)}>Add link</button>
+      <button type="button" onClick={cancelLink}>Cancel link</button>
+    </div>}
     {draft.html === undefined ? <textarea ref={plain} className="compose-body" aria-label="Message body" placeholder="Write your message"
       required disabled={disabled} onKeyDown={shortcut} maxLength={1000000} value={draft.body} onChange={event => onChange({ ...draft, body: event.target.value })} /> :
       <div ref={editor} className="compose-body compose-rich-body" role="textbox" aria-label="Message body" aria-multiline="true" aria-required="true"

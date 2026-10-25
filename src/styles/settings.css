@@ -513,3 +513,53 @@
   .settings-navigation { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0 0 16px; border-right: 0; border-bottom: 1px solid var(--line); }
   .settings-column { padding: 0 0 32px; }
 }
+
+/* Floating Settings keeps the current mail/work pane mounted behind it. */
+.app .dialog.settings-dialog {
+  display: flex;
+  flex-direction: column;
+  width: 960px;
+  height: min(720px, calc(100dvh - 48px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  overflow: hidden;
+}
+.settings-dialog > .dialog-title {
+  flex-shrink: 0;
+  gap: 12px;
+  margin: 0;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-dialog > .dialog-title h2 { margin-right: auto; }
+.settings-dialog > .dialog-title > .icon { order: 2; flex-shrink: 0; }
+.settings-dialog .settings-pane { border: 0; }
+.settings-dialog .settings {
+  grid-template-columns: 180px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+.settings-dialog .settings-navigation {
+  position: static;
+  grid-auto-rows: max-content;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 10px;
+}
+.settings-dialog .settings-navigation button { height: auto; overflow-wrap: anywhere; }
+.settings-dialog .settings-column {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px 24px 32px;
+}
+.settings-dialog .settings-row { flex-wrap: wrap; }
+.settings-dialog .settings-row > :is(input, select) { max-width: 100%; }
+.desktop .dialog-backdrop:has(> .settings-dialog) { padding-top: 64px; padding-bottom: 16px; }
+.desktop .dialog.settings-dialog { height: min(720px, calc(100dvh - 80px)); max-height: calc(100dvh - 80px); }
+@container (max-width: 680px) {
+  .settings-dialog .settings { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .settings-dialog .settings-navigation { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 28dvh; padding: 10px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .settings-dialog .settings-column { padding: 16px 14px 24px; }
+}
