@@ -736,7 +736,7 @@ const staticPath = process.env.MAIL_STATIC_DIR || path.resolve("dist");
 app.use((_req, res, next) => {
   res.set(
     "Content-Security-Policy",
-    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; connect-src 'self'; object-src 'none'; media-src data:; base-uri 'none'; frame-ancestors 'none'",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data: https:; worker-src 'self'; connect-src 'self'; object-src 'none'; media-src data:; base-uri 'none'; frame-ancestors 'none'",
   );
   next();
 });

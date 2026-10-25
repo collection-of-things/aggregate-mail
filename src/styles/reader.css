@@ -238,3 +238,14 @@ article.message {
 .mail-actions .tool-group { flex-shrink: 0; }
 .reader-navigation .tool-label { display: none; }
 @container (max-width: 600px) { .mail-actions .tool-label { display: none; } }
+
+.reader-attachments { margin: 12px 0; }
+.reader-attachments h2 { font-size: 13px; margin: 0 0 6px; }
+.reader-attachments ul { list-style: none; margin: 0; padding: 0; }
+.reader-attachments li { border-bottom: 1px solid var(--line); padding: 8px 0; }
+.attachment-row, .attachment-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.attachment-row { justify-content: space-between; }
+.attachment-name { min-width: 0; overflow-wrap: anywhere; }
+.attachment-size { color: var(--text-3); }
+.attachment-preview { margin-top: 10px; }
+.attachment-preview canvas { max-width: 100%; height: auto; display: block; margin-top: 8px; background: white; }

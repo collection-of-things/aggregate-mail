@@ -308,6 +308,18 @@ test("workspace HTTP preserves confirmed obligations, account boundaries and imm
       assert.equal(response.headers.get("content-type"), "application/octet-stream"); assert.match(response.headers.get("content-disposition")!, /^attachment;/); assert.equal(response.headers.get("x-content-type-options"), "nosniff");
       assert.equal(Buffer.from(await response.arrayBuffer()).toString("base64"), content);
       assert.equal((await request(`/messages/b:1/attachments/${metadata.id}`)).status, 404);
+      for (const [filename, contentType] of [["picture.png", "image/png"], ["report.pdf", "application/pdf"], ["sheet.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"], ["archive.zip", "application/zip"], ["page.html", "text/html"], ["active.svg", "image/svg+xml"]]) {
+        const source = await new MailComposer({ from: mail.address, to: mail.to, text: "Synthetic formats", attachments: [{ filename, contentType, content: Buffer.from(content, "base64") }] }).compile().build();
+        const parsed = await parse(store.account("a"), filename, source, false);
+        store.put("mail", parsed.id, { ...parsed, category: "important", relevance: 2, reason: "Synthetic", archived: false, snoozedUntil: null });
+        const file = parsed.attachments![0]; assert.equal(file.unavailable, undefined);
+        const url = `/messages/${parsed.id}/attachments/${file.id}`;
+        assert.equal((await fetch(`${origin}/api${url}`)).status, 403);
+        const download = await request(url); assert.equal(download.status, 200);
+        assert.equal(download.headers.get("content-type"), "application/octet-stream");
+        assert.match(download.headers.get("content-disposition")!, /^attachment;/);
+        assert.equal(Buffer.from(await download.arrayBuffer()).toString("base64"), content);
+      }
       const saved = await (await request("/accounts/a/drafts", "POST", { to: mail.address, subject: "Draft attachment", body: "Synthetic", cc: ["other@example.test"], attachments: [attachment] })).json();
       const recovered = await (await request(`/accounts/a/drafts/${saved.id}`)).json(); assert.deepEqual(recovered.cc, ["other@example.test"]); assert.deepEqual(recovered.attachments, [attachment]);
       const partialResponse = await request("/accounts/a/drafts", "POST", { to: "unfinished", subject: "Partial Cc", body: "Synthetic", cc: ["some@", " "] });

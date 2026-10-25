@@ -3,6 +3,7 @@ import { imageSource, type Mail, type MailImage, type MailAttachment } from "../
 import { privateMailLink } from "../../shared/mail-content";
 import { redactPrivateText } from "../privacy";
 import { PrivacyContext, Redact } from "../ui/Privacy";
+import { Attachments } from "./Attachments";
 import { FormattedMail } from "./FormattedMail";
 
 export function MessageBody({ text }: { text: string }) {
@@ -158,7 +159,9 @@ function ImageConsent({ mail, loadImages, loadContent, body }: ImageProps) {
     </div>}
     {body && contentStatus === "loading" && <p role="status">Loading formatted email…</p>}
     {body && contentStatus === "error" && <p role="status">Formatted email is unavailable. The text is shown below. <button type="button" className="link" onClick={() => void recoverContent()}>Try again</button></p>}
-    {body && content.attachments?.length !== 0 && <section aria-label="Attachments"><h2>Attachments</h2>{(content.attachments || []).length ? (content.attachments || []).map((file, index) => <p key={file.id}><Redact text={file.filename || `Attachment ${index + 1}`} /> ({file.size} bytes) {file.unavailable ? "Unavailable within the import limit" : <a href={`/api/messages/${encodeURIComponent(mail.id)}/attachments/${encodeURIComponent(file.id)}`} download>Download attachment {index + 1}</a>}</p>) : <p>{contentStatus === "ready" ? "No cached attachment metadata." : "Attachment metadata is not yet available."}</p>}</section>}
+    {body && content.attachments?.length !== 0 && ((content.attachments || []).length
+      ? <Attachments mailId={mail.id} files={content.attachments!} />
+      : <p>{contentStatus === "ready" ? "No cached attachment metadata." : "Attachment metadata is not yet available."}</p>)}
     <div id={region}>
       {status === "error" && <p role="status">Images could not be loaded. The email may be unavailable or archived.</p>}
       {body && <div className="message-body">
