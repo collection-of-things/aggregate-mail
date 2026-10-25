@@ -56,9 +56,9 @@ export function MailListWindow<T extends Mail>({ messages, selectedId, focusSele
     const scale = parseFloat(style.getPropertyValue("--text-scale")) || 1;
     const token = (name: string, fallback: number) => (parseFloat(style.getPropertyValue(`--mail-row-${narrow ? "card-" : ""}${name}`)) || fallback) * scale;
     const nextSizes = {
-      low: token("low", narrow ? 58 : 28),
-      medium: token("medium", narrow ? 78 : 34),
-      high: token("high", narrow ? 78 : 48),
+      low: token("low", narrow ? 80 : 28),
+      medium: token("medium", narrow ? 100 : 34),
+      high: token("high", narrow ? 100 : 48),
       compact: token("compact", narrow ? 52 : 24),
       group: (parseFloat(style.getPropertyValue("--mail-group-height")) || 30) * scale,
     };

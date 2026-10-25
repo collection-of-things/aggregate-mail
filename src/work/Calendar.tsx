@@ -65,7 +65,7 @@ export function Calendar({ items, messages = [], events = [], now, selectedEvent
       <strong>{entry.kind === "Snoozed" ? <MailPrivacy mail={entry.item}><Redact text={entry.item.subject || "No subject"} /></MailPrivacy> : entry.kind === "Event" ? <Redact text={entry.item.title} /> : <Redact text={entry.item.text} />}</strong>
     </button>
   </li>)}</ul> : <p className="work-empty">Nothing scheduled.</p>;
-  return <section className="work-calendar" aria-label="Calendar">
+  return <section className="work-calendar" data-layout={agenda ? "agenda" : "month"} aria-label="Calendar">
     <div className="calendar-toolbar">
       <div className="calendar-period"><button type="button" className="icon" aria-label="Previous month" onClick={() => move(-1)}><ArrowLeft size={16} /></button>
         <h2>{new Date(`${month}-01T12:00:00`).toLocaleDateString([], { month: "long", year: "numeric" })}</h2>

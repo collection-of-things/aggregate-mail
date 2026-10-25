@@ -864,14 +864,16 @@ test("project buttons switch context without saving or combining accounts", asyn
     await ui.click(buttons()[0]);
     assert.deepEqual(buttons().map(button => button.getAttribute("aria-pressed")), ["true", "false"]);
     assert.equal(buttons()[0].textContent, "First project");
-    assert.equal(ui.container.querySelector(".project-overview"), null);
+    assert.equal(ui.container.querySelector(".project-overview h2")?.textContent, "First project");
+    assert.equal(ui.container.querySelector(".project-context h2")?.textContent, "First project");
     assert.equal(ui.container.querySelector(".work-intro"), null);
     assert.equal(ui.container.querySelector(".project-filters small"), null, "navigation does not repeat task counts");
     assert.ok(ui.container.querySelector(".work-toolbar .project-filters"), "navigation shares the action bar");
-    assert.equal(ui.container.textContent?.split("First project").length, 2, "project name appears once");
     await ui.click(buttons()[1]);
     assert.deepEqual(buttons().map(button => button.getAttribute("aria-pressed")), ["false", "true"]);
     assert.equal(buttons()[1].textContent, "Second project");
+    assert.equal(ui.container.querySelector(".project-overview h2")?.textContent, "Second project");
+    assert.equal(ui.container.querySelector(".project-context h2")?.textContent, "Second project");
     assert.equal(ui.requests.some(request => request.method !== "GET"), false);
   } finally { await ui.close(); }
 });
@@ -1191,5 +1193,29 @@ test("quitting with a dirty event form uses the same unload guard as a draft", a
   assert.equal(unload(), true, "a changed edit event form blocks quit");
   await ui.click(ui.button("Cancel"));
   assert.equal(unload(), false, "Cancel returns to the saved event without the guard");
+ } finally { await ui.close(); }
+});
+
+test("Today status views preserve task identity and distinguish overdue, upcoming and completed work without writes", async () => {
+ const ui = await mount("actions");
+ try {
+  const base = { accountId: "a", sourceMailId: "in-a", reason: "Synthetic evidence", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [] };
+  ui.workspace.commitments.push(
+   { ...base, id: "overdue", text: "Older commitment", status: "needs-work", dueDate: "2000-01-01" },
+   { ...base, id: "upcoming", text: "Future commitment", status: "needs-reply", dueDate: "2099-01-01" },
+   { ...base, id: "waiting", text: "Waiting commitment", status: "waiting" },
+   { ...base, id: "completed", text: "Completed commitment", status: "done" },
+  );
+  await ui.click(ui.button("Refresh workspace"));
+  const group = (label: string) => [...ui.container.querySelectorAll(".work-group")].find(value => value.querySelector("h2")?.textContent?.startsWith(label));
+  assert.ok(group("Overdue")?.textContent?.includes("Older commitment"));
+  assert.ok(group("Upcoming")?.textContent?.includes("Future commitment"));
+  assert.ok(!group("Overdue")?.textContent?.includes("Future commitment"));
+  const tab = (name: string) => [...ui.container.querySelectorAll<HTMLButtonElement>(".work-view-tabs button")].find(value => value.textContent === name)!;
+  await ui.click(tab("Waiting"));
+  assert.deepEqual([...ui.container.querySelectorAll(".work-group .work-select strong")].map(value => value.textContent), ["Waiting commitment"]);
+  await ui.click(tab("Completed"));
+  assert.deepEqual([...ui.container.querySelectorAll(".work-group .work-select strong")].map(value => value.textContent), ["Completed commitment"]);
+  assert.equal(ui.requests.some(request => request.method !== "GET"), false);
  } finally { await ui.close(); }
 });

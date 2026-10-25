@@ -30,6 +30,7 @@
 - Point the README, security policy, issue templates, code of conduct and publish settings at `collection-of-things/aggregate-mail`.
 - Revamp the shell with view breadcrumbs, compact search, account tabs and recipient-first draft rows. Give Settings a dedicated section rail and move attachment controls above the message. Keep softly shaded primary actions, Discard and Close beside From, save status beside Send, and scrolling without scrollbar indicators.
 - Preserve native Glass and Subtle across the Settings rail, Calendar headings and flush composer, using the existing shared pane tint without mail text behind the editor.
+- Rebuild the complete working layout: shared mail category strip, account context in narrow rows, secondary reader tools below the body, grouped Today status views, project context and decisions, side-by-side Calendar agenda, Agent review context and consistent Settings and dialog forms. Preserve source reading, privacy and existing mail operations.
 
 - Restore clickable Read, Pin, Reply, Archive, Snooze and Trash buttons on mail rows, using the current flat theme without 3D effects. Keep More actions for the full menu.
 

@@ -104,7 +104,7 @@ test('touch controls reserve their full strip height in compact and narrow lists
  for (const narrow of [false, true]) for (const density of ['comfortable', 'compact'] as const) {
   const ui = await mountRows([mail, {...mail, id: 'b:1'}], {touch: true, narrow, density});
   try {
-   const height = (density === 'compact' ? narrow ? 52 : 24 : narrow ? 78 : 34) + 36;
+   const height = (density === 'compact' ? narrow ? 52 : 24 : narrow ? 100 : 34) + 36;
    assert.equal(parseFloat(ui.rows()[1].style.top), height);
    assert.equal(parseFloat(document.querySelector<HTMLElement>('.mail-window')!.style.height), height * 2);
   } finally { await ui.close(); }
@@ -119,8 +119,8 @@ test('the rendered row layout and the windowing height agree for every sizing co
      :!sizeByImportance?(narrow?'card':'inline')
      :narrow?'card':relevance===3?'stacked':relevance===2?'inline':'brief';
    const expectedHeight=(relevance:number)=>(density==='compact'?(narrow?52:24)
-     :!sizeByImportance?(narrow?78:34)
-     :narrow?(relevance===1?58:78):relevance===3?48:relevance===2?34:28) + (narrow ? 36 : 0);
+     :!sizeByImportance?(narrow?100:34)
+     :narrow?(relevance===1?80:100):relevance===3?48:relevance===2?34:28) + (narrow ? 36 : 0);
    for(const[index,row]of rows.entries()){
     const button=row.querySelector<HTMLElement>('.row')!;
     const relevance=index===0?2:index===1?3:1;

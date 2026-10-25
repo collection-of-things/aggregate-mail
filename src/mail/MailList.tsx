@@ -11,6 +11,7 @@ import { Archive, Check, Clock, Inbox, More, Pin, Reply, Trash } from "../ui/ico
 import { Avatar } from "./Avatar";
 import { relative, shortLabel } from "./format";
 import { useMedia } from "../ui/useMedia";
+import { accountLabel } from "../mail-ui";
 
 type RowLayout = "inline" | "stacked" | "brief" | "card";
 type RowAction = Omit<MenuAction, "run"> & { run: (event: MouseEvent<HTMLButtonElement>) => void };
@@ -58,6 +59,7 @@ export function MailList<T extends Mail>({
           ? "stacked"
           : "brief";
     const current = m.id === selectedId;
+    const accountIndex = accounts.findIndex((account) => account.id === m.accountId);
     const names = privacy ? collectPrivateNames(accounts, m) : [];
     const reason = privacy ? redactPrivateText(m.reason, names) : m.reason;
     const label = `${m.pinned ? "Pinned: " : ""}${m.unread ? "Unread: " : ""}${m.sender}, ${m.subject}`;
@@ -96,6 +98,7 @@ export function MailList<T extends Mail>({
                 {density === "comfortable" && relevance > 1 && (
                   <span className="row-preview"><Redact text={previewText(m.preview)} /></span>
                 )}
+                {density === "comfortable" && accountIndex >= 0 && <span className="row-account"><Redact text={accountLabel(accounts[accountIndex], accountIndex, privacy)} /></span>}
               </span>
             ) : (
               <>

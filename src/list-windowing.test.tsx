@@ -61,7 +61,7 @@ async function mount(count = 3000, pageOffset = 0) {
       const mail = props.messages[Number(this.getAttribute("data-index"))];
       const top = pageOffset + offset + parseFloat(this.closest<HTMLElement>(".mail-window-row")!.style.top) -
         (document.querySelector<HTMLElement>(".list")?.scrollTop || 0);
-      const rowHeight = props.narrow ? (props.density === "compact" ? 52 : mail.relevance > 1 ? 78 : 58) : props.density === "compact" ? 24 : mail.relevance === 3 ? 48 : mail.relevance === 2 ? 34 : 28;
+      const rowHeight = props.narrow ? (props.density === "compact" ? 52 : mail.relevance > 1 ? 100 : 80) : props.density === "compact" ? 24 : mail.relevance === 3 ? 48 : mail.relevance === 2 ? 34 : 28;
       return { top, bottom: top + rowHeight, height: rowHeight } as DOMRect;
     }
     return nativeRect.call(this);
@@ -263,7 +263,7 @@ test("split cards retain every message across density and pane layout changes", 
   const app = await mount(3000);
   try {
     app.props.narrow = true; await app.render();
-    assert.ok(Math.abs(app.windowHeight() - 1000 * (58 + 78 + 78)) < 0.001);
+    assert.ok(Math.abs(app.windowHeight() - 1000 * (80 + 100 + 100)) < 0.001);
     const seen = new Set<string>();
     for (let top = 0; top < app.list().scrollHeight; top += 430) {
       await app.scroll(top);

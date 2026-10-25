@@ -61,6 +61,13 @@ export function Reader({ mail, provider, labels, busy, api, onLabels, onMenu, on
             {readerDate(mail.date)}
           </time>
         </div>
+        {mail.snoozedUntil !== null && mail.snoozedUntil > Date.now() && <p className="message-return">Returns to Inbox <time dateTime={new Date(mail.snoozedUntil).toISOString()}>{new Date(mail.snoozedUntil).toLocaleString()}</time> (local time)</p>}
+        {hydrated && <InvitationPanel key={`invitation:${mailBodyKey(mail)}`} mail={hydrated} api={api} onOpenDraft={onOpenDraft} onChanged={onChanged} />}
+        {!hydrated && <p role="status">{content.error || "Loading cached email…"}{content.error && <> <button type="button" className="link" onClick={content.retry}>Try again</button></>}</p>}
+        {hydrated && <ReaderContent key={`content:${mailBodyKey(mail)}`} mail={hydrated}
+          loadContent={(id) => api(`/messages/${encodeURIComponent(id)}/content`, "POST")}
+          loadImages={(id) => api(`/messages/${encodeURIComponent(id)}/images`, "POST")} />}
+        <footer className="reader-secondary-tools">
         {provider === "gmail" && (
           <div className="message-labels">
             <span>
@@ -70,13 +77,8 @@ export function Reader({ mail, provider, labels, busy, api, onLabels, onMenu, on
           </div>
         )}
         {onReplyAll && <div className="message-labels"><button type="button" className="link" disabled={busy} onClick={onReplyAll}>Reply all</button></div>}
-        {mail.snoozedUntil !== null && mail.snoozedUntil > Date.now() && <p className="message-return">Returns to Inbox <time dateTime={new Date(mail.snoozedUntil).toISOString()}>{new Date(mail.snoozedUntil).toLocaleString()}</time> (local time)</p>}
         {state && onOpenDraft && <OfferTimes key={`offers:${mail.id}`} mail={mail} state={state} api={api} onOpenDraft={onOpenDraft} />}
-        {hydrated && <InvitationPanel key={`invitation:${mailBodyKey(mail)}`} mail={hydrated} api={api} onOpenDraft={onOpenDraft} onChanged={onChanged} />}
-        {!hydrated && <p role="status">{content.error || "Loading cached email…"}{content.error && <> <button type="button" className="link" onClick={content.retry}>Try again</button></>}</p>}
-        {hydrated && <ReaderContent key={`content:${mailBodyKey(mail)}`} mail={hydrated}
-          loadContent={(id) => api(`/messages/${encodeURIComponent(id)}/content`, "POST")}
-          loadImages={(id) => api(`/messages/${encodeURIComponent(id)}/images`, "POST")} />}
+        </footer>
         {onOpen && onChanged && <ConversationEvidence key={`conversation:${mail.id}`} mail={mail} gmail={provider === "gmail"} api={api} onOpen={onOpen} onChanged={onChanged}/>}
       </article>
     </MailPrivacy>

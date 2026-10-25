@@ -33,7 +33,28 @@ rounded:
 
 # Aggregate interface
 
-## Shared application finish
+## Application layout
+
+The app uses a 208px source rail, a shared view header and separate working
+columns. Mail category tabs span the working area above the list and reader.
+The reader keeps the subject and sender above the body, with secondary label,
+reply-all and scheduling controls below it. Narrow mail rows include account
+context within the same measured virtual row.
+
+Today groups open work into overdue, due today, upcoming, undated and waiting
+sections. Open, Waiting and Completed views change only the visible local
+list. Every row retains its status. Existing source-opening and explicit
+completion or reopening operations remain unchanged.
+
+Today has a workspace context pane before selection. Projects has an overview
+above tasks and conversations, with project decisions in its context pane.
+Opening a source retains the existing inline reader and return behavior.
+Calendar places the selected day agenda beside the month when space permits.
+Agent review separates exact proposals from review context and permission
+management. Settings keeps all ten sections in its own rail. Dialogs share
+the same compact type, grouped forms and footer actions.
+
+## Shared controls
 
 The revised shell shows the current view in the top toolbar beside history
 and compact search. Drafts has account tabs and recipient-first rows. Settings
@@ -180,7 +201,7 @@ Transparency uses the operating system's own material behind the window. On Wind
 
 - A persistent 52px toolbar holds mail search and Commands above the working panes, with the Filters and privacy buttons at its right while the mail list shows; only the privacy button stays for Settings, Drafts and work views. Each pane retains a 48px title header, one height under the 52px toolbar so the hairlines line up across panes, and secondary controls such as category tabs, cached-mail notes and work-view controls share the title line. Headers drag the window apart from their controls; double-clicking maximizes it. The sidebar toggle sits first in the top-left header and moves into the toolbar when the sidebar is closed. Drawn window controls belong to the sidebar and toolbar, so they stay in the window corners as the reader pane changes. Windows-style controls reserve 150px at the toolbar’s right edge. macOS-style drawn controls use the configured left or right corner and existing IPC actions. The app-update control follows the pane tools in the toolbar flow, before the window controls, instead of floating over them.
 - On macOS, the native traffic lights sit at (20px, 20px). The app draws no dots of its own there. The header of the leftmost pane, the sidebar or the mail or Settings header while the sidebar is closed, reserves 84px for them. Native application, File, Edit and Window menus provide standard Command shortcuts.
-- The 220px sidebar runs the full window height. Its header holds the app name, collapse toggle and platform window-control space. New Message and Drafts come first. Workspace and Mail views remain in separate folding groups, followed by account filters and Add account. Settings and sync share a fixed footer. The current view and account use a neutral selection wash. Navigation rows are 34px with outline icons, 8px radii and muted counts. Account labels may truncate within the rail. Keyboard account hints remain in the shortcuts help. Snoozed appears when it has mail or is open.
+- The 208px sidebar runs the full window height. Its header holds the app name, collapse toggle and platform window-control space. New Message and Drafts come first. Workspace and Mail views remain in separate folding groups, followed by account filters and Add account. Settings and sync share a fixed footer. The current view and account use a neutral selection wash. Navigation rows are 34px with outline icons, 8px radii and muted counts. Account labels may truncate within the rail. Keyboard account hints remain in the shortcuts help. Snoozed appears when it has mail or is open.
 - The sidebar toggle hides or shows the sidebar and remembers the choice between launches. When the sidebar is closed, the toggle moves into the persistent toolbar at the same spot. The sidebar collapses and expands by width on a spring; its content keeps a fixed width so it clips instead of reflowing. Below 760px window width the sidebar is hidden and its toggle with it.
 - Settings keeps the main sidebar and adds its own ten-section rail beside the content; the rail's divider runs the full pane height. Accounts, AI and agents, Google and connections, Sorting and Teach, Templates and signatures, Notifications, Keyboard and mouse, Appearance, Sender logos, and About and storage each get a 17px semibold title over a one-line secondary description. Controls live in rounded cards: a soft 3% text fill, a 1px hairline and 10px corners, holding 44px rows with 16px insets and hairlines inset to match. Optional 12px semibold secondary labels sit 8px above their card, and groups sit 20px apart — no separators live outside a card. Expandable groups such as Google setup and Connection controls are cards whose summary is the row and whose chevron rotates open. In AI and agents, the assistants list carries a "Your assistants" label row with Refresh as a small button at its right. Visible segmented choices replace dropdowns. The section rail moves above the content in narrow panes. Section changes are immediate.
 - Inbox shows six category tabs in its header beside the title: Primary, Social, Promotions, Newsletters, Transactions and Updates, each with an outline icon and a muted unread count. The tabs fill the header's 48px height in secondary text; the active tab reads in primary text at weight 600, and a 2px accent underline on the header's bottom hairline marks it - exactly as wide as the tab's icon, label and count, sliding between tabs on the spring. Search spans every tab, so the strip hides while searching. See [ADR 0024](docs/adr/0024-inbox-category-tabs.md). Beside the reader the inactive tabs show only their icon and count (only the icon below a 400px column); the name stays in the accessible label and tooltip.

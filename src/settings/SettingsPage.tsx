@@ -93,6 +93,7 @@ export function SettingsPage({
   return (
     <main className="settings" ref={scrollPane}>
       {onSection && <nav className="settings-navigation" aria-label="Settings sections">
+        <span className="settings-rail-label">Preferences</span>
         {settingsSections.map(({ id, label, Icon }) => <button key={id} type="button"
           aria-current={section === id ? "page" : undefined} onClick={() => onSection(id)}>
           <Icon color="currentColor" size={15} />{label}

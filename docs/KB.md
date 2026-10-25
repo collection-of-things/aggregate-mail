@@ -2,6 +2,19 @@
 
 ## Shared application styling
 
+The working layout uses a 208px main rail and a shared mail view header above
+the list and reader. Category navigation sits outside the list column. Card
+heights and the list virtualizer share the tokens in `styles/tokens.css`;
+account metadata stays inside those measured rows.
+
+Today status navigation is local display state. Open groups are separated by
+deadline and waiting status; completed and cancelled work stays available.
+Projects keeps decisions in its context pane and preserves decision draft
+state when the source reader opens. Calendar month and day agenda use separate
+columns, falling back to one column for selected details or narrow space.
+The Agent review context shows counts and the existing Settings destination.
+All operations still use the original handlers and uncertainty guards.
+
 The current renderer adds a view breadcrumb to the main toolbar and account
 tabs to Drafts. Those tabs use the existing navigation account filter. Their
 counts are hidden when a list read fails. Recipient-first draft rows keep
@@ -27,7 +40,7 @@ keyboard trap and save/send handlers are unchanged. Save status now shares
 `.compose-actions` with Send; error recovery stays in the footer. The global
 scrollbar rules in `src/styles/base.css` hide indicators without removing
 scrolling from mail, Settings, work views, dialogs or menus. See
-[the design](../DESIGN.md#shared-application-finish).
+[the design](../DESIGN.md#application-layout).
 
 ## Workflow verification
 

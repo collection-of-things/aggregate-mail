@@ -228,6 +228,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   const [agentError, setAgentError] = useState("");
   const [grants, setGrants] = useState<AgentGrant[]>([]);
   const [agentTab, setAgentTab] = useState("review");
+  const [workFilter, setWorkFilter] = useState<"open" | "waiting" | "completed">("open");
   const agentTabs = useId();
   const [agentName, setAgentName] = useState("");
   const [grantAccounts, setGrantAccounts] = useState<string[]>([]);
@@ -275,8 +276,8 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   const accountName = (item: Commitment) => { const index = state.accounts.findIndex((account) => account.id === item.accountId); return index < 0 ? "Account unavailable" : accountLabel(state.accounts[index], index, privacy); };
   const itemRow = (item: Commitment) => <article key={item.id} className={`work-item work-row${selectedId === item.id ? " selected" : ""}`}>
     <button type="button" className="work-select" aria-pressed={selectedId === item.id} onClick={(event) => { selectedRow.current = event.currentTarget; setSelectedId(item.id); setDetailOpen(true); if (mode === "actions" || mode === "projects") { const mail = state.messages.find((mail) => mail.id === item.sourceMailId && mail.accountId === item.accountId && state.accounts.some((account) => account.id === mail.accountId)); if (mail) { missingSelection.current = false; onOpen(mail); } else { missingSelection.current = true; onCloseReader?.(); } } }}>
-      <strong><Redact text={item.text} /></strong>
-      <span className="work-meta">{mode === "projects" && `${statusNames[item.status]} · `}<Redact text={accountName(item)} />{deadlineDate(item) && ` · Due ${deadlineDate(item)}`}{item.followUpAt === undefined ? "" : ` · Remind ${new Date(item.followUpAt).toLocaleString()}`}</span>
+      <span className="work-row-marker" aria-hidden="true" /><strong><Redact text={item.text} /></strong>
+      <span className="work-meta">{`${statusNames[item.status]} · `}<Redact text={accountName(item)} />{deadlineDate(item) && ` · Due ${deadlineDate(item)}`}{item.followUpAt === undefined ? "" : ` · Remind ${new Date(item.followUpAt).toLocaleString()}`}</span>
     </button>
   </article>;
   const detailBody = selected && <>
@@ -354,6 +355,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
         choices={[{ id: "review", label: `Review queue (${workspace.proposals.filter((item) => item.status === "pending").length})` }, { id: "activity", label: "Activity" }]}
         onChange={setAgentTab} /></div>}
     </>)}
+    {mode === "actions" && <nav className="work-view-tabs" aria-label="Work status">{([['open', 'Open'], ['waiting', 'Waiting'], ['completed', 'Completed']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={workFilter === value} onClick={() => setWorkFilter(value)}>{label}</button>)}</nav>}
     <div className={`work-content work-${mode}${mode === "actions" || mode === "projects" ? " today-content" : ""}`}>
     {error && !editor && <p role="alert">{error}</p>}
     {(mode === "agents" || mode === "assistants") && agentError && <p role="alert">{agentError}</p>}
@@ -364,7 +366,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       {(mode === "actions" || mode === "calendar") && <>
         {mode === "calendar" && calendar.error && <p role="alert">{calendar.error}</p>}
         {mode === "calendar" && <><p className="work-meta" role="status">{calendarStatus}</p><GoogleCalendar state={state} calendar={calendar} api={api} month={calendarMonth} accountFilter={accountFilter} /></>}
-        <div className={`work-layout${detailOpen || readerOpened || mode === "calendar" && selectedEvent ? " has-selection" : ""}${mode === "actions" ? " today-layout" : ""}${fullReading ? " full-reading" : ""}`}><div className="work-main" ref={calendarMain}>
+        <div className={`work-layout${detailOpen || readerOpened || mode === "calendar" && selectedEvent ? " has-selection" : ""}${mode === "actions" ? " today-layout" : ""}${readerOpened ? " has-reader" : ""}${fullReading ? " full-reading" : ""}`}><div className="work-main" ref={calendarMain}>
           {mode === "calendar" ? <Calendar items={commitments} messages={state.messages.filter((mail) => (accountFilter === "all" || mail.accountId === accountFilter) && state.accounts.some((account) => account.id === mail.accountId))}
             events={visibleEvents} now={now} selectedEventId={selectedEvent?.id} jump={calendarJump} onMonthChange={setCalendarMonth}
             onOpenMail={(mail, origin) => { calendarOrigin.current = origin; setEventId(null); setDetailOpen(false); onOpen(mail); }}
@@ -372,18 +374,29 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
             onSelectEvent={(event, origin) => { calendarOrigin.current = origin; setDetailOpen(false); setEventId(event.id); setCalendarStatus(""); if (readerOpened) onCloseReader?.(); }}
             onNewEvent={(day) => { setCalendarStatus(""); setEventEditor({ fields: blankEvent(Date.now(), day, accountFilter === "all" ? "" : accountFilter), id: crypto.randomUUID() }); }} /> : <>
             {!stale && dueFollowUps.length > 0 && <p className="work-follow-ups" role="status">{dueFollowUps.length} reminder{dueFollowUps.length === 1 ? "" : "s"} due</p>}
-            {(["needs-reply", "needs-work", "waiting"] as CommitmentStatus[]).map((status) => <section className="work-group" key={status}><h2>{statusNames[status]} <span>{sorted.filter((item) => item.status === status).length}</span></h2>{sorted.filter((item) => item.status === status).map(itemRow)}</section>)}
-            <details><summary>Completed and cancelled ({sorted.filter((item) => !openCommitment(item)).length})</summary>{sorted.filter((item) => !openCommitment(item)).map(itemRow)}</details>
+            {(workFilter === "completed" ? [{ label: "Completed and cancelled", items: sorted.filter((item) => !openCommitment(item)) }]
+              : workFilter === "waiting" ? [{ label: "Waiting for a reply", items: sorted.filter((item) => item.status === "waiting") }]
+              : [
+                { label: "Overdue", items: sorted.filter((item) => openCommitment(item) && item.status !== "waiting" && !!deadlineDate(item) && deadlineDate(item)! < localDate(new Date(now))) },
+                { label: "Due today", items: sorted.filter((item) => openCommitment(item) && item.status !== "waiting" && deadlineDate(item) === localDate(new Date(now))) },
+                { label: "Upcoming", items: sorted.filter((item) => openCommitment(item) && item.status !== "waiting" && !!deadlineDate(item) && deadlineDate(item)! > localDate(new Date(now))) },
+                { label: "No deadline", items: sorted.filter((item) => openCommitment(item) && item.status !== "waiting" && !deadlineDate(item)) },
+                { label: "Waiting for a reply", items: sorted.filter((item) => item.status === "waiting") },
+              ]).filter(({ items }) => items.length > 0).map(({ label, items }) => <section className="work-group" key={label}><h2>{label}<span>{items.length}</span></h2>{items.map(itemRow)}{!items.length && <p className="work-empty">No work in this group.</p>}</section>)}
+            {!sorted.some((item) => workFilter === "completed" ? !openCommitment(item) : workFilter === "waiting" ? item.status === "waiting" : openCommitment(item)) && <p className="work-empty">No work in this view.</p>}
+            {workFilter !== "completed" && <details><summary>Completed and cancelled ({sorted.filter((item) => !openCommitment(item)).length})</summary>{sorted.filter((item) => !openCommitment(item)).map(itemRow)}</details>}
           </>}
         </div>{mode === "actions" ? <aside className="today-reader" aria-label="Today reading pane">
+          {!detailOpen && !readerOpened && <div className="work-context"><span className="context-label">Your workspace</span><h2>Confirmed work</h2><p>Commitments and their source conversations, kept together.</p><dl><dt>Open</dt><dd>{openCount}</dd><dt>Waiting</dt><dd>{sorted.filter((item) => item.status === "waiting").length}</dd><dt>Projects</dt><dd>{projects.length}</dd></dl><p className="work-meta">Select a task to inspect its details and read its source email.</p></div>}
           {detail}
           {readerOpened ? reader || <p role="status">Opened source unavailable in cache. <button type="button" onClick={onCloseReader}>Back to work list</button></p> : selected && detailOpen ? <p role="status">{state.messages.some((mail) => mail.id === selected.sourceMailId && state.accounts.some((account) => account.id === mail.accountId)) ? "Open a source above to read its email." : "Source unavailable in cache. The commitment and its evidence history remain available."}</p> : <p className="work-reader-empty">Select work to read its email here.</p>}
         </aside> : mode === "calendar" ? calendarPane : detail}</div>
       </>}
       {mode === "projects" && <>
         {selectedProject ? <>
-          <div className={`work-layout today-layout project-layout${detailOpen || readerOpened ? " has-selection" : ""}${fullReading ? " full-reading" : ""}`}>
+          <div className={`work-layout today-layout project-layout${detailOpen || readerOpened ? " has-selection" : ""}${readerOpened ? " has-reader" : ""}${fullReading ? " full-reading" : ""}`}>
             <div className="work-main">
+              <header className="project-overview"><h2><Redact text={privacy ? `Project ${projects.indexOf(selectedProject) + 1}` : selectedProject.name} /></h2><p><Redact text={selectedProject.accountIds.map((id) => { const index = state.accounts.findIndex((account) => account.id === id); return index < 0 ? "Account unavailable" : accountLabel(state.accounts[index], index, privacy); }).join(" · ")} /></p></header>
               <section className="project-tasks"><h3>Tasks</h3>{sorted.filter((item) => item.projectId === selectedProject.id && openCommitment(item)).map(itemRow)}
                 {!commitments.some((item) => item.projectId === selectedProject.id && openCommitment(item)) && <p className="work-empty">No open tasks. Add one when an email needs action.</p>}
                 {commitments.some((item) => item.projectId === selectedProject.id && !openCommitment(item)) && <details><summary>Completed and cancelled</summary>{sorted.filter((item) => item.projectId === selectedProject.id && !openCommitment(item)).map(itemRow)}</details>}
@@ -400,7 +413,9 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
                   </button></MailPrivacy>;
                 })}
               </section>
-              <section className="project-decisions"><h3>Decisions</h3>
+
+            </div>
+            <aside className="today-reader" aria-label="Project reading pane"><div className="project-context" hidden={detailOpen || readerOpened}><span className="context-label">Project context</span><h2><Redact text={privacy ? `Project ${projects.indexOf(selectedProject) + 1}` : selectedProject.name} /></h2><dl><dt>Open tasks</dt><dd>{sorted.filter((item) => item.projectId === selectedProject.id && openCommitment(item)).length}</dd><dt>Source emails</dt><dd>{selectedProject.sourceMailIds.length}</dd></dl>              <section className="project-decisions"><h3>Decisions</h3>
                 {workspace.decisions.filter((item) => item.projectId === selectedProject.id).map((item) => <article className="work-item" key={item.id}><Redact text={item.text} /><details><summary>Supporting emails</summary>{item.sourceMailIds.map((id) => <Source key={id} id={id} state={state} onOpen={(mail, trigger) => { selectedRow.current = trigger; setSelectedId(null); setDetailOpen(false); missingSelection.current = false; onOpen(mail); }} />)}</details></article>)}
                 {!workspace.decisions.some((item) => item.projectId === selectedProject.id) && <p className="work-empty">Keep a note of what was agreed.</p>}
                 <details key={selectedProject.id}><summary>Add a decision</summary><form className="settings-form" onSubmit={async(event) => { event.preventDefault(); if(!decisionSources.length)return; if(await mutate(()=>api(`/projects/${encodeURIComponent(selectedProject.id)}/decisions`,"POST",{text:decision,sourceMailIds:decisionSources}))) {setDecision("");setDecisionSources([]);} }}>
@@ -408,9 +423,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
                   <SourceSelect state={{...state,messages:state.messages.filter((mail)=>selectedProject.sourceMailIds.includes(mail.id))}} accountFilter={accountFilter} selected={decisionSources} onChange={setDecisionSources} multiple />
                   <button className="button" disabled={pending || !decisionSources.length}>Save decision</button>
                 </form></details>
-              </section>
-            </div>
-            <aside className="today-reader" aria-label="Project reading pane">{detail}
+              </section></div>{detail}
               {readerOpened ? reader || <p role="status">Opened source unavailable in cache. <button type="button" onClick={onCloseReader}>Back to project</button></p> : selected && detailOpen ? <p role="status">Source unavailable in cache. Task details remain available.</p> : <p className="work-reader-empty">Select an email or task to read it here.</p>}
             </aside>
           </div>
@@ -461,7 +474,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
         </form>
         </details>
         </div>}
-        {mode === "agents" && <div className="agent-proposals">
+        {mode === "agents" && <div className="agent-review-layout"><div className="agent-proposals">
 
         {!workspace.proposals.some((proposal) => (proposal.status === "pending") === (agentTab === "review")) && <p className="agent-empty">{agentTab === "review" ? "Nothing waiting for review. Proposed changes will appear here." : "No completed actions yet."}</p>}
         {workspace.proposals.map((proposal)=><div hidden={(proposal.status === "pending") !== (agentTab === "review")} key={proposal.id}><Proposal permissionAvailable={!agentStale && grants.some((grant) => grant.id === proposal.agentId)} key={proposal.id+proposal.digest} proposal={proposal} state={state} pending={pending} onOpen={onOpen} onReview={async(approve)=>{
@@ -475,7 +488,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
             catch { onNotice("Saved to Drafts. Open it from Drafts to edit and send."); }
           }
         }} /></div>)}
-        </div>}
+        </div><aside className="agent-review-context"><span className="context-label">Review controls</span><h2>Proposed mail changes</h2><p>Review the account, target and exact action before approving a proposal.</p><dl><dt>Pending</dt><dd>{workspace.proposals.filter((item) => item.status === "pending").length}</dd><dt>Assistants</dt><dd>{grants.length}</dd></dl>{onManageAssistants && <button type="button" onClick={onManageAssistants}>Manage permissions</button>}<p className="work-meta">Separate grants may allow local project or commitment creation without review. Manage those permissions in Settings.</p></aside></div>}
       </>}
       {mode !== "agents" && mode !== "assistants" && <details className="coverage"><summary>Sent and thread coverage · cached evidence may be incomplete</summary><p>Cached conversations are evidence, not a complete mailbox. Fetches are explicit and bounded. Coverage timestamps can become stale.</p>{state.accounts.filter((account)=>accountFilter==="all"||account.id===accountFilter).map((account,index)=>{const coverage=workspace.coverage.find((item)=>item.accountId===account.id);return <div key={account.id}><p><Redact text={accountLabel(account,index,privacy)} />: {coverage?`${coverage.count} Sent messages · checked ${new Date(coverage.observedAt).toLocaleString()} · limit ${coverage.bound}${coverage.truncated?" · more messages omitted":""}${coverage.error?" · last attempt failed":""}`:"Sent has not been checked"}</p><button type="button" disabled={blocked} onClick={()=>void mutate(async()=>{await api(`/accounts/${encodeURIComponent(account.id)}/sent/sync`,"POST",{bound:50});await onMailChanged();})}>Fetch up to 50 Sent messages</button></div>;})}</details>}
     </fieldset>}

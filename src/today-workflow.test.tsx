@@ -168,11 +168,12 @@ test("tracking saves from one explicit status choice without editing a form or m
   } finally { await ui.close(); }
 });
 
-test("Today empty groups keep only their heading and zero count", async () => {
+test("Today empty work uses one empty state without repeated empty groups", async () => {
   const ui = await mount(); try {
     const groups = [...ui.container.querySelectorAll(".work-group")];
-    assert.deepEqual(groups.map((group) => group.textContent), ["Needs reply 0", "Needs work 0", "Waiting 0"]);
-    assert.ok(groups.every((group) => group.children.length === 1 && group.firstElementChild?.tagName === "H2"));
+    assert.equal(groups.length, 0);
+    assert.ok(ui.container.textContent?.includes("No work in this view."));
+    assert.equal(ui.container.querySelectorAll('.work-view-tabs [aria-pressed="true"]').length, 1);
     assert.equal(ui.requests.some((call) => call.method !== "GET" && call.url !== "/sync"), false);
   } finally { await ui.close(); }
 });
@@ -253,17 +254,22 @@ test("Projects shows email rows and open tasks, reads inline and restores focus 
     assert.match(rows[0].querySelector("small")?.textContent || "", /reader@example.test.*Received/);
     assert.ok(rows[0].querySelector("time[datetime]"));
     assert.equal(ui.container.querySelector(".project-mail-preview"), null);
-    assert.deepEqual([...ui.container.querySelectorAll(".project-layout > .work-main > section")].map((section) => section.className), ["project-tasks", "project-emails", "project-decisions"]);
+    assert.deepEqual([...ui.container.querySelectorAll(".project-layout > .work-main > section")].map((section) => section.className), ["project-tasks", "project-emails"]);
+    const decisions = ui.container.querySelector<HTMLElement>(".project-context .project-decisions")!;
+    assert.ok(decisions);
     assert.equal(ui.container.querySelectorAll(".project-tasks .work-select").length, 1);
-    assert.equal(ui.container.querySelector(".project-overview"), null);
+    assert.equal(ui.container.querySelector(".project-overview h2")?.textContent, "Website launch");
     assert.equal(ui.container.querySelector('.project-filters button[aria-pressed="true"]')?.textContent, "Website launch");
     assert.equal(ui.container.querySelector(".project-decisions details")?.hasAttribute("open"), false);
     await ui.click(rows[0]);
+    assert.ok(ui.container.querySelector(".project-context")?.hasAttribute("hidden"));
+    assert.ok(decisions.isConnected, "decision edits stay mounted while reading source mail");
     assert.equal(ui.container.querySelector("h1")?.textContent, "Projects");
     assert.ok(ui.container.querySelector(".today-mail .message"));
     await ui.click(ui.button("Show cached conversation")); await ui.click(ui.button("Sent · Private Reader sent-a"));
     assert.equal(ui.container.querySelector("h1")?.textContent, "Projects");
     await ui.click(ui.button("Close email")); assert.equal(document.activeElement, rows[0]);
+    assert.equal(ui.container.querySelector(".project-context")?.hasAttribute("hidden"), false);
     await ui.click(ui.container.querySelector<HTMLButtonElement>(".work-select")!);
     assert.ok(ui.container.querySelector(".work-summary")); assert.ok(ui.container.querySelector(".message"));
     await ui.click([...ui.container.querySelectorAll<HTMLButtonElement>(".project-filters button")][1]);

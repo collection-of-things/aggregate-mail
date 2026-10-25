@@ -68,9 +68,7 @@
 .icon:hover:not(:disabled), .tool:hover:not(:disabled) { background: var(--hover); }
 .list-pane, .settings-pane, .app-toolbar { border-left: 0; }
 .visually-hidden,
-.main-head:has(.inbox-tabs) > .pane-title,
-.work-pane .main-head > .pane-title,
-.drafts-pane > .main-head {
+.drafts-pane > .main-head > .visually-hidden-title {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   padding: 0; margin: -1px; border: 0; clip-path: inset(50%); white-space: nowrap;
 }
@@ -87,7 +85,7 @@
 .message-from { padding-bottom: 16px; border-bottom: 1px solid var(--line); }
 .mail-actions .tool { border-radius: 6px; }
 
-/* Saved drafts use the same quiet list surface as the reference layout. */
+/* Saved drafts share the mail list surface. */
 :root:not([data-glass]) .drafts-pane { background: var(--chrome); }
 .draft-list { flex: 1; padding: 0 12px 12px; }
 .draft-account-tabs { display: flex; flex-shrink: 0; align-items: stretch; gap: 24px; height: var(--subhead-height); padding: 0 24px; overflow-x: auto; border-bottom: 1px solid var(--line); }
@@ -151,7 +149,7 @@
 .compose-file-action:focus-within { outline: 1px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .compose-file-action[aria-disabled="true"] { opacity: .4; cursor: default; }
 .compose-toolbar .compose-attachment-limits { font-size: calc(10px * var(--text-scale, 1)); color: var(--text-4); }
-.app[data-view="drafts"] .dialog-backdrop:has(> .compose-dialog) { padding-top: calc(52px + var(--subhead-height)); }
+.app[data-view="drafts"] .dialog-backdrop:has(> .compose-dialog) { padding-top: 154px; }
 .compose-dialog > div:not(.dialog-title) { min-height: 0; }
 .compose-dialog > .compose-layout { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .compose-dialog .compose-reply-layout { display: flex; flex-direction: column; gap: 0; }
@@ -244,10 +242,194 @@
    composer clear, clipping the covered work without changing its layout. */
 :root[data-glass] :is(.settings-navigation, .calendar-weekday,
   .dialog.compose-dialog, .compose-dialog .compose-footer) { background: transparent; }
-:root[data-glass] .app:has(.compose-dialog) .app-main > :is(.workspace, .work-pane, .settings-pane, .search-help) {
+:root[data-glass] .app:has(.compose-dialog) .app-main > :is(.mail-view, .work-pane, .settings-pane, .search-help) {
   clip-path: inset(0 calc(100% - var(--list-width)) 0 0);
 }
 @media (max-width: 1000px) {
-  :root[data-glass] .app:has(.compose-dialog) .app-main > :is(.workspace, .work-pane, .settings-pane, .search-help) { visibility: hidden; }
+  :root[data-glass] .app:has(.compose-dialog) .app-main > :is(.mail-view, .work-pane, .settings-pane, .search-help) { visibility: hidden; }
   :root[data-glass] .app:has(.compose-dialog) .draft-list { visibility: hidden; }
 }
+
+/* Complete application layout: a shared view header, list, and context pane. */
+.app-toolbar { gap: 10px; }
+.app-context { font-size: calc(12px * var(--text-scale, 1)); }
+.app-search-toolbar { max-width: 300px; }
+.app-search-toolbar .search { height: 30px; border-radius: 7px; }
+.sidebar-group > button { min-height: 33px; font-size: calc(12px * var(--text-scale, 1)); }
+.sidebar-heading button { font-size: calc(10px * var(--text-scale, 1)); }
+.sidebar-footer { min-height: 47px; }
+.main-head { height: 60px; padding-inline: 25px; }
+.main-head .pane-title { font-size: calc(18px * var(--text-scale, 1)); letter-spacing: -.025em; }
+.main-head .head-tools { min-width: 0; }
+.view-summary { color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); margin-left: 6px; }
+.mail-view { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; }
+.mail-view-head { gap: 10px; }
+.mail-view-head .head-note { margin-left: auto; }
+.mail-category-bar { height: 42px; flex-shrink: 0; border-bottom: 1px solid var(--line); padding-inline: 25px; overflow-x: auto; }
+.mail-category-bar .inbox-tabs { height: 100%; gap: 22px; margin: 0; }
+.mail-category-bar .inbox-tabs button { min-width: max-content; flex: none; font-size: calc(11px * var(--text-scale, 1)); }
+.mail-category-bar .tab-name { display: inline; }
+.mail-category-bar .tab-icon { display: none; }
+:root:not([data-glass]) .mail-category-bar { background: var(--surface); }
+.reader-head { height: 43px; padding-inline: 20px; }
+.reader-head .mail-actions { gap: 10px; }
+.reader-scroll .message { padding: 29px 32px; }
+.message h1 { font-size: calc(22px * var(--text-scale, 1)); font-weight: 600; letter-spacing: -.03em; }
+.message-from { margin-bottom: 24px; padding-bottom: 22px; }
+.message-from .avatar { width: 32px; height: 32px; }
+.from-line strong { font-size: calc(12px * var(--text-scale, 1)); }
+.from-address, .from-to, .message-from time { font-size: calc(11px * var(--text-scale, 1)); }
+.message-body { font-size: calc(13px * var(--text-scale, 1)); line-height: 1.85; }
+.message-body p { margin-bottom: 18px; }
+.group { font-size: calc(10px * var(--text-scale, 1)); padding-inline: 18px; }
+:root:not([data-glass]) .split .list { background: var(--chrome); }
+.row.card { padding-inline: 18px; }
+.row.card > .avatar { display: none; }
+.row.card::after { left: 18px; }
+.row.card .row-line strong { font-size: calc(12px * var(--text-scale, 1)); font-weight: 550; }
+.row.card .row-subject { font-size: calc(12px * var(--text-scale, 1)); }
+.row.card .row-preview { font-size: calc(11px * var(--text-scale, 1)); }
+.row-account { display: block; color: var(--text-3); font-size: calc(10px * var(--text-scale, 1)); margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row.r1.card .row-account { margin-top: 2px; }
+.draft-account-tabs { height: 42px; gap: 23px; padding-inline: 25px; }
+.draft-account-tabs button { font-size: calc(11px * var(--text-scale, 1)); }
+.draft-list { padding: 0; }
+.app:has(.compose-dialog) .draft-list { width: var(--list-width); }
+.draft-list-heading { padding: 12px 18px; font-size: calc(10px * var(--text-scale, 1)); }
+.draft-list > ul { gap: 0; }
+.draft-row { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 17px 18px; }
+:root:not([data-glass]) .draft-row { background: var(--chrome); }
+.draft-row:hover:not(:disabled) { background: var(--hover); }
+.draft-row-account { grid-column: 1; grid-row: 3; margin-top: 8px; max-width: 100%; }
+.draft-row-content { grid-row: 1 / span 2; gap: 5px; }
+.draft-row-recipient { font-size: calc(12px * var(--text-scale, 1)); font-weight: 550; color: var(--text); }
+.draft-row-content > strong { font-size: calc(12px * var(--text-scale, 1)); font-weight: 400; }
+.draft-row-meta { font-size: calc(10px * var(--text-scale, 1)); }
+.compose-dialog .compose-form :is(input, select) { font-size: calc(12px * var(--text-scale, 1)); }
+.compose-dialog .compose-envelope label > span { font-size: calc(11px * var(--text-scale, 1)); }
+.compose-dialog .compose-toolbar { min-height: 44px; }
+.compose-dialog .compose-file-action { font-size: calc(10px * var(--text-scale, 1)); }
+.compose-dialog .compose-body { font-size: calc(13px * var(--text-scale, 1)); line-height: 1.85; }
+
+/* Work lists remain mounted when the existing source reader opens. */
+.work-view-tabs { display: flex; gap: 24px; height: 42px; flex-shrink: 0; align-items: stretch; padding: 0 26px; border-bottom: 1px solid var(--line); }
+.work-view-tabs button { position: relative; color: var(--text-2); font-size: calc(11px * var(--text-scale, 1)); }
+.work-view-tabs [aria-pressed="true"] { color: var(--accent); }
+.work-view-tabs [aria-pressed="true"]::after { content: ""; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; background: var(--accent); }
+.work-content.today-content { padding: 0; }
+.today-layout, .today-layout:not(.has-selection) { grid-template-columns: minmax(0, 1fr) 290px; }
+.today-layout:not(.has-selection) > .today-reader { display: block; }
+.today-layout.has-reader:not(.full-reading) { grid-template-columns: minmax(240px, 35%) minmax(0, 1fr); }
+.today-layout > .work-main { padding: 24px 26px; }
+.today-reader { padding: 24px 22px; }
+:root:not([data-glass]) :is(.today-reader, .agent-review-context) { background: var(--chrome); }
+.context-label { display: block; margin-bottom: 14px; color: var(--text-3); font-size: calc(10px * var(--text-scale, 1)); }
+.work-context h2, .project-context h2, .agent-review-context h2 { margin: 0 0 14px; font-size: calc(16px * var(--text-scale, 1)); font-weight: 550; letter-spacing: -.02em; }
+.work-context p, .agent-review-context p { font-size: calc(11px * var(--text-scale, 1)); line-height: 1.7; }
+:is(.work-context, .project-context, .agent-review-context) dl { display: grid; grid-template-columns: 1fr auto; margin: 18px 0; gap: 0; font-size: calc(11px * var(--text-scale, 1)); }
+:is(.work-context, .project-context, .agent-review-context) :is(dt, dd) { padding: 12px 0; border-bottom: 1px solid var(--line); margin: 0; }
+:is(.work-context, .project-context, .agent-review-context) dt { color: var(--text-3); }
+.work-group { margin-bottom: 26px; }
+.work-group h2 { padding: 0 0 13px; border-bottom: 0; font-size: calc(12px * var(--text-scale, 1)); }
+.work-group h2 span { margin-left: auto; color: var(--text-3); font-size: calc(10px * var(--text-scale, 1)); }
+.work-group .work-row, .project-tasks .work-row { padding: 12px 0; border-radius: 0; }
+.work-select { position: relative; padding-left: 28px; gap: 6px; }
+.work-select strong { font-weight: 500; font-size: calc(12px * var(--text-scale, 1)); }
+.work-select .work-meta { font-size: calc(11px * var(--text-scale, 1)); color: var(--text-3); }
+.work-row-marker { position: absolute; left: 0; top: 7px; width: 15px; height: 15px; border: 1px solid var(--line-2); border-radius: 4px; }
+.work-row.selected { border-radius: 7px; padding-inline: 10px; background: var(--selected); }
+.project-overview { padding-bottom: 25px; }
+.project-overview h2 { margin: 0 0 6px; font-size: calc(20px * var(--text-scale, 1)); font-weight: 550; letter-spacing: -.025em; }
+.project-overview p { color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
+.project-mail { padding: 16px 0; border-radius: 0; gap: 5px; }
+.project-mail-heading strong { font-size: calc(12px * var(--text-scale, 1)); }
+.project-mail-subject { font-size: calc(11px * var(--text-scale, 1)); }
+.project-context .project-decisions { border-top: 0; }
+.project-context .work-item { padding: 12px; margin-block: 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); font-size: calc(11px * var(--text-scale, 1)); }
+.work-reader-empty { font-size: calc(11px * var(--text-scale, 1)); color: var(--text-3); }
+.work-context + .work-reader-empty, .project-context:not([hidden]) ~ .work-reader-empty { display: none; }
+.work-summary-bar { flex-wrap: wrap; gap: 8px; }
+.work-summary-bar strong { white-space: normal; overflow: visible; flex-basis: calc(100% - 80px); font-size: calc(14px * var(--text-scale, 1)); }
+.work-task-details[open] dl { display: grid; grid-template-columns: 1fr auto; }
+.work-task-details[open] :is(dt, dd) { margin: 0; padding-block: 7px; }
+.agent-review-layout { display: grid; grid-template-columns: minmax(0, 1fr) 265px; min-height: 0; gap: 28px; }
+.agent-review-context { border-left: 1px solid var(--line); padding: 24px 20px; }
+.agent-proposal { padding: 18px; border-radius: 8px; background: transparent; }
+.agent-proposals > div:not([hidden]) { margin: 0 0 14px; }
+.agent-proposal h3 { font-size: calc(13px * var(--text-scale, 1)); font-weight: 500; }
+.agent-proposal pre { padding: 14px; line-height: 1.8; font-size: calc(12px * var(--text-scale, 1)); }
+
+/* Calendar day agenda occupies its own column beside the month. */
+section.work-calendar[data-layout="month"] { display: grid; grid-template-columns: minmax(0, 1fr) 220px; column-gap: 24px; align-items: start; }
+section.work-calendar > .calendar-toolbar { grid-column: 1 / -1; }
+section.work-calendar[data-layout="month"] > .calendar-grid { grid-column: 1; grid-row: 2 / span 3; margin-top: 10px; }
+section.work-calendar[data-layout="month"] > .calendar-day-title { grid-column: 2; grid-row: 2; margin: 10px 0 20px; font-size: calc(12px * var(--text-scale, 1)); }
+section.work-calendar[data-layout="month"] > :is(.calendar-agenda, .work-empty) { grid-column: 2; grid-row: 3; }
+section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2; grid-row: 4; }
+.calendar-grid button { min-height: 93px; padding: 9px 7px; font-size: calc(10px * var(--text-scale, 1)); }
+.calendar-weekday { text-align: left; padding-left: 9px; font-size: calc(10px * var(--text-scale, 1)); }
+.calendar-agenda button { border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); padding: 0 0 0 10px; margin: 0 0 20px; }
+.calendar-agenda li { border: 0; }
+.calendar-agenda .work-meta { color: var(--text-3); font-size: calc(10px * var(--text-scale, 1)); }
+.calendar-agenda strong { font-size: calc(11px * var(--text-scale, 1)); }
+.work-layout.has-selection section.work-calendar[data-layout="month"] { display: block; }
+.calendar-chip { border-radius: 2px; border-left: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+/* Every Settings section and dialog uses the same grouping and control rhythm. */
+.settings { grid-template-columns: 205px minmax(0, 1fr); }
+.settings-navigation { padding: 20px 12px; }
+.settings-rail-label { padding: 0 10px 12px; color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
+.settings-navigation button { min-height: 34px; padding: 7px 10px; font-size: calc(11px * var(--text-scale, 1)); line-height: 1.5; }
+.settings-column { max-width: 730px; padding: 30px 40px 48px; }
+.settings h1 { font-size: calc(23px * var(--text-scale, 1)); font-weight: 550; letter-spacing: -.03em; }
+.settings-section-heading p { color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); line-height: 1.7; }
+.settings-section-heading { margin-bottom: 30px; }
+.settings .settings-row { min-height: 63px; padding-block: 13px; }
+.settings-row > span:first-child { font-size: calc(12px * var(--text-scale, 1)); }
+.settings .settings-group { border-radius: 9px; }
+.settings-row .note, .settings-row small { font-size: calc(10px * var(--text-scale, 1)); }
+.segmented button { font-size: calc(11px * var(--text-scale, 1)); }
+.dialog:not(.compose-dialog) { padding: 24px; border-radius: 14px; }
+.dialog:not(.compose-dialog) .dialog-title h2 { font-size: calc(17px * var(--text-scale, 1)); font-weight: 550; letter-spacing: -.025em; }
+.dialog-copy, .dialog .note { font-size: calc(12px * var(--text-scale, 1)); line-height: 1.7; }
+.dialog .settings-form { gap: 16px; }
+.dialog .form-actions { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 6px; }
+
+@media (min-width: 980px) {
+  .today-layout { display: grid; }
+}
+@media (max-width: 1100px) {
+  .agent-review-layout { grid-template-columns: minmax(0, 1fr); }
+  .agent-review-context { border: 0; border-top: 1px solid var(--line); }
+  section.work-calendar[data-layout="month"] { grid-template-columns: minmax(0, 1fr) 185px; column-gap: 18px; }
+  .settings-column { padding: 26px; }
+  .today-layout, .today-layout:not(.has-selection) { grid-template-columns: minmax(0, 1fr) 240px; }
+}
+@media (max-width: 979px) {
+  .today-layout:not(.has-selection) { display: grid; }
+  .today-layout:not(.has-selection) > :is(.work-main, .today-reader) { height: auto; }
+  .main-head .work-intro { display: none; }
+  .main-head { padding-inline: 20px; }
+  .view-summary { font-size: calc(10px * var(--text-scale, 1)); }
+}
+@media (max-width: 760px) {
+  .mail-category-bar { padding-inline: 16px; }
+  .mail-category-bar .inbox-tabs { gap: 14px; }
+  .view-summary { display: none; }
+  .main-head { height: 52px; padding-inline: 16px; }
+  .today-layout:not(.has-selection) { display: block; overflow: auto; }
+  .today-layout:not(.has-selection) > .today-reader { border-top: 1px solid var(--line); }
+  section.work-calendar[data-layout="month"] { display: block; }
+  .reader-scroll .message { padding: 24px 20px; }
+  .settings-column { padding: 24px 20px 40px; }
+}
+@container (max-width: 680px) {
+  .settings { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; }
+  .settings-navigation { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settings-rail-label { grid-column: 1 / -1; }
+}
+.reader-secondary-tools { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 10px 18px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
+.reader-secondary-tools .message-labels { border: 0; padding: 0; margin: 0; gap: 12px; font-size: calc(11px * var(--text-scale, 1)); }
+.reader-secondary-tools > details { margin: 0; padding: 0; border: 0; }
+.reader-secondary-tools .offer-times { margin: 0; }
+.mail-category-bar .inbox-tabs .tab-label { display: inline; }

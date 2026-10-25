@@ -1691,9 +1691,9 @@ test('pane tools live in the persistent toolbar and section controls share the t
     const update = ui.container.querySelector<HTMLElement>(".app-update-control")!;
     assert.equal(update.closest(".frame"), null, "the update control stays usable while the frame is inert");
     const tabs = ui.container.querySelector(".inbox-tabs")!;
-    assert.ok(tabs.parentElement?.classList.contains("main-head"), "Inbox tabs sit inside the header");
-    assert.ok(tabs.previousElementSibling?.classList.contains("pane-title"), "tabs follow the title");
-    assert.equal(ui.container.querySelectorAll(".inbox-tabs").length, 1, "no separate tabs row");
+    assert.ok(tabs.parentElement?.classList.contains("mail-category-bar"), "categories span the working area");
+    assert.ok(tabs.parentElement?.previousElementSibling?.classList.contains("mail-view-head"), "categories follow the shared view header");
+    assert.equal(ui.container.querySelectorAll(".inbox-tabs").length, 1, "one category strip");
     await ui.open("a:1");
     assert.ok(ui.container.querySelector(".reader-head"), "split layout shows the reader pane");
     for (const label of ["Filters", "Hide personal information"])
@@ -1705,7 +1705,7 @@ test('pane tools live in the persistent toolbar and section controls share the t
     await ui.click(ui.button("Sent"));
     const note = ui.container.querySelector(".head-note")!;
     assert.ok(note.parentElement?.classList.contains("main-head"), "the cached note sits inside the header");
-    assert.ok(note.previousElementSibling?.classList.contains("pane-title"));
+    assert.ok(note.parentElement?.querySelector(".pane-title"), "cached-mail context shares the view title");
     assert.equal(ui.container.querySelector(".list-pane > .search-help"), null, "no separate note row");
     await ui.click(ui.button("Settings"));
     assert.ok(ui.button("Hide personal information").closest(".app-toolbar"), "privacy stays in the toolbar on Settings");
