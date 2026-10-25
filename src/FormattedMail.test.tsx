@@ -24,7 +24,7 @@ test("formatted renderer keeps headings, nested formatting, tables and validated
   assert.equal(document.querySelectorAll("br").length, 1);
   const td = document.querySelector("td")!;
   assert.equal(td.colSpan, 2);
-  assert.equal(td.style.fontSize, "24px");
+  assert.equal(td.style.fontSize, "calc(24px * var(--text-scale, 1))");
   assert.equal(td.style.textAlign, "center");
   assert.equal(td.style.color, "");
   const table = document.querySelector("table")!;
@@ -32,7 +32,26 @@ test("formatted renderer keeps headings, nested formatting, tables and validated
   assert.equal(table.cellPadding, "4");
   assert.equal(table.style.backgroundColor, "transparent");
   assert.equal(document.querySelector("td span")?.textContent, "Legacy");
+  assert.equal((document.querySelector("td span") as HTMLElement).style.fontSize, "calc(18px * var(--text-scale, 1))");
   assert.equal((document.querySelector(".formatted-mail") as HTMLElement).style.overflow, "auto");
+});
+
+test("tiny newsletter preheader typography and box height do not overlap the body", () => {
+  for (const [fontSize, lineHeight] of [["1px", "1px"], ["1px", "0"], ["0", "1px"], ["0", "0"]]) {
+    const document = documentOf(render(`<div style="font-size:${fontSize};line-height:${lineHeight};height:1px;max-height:1px">Preview text</div><div>Body</div>`));
+    const [preheader, body] = document.querySelectorAll<HTMLElement>(".formatted-mail > div");
+    assert.equal(preheader.textContent, "Preview text");
+    assert.equal(body.textContent, "Body");
+    for (const property of ["fontSize", "lineHeight", "height", "maxHeight"] as const)
+      assert.equal(preheader.style[property], "", `${fontSize}/${lineHeight}: ${property}`);
+  }
+});
+
+test("newsletter image loading does not add prose inside a narrow icon cell", () => {
+  const document = documentOf(render('<table><tr><td width="24"><img src="https://example.com/icon.png" width="24" height="24" alt="Company icon"></td><td>Newsletter body</td></tr></table>', false, true));
+  assert.equal(document.querySelector("img")?.getAttribute("alt"), "Company icon");
+  assert.equal(document.querySelector(".formatted-mail-image-status"), null);
+  assert.equal(document.querySelector("td:last-child")?.textContent, "Newsletter body");
 });
 
 test("sender active tags, handlers, global styles, font resources and positioning never reach DOM", () => {
@@ -103,8 +122,7 @@ test("inline images require consent and suppress private sources and metadata in
     '<img src="https://images.example.com/?name=Morgan%20Example" alt="Morgan Example">';
   const hidden = render(html + privateImages, true, true);
   assert.equal(documentOf(hidden).querySelectorAll("img").length, 1);
-  assert.equal((hidden.match(/Image unavailable while personal information is hidden/g) || []).length, 3);
-  assert.ok(hidden.includes("Image unavailable while personal information is hidden"));
+  assert.equal(documentOf(hidden).querySelectorAll('[aria-label="Image unavailable while personal information is hidden."]').length, 3);
   for (const token of ["reader", "Morgan", "%2540", "Example"]) assert.ok(!hidden.includes(token), token);
   assert.equal(documentOf(render(privateImages, false, true)).querySelectorAll("img").length, 3);
   const document = documentOf(render(html, false, true));
@@ -206,7 +224,7 @@ test("mounted inline images report load/error and leave DOM when consent is revo
   actGlobal.IS_REACT_ACT_ENVIRONMENT = true;
   const container = dom.window.document.getElementById("root")!;
   const root = createRoot(container);
-  const html = '<p>Text</p><img src="https://images.example.com/photo.png" alt="Photo">';
+  const html = '<p>Text</p><img src="https://images.example.com/photo.png" alt="Photo" style="width:120px;height:800px;max-height:24px">';
   const update = async (showImages: boolean, privacy = false) => {
     await act(async () => root.render(<FormattedMail html={html} showImages={showImages} privacy={privacy}
       renderText={(text) => privacy ? redact(text) : text} redactText={(text) => privacy ? redact(text) : text} />));
@@ -215,12 +233,16 @@ test("mounted inline images report load/error and leave DOM when consent is revo
     await update(false);
     assert.equal(container.querySelector("img"), null);
     await update(true);
-    assert.ok(container.textContent?.includes("Loading image"));
+    assert.equal(container.querySelector("img")?.style.maxHeight, "24px");
     await act(async () => container.querySelector("img")!.dispatchEvent(new dom.window.Event("load")));
-    assert.ok(!container.textContent?.includes("Loading image"));
+    assert.ok(container.querySelector("img"));
     await act(async () => container.querySelector("img")!.dispatchEvent(new dom.window.Event("error")));
     assert.equal(container.querySelector("img"), null);
-    assert.ok(container.textContent?.includes("Image could not be loaded"));
+    const failed = container.querySelector<HTMLElement>('[aria-label="Image could not be loaded."]');
+    assert.equal(failed?.getAttribute("role"), "img");
+    assert.equal(failed?.style.width, "120px");
+    assert.equal(failed?.style.height, "800px");
+    assert.equal(failed?.style.maxHeight, "24px");
     await update(false);
     await update(true);
     assert.ok(container.querySelector("img"));
@@ -255,11 +277,12 @@ test("loaded images sit in the sender's line instead of an inline-block box", ()
 });
 
 test("images sized only by height keep that height instead of their natural size", () => {
-  const document = documentOf(render('<img src="https://images.example.com/icon.png" height="25" style="height:25px"><img src="https://images.example.com/logo.png" width="120" height="40">', false, true));
+  const document = documentOf(render('<img src="https://images.example.com/icon.png" height="25" style="height:25px"><img src="https://images.example.com/logo.png" width="120" height="40" style="max-height:2px">', false, true));
   const [icon, logo] = document.querySelectorAll("img");
   assert.equal(icon.style.height, "25px");
   assert.equal(logo.style.width, "120px");
   assert.equal(logo.style.height, "auto"); // Width wins so a narrowed image keeps its shape.
+  assert.equal(logo.style.maxHeight, "2px");
 });
 
 test("blocked images keep their size as an empty box and carry the reason as a label", () => {
@@ -269,6 +292,23 @@ test("blocked images keep their size as an empty box and carry the reason as a l
   assert.equal(box.style.height, "24px");
   assert.equal(box.textContent, "");
   assert.equal(box.getAttribute("aria-label"), "Image blocked. Use Show images to load it.");
+});
+
+test("image max-height caps survive blocked, unsupported and private placeholders", () => {
+  const image = (src: string) => `<img src="${src}" width="120" height="800" style="max-height:24px">`;
+  const cases = [
+    [render(image("https://images.example.com/photo.png")), "Image blocked. Use Show images to load it."],
+    [render(`<p>Context</p>${image("http://images.example.com/photo.png")}`, false, true), "Unsupported image."],
+    [render(image("https://images.example.com/?name=Morgan%20Example"), true, true), "Image unavailable while personal information is hidden."],
+  ] as const;
+  for (const [markup, reason] of cases) {
+    const box = documentOf(markup).querySelector<HTMLElement>(".formatted-mail-image-placeholder");
+    assert.ok(box, reason);
+    assert.equal(box.style.width, "120px");
+    assert.equal(box.style.height, "800px");
+    assert.equal(box.style.maxHeight, "24px");
+    assert.equal(box.getAttribute("aria-label"), reason);
+  }
 });
 
 test("legacy alignment centers tables, center wraps blocks and quotes take the app inset", () => {
@@ -282,5 +322,23 @@ test("legacy alignment centers tables, center wraps blocks and quotes take the a
   assert.equal(quote.style.margin, "");
   assert.equal(quote.style.borderLeft, "");
   assert.equal(quote.style.paddingLeft, "");
-  assert.equal(quote.style.fontSize, "13px", "other sender styles stay");
+  assert.equal(quote.style.fontSize, "calc(13px * var(--text-scale, 1))", "sender sizes follow the app text size");
+});
+
+test("social icon rows keep their sender layout: table cells, inline-block wrappers and floated tables", () => {
+  const icon = (name: string) => `<a href="https://example.com/${name}"><img src="https://images.example.com/${name}.png" width="24" height="24" alt="${name}"></a>`;
+  // Five cells inside one row stay beside each other.
+  const cells = ["Facebook", "X", "LinkedIn", "WhatsApp", "Messenger"].map((name) => `<td>${icon(name)}</td>`).join("");
+  const cellRow = documentOf(render(`<table><tbody><tr>${cells}</tr></tbody></table>`));
+  assert.equal(cellRow.querySelectorAll("tr").length, 1);
+  assert.equal(cellRow.querySelector("tr")?.querySelectorAll("td").length, 5);
+  // Inline-block wrappers place consecutive icons on the same line.
+  const wrapped = documentOf(render(`<p>${["a", "b"].map((name) => `<div style="display:inline-block">${icon(name)}</div>`).join("")}</p>`));
+  assert.deepEqual([...wrapped.querySelectorAll<HTMLElement>(".formatted-mail div")].map((node) => node.style.display), ["inline-block", "inline-block"]);
+  // Newsletter footers float a small table per icon with align="left". Without
+  // the float each table is block-level and every icon lands on its own line.
+  const floated = documentOf(render(`${["a", "b", "c", "d", "e"].map((name) => `<table align="left"><tr><td>${icon(name)}</td></tr></table>`).join("")}`));
+  const tables = floated.querySelectorAll<HTMLElement>(".formatted-mail > table");
+  assert.equal(tables.length, 5);
+  assert.deepEqual([...tables].map((node) => node.style.float), ["left", "left", "left", "left", "left"]);
 });

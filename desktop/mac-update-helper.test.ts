@@ -8,7 +8,7 @@ import { replaceAndLaunch, validateReplacement, waitForParentExit } from "./mac-
 import { bundleDigest, type MacSourceCandidate, type Run } from "./mac-source-update.js";
 
 type Launch = NonNullable<Parameters<typeof replaceAndLaunch>[3]>;
-const candidate: MacSourceCandidate = { kind: "mac-source", version: "0.1.12", tag: "v0.1.12", commit: "a".repeat(40), arch: "x64" };
+const candidate: MacSourceCandidate = { kind: "mac-source", repository: "collection-of-things/aggregate-mail", version: "0.1.12", tag: "v0.1.12", commit: "a".repeat(40), arch: "x64" };
 const run: Run = async (cmd, args) => {
   if (cmd.endsWith("codesign")) return "";
   if (cmd.endsWith("lipo")) return "x86_64";

@@ -52,6 +52,18 @@ test("release preflight rejects foreign URLs, CI filenames, missing metadata and
   ]) assert.throws(() => releaseAssets(invalid, target));
 });
 
+test("releases from the transferred repository qualify, but one release cannot mix owners", () => {
+  const moved = (asset: { browser_download_url: string }) => ({ ...asset, browser_download_url: asset.browser_download_url.replace("/screen-devs/", "/collection-of-things/") });
+  const other = (asset: { browser_download_url: string }) => ({ ...asset, browser_download_url: asset.browser_download_url.replace("/screen-devs/", "/someone-else/") });
+  const transferred = { ...release(), assets: release().assets.map(moved) };
+  assert.equal(releaseAssets(transferred, target)!.asset.browser_download_url,
+    "https://github.com/collection-of-things/aggregate-mail/releases/download/v0.1.7/" + name);
+  assert.ok(validateCandidate(releaseAssets(transferred, target)!, manifest()));
+  assert.throws(() => releaseAssets({ ...release(), assets: [moved(asset(name)), asset("latest.yml", 300)] }, target));
+  assert.throws(() => releaseAssets({ ...release(), assets: [asset(name), moved(asset("latest.yml", 300))] }, target));
+  assert.throws(() => releaseAssets({ ...release(), assets: release().assets.map(other) }, target));
+});
+
 test("release filenames survive GitHub upload and match builder architecture names", () => {
   for (const [platform, filename, manifestName] of [
     ["win32", "Emc2-0.1.7-win-x64.exe", "latest.yml"],
@@ -596,6 +608,8 @@ function fixture(overrides: Partial<ConstructorParameters<typeof Updates>[0]> = 
   const updates = new Updates({ target, publish: (state) => states.push(state),
     read: async (url) => {
       calls.push("read");
+      // The new repository has no release yet, so the check falls back to the original one.
+      if (url === "https://api.github.com/repos/collection-of-things/aggregate-mail/releases/latest") throw new Error("Not Found");
       assert.ok(url === "https://api.github.com/repos/screen-devs/aggregate-mail/releases/latest" || url === root + "latest.yml");
       return url.includes("api.github.com") ? JSON.stringify(release()) : manifest();
     },
@@ -610,6 +624,93 @@ function fixture(overrides: Partial<ConstructorParameters<typeof Updates>[0]> = 
     setVerify: (fn: typeof verify) => { verify = fn; }, setAccept: (value: boolean) => { acceptClose = value; } };
 }
 type UpdaterCancellation = NonNullable<Awaited<ReturnType<NonNullable<ConstructorParameters<typeof Updates>[0]["cancellation"]>>>>;
+
+test("checks prefer the collection-of-things repository and fall back to the original one", async () => {
+  const newApi = "https://api.github.com/repos/collection-of-things/aggregate-mail/releases/latest";
+  const oldApi = "https://api.github.com/repos/screen-devs/aggregate-mail/releases/latest";
+  const moved = { ...release(), assets: release().assets.map((item) => ({ ...item, browser_download_url: item.browser_download_url.replace("/screen-devs/", "/collection-of-things/") })) };
+  const urls: string[] = [];
+  const fromNew = fixture({ read: async (url: string) => { urls.push(url); return url.includes("api.github.com") ? JSON.stringify(moved) : manifest(); } });
+  assert.equal((await fromNew.updates.command("check")).phase, "available");
+  assert.deepEqual(urls, [newApi, "https://github.com/collection-of-things/aggregate-mail/releases/download/v0.1.7/latest.yml"]);
+  urls.length = 0;
+  // A release in the new repository that links to the old one is not used; the original repository still serves it.
+  const crossLinked = fixture({ read: async (url: string) => { urls.push(url); return url.includes("api.github.com") ? JSON.stringify(release()) : manifest(); } });
+  assert.equal((await crossLinked.updates.command("check")).phase, "available");
+  assert.deepEqual(urls, [newApi, oldApi, root + "latest.yml"]);
+  const offline = fixture({ read: async () => { throw new Error("offline"); } });
+  assert.equal((await offline.updates.command("check")).phase, "error");
+});
+
+for (const [failure, raw] of [
+  ["read failure", null],
+  ["malformed manifest", "invalid: ["],
+  ["version mismatch", manifest({ version: "0.1.8" })],
+  ["foreign source", manifest({ files: [{ url: root + name, size: bytes.length, sha512: digest }] })],
+  ["size mismatch", manifest({ files: [{ url: name, size: bytes.length + 1, sha512: digest }] })],
+  ["invalid SHA512", manifest({ files: [{ url: name, size: bytes.length, sha512: "invalid" }] })],
+] as const) {
+  test(`preferred manifest ${failure} falls back to a fully validated original-source candidate`, async () => {
+    const newApi = "https://api.github.com/repos/collection-of-things/aggregate-mail/releases/latest";
+    const oldApi = "https://api.github.com/repos/screen-devs/aggregate-mail/releases/latest";
+    const newManifest = root.replace("/screen-devs/", "/collection-of-things/") + "latest.yml";
+    const moved = { ...release(), assets: release().assets.map((item) => ({ ...item,
+      browser_download_url: item.browser_download_url.replace("/screen-devs/", "/collection-of-things/") })) };
+    const urls: string[] = [], selected: ReturnType<typeof candidate>[] = [];
+    const f = fixture({
+      read: async (url) => {
+        urls.push(url);
+        if (url === newApi) return JSON.stringify(moved);
+        if (url === newManifest) {
+          if (raw === null) throw new Error("Synthetic manifest read failure");
+          return raw;
+        }
+        if (url === oldApi) return JSON.stringify(release());
+        assert.equal(url, root + "latest.yml");
+        return manifest();
+      },
+      create: async (value) => { selected.push(value); return f.driver; },
+    });
+    assert.deepEqual(await f.updates.command("check"), { phase: "available", version: "0.1.7" });
+    assert.deepEqual(urls, [newApi, newManifest, oldApi, root + "latest.yml"]);
+    assert.deepEqual(selected, [candidate()]);
+    assert.deepEqual(f.states, [{ phase: "checking" }, { phase: "available", version: "0.1.7" }]);
+    assert.deepEqual(f.calls, []);
+  });
+}
+
+for (const [failure, raw, phase, reason] of [
+  ["read failure", null, "error", "network"],
+  ["malformed manifest", "invalid: [", "unavailable", "metadata"],
+  ["invalid manifest", manifest({ version: "0.1.8" }), "unavailable", "candidate"],
+] as const) {
+  test(`both sources' manifest ${failure} preserves the final failure state without creating an updater`, async () => {
+    const urls: string[] = [];
+    let created = 0;
+    const f = fixture({
+      read: async (url) => {
+        urls.push(url);
+        if (url.includes("api.github.com")) return JSON.stringify({ ...release(), assets: release().assets.map((item) => ({
+          ...item, browser_download_url: url.includes("/collection-of-things/")
+            ? item.browser_download_url.replace("/screen-devs/", "/collection-of-things/") : item.browser_download_url,
+        })) });
+        if (raw === null) throw new Error("Synthetic manifest read failure");
+        return raw;
+      },
+      create: async () => { created++; return f.driver; },
+    });
+    const state = { phase, version: undefined, reason };
+    assert.deepEqual(await f.updates.command("check"), state);
+    assert.deepEqual(urls, [
+      "https://api.github.com/repos/collection-of-things/aggregate-mail/releases/latest",
+      root.replace("/screen-devs/", "/collection-of-things/") + "latest.yml",
+      "https://api.github.com/repos/screen-devs/aggregate-mail/releases/latest", root + "latest.yml",
+    ]);
+    assert.deepEqual(f.states, [{ phase: "checking" }, state]);
+    assert.equal(created, 0);
+    assert.deepEqual(f.calls, []);
+  });
+}
 
 test("synthetic flow protects duplicate actions and reports progress, then drains and rehashes after accepted close", async () => {
   const f = fixture();
@@ -696,7 +797,7 @@ test("macOS source builds finish before mail drain and use the same cancellation
   for (const mode of ["success", "cancel", "build-failure", "verify-failure", "helper-failure", "stop"] as const) {
     const calls: string[] = [];
     const version = "0.1.7";
-    const candidate = { kind: "mac-source" as const, version, tag: `v${version}`, commit: "a".repeat(40), arch: "x64" as const };
+    const candidate = { kind: "mac-source" as const, repository: "collection-of-things/aggregate-mail" as const, version, tag: `v${version}`, commit: "a".repeat(40), arch: "x64" as const };
     const source = { candidate,
       build: async () => { calls.push("build"); if (mode === "build-failure") throw Error("synthetic build failure"); },
       verify: async () => { calls.push("verify"); if (mode === "verify-failure") throw Error("tamper"); },
@@ -753,6 +854,29 @@ test("ordinary disposal after Keep editing stops and disposes the ready source w
   assert.ok(f.calls.includes("resume"));
   await f.updates.command("install");
   assert.deepEqual(calls, ["stop", "dispose"]);
+});
+
+test("macOS source fallback pins and builds only the repository that supplied the release", async () => {
+  for (const fallback of [false, true]) {
+    const urls: string[] = [];
+    const repository = fallback ? "screen-devs/aggregate-mail" : "collection-of-things/aggregate-mail";
+    let selected: import("./mac-source-update.js").MacSourceCandidate | undefined;
+    const f = fixture({ target: { ...target, platform: "darwin" },
+      mac: { installed: "/synthetic/Emc².app", helper: "/synthetic/helper.cjs", home: "/synthetic/home", quit() {} },
+      read: async url => {
+        urls.push(url);
+        if (fallback && url.includes("collection-of-things")) throw Error("preferred source unavailable");
+        if (url.endsWith("/releases/latest")) return JSON.stringify(release());
+        assert.equal(url, `https://api.github.com/repos/${repository}/git/ref/tags/v0.1.7`);
+        return JSON.stringify({ ref: "refs/tags/v0.1.7", object: { type: "commit", sha: "a".repeat(40) } });
+      },
+      source: candidate => { selected = candidate; return { candidate } as import("./mac-source-update.js").MacSourceUpdate; },
+    });
+    assert.equal((await f.updates.command("check")).phase, "available");
+    assert.equal(selected?.repository, repository);
+    assert.equal(urls.some(url => url.endsWith(".yml")), false, "source builds never use binary manifests");
+    if (!fallback) assert.equal(urls.some(url => url.includes("screen-devs")), false);
+  }
 });
 
 test("macOS pinning distinguishes failed API reads from malformed source metadata", async () => {

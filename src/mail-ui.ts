@@ -1,5 +1,5 @@
 import type { MailLocation } from "./navigation";
-import { providerNames, type Account, type GmailLabel, type Mail } from "../shared/types";
+import { providerNames, type Account, type GmailLabel, type RendererMail as Mail } from "../shared/types";
 import { inboxTab, type InboxTab } from "../shared/inbox-tabs";
 import { redactPrivateText } from "./privacy";
 import { compileMailSearch } from "./mail-search";
@@ -9,10 +9,11 @@ export function accountLabel(account: Account, index: number, privacy: boolean) 
   return privacy ? `Account ${index + 1} · ${providerNames[account.provider]}` : account.email;
 }
 
-export function densityShortcut(event: Pick<KeyboardEvent, "key" | "code" | "ctrlKey" | "altKey" | "metaKey">) {
-  if (!event.ctrlKey || event.altKey || event.metaKey) return null;
-  if (["+", "=", "Add"].includes(event.key) || event.code === "NumpadAdd") return "comfortable";
-  if (["-", "Subtract"].includes(event.key) || event.code === "NumpadSubtract") return "compact";
+export function textSizeShortcut(event: Pick<KeyboardEvent, "key" | "code" | "ctrlKey" | "altKey" | "metaKey">) {
+  if (event.ctrlKey === event.metaKey || event.altKey) return null;
+  if (["+", "=", "Add"].includes(event.key) || event.code === "NumpadAdd") return 1;
+  if (["-", "Subtract"].includes(event.key) || event.code === "NumpadSubtract") return -1;
+  if (event.key === "0") return 0;
   return null;
 }
 
@@ -24,7 +25,7 @@ export function customLabels(mail: Mail, labels: GmailLabel[]) {
   return labels.filter((label) => label.accountId === mail.accountId && label.type === "user");
 }
 
-export function selectedMail(messages: Mail[], filtered: Mail[], id: string | null, opened: boolean) {
+export function selectedMail<T extends Mail>(messages: T[], filtered: T[], id: string | null, opened: boolean) {
   return opened && id ? messages.find((mail) => mail.id === id)
     : filtered.find((mail) => mail.id === id) || filtered[0];
 }
@@ -41,11 +42,13 @@ export async function markMailRead(mail: Mail, pending: Set<string>, update: () 
 }
 
 // Search spans every Inbox tab; otherwise Inbox shows the chosen tab only.
-export function filterMail(messages: Mail[], location: Pick<MailLocation,
+export function filterMail<T extends Mail>(messages: T[], location: Pick<MailLocation,
   "view" | "tab" | "accountFilter" | "query" | "readFilter" | "relevanceFilter" | "sort">,
-  label?: GmailLabel, now = Date.now(), readerId?: string, tabOf: (mail: Mail) => InboxTab = (mail) => inboxTab(mail),
-  matchesSearch = compileMailSearch(location.query).matches) {
+  label?: GmailLabel, now = Date.now(), readerId?: string, tabOf: (mail: Mail) => InboxTab = (mail) => "inboxTab" in mail ? mail.inboxTab : inboxTab(mail),
+  matchesSearch?: (mail: Mail) => boolean) {
   const query = location.query.trim();
+  const compiled = matchesSearch ? undefined : compileMailSearch(location.query);
+  const matches = matchesSearch ?? ((mail: Mail) => !query || "body" in mail && compiled!.matches(mail));
   return messages.filter((mail) => {
     // The open reader stays an ordering anchor after read-on-open removes it from the list.
     if (mail.id === readerId) return true;
@@ -54,9 +57,13 @@ export function filterMail(messages: Mail[], location: Pick<MailLocation,
     if (location.readFilter === "unread" && !mail.unread) return false;
     if (location.relevanceFilter !== "all" && mail.relevance !== Number(location.relevanceFilter)) return false;
     const snoozed = mail.snoozedUntil !== null && mail.snoozedUntil > now;
-    if (location.view === "archive" ? !mail.archived : location.view === "snoozed"
-      ? mail.archived || !snoozed : mail.archived || snoozed || (!query && tabOf(mail) !== location.tab)) return false;
-    return matchesSearch(mail);
+    if (location.view === "sent") { if (mail.direction !== "sent") return false; }
+    else if (location.view !== "all") {
+      if (mail.direction === "sent") return false;
+      if (location.view === "archive" ? !mail.archived : location.view === "snoozed"
+        ? mail.archived || !snoozed : mail.archived || snoozed || (!query && tabOf(mail) !== location.tab)) return false;
+    }
+    return matches(mail);
   }).sort((a, b) => {
     const relevance = location.sort === "relevance" ? b.relevance - a.relevance : 0;
     const date = location.sort === "oldest" ? a.date - b.date : b.date - a.date;
@@ -65,9 +72,9 @@ export function filterMail(messages: Mail[], location: Pick<MailLocation,
 }
 
 // The email the list or reader shows: the opened one, or the selection within the list.
-export function selectMail(
-  messages: Mail[],
-  filtered: Mail[],
+export function selectMail<T extends Mail>(
+  messages: T[],
+  filtered: T[],
   selectedId: string | null,
   opened: boolean,
 ) {

@@ -46,6 +46,10 @@ export function Check(props: IconProps) {
   return <Outline {...props}><path d="m5 12 4 4L19 6" /></Outline>;
 }
 
+export function More(props: IconProps) {
+  return <Outline {...props}><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" /></Outline>;
+}
+
 export function Close(props: IconProps) {
   return <Outline {...props}><path d="m6 6 12 12M6 18 18 6" /></Outline>;
 }
@@ -122,10 +126,6 @@ export function Reply(props: IconProps) {
   return <Outline {...props}><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></Outline>;
 }
 
-export function PanelRight(props: IconProps) {
-  return <Outline {...props}><rect x="3" y="4" width="18" height="16" rx="3" /><path d="M15 4v16" /></Outline>;
-}
-
 export function Plus(props: IconProps) {
   return <Outline {...props}><path d="M12 5v14M5 12h14" /></Outline>;
 }
@@ -180,4 +180,12 @@ export function Gmail(props: IconProps) {
       <path fill="#c5221f" d="M1 4.5v6L6 9V4L4.2 2.9A2 2 0 0 0 1 4.5Z" />
     </svg>
   );
+}
+
+export function Calendar(props: IconProps) {
+  return <Outline {...props}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18" /></Outline>;
+}
+
+export function CalendarPlus(props: IconProps) {
+  return <Outline {...props}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18M12 14v4M10 16h4" /></Outline>;
 }

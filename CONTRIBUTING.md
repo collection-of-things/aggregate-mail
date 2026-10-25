@@ -37,7 +37,7 @@ Use the templates in `.github/ISSUE_TEMPLATE/` and apply one type label:
 
 ## Set up
 
-Node 24+ (CI uses 24) and npm. From the repository root:
+Node 24.22.1 or a newer 24.x (see `.nvmrc`) and npm. From the repository root:
 
 ```sh
 npm ci
@@ -55,7 +55,7 @@ npm run dev      # Electron with React/CSS hot reload; restart after desktop or 
   `chore` or `test`.
 - Imperative commit subjects; `feat:`, `fix:` or `test:` prefixes are common.
 - Never start a subject with `Release `; it is reserved for manual version
-  commits and skips the auto-release.
+  commits.
 - Check author/committer metadata for private details before pushing.
 
 ## Verify
@@ -69,35 +69,95 @@ npm run dev      # Electron with React/CSS hot reload; restart after desktop or 
 | Documentation only | Relative links, command names, factual claims, `git diff --check` |
 
 - Tests use `tsx --test` over `server/`, `desktop/`, `src/` and `scripts/` test files.
+  `npm test` runs files serially so mounted UI checks do not compete for CPU;
+  individual test and CI step deadlines still apply.
   Run one file with `node --import tsx --test <file>`.
 - There is no `scripts/documentation.py`; do not invent doc commands.
 - Report live sign-in, mailbox changes, sending, interactive UI and
   downloaded-app acceptance separately from automated results.
 - Follow the live-browser-testing restriction in PRODUCT.md.
 
+### Bounded local verification
+
+On shared Linux hosts, the following wrapper is required for tests and builds.
+Set `FLEET_BIN` to the verified Fleet executable supplied by the host owner.
+Do not silently install a runner or run without containment when it is missing.
+
+```sh
+test -x "$FLEET_BIN" || exit 125
+"$FLEET_BIN" verification bounded --memory-mib 2048 --timeout 120 -- \
+  env NODE_OPTIONS=--max-old-space-size=1024 \
+  node --import tsx --test src/snooze.test.tsx
+"$FLEET_BIN" verification bounded --memory-mib 3072 --timeout 180 -- \
+  env NODE_OPTIONS=--max-old-space-size=2048 npm run build
+```
+
+Replace the test path with the affected file or add `--test-name-pattern`
+before it. Run files serially. For a required full-suite check, use a bounded
+serial run after checking existing evidence:
+
+```sh
+"$FLEET_BIN" verification bounded --memory-mib 2048 --timeout 900 -- \
+  env NODE_OPTIONS=--max-old-space-size=1024 \
+  node --import tsx --test --test-concurrency=1 --test-timeout=120000 \
+  server/*.test.ts desktop/*.test.ts src/*.test.tsx scripts/*.test.mjs
+```
+
+The wrapper sets the cgroup memory limit, disables swap, applies an external
+deadline and cleans up descendants. Exit 125 means containment or cleanup
+failed. Stop and report it. After a failed test, preserve its first log,
+diagnose the first failure and run only the affected check after one bounded
+fix. Never rerun a runaway mounted test unchanged. A new session or worktree
+does not invalidate matching evidence.
+
+Record command, exit status, source/input hashes and log path. Native checks
+also need OS, architecture, artifact digest, deadline and process cleanup.
+Fleet's Linux command is not a macOS or Windows runner; use the platform's
+reviewed bounded lifecycle. Keep npm scripts portable for the CI OS matrix.
+The [journey map](docs/user-journeys.md) identifies focused checks; the
+[installed smoke recipe](docs/installed-smoke.md) defines acceptance beyond them.
+
 ## CI and releases
 
-- `.github/workflows/ci.yml` runs on every PR and push to `main` on Windows x64,
-  macOS arm64, macOS x64 and Linux x64: `npm ci`, `npm test`, `npm run build`,
-  isolated `check:desktop` (skipped on Linux), unpublished installer. All jobs
-  must pass.
-- CI stamps non-tag builds with a `-ci.` version (`scripts/set-build-version.mjs`,
-  ADR 0004). Do not change `version` in a PR.
-- Every push to `main` except `Release ` commits runs `auto-release.yml`: it builds the next patch from
-  the triggering commit, then creates the tag and publishes only after all four
-  platform jobs pass. It does not modify `main` or the source version. Rebase
-  onto `main` after each merge. Merge only release-ready work.
-- Minor and major releases are manual: bump the source version, then push the
-  matching `v*` tag (`release.yml`).
-- Retry an automatic release through its original workflow run. Its tag points
-  at source with the older committed version, so the strict manual tag workflow
-  cannot rebuild it. A publish retry reuses a tag only when its commit matches.
+- [Build installers and release](.github/workflows/release.yml) is the only
+  workflow. It runs only on an explicit manual dispatch selecting an existing
+  stable `v<major>.<minor>.<patch>` tag. The tag must resolve to the run commit
+  and match the source version. Creating or pushing the tag does not run it.
+- Pull requests, merge groups, branch pushes and schedules start no workflows.
+  Automatic patch releases, scheduled CodeQL, dependency review, dependency
+  auto-merge and Dependabot update configuration are removed. Review dependency
+  advisories, licenses and updates manually.
+- An authorized manual release runs actionlint, tests, strict builds and installer
+  creation for Windows x64, macOS arm64, macOS x64 and Linux x64. Windows and
+  macOS also run isolated startup checks. Every job uses a GitHub-hosted
+  runner; macOS x64 runs on the native Intel image and keeps its x64 Node
+  guard. See
+  [ADR 0063](docs/adr/0063-manual-release-only-actions.md).
+- Publishing waits for every platform job. It validates the complete installer
+  and updater manifest set, rejects artifact digest mismatches, generates
+  checksums and publishes only against the selected existing tag. Tags cannot
+  be moved or deleted. This workflow never creates a tag or version commit.
+- Repository protections and Actions enablement are separate settings. Deleting
+  workflows does not remove required checks, merge-queue rules or approvals.
+  A maintainer must reconcile any requirements for removed CI before merging;
+  do not fabricate passing statuses or bypass protections. Direct pushes,
+  force pushes and deleting `main` remain prohibited.
+- Local verification in the table above and independent review remain required
+  unless the task owner explicitly prohibits execution. Report such checks as
+  unrun. Do not dispatch Actions as a substitute without authorization.
+- Workflow changes normally use actionlint 1.7.12 and the release/workflow source
+  tests locally. PR creation does not authorize hosted execution or publishing.
+- Use Node 24.22.1 (`.nvmrc`; `nvm use` picks it up) for local builds and tests.
+- Commits must use your GitHub noreply email. Enable GitHub's **Keep my email
+  addresses private** and **Block command line pushes that expose my email**,
+  then set `git config user.email <id>+<login>@users.noreply.github.com`.
+  Before pushing, run `node scripts/check-commit-emails.mjs origin/main..HEAD`.
+  Commit privacy is no longer checked automatically by a PR workflow.
 - Local packaging: `npm run package` (Windows NSIS), `npm run package:mac`
   (DMG and ZIP), `npm run package:mac:dir` (app bundle, source-install route).
   Mac builds need Xcode Command Line Tools. Output goes to `release/`.
-- `npm run release` builds and publishes only the Windows installer locally.
-  Tags, this script and workflow dispatch all publish; use only with explicit
-  release authorization.
+- `npm run release` builds and publishes the Windows installer locally. It and
+  manual workflow dispatch require explicit release authorization.
 - Never commit generated output or local app data.
 
 ## Pull requests

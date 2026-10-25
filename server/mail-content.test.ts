@@ -50,7 +50,7 @@ test("inline style grammar keeps sender layout modes and floats but never hides 
   assert.deepEqual(mailStyle("display:inline-block;float:right;clear:both;vertical-align:middle"), {
     display: "inline-block", float: "right", clear: "both", verticalAlign: "middle",
   });
-  for (const value of ["block", "inline", "table", "table-row", "table-cell"])
+  for (const value of ["block", "inline", "inline-table", "table", "table-row", "table-cell"])
     assert.deepEqual(mailStyle(`display:${value}`), { display: value });
   assert.deepEqual(mailStyle("display:none;display:contents;display:flex;float:inline-start;visibility:hidden"), {});
 });
@@ -70,6 +70,18 @@ test("newsletter-depth tables parse instead of falling back to plain text", () =
 test("zero dimensions are dropped so hidden preview text reads as one line, not one letter per line", () => {
   assert.deepEqual(mailStyle("visibility:hidden;height:0px;max-height:0;width:0px;overflow:hidden;opacity:0"), {});
   assert.deepEqual(mailStyle("width:0%;max-width:0em;height:24px"), { height: "24px" });
+});
+
+test("compressed preheaders are shown at readable default dimensions", () => {
+  assert.deepEqual(mailStyle("font-size:1px;line-height:1px;height:1px;max-height:2px;color:#123456"), {
+    fontSize: "1px", lineHeight: "1px", height: "1px", maxHeight: "2px", color: "#123456",
+  });
+});
+
+test("small max-heights remain valid image caps", () => {
+  assert.deepEqual(mailStyle("width:120px;height:40px;max-height:2px"), {
+    width: "120px", height: "40px", maxHeight: "2px",
+  });
 });
 
 test("inline style grammar reads Gmail quote insets, any-order borders and centered columns", () => {

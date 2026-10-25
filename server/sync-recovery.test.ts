@@ -203,8 +203,8 @@ if (!process.env.EMC2_RECOVERY_TEST_CHILD) {
             : Array.from({ length: 100 }, (_, i) => ({ id: String(i) })) } }),
           get: async (input: { id: string }) => {
             gets++;
-            if (Number(input.id) >= 10) { stalled.resolve(); await release.promise; }
-            if (input.id === "10") throw failure("ETIMEDOUT");
+            if (Number(input.id) >= 2) { stalled.resolve(); await release.promise; }
+            if (input.id === "2") throw failure("ETIMEDOUT");
             return { data: { raw: raw.toString("base64url"), internalDate: "1700000000000" } };
           },
         } } }), {});
@@ -213,11 +213,11 @@ if (!process.env.EMC2_RECOVERY_TEST_CHILD) {
           await stalled.promise;
           const pending = await state();
           assert.equal(pending.syncing, true);
-          assert.equal(pending.messages.length, 11, "the first ten fresh messages must be saved before later downloads settle");
-          assert.equal(events, 1); assert.equal(gets, 20);
+          assert.equal(pending.messages.length, 3, "the first two fresh messages must be saved before later downloads settle");
+          assert.equal(events, 1); assert.equal(gets, 4);
         } finally { release.resolve(); await run; }
         const final = await state();
-        assert.equal(final.messages.length, 20); assert.equal(gets, 20);
+        assert.equal(final.messages.length, 4); assert.equal(gets, 4);
         assert.equal(final.accounts[0].syncFailure?.kind, "transient");
         assert.equal(final.messages.find((m) => m.id === cached.id)?.archived, false);
         assert.deepEqual(all("account")[0].credentials, a.credentials);
@@ -433,6 +433,7 @@ if (!process.env.EMC2_RECOVERY_TEST_CHILD) {
         const db = new DatabaseSync(path.join(process.env.MAIL_DATA_DIR!, "mail.sqlite"));
         const insert = db.prepare("INSERT OR REPLACE INTO records VALUES (?,?,?)");
         const seed = (values: Mail[]) => { db.exec("BEGIN"); for (const m of values) insert.run("mail", m.id, encrypt(m)); db.exec("COMMIT"); };
+        const writers = new WeakSet<DatabaseSync>();
         let writes = 0, commits = 0, gets = 0, lists = 0, size = 100, changed = false;
         seed(rows.slice(0, size));
         const originalPrepare = DatabaseSync.prototype.prepare, originalExec = DatabaseSync.prototype.exec;
@@ -440,11 +441,11 @@ if (!process.env.EMC2_RECOVERY_TEST_CHILD) {
           const statement = originalPrepare.call(this, sql);
           if (sql === "INSERT OR REPLACE INTO records VALUES (?,?,?)") {
             const run = statement.run.bind(statement);
-            statement.run = (...args) => { if (args[0] === "mail") writes++; return run(...args as SQLInputValue[]); };
+            statement.run = (...args) => { if (args[0] === "mail") { writes++; writers.add(this); } return run(...args as SQLInputValue[]); };
           }
           return statement;
         });
-        mock.method(DatabaseSync.prototype, "exec", function (this: DatabaseSync, sql: string) { if (sql === "COMMIT") commits++; return originalExec.call(this, sql); });
+        mock.method(DatabaseSync.prototype, "exec", function (this: DatabaseSync, sql: string) { if (sql === "COMMIT" && writers.has(this)) commits++; return originalExec.call(this, sql); });
         mock.method(google, "gmail", () => ({ users: { labels: { list: async () => ({ data: { labels: [] } }) }, messages: {
           list: async (input: { labelIds: string[]; pageToken?: string }) => {
             lists++; const offset = Number(input.pageToken || 0);
@@ -460,10 +461,10 @@ if (!process.env.EMC2_RECOVERY_TEST_CHILD) {
           // Install counters again through the same actual SQLite boundary.
           const countPrepare = mock.method(DatabaseSync.prototype, "prepare", function (this: DatabaseSync, sql: string) {
             const statement = originalPrepare.call(this, sql);
-            if (sql === "INSERT OR REPLACE INTO records VALUES (?,?,?)") { const run = statement.run.bind(statement); statement.run = (...args) => { if (args[0] === "mail") writes++; return run(...args as SQLInputValue[]); }; }
+            if (sql === "INSERT OR REPLACE INTO records VALUES (?,?,?)") { const run = statement.run.bind(statement); statement.run = (...args) => { if (args[0] === "mail") { writes++; writers.add(this); } return run(...args as SQLInputValue[]); }; }
             return statement;
           });
-          mock.method(DatabaseSync.prototype, "exec", function (this: DatabaseSync, sql: string) { if (sql === "COMMIT") commits++; return originalExec.call(this, sql); });
+          mock.method(DatabaseSync.prototype, "exec", function (this: DatabaseSync, sql: string) { if (sql === "COMMIT" && writers.has(this)) commits++; return originalExec.call(this, sql); });
           mock.method(google, "gmail", () => ({ users: { labels: { list: async () => ({ data: { labels: [] } }) }, messages: {
             list: async (input: { labelIds: string[]; pageToken?: string }) => {
               lists++; const offset = Number(input.pageToken || 0);

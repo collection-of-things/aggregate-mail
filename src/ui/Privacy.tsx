@@ -1,5 +1,5 @@
 import { Fragment, createContext, memo, useContext, useMemo, type ReactNode } from "react";
-import type { Account, Mail } from "../../shared/types";
+import type { Account, RendererMail as Mail } from "../../shared/types";
 import { collectPrivateNames, segmentPrivateText, type PrivacySegment } from "../privacy";
 
 // Hidden tokens have no private text in the DOM until explicitly revealed.

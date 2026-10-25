@@ -9,7 +9,7 @@ import { build } from "esbuild";
 import { MacSourceUpdate, bundleDigest, explicitUpdateProfile, runBounded, sourceApi, sourceCandidate, sourceEnvironment,
   sourceRepository, stampSourceVersion, validateDestination, verifyBundle, workspaceLimit, type MacSourceCandidate, type Run } from "./mac-source-update.js";
 
-const candidate: MacSourceCandidate = { kind: "mac-source", version: "0.1.12", tag: "v0.1.12", commit: "a".repeat(40), arch: "x64" };
+const candidate: MacSourceCandidate = { kind: "mac-source", repository: "collection-of-things/aggregate-mail", version: "0.1.12", tag: "v0.1.12", commit: "a".repeat(40), arch: "x64" };
 const release = { draft: false, prerelease: false, tag_name: candidate.tag };
 const ref = { ref: `refs/tags/${candidate.tag}`, object: { type: "commit", sha: candidate.commit } };
 const pkg = () => ({ name: "emc2", version: "0.1.10", scripts: { "package:mac:dir": "npm run build && electron-builder --mac --dir --publish never" },
@@ -46,6 +46,18 @@ test("source selection pins only canonical stable higher tags to an immutable co
   await assert.rejects(sourceCandidate(release, { version: "0.1.10", arch: "ia32" }, read));
   assert.equal(await sourceCandidate(release, { version: "0.1.12", arch: "arm64" }, read), null);
   assert.equal(await sourceCandidate(release, { version: "0.1.13", arch: "arm64" }, read), null);
+});
+
+test("legacy source pinning keeps tag reads and checkout repository together", async () => {
+  const repository = "screen-devs/aggregate-mail";
+  const urls: string[] = [];
+  const selected = await sourceCandidate(release, { version: "0.1.10", arch: "x64" }, async url => {
+    urls.push(url); return JSON.stringify(ref);
+  }, repository);
+  assert.equal(selected?.repository, repository);
+  assert.deepEqual(urls, [`https://api.github.com/repos/${repository}/git/ref/tags/${candidate.tag}`]);
+  await assert.rejects(sourceCandidate(release, { version: "0.1.10", arch: "x64" }, async () => JSON.stringify(ref),
+    "untrusted/repository" as typeof repository));
 });
 
 test("annotated tags are peeled through bounded canonical API reads", async () => {

@@ -7,10 +7,14 @@ export function McpSection({
   api,
   perform,
   busy,
+  onCopied,
+  onError,
 }: {
   api: Api;
   perform: Perform;
   busy: boolean;
+  onCopied: (text: string) => void;
+  onError: (text: string) => void;
 }) {
   const [settings, setSettings] = useState<McpSettings | null>(null);
   const [open, setOpen] = useState(false);
@@ -32,44 +36,18 @@ export function McpSection({
   }, [settings?.enabled]);
   const update = (
     input:
-      | Partial<Pick<McpSettings, "enabled" | "allowSending">>
+      | Partial<Pick<McpSettings, "enabled">>
       | { regenerateToken: boolean },
   ) =>
     void perform(async () => {
       setSettings(await api<McpSettings>("/mcp", "PATCH", input));
     });
   const endpoint = "http://127.0.0.1:32145/mcp";
-  const snippets = [
-    ["Endpoint", endpoint],
-    ...(settings?.token
-      ? [
-          ["Token", settings.token],
-          [
-            "Claude Code",
-            `claude mcp add --transport http emc2 ${endpoint} --header "Authorization: Bearer ${settings.token}"`,
-          ],
-          [
-            "JSON config",
-            JSON.stringify(
-              {
-                mcpServers: {
-                  "emc2": {
-                    url: endpoint,
-                    headers: { Authorization: `Bearer ${settings.token}` },
-                  },
-                },
-              },
-              null,
-              2,
-            ),
-          ],
-        ]
-      : []),
-  ];
+  const snippets = [["Endpoint", endpoint]];
   return (
     <section className="mcp-settings">
       <div className="section-head">
-        <h1>MCP</h1>
+        <h2>Local agent connections</h2>
         <button
           className="disclosure"
           aria-expanded={open}
@@ -81,8 +59,9 @@ export function McpSection({
         </button>
       </div>
       <p className="note">
-        Let AI clients read synced mail while the app is running. Sending
-        replies is opt-in.
+        Enable the local connection for external agents. Choose each assistant’s accounts
+        and permissions above. Mail changes need your review; direct project
+        and commitment creation needs a separate permission. The legacy token has no account access.
       </p>
       {error && <p role="alert">{error}</p>}
       {settings && (
@@ -102,16 +81,7 @@ export function McpSection({
           {open && (
             <div className="disclosure-body" id="mcp-options">
               <div className="settings-group">
-              <label className="settings-row">
-                <span>Allow sending replies</span>
-                <input
-                  type="checkbox"
-                  role="switch"
-                  checked={settings.allowSending}
-                  disabled={busy || !settings.enabled}
-                  onChange={(e) => update({ allowSending: e.target.checked })}
-                />
-              </label>
+              <p className="note">Agents never send. Approved replies open in Drafts for you to edit and send.</p>
               {snippets.map(([label, value]) => (
                 <div className="mcp-copy" key={label}>
                   <div>
@@ -121,12 +91,13 @@ export function McpSection({
                   <button
                     className="button"
                     disabled={busy}
-                    onClick={() =>
-                      void perform(
-                        () => navigator.clipboard.writeText(value),
-                        `${label} copied.`,
-                      )
-                    }
+                    onClick={() => void (async () => {
+                      try {
+                        if (window.desktop?.copyMcpEndpoint) await window.desktop.copyMcpEndpoint();
+                        else await navigator.clipboard.writeText(value);
+                        onCopied(`${label} copied.`);
+                      } catch (error) { onError(error instanceof Error ? error.message : "Action failed."); }
+                    })()}
                   >
                     Copy
                   </button>
@@ -139,7 +110,7 @@ export function McpSection({
                   disabled={busy}
                   onClick={() => update({ regenerateToken: true })}
                 >
-                  Regenerate token
+                  Regenerate legacy token (no account access)
                 </button>
               )}
             </div>

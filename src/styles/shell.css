@@ -26,23 +26,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 17px;
+  font-size: calc(17px * var(--text-scale, 1));
   font-weight: 600;
   animation: fade-in 220ms var(--ease-out);
 }
 .pane-head > .icon:first-child,
 .sidebar-head > .icon:first-child {
   margin-left: -8px;
-}
-/* The mail header centers its search field across the pane. */
-.list-pane .pane-head {
-  position: relative;
-}
-.head-search {
-  position: absolute;
-  left: 50%;
-  width: min(420px, 42%);
-  transform: translateX(-50%);
 }
 .search {
   width: 100%;
@@ -77,33 +67,11 @@
 .search button:hover {
   color: var(--text);
 }
-/* Closed, the search is a quiet field that opens in place. */
-.search-closed {
-  justify-content: flex-start;
-  cursor: text;
-  border-color: transparent;
-  background: var(--hover);
-  font-size: 13px;
-  color: var(--text-4);
-  animation: none;
-  transition: background-color 160ms var(--ease-out), color 160ms var(--ease-out);
-}
-.search-closed:hover {
-  background: var(--selected);
-  color: var(--text-3);
-}
-.search-closed span {
-  flex: 1;
-}
-.search-closed kbd {
-  font-size: 12px;
-  color: var(--text-4);
-}
 .pane-tools {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
 }
 .desktop :is(.pane-head, .sidebar-head) {
@@ -122,15 +90,23 @@
 .pane-head.reserve-caption {
   padding-right: 150px;
 }
-.pane-head.update-reserved { padding-right: 50px; }
-.pane-head.reserve-caption.update-reserved { padding-right: 188px; }
-.pane-head.update-reserved:has(.traffic.right) { padding-right: 12px; }
-.pane-head.update-reserved .traffic.right { margin-left: 50px; }
+/* The update control stays outside the inert frame so it keeps working while
+   an installation drains; the spacer reserves its exact slot in the toolbar
+   flow between the pane tools and the window controls. */
 .app-update-control {
   position: absolute;
   top: 10px;
   z-index: 50;
   -webkit-app-region: no-drag;
+}
+.app-toolbar .update-spacer {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  margin-left: -2px;
+}
+.app-toolbar .traffic.right {
+  margin-left: 6px;
 }
 .mail-navigation {
   display: flex;
@@ -146,7 +122,7 @@
   gap: 5px;
   padding: 3px 0;
   color: var(--text-2);
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale, 1));
 }
 .mail-navigation button:disabled { opacity: 0.4; }
 /* Drawn window controls sit inside the header in each window corner, so they
@@ -195,7 +171,7 @@
   width: 13px;
   height: 13px;
   border-radius: 3px;
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale, 1));
   line-height: 1;
   color: var(--text);
   background: #555;
@@ -292,17 +268,6 @@
 .workspace.split .list-pane {
   flex: 0 0 var(--list-width);
 }
-.workspace.split .head-search {
-  position: static;
-  flex: 1;
-  width: auto;
-  min-width: 0;
-  margin: 0 6px 0 10px;
-  transform: none;
-}
-.workspace.split .head-search + .pane-tools {
-  margin-left: 0;
-}
 .reader-pane {
   flex: 1;
   min-width: 0;
@@ -348,7 +313,6 @@
   overflow-x: hidden;
 }
 .list,
-.context,
 .settings,
 .dialog,
 .dropdown-menu,
@@ -383,9 +347,9 @@
   top: 0;
   z-index: 2;
   padding: 8px 18px 4px;
-  height: var(--mail-group-height);
+  height: calc(var(--mail-group-height) * var(--text-scale, 1));
   background: var(--surface);
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale, 1));
   font-weight: 500;
   color: var(--text-4);
 }
@@ -399,9 +363,48 @@
   padding: 12px 16px;
   border-bottom: 1px solid var(--line);
   border-left: 3px solid var(--danger, #c0392b);
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale, 1));
   line-height: 1.45;
 }
 .credential-fallback-notice p { margin: 4px 0 0; max-width: 65ch; color: var(--text-2); }
 .credential-fallback-notice.collapsed { padding-top: 4px; padding-bottom: 4px; }
 .credential-fallback-notice .link { white-space: nowrap; }
+
+.app-main { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.app-toolbar { border-left: 1px solid var(--line); background: var(--surface); }
+.app-search-toolbar { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.app-search-toolbar .search { flex: 1; min-width: 0; max-width: 640px; background: var(--hover); animation: none; }
+.app-search-toolbar .search input { min-width: 0; background: transparent; }
+.app-search-toolbar .search kbd { font-size: calc(11px * var(--text-scale, 1)); color: var(--text-3); }
+.commands-button { gap: 10px; min-height: 32px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: var(--radius-control); font-size: calc(12px * var(--text-scale, 1)); }
+.commands-button kbd { color: var(--text-3); font-size: calc(10px * var(--text-scale, 1)); }
+@media (max-width: 760px) { .commands-button kbd { display: none; } .app-toolbar { padding-left: 12px; } }
+
+.app { font-size: calc(13px * var(--text-scale, 1)); }
+.app-toolbar .mail-navigation { flex: 0 0 auto; padding: 0; border: 0; gap: 2px; }
+.app-toolbar .mail-navigation button { width: 28px; height: 30px; padding: 0; justify-content: center; }
+/* Every pane header under the top bar shares one height so its bottom
+   hairline runs continuously across list and reader panes. */
+.main-head, .reader-head { height: var(--subhead-height); min-height: var(--subhead-height); }
+/* Secondary controls share the title line: category tabs, cached-mail notes
+   and each work view's controls. */
+.main-head .inbox-tabs { flex: 1; min-width: 0; align-self: stretch; margin-left: 12px; }
+.head-tools { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; margin-left: 12px; overflow: hidden; }
+.head-note { flex: 1; min-width: 0; margin-left: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
+.head-note button { flex-shrink: 0; height: 26px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: var(--radius-control); color: var(--text); font-size: inherit; }
+.head-note small { min-width: 0; overflow: hidden; text-overflow: ellipsis; flex-shrink: 10; }
+.drafts-pane { display: flex; flex: 1; flex-direction: column; min-height: 0; background: var(--surface); }
+.draft-list { overflow: auto; min-height: 0; }
+.draft-list-heading { display: flex; align-items: center; justify-content: space-between; padding: 8px 20px; color: var(--text-3); border-bottom: 1px solid var(--line); }
+.draft-list > ul { list-style: none; padding: 0; margin: 0; }
+.draft-row { display: grid; grid-template-columns: minmax(100px, 16%) minmax(0, 1fr) auto; gap: 18px; width: 100%; padding: 14px 20px; text-align: left; border-bottom: 1px solid var(--line); }
+.draft-row:hover { background: var(--hover); }
+.draft-row-account { display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; white-space: normal; color: var(--accent); }
+.draft-row-content, .draft-row-meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.draft-row-content > strong { font-weight: 600; }
+.draft-row-content > :is(strong, span) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-row-addresses, .draft-row-preview, .draft-row-meta { color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
+.draft-row-meta { text-align: right; }
+.draft-warning, .draft-list-error { color: var(--danger); }
+.draft-list-error { padding: 12px 20px; }
+@media (max-width: 760px) { .draft-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; } .draft-row-account { grid-column: 1 / -1; } }

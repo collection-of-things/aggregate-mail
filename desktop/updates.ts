@@ -16,9 +16,14 @@ export { isHigherStableVersion } from "../shared/updates.js";
 import { MacSourceFailure, MacSourceUpdate, sourceCandidate, type MacInstallation } from "./mac-source-update.js";
 import { trustedWindowSender } from "./navigation.js";
 
-const repository = "screen-devs/aggregate-mail";
-const latestRelease = `https://api.github.com/repos/${repository}/releases/latest`;
-const downloadRoot = `https://github.com/${repository}/releases/download/`;
+// Releases move to collection-of-things. Check it first; until it publishes a
+// newer stable release, the original repository still serves updates. Each
+// release must link only to its own repository's downloads.
+const releaseSources = (["collection-of-things/aggregate-mail", "screen-devs/aggregate-mail"] as const).map((repository) => ({
+  repository,
+  latest: `https://api.github.com/repos/${repository}/releases/latest`,
+  root: `https://github.com/${repository}/releases/download/`,
+}));
 const maxInstallerSize = 1024 * 1024 * 1024;
 const metadataTimeout = 15000;
 const downloadTimeout = 10 * 60000;
@@ -39,7 +44,7 @@ export function unsupportedReason(target: Target): UpdateReason | undefined {
   if (target.platform === "linux" && (!target.appImage || !path.isAbsolute(target.appImage))) return "appimage";
 }
 
-export function releaseAssets(value: unknown, target: Target) {
+export function releaseAssets(value: unknown, target: Target, roots = releaseSources.map((source) => source.root)) {
   if (!value || typeof value !== "object") return fail("candidate");
   const release = value as { draft?: unknown; prerelease?: unknown; tag_name?: unknown; assets?: unknown };
   if (release.draft !== false || release.prerelease !== false || typeof release.tag_name !== "string" ||
@@ -49,6 +54,9 @@ export function releaseAssets(value: unknown, target: Target) {
   if (!versionParts(target.version, false)) return fail("candidate");
   if (!isHigherStableVersion(version, target.version)) return null;
   const assets = release.assets as Asset[];
+  const first = assets[0]?.browser_download_url;
+  const downloadRoot = roots.find((root) => typeof first === "string" && first.startsWith(root));
+  if (!downloadRoot) return fail("candidate");
   const seen = new Set<string>();
   for (const asset of assets) {
     if (!asset || typeof asset.name !== "string" || asset.name.length > 200 || seen.has(asset.name) ||
@@ -355,21 +363,38 @@ export class Updates {
     this.candidate = undefined; this.updater = undefined; this.downloaded = undefined;
     this.set({ phase: "checking" });
     const read = this.deps.read || readMetadata;
-    const metadata = JSON.parse(await read(latestRelease, 2 * 1024 * 1024));
     if (this.deps.target.platform === "darwin") {
-      const candidate = await sourceCandidate(metadata, this.deps.target, read).catch(error => {
-        if (error instanceof MacSourceFailure || error instanceof SyntaxError) return fail("candidate");
-        throw error;
-      });
+      let candidate: Awaited<ReturnType<typeof sourceCandidate>> = null;
+      for (const [index, source] of releaseSources.entries()) {
+        try {
+          const metadata = JSON.parse(await read(source.latest, 2 * 1024 * 1024));
+          candidate = await sourceCandidate(metadata, this.deps.target, read, source.repository);
+        } catch (error) {
+          if (index === releaseSources.length - 1) {
+            if (error instanceof MacSourceFailure || error instanceof SyntaxError) return fail("candidate");
+            throw error;
+          }
+        }
+        if (candidate) break;
+      }
       if (!candidate) { this.set({ phase: "current" }); return; }
       if (!this.deps.mac) return fail("source-target");
       this.source = (this.deps.source || ((value, installation) => new MacSourceUpdate(value, installation)))(candidate, this.deps.mac);
       this.set({ phase: "available", version: candidate.version });
       return;
     }
-    const release = releaseAssets(metadata, this.deps.target);
-    if (!release) { this.set({ phase: "current" }); return; }
-    const candidate = validateCandidate(release, await read(release.manifest.browser_download_url, 65536));
+    let candidate: Candidate | undefined;
+    for (const [index, source] of releaseSources.entries()) {
+      try {
+        const release = releaseAssets(JSON.parse(await read(source.latest, 2 * 1024 * 1024)), this.deps.target, [source.root]);
+        if (release) candidate = validateCandidate(release, await read(release.manifest.browser_download_url, 65536));
+      } catch (error) {
+        // A missing or unusable release in the new repository falls back to the original one.
+        if (index === releaseSources.length - 1) throw error;
+      }
+      if (candidate) break;
+    }
+    if (!candidate) { this.set({ phase: "current" }); return; }
     const updater = await (this.deps.create || createUpdater)(candidate, this.deps.target);
     updater.on("error", () => {
       if (this.updater !== updater) return;

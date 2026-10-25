@@ -1,6 +1,8 @@
 import { Parser } from "htmlparser2";
 
 export const MAIL_HTML_LIMIT = 256_000;
+// Plain-text conversion leaves image sources as [url]; previews drop them, including one cut off by the stored preview length.
+export const previewText = (text: string) => text.replace(/\[(?:https?|cid):[^\]\s]*(?:\]|$)/gi, " ").replace(/\s+/g, " ").trim();
 export const MAIL_NODE_LIMIT = 4_000;
 // Newsletters nest tables about 50 deep; the node limit bounds the total work.
 export const MAIL_DEPTH_LIMIT = 96;
@@ -83,7 +85,7 @@ export function mailStyle(value: string): Record<string, string | number> {
     if (name === "border-collapse" && /^(collapse|separate)$/.test(input)) output = input;
     // Layout modes that newsletters use for columns and icon rows. Values that
     // hide content (none, visibility) stay rejected so all sender text is visible.
-    if (name === "display" && /^(block|inline|inline-block|table|table-row|table-cell)$/.test(input)) output = input;
+    if (name === "display" && /^(block|inline|inline-block|inline-table|table|table-row|table-cell)$/.test(input)) output = input;
     if (name === "float" && /^(left|right|none)$/.test(input)) output = input;
     if (name === "clear" && /^(left|right|both|none)$/.test(input)) output = input;
     if (name === "line-height") {

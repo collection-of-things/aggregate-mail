@@ -92,9 +92,24 @@ encrypted SQLite. The installed app needs no separate browser, terminal or Node.
 - Keep credentials, tokens, mailbox data, personal details, private hostnames,
   machine paths and session records out of source, fixtures, logs, screenshots,
   commit metadata, PRs, task records and release attachments.
+- The repository is public. Commit only as a GitHub noreply address
+  (`<id>+<login>@users.noreply.github.com`) for author, committer and every
+  `Co-authored-by` trailer. Before pushing, run
+  `node scripts/check-commit-emails.mjs origin/main..HEAD`. There is no
+  automatic pull-request or merge-queue workflow enforcing this check.
+  Never print a rejected address in full.
 
 ## Completion
 
+- On shared Linux hosts, run every test and build through the bounded commands
+  in [CONTRIBUTING.md](CONTRIBUTING.md#bounded-local-verification). Use one job
+  at a time. A Node heap limit or test timeout alone is not containment.
+  If containment fails (exit 125), stop without an unbounded fallback.
+- For workflow changes, use [the journey map](docs/user-journeys.md) to choose
+  affected checks. Reuse passing evidence only when its source and inputs match.
+- Before claiming an installed fix, follow [the installed smoke recipe](docs/installed-smoke.md)
+  on the exact candidate. Record synthetic, installed and real-account proof
+  separately; leave unavailable checks unverified.
 - Run the checks for your change area in CONTRIBUTING.md. Never weaken a check
   or report a result you did not observe.
 - For a bug, reproduce first. After one diagnosed fix, if the check still

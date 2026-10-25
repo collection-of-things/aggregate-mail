@@ -10,9 +10,11 @@ import { isHigherStableVersion, versionParts } from "../shared/updates.js";
 const { access, chmod, lstat, mkdir, mkdtemp, open, readFile, readdir, readlink, realpath, rm, statfs, writeFile } =
   process.versions.electron ? (createRequire(process.execPath)("original-fs") as typeof import("node:fs")).promises : fs;
 
-export const sourceRepository = "https://github.com/screen-devs/aggregate-mail.git";
-export const sourceApi = "https://api.github.com/repos/screen-devs/aggregate-mail";
-export type MacSourceCandidate = { kind: "mac-source"; version: string; tag: string; commit: string; arch: "x64" | "arm64" };
+export const sourceRepositories = ["collection-of-things/aggregate-mail", "screen-devs/aggregate-mail"] as const;
+type SourceRepository = typeof sourceRepositories[number];
+export const sourceRepository = `https://github.com/${sourceRepositories[0]}.git`;
+export const sourceApi = `https://api.github.com/repos/${sourceRepositories[0]}`;
+export type MacSourceCandidate = { kind: "mac-source"; repository: SourceRepository; version: string; tag: string; commit: string; arch: "x64" | "arm64" };
 export type MacInstallation = { installed: string; helper: string; home: string; profile?: string; quit: () => void };
 export type Run = (command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv, signal: AbortSignal, timeout?: number) => Promise<string>;
 export class MacSourceFailure extends Error {
@@ -21,24 +23,26 @@ export class MacSourceFailure extends Error {
 const invalid = () => new MacSourceFailure();
 const maxWorkspaceBytes = 6 * 1024 ** 3;
 
-export async function sourceCandidate(value: unknown, target: { version: string; arch: string }, read: (url: string, limit: number) => Promise<string>): Promise<MacSourceCandidate | null> {
+export async function sourceCandidate(value: unknown, target: { version: string; arch: string }, read: (url: string, limit: number) => Promise<string>, repository: SourceRepository = sourceRepositories[0]): Promise<MacSourceCandidate | null> {
+  if (!sourceRepositories.includes(repository)) throw invalid();
+  const api = `https://api.github.com/repos/${repository}`;
   const release = value as { draft?: unknown; prerelease?: unknown; tag_name?: unknown } | null;
   if (!release || release.draft !== false || release.prerelease !== false || typeof release.tag_name !== "string" ||
       !/^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(release.tag_name) || release.tag_name.length > 100 ||
       !["x64", "arm64"].includes(target.arch) || !versionParts(target.version, false) || !isHigherStableVersion(release.tag_name.slice(1), "0.0.0-0")) throw invalid();
   const version = release.tag_name.slice(1);
   if (!isHigherStableVersion(version, target.version)) return null;
-  const ref = JSON.parse(await read(`${sourceApi}/git/ref/tags/${release.tag_name}`, 65536));
+  const ref = JSON.parse(await read(`${api}/git/ref/tags/${release.tag_name}`, 65536));
   if (!ref || ref.ref !== `refs/tags/${release.tag_name}` || !ref.object) throw invalid();
   let object = ref.object;
   for (let depth = 0; object.type === "tag" && depth < 4; depth++) {
     if (!/^[a-f0-9]{40}$/.test(object.sha)) throw invalid();
-    const tag = JSON.parse(await read(`${sourceApi}/git/tags/${object.sha}`, 65536));
+    const tag = JSON.parse(await read(`${api}/git/tags/${object.sha}`, 65536));
     if (!tag || tag.sha !== object.sha || !tag.object) throw invalid();
     object = tag.object;
   }
   if (object.type !== "commit" || !/^[a-f0-9]{40}$/.test(object.sha)) throw invalid();
-  return { kind: "mac-source", version, tag: release.tag_name, commit: object.sha, arch: target.arch as MacSourceCandidate["arch"] };
+  return { kind: "mac-source", repository, version, tag: release.tag_name, commit: object.sha, arch: target.arch as MacSourceCandidate["arch"] };
 }
 
 // Deliberately ignore the launch environment, including npm, Git, proxy and Node injection settings.
@@ -241,7 +245,7 @@ export class MacSourceUpdate {
       await mkdir(checkout, { mode: 0o700 });
       const git = (args: string[]) => this.run("/usr/bin/git", args, checkout, this.env!, signal, 5 * 60000);
       await git(["init", "--quiet"]);
-      await git(["-c", "http.lowSpeedLimit=1024", "-c", "http.lowSpeedTime=30", "fetch", "--depth=1", "--no-tags", sourceRepository,
+      await git(["-c", "http.lowSpeedLimit=1024", "-c", "http.lowSpeedTime=30", "fetch", "--depth=1", "--no-tags", `https://github.com/${this.candidate.repository}.git`,
         `refs/tags/${this.candidate.tag}:refs/tags/${this.candidate.tag}`]);
       if (await git(["rev-parse", `refs/tags/${this.candidate.tag}^{commit}`]) !== this.candidate.commit) throw invalid();
       await git(["-c", "advice.detachedHead=false", "checkout", "--detach", this.candidate.commit]);

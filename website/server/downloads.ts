@@ -1,4 +1,4 @@
-const releasesUrl = "https://api.github.com/repos/Zns-Nexus/aggregate-mail/releases";
+const releasesUrl = "https://api.github.com/repos/collection-of-things/aggregate-mail/releases";
 const cacheMs = 10 * 60 * 1000;
 let cached: { until: number; value: number | null } = { until: 0, value: null };
 let pending: Promise<number | null> | undefined;

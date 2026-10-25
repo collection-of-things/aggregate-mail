@@ -4,10 +4,13 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { after, test } from "node:test";
 import { build } from "esbuild";
 import { LEGACY_APP_NAME, MIGRATION_MARKER } from "./migrate.js";
 import { createHelperProfile, encodeFrame, HELPER_FLAG, protectedDigest } from "./keychain.js";
+
+const require = createRequire(import.meta.url);
 
 const root = mkdtempSync(path.join(tmpdir(), "emc2-startup-"));
 const posixHelperOnly = process.platform === "win32" ? "requires POSIX helper profile ownership and permission semantics" : false;
@@ -23,6 +26,8 @@ await build({
     builder.onResolve({ filter: /^node:child_process$/ }, args => args.namespace === "fixture" ? ({ path: args.path, external: true }) : ({ path: "child-process", namespace: "fixture" }));
     builder.onResolve({ filter: /^\.\/updates\.js$/ }, () => ({ path: "updates", namespace: "fixture" }));
     builder.onResolve({ filter: /^electron$/ }, () => ({ path: "electron", namespace: "fixture" }));
+    // The one runtime dependency main.ts loads is resolved from this repository.
+    builder.onResolve({ filter: /^jsonc-parser$/ }, () => ({ path: require.resolve("jsonc-parser"), external: true }));
     builder.onResolve({ filter: /server\/index\.js$/ }, () => ({ path: "backend", namespace: "fixture" }));
     builder.onLoad({ filter: /.*/, namespace: "fixture" }, ({ path: module }) => ({
       loader: "js", contents: module === "updates" ? `
@@ -61,14 +66,21 @@ await build({
       ` : module === "electron" ? `
         import { createHash, createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
         import path from 'node:path';
-        import { existsSync, writeFileSync, unlinkSync, appendFileSync } from 'node:fs';
+        import { existsSync, writeFileSync, unlinkSync, appendFileSync, readFileSync } from 'node:fs';
         const config = JSON.parse(process.env.TEST_STARTUP);
         if (process.argv.includes('--emc2-keychain-helper') && config.helperModuleThrow) throw Error('SYNTHETIC_SECRET_MARKER');
         Object.defineProperty(process, 'platform', { value: config.platform || 'darwin' });
         let name = 'Emc²', fixedPath, identity;
         const helper = process.argv.includes('--emc2-keychain-helper');
         const handlers = new Map();
-        const ipcHandlers = new Map(); let lastWindow, windows = 0, chromeRan = false, prompts = 0;
+        const ipcHandlers = new Map(); let lastWindow, windows = 0, chromeRan = false, prompts = 0, clipboardRan = false, opencodeRan = false, opencodeSetupRan = false;
+        const copiedText = [];
+        let quitCalls = 0, shortcutInputs = 0, shortcutPrevented = 0;
+        export const clipboard = { async writeText(value) {
+          await new Promise(resolve => setImmediate(resolve));
+          if (config.clipboardFailure) throw Error('Native clipboard unavailable');
+          copiedText.push(value);
+        } };
         const audit = value => { if (config.audit) appendFileSync(config.audit, JSON.stringify({helper, value}) + '\\n'); };
         // Chromium stops switches at -- and only equals-form carries a value.
         const separator = process.argv.indexOf('--');
@@ -86,6 +98,7 @@ await build({
             if (kind === 'userData' && config.forbidDefault && !fixedPath && !requestedPath)
               throw Error('Default profile accessed');
             return kind === 'appData' ? config.appData :
+              kind === 'home' ? (config.home || config.appData) :
               fixedPath || requestedPath || path.join(config.appData, name);
           },
           setPath(kind, value) {
@@ -118,6 +131,11 @@ await build({
                 audit('window:callbacks-ignored');
               });
             }
+            if (config.quitShortcutCase) {
+              quitCalls++; lastWindow.close();
+              if (!lastWindow.destroyed) return;
+              console.log(JSON.stringify({ quitShortcut: 'exited', quitCalls, shortcutInputs, shortcutPrevented, prompts }));
+            }
             for (const handler of handlers.get('will-quit') || []) handler({ preventDefault() { prevented = true; } });
             if (prevented) {
               // Native Electron can checkpoint promise callbacks before cancelled quit dispatch unwinds.
@@ -145,7 +163,7 @@ await build({
         };
         export const dialog = {
           showErrorBox(_title, message) { console.error('dialog:' + message); },
-          showMessageBoxSync() { prompts++; return config.chromeCase === 'accept' ? 1 : 0; }
+          showMessageBoxSync() { prompts++; return config.chromeCase === 'accept' || config.quitShortcutCase === 'accept' || config.opencodeReplace === 'accept' ? 1 : 0; }
         }, ipcMain = { on(channel, handler) { ipcHandlers.set(channel, handler); }, handle(channel, handler) { ipcHandlers.set(channel, handler); } }, shell = {}, nativeTheme = { themeSource: "system" };
         export const nativeImage = {
           createFromPath(imagePath) {
@@ -156,13 +174,16 @@ await build({
           }
         };
         export const Menu = {
-          buildFromTemplate(template) { return { popup({callback, x, y}) {
+          buildFromTemplate(template) { return { roles: template.map(item => item.role), popup({callback, x, y}) {
             console.log(JSON.stringify({ nativeMailMenu: true, x, y }));
             template.find(item => item.enabled)?.click?.(); callback?.();
           }, items: [{ submenu: { items:
             ['quit','close','undo','cut','copy','paste','selectall'].map(role => ({role}))
           }}] }; },
-          setApplicationMenu(menu) { this.menu = menu; }, getApplicationMenu() { return this.menu; }
+          setApplicationMenu(menu) {
+            this.menu = menu;
+            if (config.backgroundActivation) console.log(JSON.stringify({ applicationMenuRoles: menu?.roles ?? [] }));
+          }, getApplicationMenu() { return this.menu; }
         };
         export const session = { fromPartition() { return {
           webRequest: { onBeforeSendHeaders() {} }, setPermissionRequestHandler() {}, setPermissionCheckHandler() {}
@@ -194,7 +215,7 @@ await build({
           getBounds() { return { x: 12, y: 34, width: 1100, height: 700 }; }
           isVisible() { if (this.destroyed) throw Error('Object has been destroyed'); return this.visible; }
           isDestroyed() { return this.destroyed; }
-          isMinimized() { if (this.destroyed) throw Error('Object has been destroyed'); return false; }
+          isMinimized() { if (this.destroyed) throw new TypeError('Object has been destroyed'); return false; }
           isMaximized() { return false; }
           show() { this.visible = true; }
           hide() { this.visible = false; }
@@ -204,7 +225,7 @@ await build({
             for (const handler of this.handlers.get('close') || [])
               handler({ preventDefault() { prevented = true; } });
             if (prevented) return;
-            if (config.chromeCase) {
+            if (config.chromeCase || ['cancel', 'accept'].includes(config.quitShortcutCase)) {
               let discard = false;
               this.contentHandlers.get('will-prevent-unload')?.({ preventDefault() { discard = true; } });
               if (!discard) return;
@@ -214,6 +235,137 @@ await build({
           }
         }
         globalThis.fetch = async (_url, options) => {
+          if (config.clipboardCase && !clipboardRan && options) {
+            clipboardRan = true;
+            const contents = lastWindow.webContents;
+            const trusted = { sender: contents, senderFrame: contents.mainFrame };
+            const copy = ipcHandlers.get('copy-mcp-endpoint');
+            if (!copy) throw Error('Native endpoint copy unavailable');
+            let rejected = 0;
+            for (const [event, url, destroyed] of [
+              [{ sender: {}, senderFrame: contents.mainFrame }, 'http://127.0.0.1:32145/', false],
+              [{ sender: contents, senderFrame: {} }, 'http://127.0.0.1:32145/', false],
+              [trusted, 'https://example.com/', false],
+              [trusted, 'http://127.0.0.1:32145/api/state', false],
+              [trusted, 'http://127.0.0.1:32145/', true],
+            ]) {
+              lastWindow.url = url; lastWindow.destroyed = destroyed;
+              try { await copy(event); } catch { rejected++; }
+            }
+            if (rejected !== 5 || copiedText.length) throw Error('Untrusted clipboard write accepted');
+            lastWindow.url = 'http://127.0.0.1:32145/'; lastWindow.destroyed = false;
+            let nativeFailurePropagated = false;
+            try { await copy(trusted, 'untrusted replacement text'); }
+            catch (error) { if (error.message !== 'Native clipboard unavailable') throw error; nativeFailurePropagated = true; }
+            if (config.clipboardFailure) {
+              if (!nativeFailurePropagated || copiedText.length) throw Error('Native clipboard failure was not propagated');
+            } else if (nativeFailurePropagated || copiedText.length !== 1 || copiedText[0] !== 'http://127.0.0.1:32145/mcp') throw Error('Unexpected copied endpoint');
+            console.log(JSON.stringify({ clipboardGuard: true, rejected, copies: copiedText.length, nativeFailurePropagated }));
+          }
+          if (config.opencodeCase && !opencodeRan && options) {
+            opencodeRan = true;
+            const contents = lastWindow.webContents;
+            const trusted = { sender: contents, senderFrame: contents.mainFrame };
+            const copy = ipcHandlers.get('copy-opencode-config');
+            if (!copy) throw Error('Native OpenCode copy unavailable');
+            const token = 'b'.repeat(64);
+            let rejected = 0;
+            for (const [event, url, destroyed, input] of [
+              [{ sender: {}, senderFrame: contents.mainFrame }, 'http://127.0.0.1:32145/', false, token],
+              [{ sender: contents, senderFrame: {} }, 'http://127.0.0.1:32145/', false, token],
+              [trusted, 'https://example.com/', false, token],
+              [trusted, 'http://127.0.0.1:32145/api/state', false, token],
+              [trusted, 'http://127.0.0.1:32145/', true, token],
+              [trusted, 'http://127.0.0.1:32145/', false, 'short'],
+              [trusted, 'http://127.0.0.1:32145/', false, 'B'.repeat(64)],
+              [trusted, 'http://127.0.0.1:32145/', false, 12345],
+            ]) {
+              lastWindow.url = url; lastWindow.destroyed = destroyed;
+              try { await copy(event, input); } catch { rejected++; }
+            }
+            if (rejected !== 8 || copiedText.length) throw Error('Untrusted OpenCode config copy accepted');
+            lastWindow.url = 'http://127.0.0.1:32145/'; lastWindow.destroyed = false;
+            let nativeFailurePropagated = false;
+            try { await copy(trusted, token); }
+            catch (error) { if (error.message !== 'Native clipboard unavailable') throw error; nativeFailurePropagated = true; }
+            const entry = copiedText[0] === undefined ? null : JSON.parse(copiedText[0])?.mcp?.emc2;
+            if (config.clipboardFailure) {
+              if (!nativeFailurePropagated || copiedText.length) throw Error('OpenCode clipboard failure was not propagated');
+            } else if (nativeFailurePropagated || copiedText.length !== 1 || !entry ||
+                entry.type !== 'remote' || entry.url !== 'http://127.0.0.1:32145/mcp' || entry.enabled !== true ||
+                entry.oauth !== false || entry.headers?.Authorization !== 'Bearer ' + token) {
+              throw Error('Unexpected OpenCode config');
+            }
+            console.log(JSON.stringify({ opencodeCopyGuard: true, rejected, copies: copiedText.length, nativeFailurePropagated }));
+          }
+          if (config.opencodeSetupCase && !opencodeSetupRan && options) {
+            opencodeSetupRan = true;
+            const contents = lastWindow.webContents;
+            const trusted = { sender: contents, senderFrame: contents.mainFrame };
+            const setup = ipcHandlers.get('setup-opencode');
+            if (!setup) throw Error('Native OpenCode setup unavailable');
+            const valid = 'c'.repeat(64);
+            let rejected = 0;
+            for (const [event, url, destroyed, input] of [
+              [{ sender: {}, senderFrame: contents.mainFrame }, 'http://127.0.0.1:32145/', false, valid],
+              [{ sender: contents, senderFrame: {} }, 'http://127.0.0.1:32145/', false, valid],
+              [trusted, 'https://example.com/', false, valid],
+              [trusted, 'http://127.0.0.1:32145/api/state', false, valid],
+              [trusted, 'http://127.0.0.1:32145/', true, valid],
+              [trusted, 'http://127.0.0.1:32145/', false, 'short'],
+              [trusted, 'http://127.0.0.1:32145/', false, 'B'.repeat(64)],
+              [trusted, 'http://127.0.0.1:32145/', false, 12345],
+            ]) {
+              lastWindow.url = url; lastWindow.destroyed = destroyed;
+              try { setup(event, input); } catch { rejected++; }
+            }
+            const file = path.join(config.opencodeDir, 'opencode.json');
+            if (rejected !== 8 || existsSync(file)) throw Error('Untrusted OpenCode setup accepted');
+            lastWindow.url = 'http://127.0.0.1:32145/'; lastWindow.destroyed = false;
+            if (setup(trusted, valid) !== 'saved') throw Error('OpenCode setup did not save');
+            const entry = JSON.parse(readFileSync(file, 'utf8')).mcp?.emc2;
+            if (entry?.url !== 'http://127.0.0.1:32145/mcp' || entry.headers?.Authorization !== 'Bearer ' + valid) throw Error('Unexpected OpenCode setup payload');
+            const before = readFileSync(file, 'utf8');
+            if (setup(trusted, valid) !== 'saved' || readFileSync(file, 'utf8') !== before) throw Error('OpenCode setup was not idempotent');
+            console.log(JSON.stringify({ opencodeSetupGuard: true, rejected, saved: true }));
+          }
+          if (config.backgroundActivation && options) {
+            const hiddenWindow = lastWindow;
+            for (const event of ['activate', 'second-instance']) {
+              hiddenWindow.close();
+              if (hiddenWindow.isDestroyed() || hiddenWindow.isVisible()) throw Error('Close did not hide the window');
+              for (const handler of handlers.get(event) || []) handler();
+              if (lastWindow !== hiddenWindow || windows !== 1 || !hiddenWindow.isVisible())
+                throw Error('Activation did not restore the hidden window');
+            }
+            console.log(JSON.stringify({ backgroundActivation: 'passed', windows }));
+          }
+          if (config.destroyedActivation && options) {
+            const closedWindow = lastWindow;
+            closedWindow.destroyed = true;
+            for (const event of ['activate', 'second-instance'])
+              for (const handler of handlers.get(event) || []) handler();
+            for (const handler of [...(closedWindow.handlers.get('closed') || [])]) handler();
+            for (const event of ['activate', 'second-instance'])
+              for (const handler of handlers.get(event) || []) handler();
+            console.log(JSON.stringify({ destroyedActivation: 'passed', windows }));
+            app.quit();
+          }
+          if (config.quitShortcutCase && !chromeRan && options) {
+            chromeRan = true;
+            const first = lastWindow;
+            const emit = input => {
+              shortcutInputs++;
+              first.contentHandlers.get('before-input-event')?.({ preventDefault() { shortcutPrevented++; } }, input);
+            };
+            const base = { type: 'keyDown', key: 'q', control: true, meta: false, alt: false, shift: false, isAutoRepeat: false };
+            for (const patch of [{ type: 'keyUp' }, { key: 'x' }, { control: false }, { shift: true }, { alt: true }, { meta: true }, { isAutoRepeat: true }]) emit({ ...base, ...patch });
+            if (quitCalls || shortcutPrevented) throw Error('Unrelated key invoked Quit');
+            emit({ ...base, key: config.shortcutKey || 'q' });
+            first.close();
+            console.log(JSON.stringify({ quitShortcut: 'retained', quitCalls, shortcutInputs, shortcutPrevented, prompts, destroyed: first.destroyed, visible: first.visible }));
+            config.quitShortcutCase = undefined;
+          }
           if (config.chromeCase && !chromeRan && options) {
             chromeRan = true;
             const first = lastWindow, contents = first.webContents;
@@ -281,7 +433,7 @@ function fixture(identity: string, location = "Emc²", plaintext?: string) {
 
 function launch(appData: string, options: Record<string, unknown> = {}, args: string[] = [], checking = true) {
   return spawnSync(process.execPath, [bundle, ...(checking ? ["--check-startup"] : []), ...args], {
-    env: { ...process.env, TEST_STARTUP: JSON.stringify({ appData, ...options }) },
+    env: { ...process.env, TEST_STARTUP: JSON.stringify({ appData, ...options }), ...((options.env as Record<string, string>) || {}) },
     encoding: "utf8", timeout: 10000,
   });
 }
@@ -299,20 +451,40 @@ function passed(result: ReturnType<typeof launch>, retries: number) {
   assert.equal((result.stdout.match(/"startup":"retrying-legacy-keychain"/g) || []).length, retries);
 }
 
-test("tray image uses platform menu-bar dimensions and macOS template rendering", () => {
+test("activation during window destruction never calls a destroyed native window", () => {
+  const current = fixture("Emc²");
+  const result = launch(current.appData, { destroyedActivation: true });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /"destroyedActivation":"passed","windows":1/);
+  preserved(current.profile, current);
+});
+
+test("macOS keeps native menus and background activation without a status-bar tray", () => {
+  const current = fixture("Emc²");
+  const result = launch(current.appData, { platform: "darwin", backgroundActivation: true });
+  passed(result, 0);
+  assert.doesNotMatch(result.stdout, /"trayImage":/);
+  assert.match(result.stdout, /"backgroundActivation":"passed","windows":1/);
+  const receipt = JSON.parse(result.stdout.match(/\{"applicationMenuRoles"[^\n]+/)?.[0] ?? "{}");
+  assert.deepEqual(receipt.applicationMenuRoles, ["appMenu", "fileMenu", "editMenu", "windowMenu"]);
+  preserved(current.profile, current);
+});
+
+test("Windows and Linux retain their tray image and background activation", () => {
   for (const [platform, size, template] of [
-    ["darwin", 16, true],
     ["linux", 22, false],
     ["win32", 256, false],
   ] as const) {
     const current = fixture("Emc²");
-    const result = launch(current.appData, { platform });
+    const result = launch(current.appData, { platform, backgroundActivation: true });
     passed(result, 0);
+    assert.match(result.stdout, /"backgroundActivation":"passed","windows":1/);
     const receipt = JSON.parse(result.stdout.match(/\{"trayImage"[^\n]+/)?.[0] ?? "{}");
-    assert.equal(path.basename(receipt.trayImage.path), platform === "darwin" ? "tray-icon.png" : "icon.png");
+    assert.equal(path.basename(receipt.trayImage.path), "icon.png");
     assert.equal(receipt.trayImage.width, size, `${platform} tray width`);
     assert.equal(receipt.trayImage.height, size, `${platform} tray height`);
     assert.equal(receipt.trayImage.template, template, `${platform} template mode`);
+    preserved(current.profile, current);
   }
 });
 
@@ -734,6 +906,55 @@ for (const mode of ["premature", "trailing", "duplicate", "malformed", "utf8"])
     } finally { rmSync(path.dirname(profile), { recursive: true, force: true }); }
   });
 
+for (const platform of ["darwin", "win32", "linux"]) test(`endpoint copy accepts only the trusted main frame on ${platform}`, () => {
+  const saved = fixture("Emc²");
+  const result = launch(saved.appData, { platform, clipboardCase: true });
+  passed(result, 0);
+  const receipt = JSON.parse(result.stdout.match(/\{"clipboardGuard"[^\n]+/)?.[0] ?? "{}");
+  assert.deepEqual(receipt, { clipboardGuard: true, rejected: 5, copies: 1, nativeFailurePropagated: false });
+  preserved(saved.profile, saved);
+});
+
+test("endpoint copy propagates an asynchronous native clipboard failure", () => {
+  const saved = fixture("Emc²");
+  const result = launch(saved.appData, { clipboardCase: true, clipboardFailure: true });
+  passed(result, 0);
+  const receipt = JSON.parse(result.stdout.match(/\{"clipboardGuard"[^\n]+/)?.[0] ?? "{}");
+  assert.deepEqual(receipt, { clipboardGuard: true, rejected: 5, copies: 0, nativeFailurePropagated: true });
+  preserved(saved.profile, saved);
+});
+
+for (const platform of ["darwin", "win32", "linux"]) test(`OpenCode config copy accepts only a valid grant credential from the trusted main frame on ${platform}`, () => {
+  const saved = fixture("Emc²");
+  const result = launch(saved.appData, { platform, opencodeCase: true });
+  passed(result, 0);
+  const receipt = JSON.parse(result.stdout.match(/\{"opencodeCopyGuard"[^\n]+/)?.[0] ?? "{}");
+  assert.deepEqual(receipt, { opencodeCopyGuard: true, rejected: 8, copies: 1, nativeFailurePropagated: false });
+  preserved(saved.profile, saved);
+});
+
+test("OpenCode config copy propagates an asynchronous native clipboard failure", () => {
+  const saved = fixture("Emc²");
+  const result = launch(saved.appData, { opencodeCase: true, clipboardFailure: true });
+  passed(result, 0);
+  const receipt = JSON.parse(result.stdout.match(/\{"opencodeCopyGuard"[^\n]+/)?.[0] ?? "{}");
+  assert.deepEqual(receipt, { opencodeCopyGuard: true, rejected: 8, copies: 0, nativeFailurePropagated: true });
+  preserved(saved.profile, saved);
+});
+
+for (const platform of ["darwin", "win32", "linux"]) test(`OpenCode setup writes only after a valid grant credential from the trusted main frame on ${platform}`, () => {
+  const saved = fixture("Emc²");
+  const opencodeDir = path.join(saved.appData, "opencode-config", "opencode");
+  const result = launch(saved.appData, {
+    platform, opencodeSetupCase: true, opencodeDir,
+    env: { XDG_CONFIG_HOME: path.dirname(opencodeDir), OPENCODE_CONFIG: "", OPENCODE_CONFIG_CONTENT: "" },
+  });
+  passed(result, 0);
+  const receipt = JSON.parse(result.stdout.match(/\{"opencodeSetupGuard"[^\n]+/)?.[0] ?? "{}");
+  assert.deepEqual(receipt, { opencodeSetupGuard: true, rejected: 8, saved: true });
+  preserved(saved.profile, saved);
+});
+
 for (const chromeCase of ["cancel", "accept"]) test(`caption-control recreation honors draft ${chromeCase} and rejects untrusted IPC`, () => {
   const saved = fixture("Emc²");
   const result = launch(saved.appData, { platform: "win32", chromeCase });
@@ -768,3 +989,22 @@ test("mail, update and activation callbacks ignore a destroyed window during asy
   assert.equal(events.at(-1), "quit:final");
   preserved(current.profile, current);
 });
+
+for (const platform of ["linux", "darwin", "win32"]) for (const quitShortcutCase of ["plain", "cancel", "accept"])
+ test(`Ctrl+Q uses normal quit and preserves draft ${quitShortcutCase} on ${platform}`, () => {
+  const saved = fixture("Emc²");
+  const result = launch(saved.appData, { platform, quitShortcutCase, shortcutKey: quitShortcutCase === "accept" ? "Q" : "q" });
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout.match(/\{"quitShortcut"[^\n]+/)?.[0] ?? "{}");
+  const quits = platform === "linux";
+  assert.equal(receipt.shortcutInputs, 8, "unrelated keys must never quit");
+  assert.equal(receipt.shortcutPrevented, quits ? 1 : 0);
+  assert.equal(receipt.quitCalls, quits ? 1 : 0);
+  assert.equal(receipt.prompts, quits && quitShortcutCase !== "plain" ? 1 : 0);
+  if (quits && quitShortcutCase !== "cancel") assert.equal(receipt.quitShortcut, "exited");
+  else {
+    assert.equal(receipt.quitShortcut, "retained");assert.equal(receipt.destroyed, false);assert.equal(receipt.visible, false, "close still hides after a cancelled quit");
+    assert.match(result.stdout, /"startup":"passed"/);
+  }
+  preserved(saved.profile, saved);
+ });

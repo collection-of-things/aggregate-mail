@@ -32,7 +32,13 @@ export type Account = {
   syncStatus?: "queued" | "running";
 };
 export type Category = "important" | "other";
+export type MailAttachment = { id: string; filename: string; contentType: string; size: number; unavailable?: boolean };
+export type DraftAttachment = { filename: string; contentType: string; content: string };
+export type RuleCondition = { field: "subject" | "body" | "recipient"; contains: string } | { field: "hasAttachment" | "directQuestion" };
 export type DraftContent = {
+  invitation?: import("./invitations").Invitation;
+  cc?: string[];
+  attachments?: DraftAttachment[];
   to: string;
   subject: string;
   body: string;
@@ -42,13 +48,14 @@ export type DraftContent = {
   sendUnknown?: boolean;
 };
 export type Draft = DraftContent & {
+  calendarContext?: { eventId: string; revision: number; sourceMailId?: string; sourceFingerprint?: string };
   id: string;
   accountId: string;
   revision: number;
   updatedAt: number;
   sendUnknown: boolean;
 };
-export type DraftSummary = Pick<Draft, "id" | "accountId" | "revision" | "updatedAt" | "to" | "subject" | "sendUnknown">;
+export type DraftSummary = Pick<Draft, "id" | "accountId" | "revision" | "updatedAt" | "to" | "cc" | "subject" | "sendUnknown"> & { preview?: string; attachmentCount?: number };
 export type DraftSave = DraftContent & { revision: number };
 export type DraftDelete = { revision: number; confirmUnknown?: boolean };
 // Every System One style decision provider speaks the same request and answer
@@ -118,6 +125,11 @@ export function logoDomain(value: string) {
 }
 export type MailImage = { src: string; alt: string };
 export type Mail = {
+  invitation?: { status: "ok"; invitation: import("./invitations").Invitation } | { status: "invalid" | "unsupported"; reason: string };
+  direction?: "received" | "sent";
+  inReplyTo?: string;
+  attachments?: MailAttachment[];
+  mailbox?: { path: string; uidValidity: string; uid: number };
   id: string;
   accountId: string;
   remoteId: string;
@@ -145,18 +157,47 @@ export type Mail = {
   replyTo?: string;
   references?: string[];
 };
+// Renderer lists contain envelopes and local classification, never message content.
+export type MailSummary = Pick<Mail,
+  "id" | "accountId" | "remoteId" | "sender" | "address" | "to" | "cc" | "replyTo" |
+  "subject" | "preview" | "date" | "unread" | "pinned" | "labelIds" | "category" |
+  "relevance" | "reason" | "archived" | "snoozedUntil" | "messageId" | "threadId" |
+  "references" | "direction" | "inReplyTo" | "mailbox" | "attachments"
+> & { contentVersion: string; inboxTab: import("./inbox-tabs").InboxTab };
+// Full values remain accepted by isolated renderer fixtures and internal views.
+export type RendererMail = MailSummary | Mail;
+export type MailBodyResponse = { mail: Mail; contentVersion: string };
+export type MailSearchResult = {
+  mailCursor: string;
+  matches: Pick<MailSummary, "id" | "accountId" | "contentVersion">[];
+  error?: string;
+};
 export type Rule = {
+  createdAt?: number;
+  excludedMailIds?: string[];
+  accountId?: string;
+  condition?: RuleCondition;
   id: string;
   sender: string;
   instruction: string;
   category: Category;
   relevance: 1 | 2 | 3;
 };
-export type State = {
+export type MailChanges<T = MailSummary> = {
+  mailCursor: string;
+  mailMode: "snapshot" | "delta";
+  messages: T[];
+  removedMailIds: string[];
+};
+export type StateResponse = Omit<State, "messages"> & MailChanges & { csrf: string };
+
+export type State<T = Mail> = {
+  draftCount?: number;
   composePreferences?: ComposePreferences;
   unreadArrivals?: number;
+  mailArrivals?: import("./notifications").MailArrival[];
   accounts: Account[];
-  messages: Mail[];
+  messages: T[];
   labels: GmailLabel[];
   rules: Rule[];
   googleConfigured: boolean;
@@ -167,6 +208,7 @@ export type State = {
   lastSync: number | null;
   syncing: boolean;
 };
+export type RendererState = State<RendererMail>;
 
 export type GmailLabel = {
   id: string;

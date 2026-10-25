@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { lstat, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { bundleDigest, canonicalDirectory, sourceEnvironment, validateDestination, verifyBundle, type MacSourceCandidate, type Run } from "./mac-source-update.js";
+import { bundleDigest, canonicalDirectory, sourceRepositories, sourceEnvironment, validateDestination, verifyBundle, type MacSourceCandidate, type Run } from "./mac-source-update.js";
 import { isHigherStableVersion } from "../shared/updates.js";
 
 type Replacement = { parent: number; installed: string; home: string; workspace: string; candidate: MacSourceCandidate; digest: string; profile?: string };
@@ -25,7 +25,7 @@ export async function validateReplacement(value: unknown, parent: number): Promi
       typeof request.installed !== "string" || typeof request.workspace !== "string" ||
       path.dirname(request.workspace) !== path.dirname(request.installed) || !/^\.emc2-update-[A-Za-z0-9]+$/.test(path.basename(request.workspace)) ||
       typeof request.digest !== "string" || !/^[a-f0-9]{128}$/.test(request.digest) ||
-      request.candidate?.kind !== "mac-source" || !isHigherStableVersion(request.candidate.version, "0.0.0-0") ||
+      request.candidate?.kind !== "mac-source" || !sourceRepositories.includes(request.candidate.repository) || !isHigherStableVersion(request.candidate.version, "0.0.0-0") ||
       request.candidate.tag !== `v${request.candidate.version}` || !/^[a-f0-9]{40}$/.test(request.candidate.commit) ||
       !["x64", "arm64"].includes(request.candidate.arch) ||
       (request.profile !== undefined && (typeof request.profile !== "string" || !path.isAbsolute(request.profile) ||

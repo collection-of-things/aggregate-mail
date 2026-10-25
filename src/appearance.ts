@@ -54,10 +54,12 @@ export type Appearance = {
   accent: AccentId;
   transparency: Transparency;
   reading: ReadingLayout;
+  // Rows follow relevance (high/medium/low heights) or one uniform medium row.
+  sizeByImportance: boolean;
   customThemes: CustomTheme[];
 };
 
-export const defaultAppearance: Appearance = { mode: "dark", theme: "black", accent: "blue", transparency: "glass", reading: "split", customThemes: [] };
+export const defaultAppearance: Appearance = { mode: "dark", theme: "black", accent: "blue", transparency: "glass", reading: "split", sizeByImportance: true, customThemes: [] };
 const storageKey = "emc2.appearance.v1";
 
 /** Whether the desktop window has an OS material behind it to show through. */
@@ -110,6 +112,7 @@ export function readAppearance(): Appearance {
       accent: oneOf(accents, input.accent) ? input.accent : defaultAppearance.accent,
       transparency,
       reading: oneOf(readingLayouts, input.reading) ? input.reading : defaultAppearance.reading,
+      sizeByImportance: typeof input.sizeByImportance === "boolean" ? input.sizeByImportance : defaultAppearance.sizeByImportance,
       customThemes: library,
     };
   } catch {
@@ -119,10 +122,10 @@ export function readAppearance(): Appearance {
 
 export function saveAppearance(value: Appearance): boolean {
   try {
-    const { mode, theme, accent, transparency, reading } = value;
+    const { mode, theme, accent, transparency, reading, sizeByImportance } = value;
     const library = customThemesSchema.parse(value.customThemes);
     if (!oneOf(themes, theme) && !library.some((custom) => custom.id === theme)) return false;
-    localStorage.setItem(storageKey, JSON.stringify({ mode, theme, accent, transparency, reading, customThemes: library }));
+    localStorage.setItem(storageKey, JSON.stringify({ mode, theme, accent, transparency, reading, sizeByImportance, customThemes: library }));
     return true;
   } catch {
     return false;
@@ -139,6 +142,10 @@ export function applyAppearance(value: Appearance, scheme: Scheme = resolveSchem
   const palette = preview?.palette ?? value.customThemes.find((theme) => theme.id === value.theme)?.palettes[activeScheme];
   if (palette) applyPalette(palette, root);
   const glass = supportsGlass() && value.transparency !== "off";
+  // Palettes set --text-3 inline, which beats the stylesheet's glass step-up;
+  // write the same text-2/text-4 mix explicitly so faint text brightens under
+  // glass for every theme. clearPalette resets it on the next apply.
+  if (glass && palette) root.style.setProperty("--text-3", `color-mix(in srgb, ${palette.secondaryText} 75%, ${palette.mutedText})`);
   root.toggleAttribute("data-glass", glass);
   // The native theme decides the material's tint, native menus and what System reports.
   window.desktop?.setScheme?.(preview?.scheme ?? value.mode);

@@ -1,6 +1,6 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -106,11 +106,8 @@ after(() => {
 const respond = (t: { mock: { method: Function } }, handler: (url: string) => unknown) =>
   t.mock.method(globalThis, "fetch", (async (url: unknown) =>
     handler(String(url))) as unknown as typeof fetch);
-const asRegistry = () => ({ ok: true, json: async () => ({ icons }) });
-const asSvg = () => ({
-  ok: true,
-  arrayBuffer: async () => Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'),
-});
+const asRegistry = () => new Response(JSON.stringify({ icons }));
+const asSvg = () => new Response('<svg xmlns="http://www.w3.org/2000/svg"/>');
 
 test("a sender domain is normalised before it is matched", () => {
   assert.equal(normalizeDomain("Someone@GitHub.com"), "github.com");
@@ -256,4 +253,47 @@ test("a scan of nothing is not an error", async () => {
     missing: 0,
     failed: 0,
   });
+});
+
+test("parallel requests for one SVG share the registry and download", async (t) => {
+  use(freshDataDir());
+  let registryCalls = 0, iconCalls = 0;
+  respond(t, async (url) => {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    if (url.endsWith("/registry.json")) { registryCalls++; return asRegistry(); }
+    iconCalls++; return asSvg();
+  });
+  const images = await Promise.all(Array.from({ length: 12 }, () => companySvg("github.com")));
+  assert.ok(images.every((image) => image?.type === "image/svg+xml"));
+  assert.equal(registryCalls, 1); assert.equal(iconCalls, 1);
+});
+
+test("oversized chunked SVGs are cancelled and reported as failed", async (t) => {
+  use(freshDataDir());
+  let cancelled = false;
+  respond(t, (url) => url.endsWith("/registry.json") ? asRegistry() : new Response(new ReadableStream<Uint8Array>({
+    pull(controller) { controller.enqueue(new Uint8Array(256 * 1024)); },
+    cancel() { cancelled = true; },
+  })));
+  assert.deepEqual(await syncLogos(["github.com"]), { total: 1, found: 0, missing: 0, failed: 1 });
+  assert.equal(cancelled, true);
+});
+
+test("registry metadata cannot inject icon path components", () => {
+  for (const slug of ["../escape", "with/slash", "x?query", "x#fragment"]) {
+    assert.equal(matchDomain(buildIndex([{ slug, title: "GitHub", variants: ["default"], url: "https://github.com" }]), "github.com"), null);
+  }
+  const entry = matchDomain(buildIndex([{ slug: "github", variants: ["../../escape"], url: "https://github.com" }]), "github.com");
+  assert.ok(entry); assert.equal(variantOf(entry), "default");
+});
+
+test("a rejected SVG refresh preserves the expired image on disk", async (t) => {
+  const dir = use(freshDataDir());
+  mkdirSync(path.join(dir, "logos"));
+  const file = path.join(dir, "logos", "github.com.svg");
+  const previous = '<svg xmlns="http://www.w3.org/2000/svg"><title>Previous</title></svg>';
+  writeFileSync(file, previous); utimesSync(file, new Date(0), new Date(0));
+  respond(t, (url) => url.endsWith("/registry.json") ? asRegistry() : new Response("not an image"));
+  assert.equal((await companySvg("github.com"))?.body.toString(), previous);
+  assert.equal(readFileSync(file, "utf8"), previous);
 });

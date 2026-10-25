@@ -13,7 +13,7 @@ const installer = path.resolve("release", name);
 const asset = async (filename: string) => ({
   name: filename,
   size: (await lstat(path.resolve("release", filename))).size,
-  browser_download_url: `https://github.com/screen-devs/aggregate-mail/releases/download/v${version}/${filename}`,
+  browser_download_url: `https://github.com/collection-of-things/aggregate-mail/releases/download/v${version}/${filename}`,
 });
 const candidate = validateCandidate({
   version, asset: await asset(name), manifest: await asset(manifestName),

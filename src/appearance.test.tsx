@@ -24,7 +24,7 @@ test("transparency picks the Windows material live and migrates the earlier on/o
   await withDesktop("win32", async (calls, dom) => {
     const { applyAppearance, defaultAppearance, readAppearance } = await import("./appearance");
     dom.window.localStorage.setItem("emc2.appearance.v1", JSON.stringify({ theme: "midnight", accent: "pink", glass: false }));
-    assert.deepEqual(readAppearance(), { mode: "dark", theme: "midnight", accent: "pink", transparency: "off", reading: "split", customThemes: [] });
+    assert.deepEqual(readAppearance(), { mode: "dark", theme: "midnight", accent: "pink", transparency: "off", reading: "split", sizeByImportance: true, customThemes: [] });
     for (const transparency of ["glass", "subtle", "off"] as const)
       applyAppearance({ ...defaultAppearance, transparency });
     assert.deepEqual(calls.filter((call) => !call.startsWith("scheme:")), ["acrylic", "mica", "none"]);
@@ -61,9 +61,11 @@ test("custom selection and both palettes survive a restart, with safe fallback f
     const theme: CustomTheme = { id: `custom:${crypto.randomUUID()}`, name: "Nightfall", palettes: {
       dark: generatePalette("#1a1b26", "#7aa2f7", "dark"), light: generatePalette("#eef0f8", "#3456bc", "light"),
     } };
-    const value = { ...defaultAppearance, theme: theme.id, customThemes: [theme], mode: "system" as const };
+    const value = { ...defaultAppearance, theme: theme.id, customThemes: [theme], mode: "system" as const, sizeByImportance: false };
     assert.equal(saveAppearance(value), true);
     assert.deepEqual(readAppearance(), value);
+    dom.window.localStorage.setItem("emc2.appearance.v1", JSON.stringify({ sizeByImportance: "often" }));
+    assert.equal(readAppearance().sizeByImportance, true, "an invalid stored value falls back to sizing by importance");
     dom.window.localStorage.setItem("emc2.appearance.v1", JSON.stringify({ ...value, customThemes: [] }));
     assert.equal(readAppearance().theme, "black");
     assert.equal(saveAppearance({ ...value, customThemes: [] }), false, "never persist a dangling selection");
@@ -103,6 +105,23 @@ test("custom and preview colors follow the resolved scheme and clear fully when 
     assert.equal(root.style.getPropertyValue("--veil-hover"), "");
     assert.equal(root.style.getPropertyValue("--line-2"), "");
     assert.equal(root.style.getPropertyValue("--accent"), "#6b9cff");
+  });
+});
+
+test("glass brightens faint text for custom palettes and clears with it", async () => {
+  await withDesktop("win32", async (_calls, dom) => {
+    const { applyAppearance, defaultAppearance } = await import("./appearance");
+    const theme: CustomTheme = { id: `custom:${crypto.randomUUID()}`, name: "Nightfall", palettes: {
+      dark: generatePalette("#1a1b26", "#7aa2f7", "dark"), light: generatePalette("#eef0f8", "#3456bc", "light"),
+    } };
+    const root = dom.window.document.documentElement;
+    const value = { ...defaultAppearance, theme: theme.id, customThemes: [theme], transparency: "glass" as const };
+    applyAppearance(value, "dark");
+    assert.equal(root.style.getPropertyValue("--text-3"), `color-mix(in srgb, ${theme.palettes.dark.secondaryText} 75%, ${theme.palettes.dark.mutedText})`);
+    applyAppearance({ ...value, transparency: "off" }, "dark");
+    assert.equal(root.style.getPropertyValue("--text-3"), theme.palettes.dark.mutedText);
+    applyAppearance(value, "dark");
+    assert.equal(root.style.getPropertyValue("--text-3"), `color-mix(in srgb, ${theme.palettes.dark.secondaryText} 75%, ${theme.palettes.dark.mutedText})`);
   });
 });
 

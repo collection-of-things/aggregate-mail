@@ -112,10 +112,11 @@ function decodedText(text: string) {
 
 // Offsets use UTF-16, like String.slice. Values are sensitive and never for attrs.
 export function privateRanges(text: string, names: readonly string[] = []): PrivacyRange[] {
-  const { decoded, offsets } = decodedText(text);
+  const { decoded, offsets } = text.includes("%") ? decodedText(text) : { decoded: text, offsets: null };
   const ranges: PrivacyRange[] = [];
   const add = (start: number, end: number, kind: PrivacyRange["kind"], value: string) => {
-    ranges.push({ start: offsets[start][0], end: offsets[end - 1][1], kind, value });
+    ranges.push({ start: offsets ? offsets[start][0] : start,
+      end: offsets ? offsets[end - 1][1] : end, kind, value });
   };
   // Scan delimiter-separated tokens once; an unanchored email regex is quadratic on long words.
   for (const match of decoded.matchAll(addressToken)) {
