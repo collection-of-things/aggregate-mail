@@ -1092,7 +1092,7 @@ export function App() {
               <div className="update-spacer" aria-hidden="true" />
             </PaneHeader>
             <div hidden={!searching || settings || workView} className="search-help">
-              <span id="mail-search-help" role={search.error ? "alert" : undefined}>{search.error || (search.pending ? "Searching cached mail…" : `Cached ${viewNames[view]} · current account and filters`)}</span>
+              <span id="mail-search-help" role={search.error ? "alert" : search.pending ? "status" : undefined}>{search.error || (search.pending ? "Searching cached message bodies… Header matches are shown immediately." : `Cached ${viewNames[view]} · current account and filters`)}</span>
               <details><summary>Search help</summary><p>Use from:, to:, subject:, body:, account:, is:unread, is:pinned, before:YYYY-MM-DD or after:YYYY-MM-DD. Search stays on this device.</p></details>
             </div>
         {settings ? (
@@ -1218,6 +1218,7 @@ export function App() {
                   />
                 ) : (
                   <ListEmpty
+                    searchPending={search.pending}
                     loaded={loaded}
                     hasAccounts={state.accounts.length > 0}
                     filtered={hasListControls}
@@ -1319,6 +1320,7 @@ export function App() {
             onAttachmentTask={(task) => { attachmentTask.current = task; const clear = () => { if (attachmentTask.current === task) attachmentTask.current = undefined; }; void task.then(clear, clear); }}
             draft={compose}
             source={hydratedReply.mail}
+            api={api}
             setDraft={editCompose}
             accounts={state.accounts}
             preferences={state.composePreferences ?? emptyComposePreferences}

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Resolve header searches from summaries immediately and decrypt only unresolved bodies. Keep confirmed header matches visible during body searches and display an explicit searching state instead of a premature empty result.
+
+- Display original emails in reply composers through the safe formatted reader, retaining per-opening image consent, privacy and plain-text fallback.
+
 - Show current MCP permissions in CLI status without account identities, add cached Inbox/Sent/All selection, and request reviewed replies only when the app explicitly guarantees approval to Drafts without sending. Preserve older commands, grants and no automatic retries.
 - Replace the native composer From popup with a compact themed account menu, retaining private labels and keyboard selection.
 

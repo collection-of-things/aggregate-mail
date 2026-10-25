@@ -1,11 +1,14 @@
 import { RichBody } from "./RichBody";
-import { useContext, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useContext, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { Account, Mail } from "../../shared/types";
 import { emptyComposePreferences, type ComposePreferences } from "../../shared/mail-features";
 import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
 import { accountLabel } from "../mail-ui";
 import { Dialog } from "../ui/Dialog";
 import { Dropdown } from "../ui/Dropdown";
+import type { Api } from "../api";
+import { ReaderContent } from "../mail/MessageContent";
+import { mailBodyKey } from "../mail-body";
 import { changeComposeAccount, ComposePreferenceControls } from "./ComposePreferences";
 import type { Compose, DraftProgress } from "./draft-session";
 import { Paperclip, Trash } from "../ui/icons";
@@ -85,9 +88,11 @@ export function ComposePanel({
   preferences = emptyComposePreferences,
   onAttachmentTask,
   source,
+  api,
 }: {
   draft: Compose;
   source?: Mail;
+  api?: Api;
   setDraft: (value: Compose) => void;
   accounts: Account[];
   busy: boolean;
@@ -101,6 +106,7 @@ export function ComposePanel({
   onAttachmentTask?: (task: Promise<void>) => void;
 }) {
   const { on: privacy } = useContext(PrivacyContext);
+  const sourceKey = useMemo(() => mailBodyKey(source), [source]);
   const footerActions = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const row = footerActions.current;
@@ -156,7 +162,9 @@ export function ComposePanel({
         <span className="compose-context-label">Replying to</span>
         <h3><Redact text={source.subject || "No subject"} /></h3>
         <p><Redact text={source.sender} /> · {new Date(source.date).toLocaleDateString()}</p>
-        <div className="compose-context-body"><Redact text={source.body || source.preview || "No message text in cache."} /></div>
+        <div className="compose-context-body"><ReaderContent key={sourceKey} mail={{ ...source, body: source.body || source.preview || "No message text in cache." }}
+          loadContent={api ? (id) => api(`/messages/${encodeURIComponent(id)}/content`, "POST") : undefined}
+          loadImages={(id) => api ? api(`/messages/${encodeURIComponent(id)}/images`, "POST") : Promise.reject(new Error("Images unavailable"))} /></div>
       </aside></MailPrivacy>}
       <form
         className={`compose-form${dragging ? " dragging-files" : ""}`}

@@ -621,3 +621,8 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
 .compose-from-field .dropdown-menu li { min-height: 32px; padding: 6px 8px; font-size: inherit; }
 .compose-from-field .dropdown :is(button, li) > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .compose-from-field .dropdown-menu svg { flex-shrink: 0; }
+
+/* Original email uses the reader allowlist and owns its own image consent. */
+.compose-context-body { white-space: normal; }
+.compose-context-body .message-body { max-width: 100%; font-size: calc(14px * var(--text-scale, 1)); line-height: 1.6; }
+.compose-context-body .message-images { min-width: 0; }

@@ -290,9 +290,20 @@ export async function searchMail(query: string, accounts: Account[], signal?: Ab
     signal?.throwIfAborted();
     const search = compileMailSearch(query, accounts);
     const mailCursor = `${generation}:${mailRevision}`;
-    const versions = new Map([...rows].map(([id, row]) => [id, row.summary.contentVersion]));
-    return { mailCursor, error: search.error, matches: search.error ? [] : await scanMail([...rows.keys()], mail =>
-      search.matches(mail) ? { id: mail.id, accountId: mail.accountId, contentVersion: versions.get(mail.id)! } : undefined, signal) };
+    const entries = [...rows];
+    const versions = new Map(entries.map(([id, row]) => [id, row.summary.contentVersion]));
+    const matches = new Map<string, MailSearchResult["matches"][number]>();
+    const unknown: string[] = [];
+    if (!search.error) for (const [id, row] of entries) {
+      signal?.throwIfAborted();
+      const known = search.matchesSummary(row.summary);
+      if (known === true) matches.set(id, { id, accountId: row.summary.accountId, contentVersion: row.summary.contentVersion });
+      else if (known === undefined) unknown.push(id);
+    }
+    if (unknown.length) for (const match of await scanMail(unknown, mail => search.matches(mail)
+      ? { id: mail.id, accountId: mail.accountId, contentVersion: versions.get(mail.id)! } : undefined, signal)) matches.set(match.id, match);
+    signal?.throwIfAborted();
+    return { mailCursor, error: search.error, matches: entries.flatMap(([id]) => matches.has(id) ? [matches.get(id)!] : []) };
   });
 }
 export function all<K extends keyof Records>(kind: K): Records[K][] {

@@ -1244,7 +1244,7 @@ Sources: [reader](../src/mail/Reader.tsx), [styles](../src/styles/reader.css),
 
 [The reader](../src/mail/MessageContent.tsx) loads missing formatting on open, shows cached text during loading or failure and offers one manual retry. Show images sits above the body. No body image element exists until activation; consent resets on closure, message change or privacy activation. Delayed content and image responses cannot reveal another message. Formatted images stay inline without a duplicate gallery. Privacy ranges use the full text and map back to the original text leaves with UTF-16 offsets. This keeps supported sender formatting and image/caption order while masking tokens split across tags or images. Split segments share the whole source token as their reveal key; revealing a full name does not reveal a separate surname. Privacy mode suppresses private link and image destinations while allowing explicit display of other supported images. Scrollbar indicators are hidden by CSS without changing scrollable overflow or input handling.
 
-Reply shows cached plain-text context from the source message supplied when opening the reply. When reopening a draft, it uses the first cached message matching the draft account and `inReplyTo` message ID. A missing match shows no original. The context uses the cached body or preview, does not load images or request provider content, and does not change the outgoing draft. It uses the source message's recipient names for privacy masking.
+Replies use the safe formatted reader for the original message. Reopened drafts require exactly one cached source matching the draft account and `inReplyTo` message ID; a missing or ambiguous match shows no original. Authenticated single-message recovery can load missing HTML, while remote images require explicit per-opening consent. Rejected or unavailable HTML retains the cached body or preview. Privacy uses the source recipients and clears image consent. The outgoing draft and source mail are unchanged. See [ADR 0074](adr/0074-formatted-reply-context.md).
 
 [Privacy matching](../src/privacy.ts) learns names from optional account display names and the current To/Cc display names tied to connected account addresses. It covers full names, first names and surnames, including one-letter Unicode components, with Unicode-aware boundaries, case/whitespace variation and URL encoding. The opened message's dictionary also protects Gmail label filter options and the label editor. A sender avatar uses a neutral dot when its displayed initial matches a known private name component; ordinary company initials stay visible. Sender-markup splits cannot expose a known name. Hidden bars have no private children, title or accessibility text. Explicit reveal applies to the clicked token; re-enabling privacy clears it. Unknown names that appear only in a body cannot be identified. A name that is also an ordinary word can hide that word while privacy is on. Editable compose fields retain their focus-to-reveal behavior.
 
@@ -1403,7 +1403,7 @@ Cleared, expired, sent and archived snoozes are excluded.
 
 Ctrl/Cmd +, - and 0 resize or reset text. D still changes density. Page Up/Down
 moves through the complete filtered email list outside editors and dialogs.
-Reply context uses safe cached text. File drops and file selection share validation.
+Reply context uses the safe formatted reader with cached text fallback and explicit image consent. File drops and file selection share validation.
 
 Notification Preview obeys delivery toggles and shows enabled options. It uses
 synthetic sample text, honors privacy and cannot open a real message.
@@ -1997,3 +1997,28 @@ Enter applies the validated link without submitting email; Escape cancels only
 link entry. Selected text, plain alternatives and safe URL rules are retained.
 
 The composer From selector uses the shared themed dropdown: a 30px trigger, compact account rows, arrow/Home/End selection, Enter to confirm and Escape or Tab to dismiss. Private mode omits account addresses. Account switching retains the existing signature and saved-copy behavior.
+
+
+## Formatted original messages in replies
+
+New replies and reopened saved drafts use the same `ReaderContent` allowlist,
+content recovery and opening-specific image consent as the reading pane.
+Cached HTML keeps link labels instead of displaying plaintext tracking URLs.
+Rejected or unavailable HTML uses the original plain text without dropping it.
+Privacy clears image consent; changing source identity/content remounts the
+original-message view. Draft content and existing settings are unchanged.
+See [ADR 0074](adr/0074-formatted-reply-context.md).
+
+
+## Summary-first cached search
+
+The shared search compiler can prove header matches or misses from summaries;
+queries involving unknown body text remain unresolved. Conjunctions, exclusions,
+quoted text, account filters and invalid operators retain their exact rules.
+The server decrypts only unresolved records in the existing coherent WAL scan.
+Header-only searches need no body reads. Known summary matches remain visible
+while body searches run and after source-version refresh; unresolved hits still
+require the exact account/message/content-version response. Empty pending views
+show a searching state rather than claiming no matches. No index migration,
+plaintext search storage or preference changes are introduced. See
+[ADR 0075](adr/0075-summary-first-search.md).
