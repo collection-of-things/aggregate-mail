@@ -10,6 +10,9 @@ const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
   return value >= '0001-01-01' && !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 });
 const schemas = {
+  reply: z.object({ id: id.trim().min(1), body: z.string().min(1).max(1000000),
+    replyAll: z.boolean().default(false), cc: z.array(z.email().max(320)).max(100).optional(),
+  }).strict(),
   'create-project': z.object({ requestId: z.uuid(), accountId: text, name: text, sourceMailIds: ids.min(1) }).strict(),
   'track-commitment': z.object({ requestId: z.uuid(), accountId: text, sourceMailId: id,
     text, reason: text, status: z.enum(['needs-reply', 'needs-work', 'waiting']),

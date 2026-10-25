@@ -3,13 +3,14 @@ import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { realpathSync } from 'node:fs';
 import { fileInput } from './emc2-input.mjs';
+import { z } from 'zod';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 const help = `Usage: emc2 <command> [arguments] [options]
 
   help                      Show this help without connecting
-  status                    Check authentication and list available tool names
+  status                    Check connection, tools and current permissions
   accounts                  List accounts without credentials
   list                      List cached mail, newest first
   search <query>            Search cached sender, address, subject and body
@@ -22,6 +23,7 @@ const help = `Usage: emc2 <command> [arguments] [options]
   create-project <file> --confirm   Save a local project immediately
   track-commitment <file> --confirm Save local open work immediately
   propose-draft <file> --confirm    Request a draft proposal for app review
+  reply <file> --confirm            Request a reviewed reply saved to Drafts
 
 Options:
   --url <url>       Local MCP endpoint (default http://127.0.0.1:32145/mcp)
@@ -29,6 +31,7 @@ Options:
   --json           Compact JSON output (default: indented JSON)
   --account <id>   Filter list/search or scope projects/commitments
   --category <c>   important, other, snoozed or archive (list/search)
+  --view <view>    inbox, sent or all cached mail (list/search; needs capability)
   --unread         Only unread mail (list/search)
   --limit <n>      Page size, 1..100 (default 25)
   --offset <n>     Page offset, 0 or greater (default 0)
@@ -42,14 +45,24 @@ V2. Inspect the result and review proposals in Emc². Never assume completion.
 Work creation files require a stable UUID requestId. Keep the original file.
 Discovery does not imply permission; each tool needs its app grant.
 No automatic retries. After uncertain creation, list scoped saved work first.
-Draft proposals never send. After an uncertain action, check Emc² first.
+Draft and reply proposals never send. Reply requires an explicit review-to-draft
+contract. After an uncertain action, check Emc² first.
 `;
+
+const connectionSchema = z.object({
+  version: z.literal(1),
+  capabilities: z.object({
+    mailViews: z.array(z.enum(['inbox', 'sent', 'all'])).optional(),
+    reply: z.object({ mode: z.string(), approval: z.string(), sendsMail: z.boolean() }).optional(),
+  }),
+  permissions: z.object({ tools: z.array(z.string()), accountCount: z.number().int().nonnegative() }),
+});
 
 function command(args) {
   const { values, positionals } = parseArgs({ args, allowPositionals: true, options: {
     help: { type: 'boolean', short: 'h' }, json: { type: 'boolean' },
     url: { type: 'string' }, 'token-stdin': { type: 'boolean' },
-    account: { type: 'string' }, category: { type: 'string' },
+    account: { type: 'string' }, category: { type: 'string' }, view: { type: 'string' },
     unread: { type: 'boolean' }, limit: { type: 'string' }, offset: { type: 'string' },
     confirm: { type: 'boolean' },
   } });
@@ -58,9 +71,9 @@ function command(args) {
   const tools = { accounts: 'list_accounts', list: 'list_emails', search: 'search_emails',
     read: 'read_email', thread: 'get_thread', 'mark-read': 'mark_read', archive: 'archive_email',
     projects: 'list_projects', commitments: 'list_commitments', 'create-project': 'create_project',
-    'track-commitment': 'track_commitment', 'propose-draft': 'propose_draft' };
+    'track-commitment': 'track_commitment', 'propose-draft': 'propose_draft', reply: 'reply_to_email' };
   if (name !== 'status' && !Object.hasOwn(tools, name)) throw new Error();
-  const file = ['create-project', 'track-commitment', 'propose-draft'].includes(name);
+  const file = ['create-project', 'track-commitment', 'propose-draft', 'reply'].includes(name);
   const scoped = ['projects', 'commitments'].includes(name);
   const needsArgument = file || ['search', 'read', 'thread', 'mark-read', 'archive'].includes(name);
   if (positionals.length !== (needsArgument ? 2 : 1) || (needsArgument && !argument?.trim())) throw new Error();
@@ -68,7 +81,7 @@ function command(args) {
   const mutation = file || ['mark-read', 'archive'].includes(name);
   for (const option of Object.keys(values)) {
     if (option === 'account' && !paged && !scoped) throw new Error();
-    if (['category', 'unread', 'limit', 'offset'].includes(option) && !paged) throw new Error();
+    if (['category', 'view', 'unread', 'limit', 'offset'].includes(option) && !paged) throw new Error();
     if (option === 'confirm' && !mutation) throw new Error();
   }
   if (mutation && !values.confirm) throw new Error();
@@ -86,6 +99,10 @@ function command(args) {
     }
     if (values.category && !['important', 'other', 'snoozed', 'archive'].includes(values.category)) throw new Error();
     if (values.category) input.category = values.category;
+    if (values.view !== undefined) {
+      if (!['inbox', 'sent', 'all'].includes(values.view)) throw new Error();
+      input.view = values.view;
+    }
     if (values.account) input.accountId = values.account;
     input.unreadOnly = !!values.unread;
   }
@@ -142,8 +159,28 @@ export async function run(args, { env = process.env, stdin = process.stdin, out 
       if (page.nextCursor && page.nextCursor === cursor) throw new Error();
       cursor = page.nextCursor;
     } while (cursor);
+    let connection;
+    const needsContract = request.input.view !== undefined || request.name === 'reply';
+    if ((request.name === 'status' || needsContract) && names.includes('get_connection_status')) {
+      const response = await client.callTool({ name: 'get_connection_status', arguments: {} });
+      const parsed = connectionSchema.safeParse(response.structuredContent ?? (() => {
+        try {
+          return response.content.length === 1 && response.content[0].type === 'text'
+            ? JSON.parse(response.content[0].text) : undefined;
+        } catch { return undefined; }
+      })());
+      if (response.isError || !parsed.success) {
+        err.write('App connection contract unavailable or invalid. No operation requested.\n'); return 1;
+      }
+      connection = parsed.data;
+    }
+    if (needsContract && (!connection || (request.input.view !== undefined
+      ? !connection.capabilities.mailViews?.includes(request.input.view)
+      : connection.capabilities.reply?.mode !== 'proposal' || connection.capabilities.reply?.approval !== 'draft' || connection.capabilities.reply?.sendsMail !== false))) {
+      err.write('This app does not guarantee the requested cached view or reviewed reply to Drafts. No operation requested.\n'); return 1;
+    }
     let result;
-    if (request.name === 'status') result = { connected: true, tools: names };
+    if (request.name === 'status') result = { connected: true, tools: names, ...(connection ? { connection } : {}) };
     else {
       if (!names.includes(request.tool)) {
         err.write('This app does not advertise the required tool. No action requested.\n'); return 1;

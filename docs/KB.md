@@ -80,7 +80,19 @@ including V2 pending proposals. No approval or sending command is exposed.
 Work lists and immediate confirmed creation require the feature-detected V2
 work tools and explicit grants. Creation uses caller-owned JSON files with a
 stable UUID requestId. `propose-draft` requests review through `propose_draft`;
-it never sends. The V2 server exposes 13 tools. Each workspace operation requires its own explicit grant; existing grants are unchanged.
+it never sends. The server exposes 14 tools. Authenticated read-only
+`get_connection_status` returns a version 1 contract with capabilities and current
+permissions: granted tool names and existing permitted account count, without
+account identities or credentials. The general token reports no grants or
+accounts. This tool requires no new AgentTool grant and grants no authority.
+Explicit `list/search --view inbox|sent|all` requires the advertised view
+capability. Omitted view keeps all cached mail; Inbox excludes sent, archived
+and future-snoozed mail, and Sent selects cached sent direction. Filters apply
+within grants before paging. Summaries include received/sent direction.
+`reply <file> --confirm` requires the explicit version 1 proposal-to-draft
+capability before calling `reply_to_email`. Approval saves editable Drafts;
+the CLI never sends or approves. Each operation still checks its explicit grant.
+See [ADR 0070](adr/0070-cli-mcp-capability-contract.md).
 Run `node --test scripts/emc2.test.mjs` for the isolated synthetic CLI checks.
 
 

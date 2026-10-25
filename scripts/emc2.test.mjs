@@ -24,6 +24,7 @@ test('help, validation and private input fail before connecting without echoing 
   assert.match((await invoke(['help'], { env: {} })).stdout, /Usage: emc2/);
   for (const args of [ ['unknown-secret'], ['archive', 'id'], ['read'], ['list', '--limit', '0'],
     ['list', '--limit', '1e2'], ['list', '--offset', '-1'], ['list', '--category', 'invalid'],
+    ['list', '--view', ''], ['search', 'query', '--view', 'invalid'], ['read', 'id', '--view', 'all'],
     ['read', 'id', '--unread'], ['accounts', 'extra'], ['accounts', '--confirm'],
     ['status', '--token', 'secret'], ['status', '--url', 'https://127.0.0.1/mcp'],
     ['status', '--url', 'http://example.com/mcp'], ['status', '--url', 'http://secret@localhost/mcp'],
@@ -59,9 +60,15 @@ test('CLI uses the real authenticated MCP contract with isolated synthetic encry
     const { mountMcp, authorizeMcp } = await import('./server/mcp.ts');
     providers.gmail.update = async () => {};
     put('account', 'fixture-account', { id:'fixture-account', email:'user@example.com', provider:'gmail', credentials:{refreshToken:'fixture-hidden-credential'} });
-    put('mail', 'fixture-mail', { id:'fixture-mail', accountId:'fixture-account', remoteId:'1', sender:'Alice', address:'alice@example.com', to:'user@example.com', subject:'Synthetic meeting', preview:'Preview', body:'Synthetic full body', date:1700000000000, unread:true, category:'important', relevance:3, reason:'Team', archived:false, snoozedUntil:null });
+    const mail = { id:'fixture-mail', accountId:'fixture-account', remoteId:'1', sender:'Alice', address:'alice@example.com', to:'user@example.com', subject:'Synthetic meeting', preview:'Preview', body:'Synthetic full body', date:1700000000000, unread:true, category:'important', relevance:3, reason:'Team', archived:false, snoozedUntil:null };
+    put('mail', mail.id, mail);
+    for (const [id, fields] of [['expired', {direction:'received', snoozedUntil:Date.now()-1}], ['sent', {direction:'sent'}], ['archived', {archived:true}], ['snoozed', {snoozedUntil:Date.now()+60000}]]) {
+      put('mail', id, {...mail, ...fields, id, threadId:id, date:mail.date - (1 + ['expired','sent','archived','snoozed'].indexOf(id))*1000});
+    }
+    put('account', 'foreign', {id:'foreign', email:'foreign@example.test', provider:'gmail', credentials:{}});
+    put('mail', 'foreign-mail', {...mail, id:'foreign-mail', accountId:'foreign', date:mail.date+1000});
     put('mcp', 'settings', { enabled:true, allowSending:false, token:'synthetic-global-discovery-token' });
-    put('agent', 'fixture-agent', { id:'fixture-agent', name:'CLI fixture', accountIds:['fixture-account'], tools:['list_accounts','list_emails','search_emails','read_email','get_thread','mark_read','archive_email','list_projects','list_commitments','create_project','track_commitment','propose_draft'], token:process.env.EMC2_MCP_TOKEN, createdAt:1700000000000 });
+    put('agent', 'fixture-agent', { id:'fixture-agent', name:'CLI fixture', accountIds:['fixture-account'], tools:['list_accounts','list_emails','search_emails','read_email','get_thread','reply_to_email','mark_read','archive_email','list_projects','list_commitments','create_project','track_commitment','propose_draft'], token:process.env.EMC2_MCP_TOKEN, createdAt:1700000000000 });
     const app = express(); app.use(express.json()); app.use('/mcp', authorizeMcp); mountMcp(app, () => {}, () => {});
     const server = app.listen(0, '127.0.0.1', () => console.log(server.address().port));
     process.on('message', () => server.close(() => { closeStore(); process.disconnect(); }));
@@ -81,8 +88,13 @@ test('CLI uses the real authenticated MCP contract with isolated synthetic encry
     assert.equal(JSON.parse(executable.stdout).connected, true);
     const status = await call(['status']);
     assert.equal(status.code, 0, status.stderr);
-    assert.deepEqual(JSON.parse(status.stdout).tools.length, 13);
-    assert.doesNotMatch(status.stdout, /fixture-account|fixture-hidden|synthetic-cli-token/);
+    assert.deepEqual(JSON.parse(status.stdout).tools.length, 14);
+    assert.doesNotMatch(status.stdout, /fixture-account|fixture-hidden|synthetic-cli-token|CLI fixture|example/);
+    assert.deepEqual(JSON.parse(status.stdout).connection.permissions, {
+      tools: ['list_accounts','list_emails','search_emails','read_email','get_thread','reply_to_email','mark_read','archive_email','list_projects','list_commitments','create_project','track_commitment','propose_draft'], accountCount: 1,
+    });
+    const globalStatus = await call(['status'], {env:{EMC2_MCP_TOKEN:'synthetic-global-discovery-token'}});
+    assert.deepEqual(JSON.parse(globalStatus.stdout).connection.permissions, {tools:[], accountCount:0});
     const accounts = await call(['accounts', '--token-stdin'], { env: {}, stdin: Readable.from([token + '\n']) });
     assert.equal(accounts.code, 0, accounts.stderr);
     assert.equal(JSON.parse(accounts.stdout)[0].id, 'fixture-account');
@@ -97,6 +109,38 @@ test('CLI uses the real authenticated MCP contract with isolated synthetic encry
     assert.equal(JSON.parse(read.stdout).body, 'Synthetic full body');
     assert.equal(JSON.parse(read.stdout).unread, true);
     assert.equal(JSON.parse((await call(['thread', 'fixture-mail'])).stdout).emails.length, 1);
+    for (const command of [['list'], ['search', 'meeting']]) {
+      const page = async (...args) => {
+        const result = await call([...command, ...args]);
+        assert.equal(result.code, 0, result.stderr);
+        return JSON.parse(result.stdout);
+      };
+      const first = await page('--view', 'inbox', '--limit', '1');
+      assert.equal(first.emails[0].id, 'fixture-mail');
+      assert.equal(first.emails[0].direction, 'received');
+      assert.equal(first.nextOffset, 1);
+      const last = await page('--view', 'inbox', '--limit', '1', '--offset', String(first.nextOffset));
+      assert.equal(last.emails[0].id, 'expired');
+      assert.equal(last.nextOffset, null);
+      assert.equal((await page('--view', 'sent')).emails[0].direction, 'sent');
+      assert.equal((await page('--view', 'all')).emails.length, 5);
+      assert.deepEqual(await page('--view', 'all'), await page());
+      assert.equal((await call([...command, '--view', 'all', '--account', 'foreign'])).code, 1);
+      assert.equal((await call([...command, '--view', 'all'], {env:{EMC2_MCP_TOKEN:'synthetic-global-discovery-token'}})).code, 1);
+    }
+    await inputFile(async (filename, save) => {
+      await save({id:'fixture-mail', body:'Reviewed reply', replyAll:true, cc:['extra@example.com']});
+      const reply = await call(['reply', filename, '--confirm']);
+      assert.equal(reply.code, 0, reply.stderr);
+      const proposal = JSON.parse(reply.stdout);
+      assert.equal(proposal.status, 'pending');
+      assert.equal(proposal.sourceMailId, 'fixture-mail');
+      assert.equal(proposal.payload.body, 'Reviewed reply');
+      assert.equal((await call(['reply', filename, '--confirm'], {env:{EMC2_MCP_TOKEN:'synthetic-global-discovery-token'}})).code, 1);
+      await save({id:'foreign-mail', body:'Denied'});
+      assert.equal((await call(['reply', filename, '--confirm'])).code, 1);
+      assert.deepEqual(JSON.parse((await call(['read', 'fixture-mail'])).stdout), JSON.parse(read.stdout));
+    });
     const unauthorized = await call(['status'], { env: { EMC2_MCP_TOKEN: 'wrong-token' } });
     assert.equal(unauthorized.code, 1);
     assert.doesNotMatch(unauthorized.stderr, /wrong-token/);
@@ -212,7 +256,8 @@ async function inputFile(work) {
 
 test('work and draft validation rejects unsafe input before connecting and does not echo content', async () => {
   for (const args of [['projects'], ['commitments', '--account', ' '], ['projects', '--account', 'a', '--limit', '1'],
-    ['create-project', 'absent.json'], ['propose-draft', 'absent.json'],
+    ['create-project', 'absent.json'], ['propose-draft', 'absent.json'], ['reply', 'absent.json'],
+    ['reply', 'absent.json', '--confirm'],
     ['create-project', 'absent.json', '--confirm']]) assert.equal((await invoke(args)).code, 2);
   await inputFile(async (filename, save) => {
     const invalid = [
@@ -234,6 +279,15 @@ test('work and draft validation rejects unsafe input before connecting and does 
       ['track-commitment', { ...commitmentInput, evidenceMailIds: [''] }],
       ['propose-draft', { ...draftInput, content: { ...draftInput.content, sendUnknown: true } }],
       ['propose-draft', { ...draftInput, content: { ...draftInput.content, attachments: [] } }],
+      ['reply', { id: 'fixture-mail', body: '' }],
+      ['reply', { id: ' ', body: 'private-fixture' }],
+      ['reply', { id: 'x'.repeat(301), body: 'private-fixture' }],
+      ['reply', { id: 'fixture-mail', body: 'x'.repeat(1000001) }],
+      ['reply', { id: 'fixture-mail', body: 'private-fixture', replyAll: 'true' }],
+      ['reply', { id: 'fixture-mail', body: 'private-fixture', cc: ['invalid'] }],
+      ['reply', { id: 'fixture-mail', body: 'private-fixture', cc: Array(101).fill('a@example.com') }],
+      ['reply', { id: 'fixture-mail', body: 'private-fixture', send: true }],
+      ['reply', { id: 'fixture-mail', body: 'private-fixture', accountId: 'foreign' }],
     ];
     for (const [command, value] of invalid) {
       await save(value);
@@ -244,8 +298,10 @@ test('work and draft validation rejects unsafe input before connecting and does 
     }
     await writeFile(filename, 'invalid JSON');
     assert.equal((await invoke(['create-project', filename, '--confirm'])).code, 2);
+    assert.equal((await invoke(['reply', filename, '--confirm'])).code, 2);
     await writeFile(filename, 'x'.repeat(2 * 1024 * 1024 + 1));
     assert.equal((await invoke(['create-project', filename, '--confirm'])).code, 2);
+    assert.equal((await invoke(['reply', filename, '--confirm'])).code, 2);
   });
 });
 
@@ -333,6 +389,98 @@ test('feature-detected work commands preserve caller UUID, scoped reads, immedia
       // The server default is materialized without inventing a fresh request ID.
       await save(commitmentInput); expectedTool = 'track_commitment'; expectedInput = { ...commitmentInput, evidenceMailIds: [] }; mode = 'success';
       assert.equal((await call(['track-commitment', filename, '--confirm'])).code, 0);
+    });
+  });
+});
+
+test('explicit views and replies require a valid versioned contract; old commands keep working', async () => {
+  const contract = {
+    version: 1,
+    capabilities: { mailViews: ['inbox', 'sent', 'all'], reply: { mode: 'proposal', approval: 'draft', sendsMail: false } },
+    permissions: { tools: ['list_emails', 'search_emails', 'reply_to_email'], accountCount: 1 },
+  };
+  let advertised = true, value = contract, contractError = false, targetMode = 'success';
+  let targetCalls = 0, statusCalls = 0, expectedTool, expectedInput;
+  await fixture(async (req, res) => {
+    if (req.method !== 'POST') { res.writeHead(405).end(); return; }
+    let body = ''; for await (const chunk of req) body += chunk;
+    const rpc = JSON.parse(body);
+    if (rpc.id === undefined) { res.writeHead(202).end(); return; }
+    let result;
+    if (rpc.method === 'initialize') result = { protocolVersion: '2025-03-26', capabilities: { tools: {} }, serverInfo: { name: 'fixture', version: '1' } };
+    if (rpc.method === 'tools/list') result = { tools: [...(advertised ? ['get_connection_status'] : []), 'list_emails', 'search_emails', 'reply_to_email'].map((name) => ({name, inputSchema:{type:'object'}})) };
+    if (rpc.method === 'tools/call') {
+      if (rpc.params.name === 'get_connection_status') {
+        statusCalls++;
+        assert.deepEqual(rpc.params.arguments, {});
+        result = { content: [{ type:'text', text: JSON.stringify(value) }], ...(contractError ? {isError:true} : {}) };
+      } else {
+        targetCalls++;
+        assert.equal(rpc.params.name, expectedTool);
+        assert.deepEqual(rpc.params.arguments, expectedInput);
+        if (targetMode === 'disconnect') { req.socket.destroy(); return; }
+        result = { content: [{type:'text', text:JSON.stringify(expectedTool === 'reply_to_email' ? {status:'pending', reflected:token} : {emails:[], nextOffset:null})}], ...(targetMode === 'denied' ? {isError:true} : {}) };
+      }
+    }
+    res.writeHead(200, {'Content-Type':'application/json'}).end(JSON.stringify({jsonrpc:'2.0', id:rpc.id, result}));
+  }, async (url) => {
+    const call = (args) => invoke([...args, '--url', url, '--json']);
+    advertised = false;
+    const legacyStatus = await call(['status']);
+    assert.equal(legacyStatus.code, 0);
+    assert.deepEqual(JSON.parse(legacyStatus.stdout), {connected:true, tools:['list_emails','search_emails','reply_to_email']});
+    expectedTool = 'list_emails'; expectedInput = {limit:25, offset:0, unreadOnly:false};
+    assert.equal((await call(['list'])).code, 0);
+    assert.equal(statusCalls, 0);
+    await inputFile(async (filename, save) => {
+      await save({id:'fixture', body:'Private reply'});
+      const withoutConfirm = await call(['reply', filename]);
+      assert.equal(withoutConfirm.code, 2);
+      assert.equal(statusCalls, 0);
+      for (const args of [['list', '--view', 'inbox'], ['search', 'meeting', '--view', 'sent'], ['reply', filename, '--confirm']]) {
+        const before = targetCalls;
+        advertised = false;
+        assert.equal((await call(args)).code, 1, 'Advertised legacy tools do not guarantee semantics');
+        advertised = true;
+        const invalidContracts = [
+          null, 'not a contract', {}, {...contract, version:2}, {...contract, permissions:{tools:[], accountCount:-1}},
+          {...contract, capabilities:{}},
+          {...contract, capabilities:{mailViews:['all'], reply:{mode:'immediate', approval:'draft', sendsMail:false}}},
+          {...contract, capabilities:{mailViews:[], reply:{mode:'proposal', approval:'send', sendsMail:false}}},
+          {...contract, capabilities:{reply:{mode:'proposal', approval:'draft', sendsMail:true}}},
+          {...contract, capabilities:{mailViews:'inbox', reply:{mode:'proposal', approval:'draft', sendsMail:'false'}}},
+        ];
+        for (value of invalidContracts) {
+          const rejected = await call(args);
+          assert.equal(rejected.code, 1, JSON.stringify(value));
+          assert.equal(rejected.stdout, '');
+        }
+        value = contract; contractError = true;
+        assert.equal((await call(args)).code, 1);
+        contractError = false;
+        assert.equal(targetCalls, before, 'Unsupported guarantees never invoke the target');
+      }
+      value = contract;
+      for (const [args, tool, input] of [
+        [['list', '--view', 'inbox'], 'list_emails', {limit:25, offset:0, unreadOnly:false, view:'inbox'}],
+        [['search', 'meeting', '--view', 'sent'], 'search_emails', {limit:25, offset:0, unreadOnly:false, view:'sent', query:'meeting'}],
+        [['reply', filename, '--confirm'], 'reply_to_email', {id:'fixture', body:'Private reply', replyAll:false}],
+      ]) {
+        expectedTool = tool; expectedInput = input;
+        const result = await call(args);
+        assert.equal(result.code, 0, result.stderr);
+        assert.doesNotMatch(result.stdout, new RegExp(token));
+      }
+      expectedTool = 'reply_to_email'; expectedInput = {id:'fixture', body:'Private reply', replyAll:false};
+      targetMode = 'denied';
+      const before = targetCalls;
+      assert.equal((await call(['reply', filename, '--confirm'])).code, 1);
+      assert.equal(targetCalls, before + 1);
+      targetMode = 'disconnect';
+      const uncertain = await call(['reply', filename, '--confirm']);
+      assert.equal(uncertain.code, 1);
+      assert.match(uncertain.stderr, /may already exist/);
+      assert.equal(targetCalls, before + 2, 'A lost reply response never retries');
     });
   });
 });

@@ -87,6 +87,7 @@ try {
     (tool) => tool.name,
   );
   assert.deepEqual(tools, [
+    "get_connection_status",
     "list_accounts",
     "list_emails",
     "search_emails",

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Show current MCP permissions in CLI status without account identities, add cached Inbox/Sent/All selection, and request reviewed replies only when the app explicitly guarantees approval to Drafts without sending. Preserve older commands, grants and no automatic retries.
+
 - Make macOS source-update fixtures independent of runner disk capacity while testing the unchanged 8 GB build and 1 GB replacement limits explicitly.
 
 - Reconcile macOS source updates with the repository move: prefer the current release repository, retain legacy fallback, and pin tag resolution and source checkout to the same repository. Preserve current quit guards and update validation.

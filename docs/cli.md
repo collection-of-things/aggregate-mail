@@ -16,7 +16,7 @@ Open Emc² Settings, MCP, and enable MCP. On legacy apps, use the shared MCP
 bearer token. On V2, create or select an agent grant, choose the permitted account
 and required tools, and use **that agent grant's bearer token** for the CLI.
 The shared MCP token can authenticate `status` without an agent identity, but
-does not authorize scoped work or draft tools. Each work tool is default-off;
+grants no account access. Each work tool is default-off;
 enable only those you intend to use. Keep the app running. Do not pass the token as an argument or save it in a script or shell
 configuration. The CLI never saves credentials.
 
@@ -38,8 +38,9 @@ visible to processes with sufficient access. For a secret manager, pipe its
 plain token output directly to the command with `--token-stdin` instead. Do
 not use `echo <token>` or paste the token into a command line.
 
-`status` checks MCP authentication and reports only `connected` and available
-tool names. It does not retrieve mail or account settings. Help needs no token.
+`status` checks MCP authentication and reports available tools. Current apps
+also report capabilities and granted permissions, without account identities.
+It does not retrieve mail or account settings. Help needs no token.
 The default URL is `http://127.0.0.1:32145/mcp`. Use `--url` for a different
 local port. Only HTTP, `127.0.0.1` or `localhost`, and the exact `/mcp` path are
 accepted. URL credentials, query strings and redirects are rejected.
@@ -54,8 +55,36 @@ node scripts/emc2.mjs read 'message-id'
 node scripts/emc2.mjs thread 'message-id'
 ```
 
-`list` and `search` accept `--account <id>`, `--category important|other|snoozed|archive`,
-`--unread`, `--limit 1..100` and `--offset 0..`. Results include `nextOffset`;
+`status` preserves `connected` and the advertised `tools` list on older apps.
+When `get_connection_status` is available, it also returns `connection` with
+`version: 1`, `capabilities` and `permissions`. Permissions contain current
+granted tool names and the count of existing permitted accounts, with no
+account IDs, names, addresses or credentials. The general token reports no
+granted tools and zero accounts. Capabilities describe app behavior, not
+permission. A later operation rechecks the current grant.
+
+`list` and `search` accept `--view inbox|sent|all`, `--account <id>`,
+`--category important|other|snoozed|archive`, `--unread`, `--limit 1..100` and
+`--offset 0..`. An omitted view keeps the existing all-cached behavior.
+Inbox excludes sent, archived and future-snoozed mail. Sent selects cached
+mail with sent direction, including archived or snoozed sent mail. All includes
+all cached mail within the grant. Summaries include `direction`, treating old
+mail without a stored direction as received. View, account, category, unread
+and search filters apply together before pagination. Contradictory filters
+can produce an empty page.
+
+Explicit views require a version 1 status contract advertising the chosen
+view in `capabilities.mailViews`. Older apps may silently ignore unknown tool
+arguments, so the CLI refuses an explicit view without this guarantee.
+Omit `--view` to use the old behavior.
+
+```sh
+emc2 list --view inbox --limit 10
+emc2 search 'estimate' --view sent
+emc2 list --view all
+```
+
+Results include `nextOffset`;
 pass that value as the next offset until it is null. Search uses the MCP
 case-insensitive substring contract, not the desktop's advanced search syntax.
 Only cached mail is covered. The CLI does not refresh the provider.
@@ -89,7 +118,8 @@ or proposal may already exist. Each HTTP request has a 15-second timeout.
 
 These commands need an app advertising the four scoped work tools. They fail
 without calling an unavailable tool on older apps. Each tool needs its own grant;
-listing tools with `status` does not check grants.
+the advertised `tools` list alone does not check grants. Current apps include
+granted tool names separately in `status.connection.permissions`.
 
 ```sh
 emc2 projects --account 'account-id'
@@ -179,21 +209,51 @@ Recipient and subject may be incomplete or empty. Body is plain text, up to
 If the response is lost, inspect Emc² before requesting again; draft proposals
 have no caller request ID and repeating one may create another proposal.
 
-## Remaining workflow stages
+## Reviewed replies
 
-| Workflow | CLI support |
-| --- | --- |
-| Cached mail | List, search, read and thread |
-| Organization | Confirmed read/archive requests through existing gates |
-| Local work | Scoped lists and confirmed project/commitment creation |
-| Drafts | Request a draft proposal for app review |
-| Reply/send | Needs a contract that explicitly guarantees reviewed behavior |
-| Draft list/edit/delete, sync, further organization | Needs scoped app tools |
-| Installation | Checkout plus optional `npm link`; no installer-provided command |
+```sh
+emc2 reply reply.json --confirm
+```
 
-No generic tool caller or proposal approval is exposed. The integrated V2 server
-exposes 13 tools with explicit account and tool grants. Feature detection preserves older-app compatibility. No server,
-store or desktop changes are included in the CLI work.
+Example `reply.json`:
+
+```json
+{
+  "id": "message-id",
+  "body": "Here is the reply for review.",
+  "replyAll": false,
+  "cc": ["recipient@example.com"]
+}
+```
+
+The file is strict JSON, at most 2 MiB, containing only `id`, `body`, optional
+`replyAll` and optional `cc`. The trimmed ID must contain 1..300 characters.
+Body is plain text, 1..1,000,000 characters. `replyAll` defaults to false;
+`cc` accepts up to 100 valid email addresses, each at most 320 characters.
+Unknown fields, invalid types and missing `--confirm` fail before connecting.
+
+The CLI requires both an advertised `reply_to_email` tool and a version 1
+connection contract whose `capabilities.reply` is
+`{ "mode": "proposal", "approval": "draft", "sendsMail": false }`.
+A tool name or description alone is insufficient. Missing, malformed or
+incompatible contracts fail before invoking the reply tool, including on
+older apps that could send immediately. The server still needs the explicit
+reply grant for the source account.
+
+The result is a pending proposal. Review it in Emc². Approval saves the frozen
+reply to editable Drafts and never sends it. Only the user's separate Send
+action delivers mail. `--confirm` authorizes the proposal request, not approval.
+After a lost response, inspect Agent review before requesting again; another
+request may create another proposal. The CLI never retries automatically.
+See [ADR 0053](adr/0053-agent-replies-open-as-drafts.md) and the
+[capability contract](adr/0070-cli-mcp-capability-contract.md).
+
+## Supported workflow limits
+
+The integrated server exposes 14 tools. Tools remain distinct from grants.
+The CLI has no generic tool caller, proposal approval, send command, draft
+list/edit/delete or sync command. Installation still needs the checkout plus
+optional `npm link`; installers do not provide a command.
 
 ## Output and exit codes
 
@@ -205,12 +265,13 @@ completion or delivery. Errors write a non-secret explanation to stderr without
 raw server errors. The bearer token is redacted if reflected in successful data.
 
 - `0`: help, connected status or a successful tool result.
-- `1`: unavailable tool, authentication/transport failure or app tool error.
+- `1`: unavailable tool or required capability, invalid connection contract, authentication/transport failure or app tool error.
 - `2`: invalid command/options or missing/invalid token input or invalid JSON file.
 
 Synthetic tests exercise the real MCP server with an isolated encrypted store
 and stubbed provider updates. Additional fixtures cover V2 pending proposals,
 missing tools, rejected requests, redirects and a lost action response without
 retry. They do not establish native installation, live provider behavior or
-V2 installed-app acceptance. Work/draft fixtures independently model the frozen
-uncommitted V2 contract; they do not run that server or prove its persistence.
+installed-app acceptance. Real HTTP coverage includes current scoped status,
+cached view paging, pending replies and unchanged source mail. Server coverage
+checks current/revoked grants and approval to Drafts without provider sending.

@@ -36,6 +36,7 @@ const summary = (m: Mail) => ({
   category: category(m),
   relevance: m.relevance,
   accountId: m.accountId,
+  direction: m.direction || "received",
 });
 const full = (m: Mail) => ({
   ...summary(m),
@@ -45,12 +46,12 @@ const full = (m: Mail) => ({
   messageId: m.messageId || null,
   threadId: m.threadId || null,
   references: m.references || [],
-  ...(m.direction ? { direction: m.direction } : {}),
   ...(m.inReplyTo ? { inReplyTo: m.inReplyTo } : {}),
   ...(m.attachments ? { attachments: m.attachments } : {}),
 });
 const limit = z.number().int().min(1).max(100).default(25);
 const filters = {
+  view: z.enum(["inbox", "sent", "all"]).optional(),
   category: z.enum(["important", "other", "snoozed", "archive"]).optional(),
   accountId: z.string().optional(),
   unreadOnly: z.boolean().default(false),
@@ -58,10 +59,13 @@ const filters = {
   offset: z.number().int().min(0).default(0),
 };
 function page(input: z.infer<z.ZodObject<typeof filters>>, allowedAccounts: string[], query?: string) {
+  const now = Date.now();
   const matches = all("mail")
     .filter(
       (m) =>
         allowedAccounts.includes(m.accountId) &&
+        (input.view !== "sent" || m.direction === "sent") &&
+        (input.view !== "inbox" || (m.direction !== "sent" && !m.archived && !(m.snoozedUntil && m.snoozedUntil > now))) &&
         (!input.category || category(m) === input.category) &&
         (!input.accountId || m.accountId === input.accountId) &&
         (!input.unreadOnly || m.unread) &&
@@ -112,6 +116,28 @@ export function createMcpServer(
     openWorldHint: false,
   };
   server.registerTool(
+    "get_connection_status",
+    {
+      description: "Read this connection's current permissions and versioned capabilities without account identities or credentials. Discovery does not grant access.",
+      inputSchema: {},
+      annotations: readOnly,
+    },
+    safe(() => {
+      const current = all("agent").find((agent) => agent.id === agentId);
+      return {
+        version: 1,
+        capabilities: {
+          mailViews: ["inbox", "sent", "all"],
+          reply: { mode: "proposal", approval: "draft", sendsMail: false },
+        },
+        permissions: {
+          tools: current?.tools || [],
+          accountCount: all("account").filter((a) => current?.accountIds.includes(a.id)).length,
+        },
+      };
+    }),
+  );
+  server.registerTool(
     "list_accounts",
     {
       description: "List connected accounts without credentials.",
@@ -131,7 +157,7 @@ export function createMcpServer(
     "list_emails",
     {
       description:
-        "List synced mail, newest first. Offset pagination; category includes archive and snoozed.",
+        "List cached mail, newest first. Optional inbox, sent or all view filters before offset pagination; omitted view preserves all cached mail. Category includes archive and snoozed.",
       inputSchema: filters,
       annotations: readOnly,
     },
@@ -141,7 +167,7 @@ export function createMcpServer(
     "search_emails",
     {
       description:
-        "Search sender, address, subject and plain-text body of synced mail (case-insensitive substring).",
+        "Search cached sender, address, subject and plain-text body (case-insensitive substring), within the optional inbox, sent or all view before pagination.",
       inputSchema: { ...filters, query: z.string().trim().min(1).max(2000) },
       annotations: readOnly,
     },

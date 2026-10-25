@@ -248,6 +248,12 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
           error: "Connect an assistant in Settings, AI and agents. The general MCP token does not grant account access.",
         });
         assert.equal((await call("read_email", { id: mail.id })).isError, true);
+        const discoveryStatus = decode(await call("get_connection_status"));
+        assert.deepEqual(discoveryStatus, {
+          version: 1,
+          capabilities: { mailViews: ["inbox", "sent", "all"], reply: { mode: "proposal", approval: "draft", sendsMail: false } },
+          permissions: { tools: [], accountCount: 0 },
+        });
         const grantResponse = await fetch(`${base}/api/agent/grants`, { method: "POST", headers: settingsHeaders, body: JSON.stringify({ name: "Synthetic scoped agent", accountIds: ["a"], tools: ["list_accounts", "list_emails", "search_emails", "read_email", "get_thread", "reply_to_email", "archive_email", "mark_read", "propose_draft"] }) });
         assert.equal(grantResponse.status, 201);
         const grant = await grantResponse.json() as { token: string };
@@ -258,6 +264,7 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
         assert.deepEqual(
           tools.map((v) => v.name).sort(),
           [
+            "get_connection_status",
             "list_accounts",
             "list_emails",
             "search_emails",
@@ -300,6 +307,7 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
               category: "important",
               relevance: 3,
               accountId: "a",
+              direction: "received",
             },
           ],
           nextOffset: null,
@@ -336,6 +344,58 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
         assert.equal((await call("list_emails", { limit: 101 })).isError, true);
       },
     );
+    await t.test("connection status stays current without identities; cached views filter inside grants before paging", async () => {
+      const current = all("agent").find((agent) => agent.token === agentToken)!;
+      const status = async () => decode(await call("get_connection_status")) as {
+        permissions: { tools: string[]; accountCount: number };
+      };
+      assert.deepEqual((await status()).permissions, { tools: current.tools, accountCount: 1 });
+      assert.deepEqual((await rpc("tools/list")).result.tools!.find((tool) => tool.name === "get_connection_status")!.annotations,
+        { readOnlyHint: true, destructiveHint: false, openWorldHint: false });
+      assert.doesNotMatch(JSON.stringify(await status()), /Synthetic scoped agent|example|secret|accountIds|token/);
+      put("mail", "a:view-expired", { ...mail, id: "a:view-expired", direction: "received", date: mail.date + 2000, snoozedUntil: Date.now() - 1 });
+      put("mail", "a:view-sent", { ...mail, id: "a:view-sent", direction: "sent", date: mail.date + 3000, archived: true, snoozedUntil: Date.now() + 60000 });
+      try {
+        for (const tool of ["list_emails", "search_emails"]) {
+          const query = tool === "search_emails" ? { query: "PLAIN-TEXT" } : {};
+          const page = async (input: object) => decode(await call(tool, { ...query, ...input })) as {
+            emails: { id: string; direction: string }[]; nextOffset: number | null;
+          };
+          const first = await page({ view: "inbox", limit: 1 });
+          assert.deepEqual(first, { emails: (await page({ view: "inbox" })).emails.slice(0, 1), nextOffset: 1 });
+          assert.equal(first.emails[0].id, "a:view-expired");
+          const second = await page({ view: "inbox", limit: 1, offset: first.nextOffset });
+          assert.equal(second.emails[0].id, mail.id);
+          assert.equal(second.emails[0].direction, "received");
+          assert.equal((await page({ view: "inbox", offset: 2 })).nextOffset, null);
+          assert.equal((await page({ view: "inbox", offset: 3 })).emails.length, 0);
+          const sentPage = await page({ view: "sent" });
+          assert.deepEqual(sentPage.emails.map((m) => [m.id, m.direction]), [["a:view-sent", "sent"]]);
+          assert.equal((await page({ view: "inbox", category: "archive" })).emails.length, 0);
+          assert.equal((await page({ view: "inbox", unreadOnly: true })).emails.length, 2);
+          assert.equal((await page({ view: "all" })).emails.length, 6);
+          assert.deepEqual(await page({ view: "all" }), await page({}));
+          assert.equal((await call(tool, { ...query, view: "all", accountId: "b" })).isError, true);
+          assert.equal((await call(tool, { ...query, view: "invalid" })).isError, true);
+        }
+        assert.equal((await call("reply_to_email", { id: "b:secret", body: "No authority" })).isError, true);
+        put("agent", current.id, { ...current, tools: ["read_email"] });
+        assert.deepEqual((await status()).permissions.tools, ["read_email"]);
+        assert.equal((await call("list_emails", { view: "all" })).isError, true, "Discovery still advertises a denied tool");
+        assert.equal((await call("reply_to_email", { id: mail.id, body: "No authority" })).isError, true);
+        put("agent", current.id, { ...current, accountIds: [] });
+        assert.equal((await status()).permissions.accountCount, 0);
+        assert.equal((await call("list_emails", { view: "inbox" })).content[0].text.includes(mail.id), false);
+        put("agent", current.id, { ...current, accountIds: ["missing-account"] });
+        assert.equal((await status()).permissions.accountCount, 0, "Only available permitted accounts count");
+        remove("agent", current.id);
+        assert.equal((await request({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_connection_status", arguments: {} } })).status, 401);
+      } finally {
+        put("agent", current.id, current);
+        remove("mail", "a:view-expired");
+        remove("mail", "a:view-sent");
+      }
+    });
     await t.test("local work requires separate grants and preserves account, creation and retry boundaries", async () => {
       const oldToken = agentToken;
       const projectInput = { requestId: randomUUID(), accountId: "a", name: "Synthetic project", sourceMailIds: [mail.id] };
