@@ -9,7 +9,9 @@ export function useMailSearch(query: string, accounts: Account[], messages: Rend
   const contextApi = useContext(MailSearchApiContext);
   const api = explicitApi ?? contextApi;
   const compiled = useMemo(() => compileMailSearch(query, accounts), [query, accounts]);
-  const remote = Boolean(query.trim()) && messages.some(mail => !("body" in mail));
+  const summaryMatches = useMemo(() => new Map(messages.flatMap(mail => "body" in mail || !query.trim() ? [] :
+    [[JSON.stringify([mail.accountId, mail.id, mail.contentVersion]), compiled.matchesSummary(mail)] as const])), [messages, query, compiled]);
+  const remote = [...summaryMatches.values()].some(match => match === undefined);
   const identity = useMemo(() => remote ? JSON.stringify([accounts.map(a => [a.id, a.email, a.name]),
     messages.map(mail => [mail.id, mail.accountId, "contentVersion" in mail ? mail.contentVersion : null, mail.unread, mail.pinned])]) : "", [remote, accounts, messages]);
   const key = useMemo(() => JSON.stringify([query, identity]), [query, identity]);
@@ -31,8 +33,11 @@ export function useMailSearch(query: string, accounts: Account[], messages: Rend
     if (!query.trim()) return true;
     if (compiled.error) return false;
     if ("body" in mail) return compiled.matches(mail);
-    return result?.key === key && result.matches.has(JSON.stringify([mail.accountId, mail.id, mail.contentVersion]));
-  }, [query, compiled, result, key]);
+    const identity = JSON.stringify([mail.accountId, mail.id, mail.contentVersion]);
+    const known = summaryMatches.get(identity);
+    if (known !== undefined) return known;
+    return result?.key === key && result.matches.has(identity);
+  }, [query, compiled, result, key, summaryMatches]);
   return {
     error: compiled.error || (remote && result?.key === key ? result.error : undefined),
     pending: remote && !compiled.error && result?.key !== key,

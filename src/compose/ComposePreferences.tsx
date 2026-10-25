@@ -1,3 +1,4 @@
+import { changeComposeText } from "../../shared/compose-content";
 import { useContext, useState } from "react";
 import type { ComposePreferences, ComposeTemplate } from "../../shared/mail-features";
 import { PrivacyContext } from "../ui/Privacy";
@@ -8,7 +9,7 @@ const signatureSuffix = (signature: string) => signature ? `\n\n-- \n${signature
 export function initialCompose(accountId: string, preferences: ComposePreferences, overrides: Partial<Compose> = {}): Compose {
   const draft = { accountId, to: "", subject: "", body: "", ...overrides };
   const suffix = signatureSuffix(preferences.signatures[draft.accountId] || "");
-  return { ...draft, body: draft.body + (suffix && !draft.body.endsWith(suffix) ? suffix : "") };
+  return { ...draft, ...changeComposeText(draft, draft.body + (suffix && !draft.body.endsWith(suffix) ? suffix : "")) };
 }
 
 export function changeComposeAccount(draft: Compose, accountId: string, preferences: ComposePreferences): Compose {
@@ -18,7 +19,7 @@ export function changeComposeAccount(draft: Compose, accountId: string, preferen
   const body = previous
     ? draft.body.endsWith(previous) ? draft.body.slice(0, -previous.length) + next : draft.body
     : draft.body + (next && !draft.body.endsWith(next) ? next : "");
-  return { ...draft, accountId, body, threadId: undefined };
+  return { ...draft, accountId, ...changeComposeText(draft, body), threadId: undefined };
 }
 
 export function insertComposeTemplate(draft: Compose, template: ComposeTemplate, preferences: ComposePreferences): Compose {
@@ -28,7 +29,7 @@ export function insertComposeTemplate(draft: Compose, template: ComposeTemplate,
   return {
     ...draft,
     subject: draft.subject || template.subject,
-    body: body + (body && template.body ? "\n\n" : "") + template.body + (hasSignature ? suffix : ""),
+    ...changeComposeText(draft, body + (body && template.body ? "\n\n" : "") + template.body + (hasSignature ? suffix : "")),
   };
 }
 
@@ -40,6 +41,7 @@ export function ComposePreferenceControls({ draft, preferences, busy, onChange }
 }) {
   const { on: privacy } = useContext(PrivacyContext);
   const [selected, setSelected] = useState("");
+  const [error, setError] = useState("");
   const template = preferences.templates.find((item) => item.id === selected);
   if (!preferences.templates.length) return null;
   return <div className="compose-preference-controls">
@@ -52,7 +54,12 @@ export function ComposePreferenceControls({ draft, preferences, busy, onChange }
       </select>
     </label>
     <button className="button" type="button" disabled={busy || !template}
-      onClick={() => { if (template) onChange(insertComposeTemplate(draft, template, preferences)); }}>Insert template</button>
+      onClick={() => {
+        if (!template) return;
+        try { onChange(insertComposeTemplate(draft, template, preferences)); setError(""); }
+        catch { setError("Unable to insert this template without changing your message. Your current text is unchanged."); }
+      }}>Insert template</button>
     <p className="note">Adds text to your message. The subject is filled only when empty.</p>
+    {error && <p role="alert">{error}</p>}
   </div>;
 }

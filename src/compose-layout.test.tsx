@@ -39,7 +39,7 @@ test("composer discloses empty Cc, keeps recovered recipients visible and preser
     assert.equal(cc()!.value, "copy@example.test");
     assert.match(document.body.textContent!, /Send status unknown/);
     assert.equal(document.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled, true);
-    assert.equal(document.querySelector<HTMLSelectElement>("select")!.disabled, true);
+    assert.equal(document.querySelector<HTMLButtonElement>('[role="combobox"][aria-label="From"]')!.disabled, true);
     await act(async () => { button("Retry save").click(); button("Save separate copy").click(); button("Keep draft").click(); });
     assert.deepEqual([retry, copy, close], [1, 1, 1]);
     assert.match(document.querySelector(".compose-footer")!.textContent!, /Draft could not be saved/);
@@ -48,7 +48,7 @@ test("composer discloses empty Cc, keeps recovered recipients visible and preser
     assert.equal(cc()!.disabled, true);
     assert.equal(document.querySelector<HTMLTextAreaElement>("textarea")!.disabled, true);
     assert.equal(button("Keep draft").disabled, true);
-    assert.equal(button("Discard draft").disabled, true);
+    assert.equal(button("Delete draft").disabled, true);
     assert.equal(document.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled, true);
   } finally {
     await act(async () => root.unmount());
@@ -73,10 +73,10 @@ test("reply retains original context and file drops reuse attachment validation 
   try{
     await render(); assert.match(document.querySelector('[aria-label="Original email"]')!.textContent!,/Please confirm the delivery date/);
     assert.equal(document.querySelector('[aria-label="Original email"]')?.getAttribute('tabindex'), '0', 'original email supports keyboard scrolling');
-    assert.match(document.querySelector('.compose-format')!.textContent!,/From: me@example.test/);
+    assert.match(document.querySelector('.compose-from-row [role="combobox"]')!.textContent!,/me@example.test/);
     draft.accountId="b";await render();
-    assert.match(document.querySelector('.compose-format')!.textContent!,/From: selected@example.test/);
-    assert.ok(!document.querySelector('.compose-format')!.textContent!.includes('original account'));
+    assert.match(document.querySelector('.compose-from-row [role="combobox"]')!.textContent!,/selected@example.test/);
+    assert.equal(document.querySelector('.compose-footer .compose-format'), null, 'sender is shown once in From, without a repeated footer row');
     await drop([new dom.window.File(["hello"],"note.txt",{type:"text/plain"})]);
     assert.equal(changed?.body,draft.body);assert.deepEqual(changed?.attachments,[{filename:"note.txt",contentType:"text/plain",content:"aGVsbG8="}]);assert.equal(sends,0);
     changed=undefined; await drop([new dom.window.File(["bad"],"../bad.txt")]);assert.equal(changed,undefined);assert.match(document.querySelector('[role="alert"]')!.textContent!,/safe filenames/);
@@ -102,13 +102,16 @@ test("composer From hides account addresses in privacy mode", async () => {
       onClose={() => {}} onDiscard={() => {}} onRetry={() => {}} onSaveCopy={() => {}}
       progress={{ phase: "saved", message: "Draft saved." }} onSend={() => {}} />
   </PrivacyContext.Provider>));
-  const from = () => dom.window.document.querySelector("select option")!.textContent!;
+  const from = () => dom.window.document.querySelector('[role="combobox"][aria-label="From"] > span')!.textContent!;
   try {
     await render(true);
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="From"]')!.click());
+    assert.equal(document.querySelectorAll('[role="option"]').length, 1);
+    assert.ok(!document.querySelector('[role="listbox"]')!.innerHTML.includes("from@example.test"));
     assert.ok(!from().includes("from@example.test"));
     assert.match(from(), /^Account 1/);
-    assert.ok(!document.querySelector('.compose-format')!.innerHTML.includes("from@example.test"));
-    assert.match(document.querySelector('.compose-format')!.textContent!,/From: Account 1/);
+    assert.equal(document.querySelector('.compose-footer .compose-format'), null);
+    assert.ok(!document.querySelector('.compose-from-row')!.innerHTML.includes("from@example.test"));
     await render(false);
     assert.equal(from(), "from@example.test");
   } finally {
@@ -117,5 +120,38 @@ test("composer From hides account addresses in privacy mode", async () => {
     for (const [key, descriptor] of previous) {
       if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);
     }
+  }
+});
+
+test("compose shares its action-row height across the app and cleans up the observer", async () => {
+  const dom = new JSDOM('<div class="app" style="--text-scale:1.2"><div id="root"></div></div><div id="other" class="app" style="--app-footer-height:66px"></div>', { url: "http://localhost" });
+  let resize: (() => void) | undefined, disconnected = 0, rowHeight = 30;
+  class FooterObserver { constructor(callback: () => void) { resize = callback; } observe() {} disconnect() { disconnected++; } }
+  const globals = { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, ResizeObserver: FooterObserver, IS_REACT_ACT_ENVIRONMENT: true };
+  const previous = new Map(Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, value });
+  const bounds = dom.window.HTMLElement.prototype.getBoundingClientRect;
+  dom.window.HTMLElement.prototype.getBoundingClientRect = function() {
+    return this.classList.contains("compose-actions") ? { x: 0, y: 0, top: 0, left: 0, right: 300, bottom: rowHeight, width: 300, height: rowHeight, toJSON() {} } : bounds.call(this);
+  };
+  const { createRoot } = await import("react-dom/client"); const root = createRoot(document.getElementById("root")!);
+  const app = document.querySelector<HTMLElement>(".app")!;
+  try {
+    await act(async () => root.render(<ComposePanel draft={{ accountId: "a", to: "", subject: "", body: "" }} setDraft={() => {}}
+      accounts={[{ id: "a", email: "from@example.test", provider: "imap" }]} busy={false} onClose={() => {}} onDiscard={() => {}} onRetry={() => {}} onSaveCopy={() => {}}
+      progress={{ phase: "error", message: "Draft could not be saved. Your text is still here." }} onSend={() => {}} />));
+    assert.equal(app.style.getPropertyValue("--app-footer-height"), "42px");
+    assert.ok(document.querySelector('.draft-recovery-actions'));
+    rowHeight = 58; resize!();
+    assert.equal(app.style.getPropertyValue("--app-footer-height"), "70px", "wrapped status raises every footer track");
+    resize!(); assert.equal(app.style.getPropertyValue("--app-footer-height"), "70px");
+    assert.equal(document.getElementById("other")!.style.getPropertyValue("--app-footer-height"), "66px");
+    await act(async () => root.unmount());
+    assert.equal(app.style.getPropertyValue("--app-footer-height"), "");
+    assert.equal(app.style.getPropertyValue("--text-scale"), "1.2");
+    assert.equal(disconnected, 1);
+  } finally {
+    dom.window.close();
+    for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);
   }
 });

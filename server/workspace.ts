@@ -1,13 +1,14 @@
+import { conversationMembers } from "./conversation-members.js";
 import { sameImapAccount } from "./imap-watch.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import express from "express";
 import { z } from "zod";
 import type { Commitment, Project, AgentAction, AgentPayload, AgentProposal, AgentTool, Conversation, RulePreview } from "../shared/workspace.js";
 import type { Mail, Rule } from "../shared/types.js";
-import { all, get, readMail, put, remove, transaction, account } from "./store.js";
+import { all, get, readConversationMail, put, remove, transaction, account } from "./store.js";
 import { findMail, updateMessage, runMailWork } from "./mail-actions.js";
-import { createDraft, contentSchema } from "./drafts.js";
-import { providers, sendSchema } from "./providers.js";
+import { createDraft, plainContentSchema } from "./drafts.js";
+import { providers, plainSendSchema } from "./providers.js";
 import { matchingRule } from "../shared/rules.js";
 import { validDate } from "../shared/commitment-dates.js";
 class WorkspaceError extends Error {
@@ -48,20 +49,8 @@ const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(va
 export function conversation(id: string, view?: Map<string, Mail>): Conversation {
   const source = view ? view.get(id) : findMail(id);
   if (!source) throw new Error("Message not found.");
-  const candidates = [...(view?.values() ?? all("mail"))].filter((m) => m.accountId === source.accountId);
-  const selected = new Map([[source.id, source]]);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    const known = new Set([...selected.values()].flatMap((m) => [m.messageId, m.inReplyTo, ...(m.references || [])]).filter(Boolean));
-    const threads = new Set([...selected.values()].map((m) => m.threadId).filter(Boolean));
-    for (const m of candidates)
-      if (!selected.has(m.id) && ((m.threadId && threads.has(m.threadId)) || [m.messageId, m.inReplyTo, ...(m.references || [])].some((value) => value && known.has(value)))) {
-        selected.set(m.id, m);
-        changed = true;
-      }
-  }
-  const messages = [...selected.values()].sort((a, b) => a.date - b.date || a.id.localeCompare(b.id));
+  const messages = conversationMembers([source], view?.values() ?? all("mail"))
+    .sort((a, b) => a.date - b.date || a.id.localeCompare(b.id));
   const observedIds = new Set(messages.map((m) => m.messageId).filter(Boolean));
   const missing = new Set(messages.flatMap((m) => [m.inReplyTo, ...(m.references || [])]).filter((value): value is string => Boolean(value) && !observedIds.has(value)));
   const coverage = get("coverage", source.accountId);
@@ -89,7 +78,7 @@ function checkProject(projectId: string | undefined, accountId: string) {
 async function visibleProposals() {
   const proposals = all("proposal");
   if (!proposals.some(p => p.sourceMailId)) return proposals.map(p => ({ ...p, sourceChanged: false }));
-  const view = new Map((await readMail()).map(m => [m.id, m]));
+  const view = new Map((await readConversationMail(proposals.flatMap(proposal => proposal.sourceMailId ? [proposal.sourceMailId] : []))).map(m => [m.id, m]));
   const fingerprints = new Map<string, string>();
   return proposals.map(proposal => {
     const id = proposal.sourceMailId;
@@ -196,11 +185,11 @@ export function propose(agentId: string, action: AgentAction, value: unknown, so
   let payload: AgentProposal["payload"];
   if (action === "draft") {
     const { accountId: id, ...content } = z.object({ accountId: text }).passthrough().parse(value);
-    payload = { ...contentSchema.parse(content), accountId: id };
+    payload = { ...plainContentSchema.parse(content), accountId: id };
     accountId = id;
   }
   else if (action === "send") {
-    payload = sendSchema.strict().parse(value);
+    payload = plainSendSchema.parse(value);
     accountId = payload.accountId;
   }
   else {

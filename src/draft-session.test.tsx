@@ -33,7 +33,7 @@ function fixture(record?: Draft) {
     if (request.method === "POST") {
       const content = request.body as DraftContent;
       for (const key of Object.keys(content))
-        assert.ok(["to", "cc", "attachments", "subject", "body", "inReplyTo", "threadId", "references", "sendUnknown"].includes(key));
+        assert.ok(["to", "cc", "attachments", "subject", "body", "html", "inReplyTo", "threadId", "references", "sendUnknown"].includes(key));
       remote = saved({ ...content, accountId: initial.accountId }, 1);
       return structuredClone(remote);
     }
@@ -560,4 +560,29 @@ test('Cc and attachments survive draft snapshots, save changes and attachment-on
  assert.deepEqual(f.remote?.cc,['other@example.com']);
  const attachmentOnly=fixture(); const only=attachmentOnly.session({...blank,attachments});
  only.change(only.content); await only.flush(); assert.equal(attachmentOnly.requests.length,1);
+});
+
+
+test("formatted draft save, lost acknowledgement, restart and separate copy retain exact alternatives", async () => {
+  const formatted = { ...initial, body: "Formatted body", html: "<strong>Formatted body</strong>" };
+  const f = fixture(saved(formatted));
+  const session = f.session(f.remote!);
+  let lost = true;
+  f.control.intercept = (request, commit) => {
+    const result = commit();
+    if (request.method === "PUT" && lost) { lost = false; throw new Error("Lost acknowledgement"); }
+    return result;
+  };
+  session.change({ ...formatted, body: "Updated body", html: "<em>Updated body</em>", sendUnknown: true });
+  await assert.rejects(session.flush());
+  await session.retry();
+  assert.equal(session.content.html, "<em>Updated body</em>");
+  assert.equal(f.remote!.html, session.content.html);
+  assert.equal(f.remote!.sendUnknown, true);
+  const restarted = f.session(f.remote!);
+  assert.equal(restarted.content.html, session.content.html);
+  const copy = fixture().session(restarted.content);
+  copy.change(restarted.content); await copy.flush();
+  assert.equal(copy.content.html, restarted.content.html);
+  assert.equal(copy.content.sendUnknown, true);
 });

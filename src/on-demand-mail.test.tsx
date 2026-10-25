@@ -137,3 +137,41 @@ test("body hydration rejects late, cross-account and changed-version completions
     for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key); }
   }
 });
+
+test("pending body searches retain confirmed header matches through result and version refresh", async () => {
+  const dom = new JSDOM('<div id="root"></div>');
+  const globals = { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true };
+  const previous = new Map(Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, value });
+  const root = createRoot(document.getElementById('root')!);
+  let resolve: ((value: unknown) => void) | undefined;
+  let calls = 0;
+  const api: Api = () => { calls++; return new Promise(done => { resolve = done; }) as never; };
+  const hit = { ...summary(), subject: 'Design review' };
+  const other = { ...summary(), id: 'other', subject: 'Different subject' };
+  function Probe({ version = 'v1', query = 'desgin' }) {
+    const rows = [{ ...hit, contentVersion: version }, other];
+    const search = useMailSearch(query, [], rows, api);
+    return <div>{rows.filter(search.matches).map(m => <span key={m.id}>{m.id}</span>)}<p>{search.pending ? 'Searching' : 'Ready'}</p></div>;
+  }
+  try {
+    await act(async () => root.render(<Probe />));
+    assert.match(document.body.textContent!, /same-id/);
+    assert.match(document.body.textContent!, /Searching/);
+    await act(async () => { await new Promise(r => setTimeout(r, 150)); });
+    await act(async () => resolve!({ mailCursor: 'one:1', matches: [hit] }));
+    assert.match(document.body.textContent!, /Ready/);
+    await act(async () => root.render(<Probe version="v2" />));
+    assert.match(document.body.textContent!, /same-id/);
+    assert.match(document.body.textContent!, /Searching/);
+    const before = calls;
+    await act(async () => root.render(<Probe query="subject:Design" />));
+    await act(async () => { await new Promise(r => setTimeout(r, 150)); });
+    assert.match(document.body.textContent!, /same-id/);
+    assert.match(document.body.textContent!, /Ready/);
+    assert.equal(calls, before, 'header-only searches never wait on the body API');
+  } finally {
+    await act(async () => root.unmount()); dom.window.close();
+    for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);
+  }
+});

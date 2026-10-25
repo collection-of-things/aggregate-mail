@@ -16,6 +16,7 @@ export function composeContent(value: Compose): Compose {
     to: value.to,
     subject: value.subject,
     body: value.body,
+    ...(value.html !== undefined ? { html: value.html } : {}),
     inReplyTo: value.inReplyTo,
     threadId: value.threadId,
     references: value.references?.slice(),

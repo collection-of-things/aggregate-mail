@@ -185,3 +185,17 @@ test("mounted private settings reveal only the focused editor and enforce the te
     assert.equal(add.disabled, true);
   });
 });
+
+
+test("formatted templates and signature switches retain subject, reply metadata and preceding formatting", () => {
+  const draft = { accountId: "first", to: "to@example.test", subject: "Existing subject", body: "Hello\n\n-- \nFirst signature", html: "<strong>Hello</strong><br><br>-- <br>First signature", inReplyTo: "parent", sendUnknown: true };
+  const switched = changeComposeAccount(draft, "second", preferences);
+  assert.equal(switched.subject, draft.subject);
+  assert.match(switched.html!, /<strong>Hello<\/strong>/);
+  assert.equal(switched.body, "Hello\n\n-- \nSecond signature");
+  const inserted = insertComposeTemplate(draft, preferences.templates[0], preferences);
+  assert.equal(inserted.subject, draft.subject);
+  assert.match(inserted.html!, /<strong>Hello<\/strong>/);
+  assert.ok(inserted.body.includes("Template body"));
+  assert.equal(inserted.sendUnknown, true); assert.equal(inserted.inReplyTo, "parent");
+});

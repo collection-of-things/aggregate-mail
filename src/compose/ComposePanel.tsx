@@ -1,9 +1,14 @@
-import { useContext, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { RichBody } from "./RichBody";
+import { useContext, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { Account, Mail } from "../../shared/types";
 import { emptyComposePreferences, type ComposePreferences } from "../../shared/mail-features";
 import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
 import { accountLabel } from "../mail-ui";
 import { Dialog } from "../ui/Dialog";
+import { Dropdown } from "../ui/Dropdown";
+import type { Api } from "../api";
+import { ReaderContent } from "../mail/MessageContent";
+import { mailBodyKey } from "../mail-body";
 import { changeComposeAccount, ComposePreferenceControls } from "./ComposePreferences";
 import type { Compose, DraftProgress } from "./draft-session";
 import { Paperclip, Trash } from "../ui/icons";
@@ -83,9 +88,11 @@ export function ComposePanel({
   preferences = emptyComposePreferences,
   onAttachmentTask,
   source,
+  api,
 }: {
   draft: Compose;
   source?: Mail;
+  api?: Api;
   setDraft: (value: Compose) => void;
   accounts: Account[];
   busy: boolean;
@@ -99,8 +106,22 @@ export function ComposePanel({
   onAttachmentTask?: (task: Promise<void>) => void;
 }) {
   const { on: privacy } = useContext(PrivacyContext);
-  const sendingIndex = accounts.findIndex((account) => account.id === draft.accountId);
-  const sendingAccount = accounts[sendingIndex];
+  const sourceKey = useMemo(() => mailBodyKey(source), [source]);
+  const footerActions = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const row = footerActions.current;
+    const app = row?.closest<HTMLElement>(".app");
+    if (!row || !app) return;
+    const measure = () => {
+      const height = `${Math.max(42, Math.ceil(row.getBoundingClientRect().height + 12))}px`;
+      if (app.style.getPropertyValue("--app-footer-height") !== height) app.style.setProperty("--app-footer-height", height);
+    };
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measure);
+    observer?.observe(row);
+    return () => { observer?.disconnect(); app.style.removeProperty("--app-footer-height"); };
+  }, []);
+
   const [attachmentError, setAttachmentError] = useState("");
   const [loadingFiles, setLoadingFiles] = useState(false);
   const filesBusy = useRef(false);
@@ -120,13 +141,18 @@ export function ComposePanel({
         reader.readAsDataURL(file);
       })));
       setDraft({ ...draft, attachments: [...(draft.attachments || []), ...attachments] });
-    } catch { setAttachmentError("Attachment could not be read. Choose it again."); }
+    } catch { setAttachmentError("Attachment could not be read. Choose it again."); throw new Error("Attachment read failed"); }
     finally { filesBusy.current = false; setLoadingFiles(false); } })();
-    onAttachmentTask?.(task); await task;
+    onAttachmentTask?.(task); await task.catch(() => {});
   };
   return (
     <Dialog
       toolbarAccess
+      actions={<button type="button" className="compose-discard" title="Delete draft" aria-label="Delete draft" disabled={busy || loadingFiles} onClick={() => {
+            if (confirm(draft.sendUnknown
+              ? "Discard this saved draft? This message may already have been sent."
+              : "Discard this draft from this device?")) onDiscard();
+          }}><Trash size={15} color="currentColor" /><span>Delete draft</span></button>}
       title={source || draft.inReplyTo ? "Reply" : "New message"}
       className={source ? "compose-dialog compose-with-context" : "compose-dialog"}
       onClose={() => { if (!busy && !loadingFiles) onClose(); }}
@@ -136,7 +162,9 @@ export function ComposePanel({
         <span className="compose-context-label">Replying to</span>
         <h3><Redact text={source.subject || "No subject"} /></h3>
         <p><Redact text={source.sender} /> · {new Date(source.date).toLocaleDateString()}</p>
-        <div className="compose-context-body"><Redact text={source.body || source.preview || "No message text in cache."} /></div>
+        <div className="compose-context-body"><ReaderContent key={sourceKey} mail={{ ...source, body: source.body || source.preview || "No message text in cache." }}
+          loadContent={api ? (id) => api(`/messages/${encodeURIComponent(id)}/content`, "POST") : undefined}
+          loadImages={(id) => api ? api(`/messages/${encodeURIComponent(id)}/images`, "POST") : Promise.reject(new Error("Images unavailable"))} /></div>
       </aside></MailPrivacy>}
       <form
         className={`compose-form${dragging ? " dragging-files" : ""}`}
@@ -148,6 +176,7 @@ export function ComposePanel({
         onSubmit={(e) => {
           e.preventDefault();
           if (!e.currentTarget.reportValidity()) return;
+          if (!draft.body) { e.currentTarget.querySelector<HTMLElement>('[aria-label="Message body"]')?.focus(); return; }
           onSend();
         }}
       >
@@ -155,27 +184,23 @@ export function ComposePanel({
         {draft.invitation && <p className="compose-invitation-note" role="status">Review {draft.invitation.method === "REPLY" ? "your calendar response" : draft.invitation.method === "CANCEL" ? "this cancellation" : "this invitation"}. Calendar details and recipients are fixed. Nothing is sent until you press Send.</p>}
         <div className="compose-envelope">
           <div className="compose-from-row">
-          <label>
+          <div className="compose-from-field">
             <span>From</span>
-            <select
+            <Dropdown
+              label="From"
               value={draft.accountId}
               disabled={!!draft.invitation || busy || loadingFiles || progress.phase === "saving" || progress.phase === "error"}
-              onChange={(e) =>
-                setDraft(changeComposeAccount(draft, e.target.value, preferences))
-              }
-            >
-              {accounts.map((a, index) => (
-                <option key={a.id} value={a.id}>
-                  {privacy ? accountLabel(a, index, true) : a.name ? `${a.name} · ${a.email}` : a.email}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="button" className="icon compose-discard" title="Discard draft" aria-label="Discard draft" disabled={busy || loadingFiles} onClick={() => {
-            if (confirm(draft.sendUnknown
-              ? "Discard this saved draft? This message may already have been sent."
-              : "Discard this draft from this device?")) onDiscard();
-          }}><Trash size={15} color="currentColor" /><span className="visually-hidden">Discard draft</span></button>
+              options={accounts.map((account, index) => ({
+                value: account.id,
+                label: privacy ? accountLabel(account, index, true) : account.name ? `${account.name} · ${account.email}` : account.email,
+              }))}
+              onChange={(accountId) => {
+                try { setDraft(changeComposeAccount(draft, accountId, preferences)); }
+                catch { setAttachmentError("Unable to update the signature without changing your message. Your text is unchanged."); }
+              }}
+            />
+          </div>
+
           </div>
           <div className="compose-to-row">
             <label>
@@ -218,16 +243,7 @@ export function ComposePanel({
           </label>
           <span id="compose-attachment-limits" className="compose-attachment-limits">Up to 10 files · 512 KiB each · 1 MiB total</span>
         </div>
-        <textarea
-          className="compose-body"
-          aria-label="Message body"
-          placeholder="Write your message"
-          required
-          disabled={busy || loadingFiles}
-          maxLength={1000000}
-          value={draft.body}
-          onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-        />
+        <RichBody draft={draft} disabled={busy || loadingFiles} onChange={setDraft} />
         <div className="compose-extras">
           {(draft.attachments || []).map((file, index) => <p className="compose-attachment" key={index}><Redact text={file.filename} /> <button type="button" disabled={busy || loadingFiles} aria-label={`Remove attachment ${index + 1}`} onClick={() => setDraft({ ...draft, attachments: draft.attachments?.filter((_, i) => i !== index) })}>Remove</button></p>)}
           {attachmentError && <p role="alert">{attachmentError}</p>}
@@ -245,14 +261,14 @@ export function ComposePanel({
               <button type="button" disabled={busy || loadingFiles} onClick={onSaveCopy}>Save separate copy</button>
             </div>
           )}
-          <div className="compose-actions">
+          <div className="compose-actions" ref={footerActions}>
             <button type="button" disabled={busy || loadingFiles} onClick={onClose}>Keep draft</button>
             <p className={`compose-save-status${progress.phase === "error" ? " save-error" : ""}`} role="status">{progress.message}</p>
             <button className="button primary-button compose-send" disabled={busy || loadingFiles || progress.phase === "error"} type="submit">
               {busy ? "Please wait" : "Send"}
             </button>
           </div>
-          <p className="compose-format">Plain text · From: {sendingAccount ? <Redact text={privacy ? accountLabel(sendingAccount, sendingIndex, true) : sendingAccount.email} /> : "Sending account unavailable"}</p>
+
         </div>
       </form>
       </div>

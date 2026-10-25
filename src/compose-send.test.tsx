@@ -53,7 +53,7 @@ async function panel(draft: Compose, onSend: () => void, setDraft = (_draft: Com
   function Editor() {
     const [value, update] = useState(draft);
     return <ComposePanel draft={value} onSend={onSend} setDraft={(next) => { update(next); setDraft(next); }} onClose={onClose} onDiscard={onClose} onRetry={() => {}} onSaveCopy={() => {}}
-      progress={{ phase: "saved", message: "Draft saved." }} busy={false} accounts={[{ id: "synthetic", email: "sender@example.com", provider: "imap" }]} />;
+      progress={{ phase: "saved", message: "Draft saved." }} busy={false} accounts={[{ id: "synthetic", email: "sender@example.com", provider: "imap" }, { id: "synthetic-other", email: "other@example.test", provider: "imap" }]} />;
   }
   await act(async () => root.render(<Editor />));
   return {
@@ -149,7 +149,11 @@ test("editing an unknown draft preserves its warning and the next send guard", a
   const c = client(async () => { requests++; return {}; }, undefined, { ...initial, sendUnknown: true });
   const ui = await panel(c.draft!, () => {}, c.setDraft);
   try {
-    for (const [selector, value] of [["select", "synthetic"], ['input[type="email"]', "edited@example.com"], ['input[maxlength="998"]', "Edited subject"], ["textarea", "Edited body"]]) {
+    await ui.click(ui.container.querySelector<HTMLElement>('[role="combobox"][aria-label="From"]')!);
+    await ui.click(ui.container.querySelector<HTMLElement>('[role="option"]:last-child')!);
+    assert.equal(c.draft?.accountId, "synthetic-other");
+    assert.equal(c.draft?.sendUnknown, true);
+    for (const [selector, value] of [ ['input[type="email"]', "edited@example.com"], ['input[maxlength="998"]', "Edited subject"], ["textarea", "Edited body"]]) {
       await ui.edit(selector, value);
       assert.equal(c.draft?.sendUnknown, true);
     }
@@ -185,7 +189,7 @@ test("explicitly discarding an unknown draft warns about possible delivery witho
   let closes = 0;
   const ui = await panel({ ...initial, to: "", subject: "", body: "", sendUnknown: true }, () => {}, undefined, () => { closes++; });
   try {
-    const discard = [...ui.form.querySelectorAll("button")].find((button) => button.textContent?.trim() === "Discard draft")!;
+    const discard = [...ui.container.querySelectorAll("button")].find((button) => button.getAttribute("aria-label") === "Delete draft")!;
     await ui.click(discard); assert.equal(closes, 0);
     assert.match(prompts[0], /already.*sent/); assert.doesNotMatch(prompts[0], /unsent/);
     approved = true; await ui.click(discard); assert.equal(closes, 1);

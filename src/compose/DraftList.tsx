@@ -4,12 +4,14 @@ import type { Api } from "../api";
 import { accountLabel } from "../mail-ui";
 import { ProviderIcon } from "../mail/Avatar";
 import { PrivacyContext, Redact } from "../ui/Privacy";
+import { Trash } from "../ui/icons";
 import { relative } from "../mail/format";
 
-export function DraftList({ accounts, api, accountFilter, query, refreshKey, active, onOpen, onAccount }: {
+export function DraftList({ accounts, api, accountFilter, query, refreshKey, active, onOpen, onAccount, onDeleted }: {
   accounts: Account[]; api: Api; accountFilter: string; query: string;
   refreshKey?: number; active: boolean; onOpen: (draft: Draft) => void;
   onAccount?: (id: string) => void;
+  onDeleted?: () => void;
 }) {
   const [drafts, setDrafts] = useState<DraftSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -20,6 +22,17 @@ export function DraftList({ accounts, api, accountFilter, query, refreshKey, act
   const [attempt, setAttempt] = useState(0);
   const live = useRef(false);
   const lock = useRef(false);
+  const deletionEpoch = useRef(0);
+  const list = useRef<HTMLElement>(null);
+  const refresh = useRef<HTMLButtonElement>(null);
+  const focusAfterDelete = useRef<number | null>(null);
+  useEffect(() => {
+    if (opening || focusAfterDelete.current === null) return;
+    const rows = list.current?.querySelectorAll<HTMLButtonElement>(".draft-row");
+    const index = focusAfterDelete.current;
+    focusAfterDelete.current = null;
+    (rows?.[Math.min(index, rows.length - 1)] || refresh.current)?.focus();
+  }, [drafts, opening]);
   const { on: privateText } = useContext(PrivacyContext);
   useEffect(() => {
     live.current = true;
@@ -28,15 +41,16 @@ export function DraftList({ accounts, api, accountFilter, query, refreshKey, act
   useEffect(() => {
     if (!active) return;
     let stopped = false;
+    const epoch = deletionEpoch.current;
     setLoading(true); setError("");
     void Promise.all(accounts.map((account) => api<DraftSummary[]>(
       `/accounts/${encodeURIComponent(account.id)}/drafts`,
     ))).then((lists) => {
       if (!lists.every(Array.isArray)) throw new Error();
-      if (!stopped) { setDrafts(lists.flat().sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id))); setLoaded(true); setUnavailable(false); }
+      if (!stopped && epoch === deletionEpoch.current) { setDrafts(lists.flat().sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id))); setLoaded(true); setUnavailable(false); }
     }).catch(() => {
-      if (!stopped) { setUnavailable(true); setError("Drafts could not be loaded. Try refreshing."); }
-    }).finally(() => { if (!stopped) setLoading(false); });
+      if (!stopped && epoch === deletionEpoch.current) { setUnavailable(true); setError("Drafts could not be loaded. Try refreshing."); }
+    }).finally(() => { if (!stopped && epoch === deletionEpoch.current) setLoading(false); });
     return () => { stopped = true; };
   }, [accounts, api, attempt, refreshKey, active]);
   const open = async (summary: DraftSummary) => {
@@ -49,6 +63,28 @@ export function DraftList({ accounts, api, accountFilter, query, refreshKey, act
       if (live.current) setError("This draft could not be opened. Refresh to check whether it changed or was removed.");
     } finally { lock.current = false; if (live.current) setOpening(false); }
   };
+  const discard = async (summary: DraftSummary, index: number) => {
+    if (!active || lock.current) return;
+    if (!confirm(summary.sendUnknown
+      ? "Discard this saved draft? This message may already have been sent."
+      : "Discard this draft from this device?")) return;
+    lock.current = true; setOpening(true); setError("");
+    try {
+      const result = await api<{ ok?: boolean }>(`/accounts/${encodeURIComponent(summary.accountId)}/drafts/${encodeURIComponent(summary.id)}`, "DELETE", {
+        revision: summary.revision, ...(summary.sendUnknown ? { confirmUnknown: true } : {}),
+      });
+      if (result.ok !== true) throw new Error("Deletion not confirmed");
+      if (live.current) {
+        deletionEpoch.current++;
+        setLoading(false);
+        focusAfterDelete.current = index;
+        setDrafts(current => current.filter(draft => draft.accountId !== summary.accountId || draft.id !== summary.id));
+        onDeleted?.();
+      }
+    } catch {
+      if (live.current) setError("Draft deletion could not be confirmed. Refresh to check its saved state before trying again.");
+    } finally { lock.current = false; if (live.current) setOpening(false); }
+  };
   const terms = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
   const visible = drafts.filter((draft) => {
     const account = accounts.find((item) => item.id === draft.accountId);
@@ -56,6 +92,7 @@ export function DraftList({ accounts, api, accountFilter, query, refreshKey, act
       terms.every((term) => [draft.subject, draft.to, ...(draft.cc || []), draft.preview, account.email, account.name].join(" ").toLocaleLowerCase().includes(term));
   });
   return <>
+    <div className="draft-tab-bar">
     {onAccount && <nav className="draft-account-tabs" aria-label="Draft accounts">
       {[{ id: "all", label: "All" }, ...accounts.map((account, index) => ({ id: account.id, label: accountLabel(account, index, privateText) }))].map(({ id, label }) => (
         <button type="button" key={id} aria-pressed={accountFilter === id} disabled={!active || opening}
@@ -65,9 +102,11 @@ export function DraftList({ accounts, api, accountFilter, query, refreshKey, act
         </button>
       ))}
     </nav>}
-    <section className="draft-list" aria-label="Saved drafts" aria-busy={loading || opening}>
-    <div className="draft-list-heading"><span>{loading ? "Loading drafts…" : unavailable ? loaded ? `${visible.length} cached ${visible.length === 1 ? "draft" : "drafts"} · Count unavailable until refresh` : "Draft count unavailable" : `${visible.length} ${visible.length === 1 ? "draft" : "drafts"} · Saved on this device`}</span>
-      <button type="button" disabled={loading || opening} onClick={() => setAttempt((value) => value + 1)}>Refresh</button></div>
+    {active && <button className="draft-refresh" ref={refresh} type="button" disabled={loading || opening} onClick={() => setAttempt(value => value + 1)}>Refresh</button>}
+    </div>
+    <section ref={list} className="draft-list" aria-label="Saved drafts" aria-busy={loading || opening}>
+    <div className={`draft-list-heading${loading || unavailable ? "" : " visually-hidden"}`} aria-live="polite"><span>{loading ? "Loading drafts…" : unavailable ? loaded ? `${visible.length} cached ${visible.length === 1 ? "draft" : "drafts"} · Count unavailable until refresh` : "Draft count unavailable" : `${visible.length} ${visible.length === 1 ? "draft" : "drafts"} · Saved on this device`}</span>
+      </div>
     {error && <p className="draft-list-error" role="alert">{error}</p>}
     {!loading && !error && !visible.length && <p className="work-empty">{query ? "No matching drafts." : "No saved drafts in this account."}</p>}
     <ul>{visible.map((draft, index) => {
@@ -75,9 +114,11 @@ export function DraftList({ accounts, api, accountFilter, query, refreshKey, act
       const account = accounts[accountIndex];
       return <li key={`${draft.accountId}:${draft.id}`}>
         <button type="button" className="draft-row" disabled={opening || !active} onClick={() => void open(draft)}>
-          <span className="draft-row-account"><ProviderIcon provider={account.provider} /><Redact text={accountLabel(account, accountIndex, privateText)} /></span>
-          <span className="draft-row-content">
+          <span className="draft-row-identity">
             <span className="draft-row-recipient">{privateText ? "Hidden recipients" : draft.to || "No recipient"}</span>
+            <span className="draft-row-account"><ProviderIcon provider={account.provider} /><Redact text={accountLabel(account, accountIndex, privateText)} /></span>
+          </span>
+          <span className="draft-row-content">
             <strong>{privateText ? `Draft ${index + 1}` : draft.subject || "No subject"}</strong>
             <span className="draft-row-addresses">From: {privateText ? "Hidden sender" : account.email} · To: {privateText ? "Hidden recipients" : draft.to || "No recipient"}{!!draft.cc?.length && ` · Cc: ${privateText ? draft.cc.length : draft.cc.join(", ")}`}</span>
             <span className="draft-row-preview">{privateText ? "Preview hidden" : draft.preview || "No message yet"}</span>
@@ -86,6 +127,8 @@ export function DraftList({ accounts, api, accountFilter, query, refreshKey, act
           <span className="draft-row-meta"><time dateTime={new Date(draft.updatedAt).toISOString()} title={new Date(draft.updatedAt).toLocaleString()}>{relative(draft.updatedAt)}</time>
             {!!draft.attachmentCount && <span>{draft.attachmentCount} {draft.attachmentCount === 1 ? "attachment" : "attachments"}</span>}</span>
         </button>
+        <button type="button" className="draft-row-delete" aria-label="Delete draft" title="Delete draft"
+          disabled={opening || !active} onClick={() => void discard(draft, index)}><Trash size={15} /></button>
       </li>;
     })}</ul>
   </section></>;

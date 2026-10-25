@@ -1,3 +1,4 @@
+import { COMPOSE_HTML_LIMIT, validComposeMarkup } from "../shared/compose-content.js";
 import { parseICalendar, generateICalendar } from "./ical.js";
 import { google } from "./google-api.js";
 import { createHash } from "node:crypto";
@@ -463,6 +464,7 @@ export const providers: Record<
         cc: input.cc,
         subject: input.subject,
         text: input.body,
+        html: input.html,
         inReplyTo: input.inReplyTo,
         references: input.references || input.inReplyTo,
         icalEvent: await calendarMime(a, input),
@@ -756,6 +758,7 @@ function imapProvider() {
         cc: input.cc,
         subject: input.subject,
         text: input.body,
+        html: input.html,
         inReplyTo: input.inReplyTo,
         references: input.references || input.inReplyTo,
         icalEvent: await calendarMime(a, input),
@@ -827,13 +830,16 @@ export const sendSchema = z.object({
     .max(998)
     .refine((v) => !/[\u0000-\u001f\u007f]/.test(v), "Subject must be one line"),
   body: z.string().min(1).max(1000000),
+  html: z.string().max(COMPOSE_HTML_LIMIT).optional(),
   inReplyTo: z
     .string()
     .max(998)
     .refine((v) => !/[\u0000-\u001f\u007f]/.test(v))
     .optional(),
   threadId: z.string().max(100).optional(),
-}).refine((input) => Buffer.byteLength(JSON.stringify(input), "utf8") <= 1900000, "Message exceeds the request size limit");
+}).refine(validComposeMarkup, "Formatted content must match its plain text alternative").refine((input) => Buffer.byteLength(JSON.stringify(input), "utf8") <= 1900000, "Message exceeds the request size limit");
+const { html: _richHtml, ...plainSendShape } = sendSchema.shape;
+export const plainSendSchema = z.object(plainSendShape).strict().refine((input) => Buffer.byteLength(JSON.stringify(input), "utf8") <= 1900000, "Message exceeds the request size limit");
 export type SendInput = z.infer<typeof sendSchema>;
 
 // Resolve encrypted, reviewed metadata instead of accepting calendar text from a send caller.
@@ -842,7 +848,7 @@ export async function calendarMime(account: StoredAccount, input: SendInput) {
   const { get } = await import("./store.js");
   const draft = get("draft", input.calendarDraft.id);
   if (!draft || draft.accountId !== account.id || draft.revision !== input.calendarDraft.revision || !draft.sendUnknown || !draft.invitation ||
-      draft.to !== input.to || !isDeepStrictEqual(draft.cc || [], input.cc || []) || draft.subject !== input.subject || draft.body !== input.body)
+      draft.to !== input.to || !isDeepStrictEqual(draft.cc || [], input.cc || []) || draft.subject !== input.subject || draft.body !== input.body || draft.html !== input.html)
     throw new Error("Invitation draft changed. Recover the saved draft before sending.");
   const context = draft.calendarContext;
   const event = context && get("calendarEvent", context.eventId);

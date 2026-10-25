@@ -224,8 +224,8 @@ test("mounted drafts use encrypted HTTP persistence, recover edits and guard unc
     assert.doesNotMatch(picker.outerHTML, /Synthetic reply thread|reply@example.test|SYNTHETIC reply content/);
     await click(container.querySelector<HTMLElement>(".draft-row")!);
     await settle(() => !!container.querySelector(".compose-form"));
-    approve = false; await click(button("Discard draft")); assert.equal(store.all("draft").length, 1);
-    approve = true; await click(button("Discard draft"));
+    approve = false; await click(button("Delete draft")); assert.equal(store.all("draft").length, 1);
+    approve = true; await click(button("Delete draft"));
     await settle(() => !container.querySelector(".compose-form"));
     assert.equal(store.all("draft").length, 0); assert.equal(sends, 2);
     await settle(() => draftCount() === 0);
@@ -244,10 +244,15 @@ test("mounted drafts use encrypted HTTP persistence, recover edits and guard unc
     await settle(() => /Draft saved/.test(container.textContent!));
     assert.equal(store.all("draft")[0].body, `${templateBody}\n\n-- \nSignature A`);
     assert.equal(store.all("draft")[0].subject, "Template subject");
-    approve = false; await fill(".compose-form select", "b");
+    const senderBefore = container.querySelector('[role="combobox"][aria-label="From"]')!.textContent;
+    const chooseSender = async () => {
+      await click(container.querySelector<HTMLElement>('[role="combobox"][aria-label="From"]')!);
+      await click(container.querySelector<HTMLElement>('[role="option"]:last-child')!);
+    };
+    approve = false; await chooseSender();
     assert.equal(store.all("draft").length, 1);
-    assert.equal(container.querySelector<HTMLSelectElement>(".compose-form select")!.value, "a");
-    approve = true; await fill(".compose-form select", "b");
+    assert.equal(container.querySelector('[role="combobox"][aria-label="From"]')!.textContent, senderBefore);
+    approve = true; await chooseSender();
     await settle(() => store.all("draft").length === 2 && /Draft saved/.test(container.textContent!));
     assert.deepEqual(store.all("draft").map((draft) => draft.accountId).sort(), ["a", "b"]);
     await settle(() => draftCount() === 2);

@@ -1,3 +1,4 @@
+import { COMPOSE_HTML_LIMIT, validComposeMarkup } from "../shared/compose-content.js";
 import { isDeepStrictEqual } from "node:util";
 import type { Invitation } from "../shared/invitations.js";
 import { generateICalendar, invitationSchema } from "./ical.js";
@@ -26,12 +27,15 @@ export const contentSchema = z.object({
   attachments: attachmentsSchema.optional(),
   subject: z.string().max(998),
   body: z.string().max(1000000),
+  html: z.string().max(COMPOSE_HTML_LIMIT).optional(),
   inReplyTo: z.string().max(998).optional(),
   threadId: z.string().max(100).optional(),
   references: z.array(z.string().max(998)).max(100).optional(),
   sendUnknown: z.boolean().optional(),
-}).strict();
-const saveSchema = contentSchema.extend({ revision: revisionSchema.max(Number.MAX_SAFE_INTEGER - 1) });
+}).strict().refine(validComposeMarkup, "Formatted content must match its plain text alternative");
+const { html: _richHtml, ...plainDraftShape } = contentSchema.shape;
+export const plainContentSchema = z.object(plainDraftShape).strict();
+const saveSchema = contentSchema.safeExtend({ revision: revisionSchema.max(Number.MAX_SAFE_INTEGER - 1) });
 const deleteSchema = z.object({
   revision: revisionSchema,
   confirmUnknown: z.literal(true).optional(),

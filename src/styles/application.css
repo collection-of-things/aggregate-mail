@@ -138,7 +138,7 @@
 .compose-dialog .dialog-title { position: absolute; z-index: 1; top: 10px; right: 18px; margin: 0; padding: 0; border: 0; background: transparent; }
 .compose-dialog .dialog-title h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .compose-from-row { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
-.compose-from-row > label { flex: 1; border-bottom: 0; }
+.compose-from-row > .compose-from-field { flex: 1; border-bottom: 0; }
 .compose-from-row .compose-discard { flex-shrink: 0; margin-right: 32px; }
 .compose-dialog .compose-envelope label > span { width: calc(48px * var(--text-scale, 1)); }
 .compose-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 18px; min-height: 44px; flex-shrink: 0; }
@@ -466,3 +466,163 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
   .app.desktop[data-view="drafts"] .dialog-backdrop.compose-backdrop { padding-top: 0; }
   .head-tools .work-view-tabs { gap: 10px; }
 }
+
+/* Draft controls share the account-tabs row instead of crowding From. */
+.compose-dialog .dialog-title { display: flex; align-items: center; gap: 12px; }
+.compose-dialog .dialog-title > .icon { order: 2; }
+.compose-dialog .dialog-title .compose-discard { display: inline-flex; align-items: center; gap: 6px; height: 30px; color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
+.app[data-view="drafts"] .compose-dialog .dialog-title { top: -42px; right: 16px; height: 42px; }
+.app[data-view="drafts"]:has(.compose-dialog) .draft-account-tabs { padding-right: 150px; }
+.compose-dialog .compose-form :is(input, select) { min-height: 34px; padding-block: 6px; }
+.compose-dialog .compose-from-row > .compose-from-field { padding-right: 136px; }
+.app[data-view="drafts"] .compose-dialog .compose-from-row > .compose-from-field { padding-right: 0; }
+.compose-dialog .compose-toolbar { min-height: 32px; gap: 8px 12px; }
+.compose-dialog .compose-scroll { padding-inline: 18px; }
+.compose-reply-layout > .compose-context { padding: 16px 18px; }
+.compose-dialog .compose-context-body { padding-top: 8px; line-height: 1.6; }
+.compose-dialog .compose-context h3 { margin-block: 4px; }
+.compose-dialog .compose-form textarea { margin-block: 6px; padding-block: 6px; }
+.compose-dialog .compose-footer { padding: 8px 18px; }
+.compose-dialog .compose-format { margin-top: 3px; }
+@media (max-width: 760px) {
+  .app.desktop[data-view="drafts"] .compose-dialog .dialog-title { top: 0; }
+  .app.desktop[data-view="drafts"] .compose-dialog .compose-from-row > .compose-from-field { padding-right: 136px; }
+}
+.compose-format-tools { display: flex; align-items: center; flex-wrap: wrap; flex-shrink: 0; gap: 3px; min-height: 30px; border-block: 1px solid var(--line); }
+.compose-format-tools button { min-width: 28px; height: 28px; padding: 0 7px; color: var(--text-2); font-size: calc(11px * var(--text-scale, 1)); border-radius: 4px; }
+.compose-format-tools button:hover { background: var(--hover); }
+.compose-format-tools button[aria-label="Bold"] { font-weight: 700; }
+.compose-format-tools button[aria-label="Italic"] { font-style: italic; }
+.compose-format-tools button[aria-label="Underline"] { text-decoration: underline; }
+.compose-rich-body { flex: 1 0 180px; min-height: 180px; min-width: 0; margin: 6px 0; padding: 6px 0; font-size: calc(13px * var(--text-scale, 1)); line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
+.compose-rich-body:focus-visible { outline: 1px solid var(--accent); outline-offset: 3px; }
+.compose-rich-body :is(p, div) { margin: 0; }
+.compose-rich-body :is(ul, ol) { padding-left: 24px; margin: 8px 0; }
+.compose-rich-body blockquote { border-left: 2px solid var(--line); margin: 8px 0; padding-left: 12px; }
+.compose-rich-body a { color: var(--accent); text-decoration: underline; }
+.private .compose-rich-body:not(:focus) { filter: blur(5px); }
+.compose-format-error { color: var(--danger); font-size: calc(12px * var(--text-scale, 1)); }
+.dialog.compose-dialog { overflow: visible; }
+.app[data-view="drafts"]:has(.compose-dialog) .draft-account-tabs { margin-right: 150px; padding-right: 12px; }
+/* Keep the send controls in one row even in a narrow reply column. */
+.compose-dialog .compose-actions { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.compose-dialog .compose-actions > button { white-space: nowrap; }
+.compose-dialog .compose-save-status { min-width: 0; margin: 0; text-align: right; }
+.compose-dialog .compose-send { min-width: 64px; }
+@media (max-width: 760px) {
+  .dialog.compose-with-context { width: calc(100% - var(--sidebar)); }
+  .app:has(.sidebar.closed) .compose-with-context { width: 100%; }
+  .app.desktop[data-view="drafts"] .dialog-backdrop.compose-backdrop { padding-top: 42px; }
+  .app.desktop[data-view="drafts"] .compose-dialog .dialog-title { top: -42px; }
+  .app.desktop[data-view="drafts"] .compose-dialog .compose-from-row > .compose-from-field { padding-right: 0; }
+}
+.compose-dialog .compose-footer { min-height: 30px; padding: 1px 12px; display: flex; flex-direction: column; justify-content: center; }
+.compose-dialog .compose-actions > button { height: 26px; }
+.compose-dialog .compose-send { height: 26px; min-width: 64px; }
+.compose-dialog .compose-actions > button { min-height: 26px; padding-block: 0; }
+
+/* A transient glow and press, without adding permanent depth or layout work. */
+.primary-button.new-message, .compose-dialog .compose-send { transition: transform 140ms ease-out; }
+.primary-button.new-message::before, .compose-dialog .compose-send::before {
+  content: ""; position: absolute; inset: -2px; border-radius: inherit; pointer-events: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 26%, transparent);
+  opacity: 0; transition: opacity 140ms ease-out;
+}
+.primary-button.new-message:active:not(:disabled), .compose-dialog .compose-send:active:not(:disabled) { transform: translateY(1px) scale(.985); }
+.primary-button.new-message:active:not(:disabled)::before, .compose-dialog .compose-send:active:not(:disabled)::before { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .primary-button.new-message, .compose-dialog .compose-send { transform: none !important; transition: none; }
+  .primary-button.new-message::before, .compose-dialog .compose-send::before { transition: none; }
+}
+/* Match the approved New Message height, including its border. */
+.compose-dialog .compose-actions > .compose-send { height: 30px; min-height: 30px; }
+.compose-dialog .compose-footer { padding-block: 0; border-top: 0; box-shadow: inset 0 1px 0 var(--line); }
+/* The coverage footer spans the pane, independent of content padding. */
+.work-content { --coverage-inset: 28px; }
+.work-content.today-content { --coverage-inset: 0px; }
+.work-content details.coverage { margin-inline: calc(-1 * var(--coverage-inset)); }
+.work-content details.coverage > :not(summary) { padding-inline: 12px; }
+@media (max-width: 760px) {
+  .work-content { --coverage-inset: 12px; }
+}
+/* A 30px primary action needs breathing room inside the compose action row. */
+.compose-dialog .compose-footer { min-height: 42px; padding-block: 6px; }
+
+/* One footer track aligns every visible column. Compose can raise the track
+   for wrapped status text; the measured action row does not depend on it. */
+:root { --app-footer-height: 42px; }
+.sidebar-footer { height: var(--app-footer-height); min-height: var(--app-footer-height); }
+.work-content details.coverage > summary { height: var(--app-footer-height); min-height: var(--app-footer-height); line-height: calc(var(--app-footer-height) - 1px); }
+.compose-dialog .compose-footer { min-height: var(--app-footer-height); }
+.compose-reply-layout > .compose-context { margin-bottom: var(--app-footer-height); }
+.app:has(.compose-dialog)::after {
+  content: ""; position: absolute; left: 0; right: 0;
+  bottom: calc(var(--app-footer-height) - 1px); height: 1px;
+  background: var(--line); pointer-events: none; z-index: 11;
+}
+.app:has(.compose-dialog) .sidebar-footer { border-top-color: transparent; }
+.app:has(.compose-dialog) .compose-footer { box-shadow: none; }
+.app:has(.compose-dialog) .app-main > :is(.mail-view, .drafts-pane, .work-pane, .settings-pane) { padding-bottom: var(--app-footer-height); }
+.app:has(.compose-dialog) .work-pane .coverage { display: none; }
+
+/* Compact saved drafts use the same column rhythm as the mail list. */
+.draft-tab-bar { display: flex; flex-shrink: 0; align-items: center; height: 42px; min-width: 0; border-bottom: 1px solid var(--line); }
+.draft-tab-bar .draft-account-tabs { flex: 1; min-width: 0; height: 100%; border-bottom: 0; }
+.draft-refresh { flex-shrink: 0; height: 30px; margin-left: auto; padding: 0 18px; color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
+.draft-list { container-type: inline-size; }
+.draft-list .draft-row { grid-template-columns: minmax(120px, 180px) minmax(0, 1fr) auto; grid-template-rows: auto; align-items: center; column-gap: 16px; row-gap: 3px; min-height: 58px; padding: 10px 18px; background: transparent; }
+:root:not([data-glass]) .draft-list .draft-row { background: transparent; }
+.draft-list .draft-row:hover:not(:disabled) { background: var(--hover); }
+.draft-row-identity { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.draft-list .draft-row-recipient { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-list .draft-row-account { grid-column: auto; grid-row: auto; margin: 0; display: flex; align-items: center; gap: 6px; min-width: 0; font-size: calc(11px * var(--text-scale, 1)); }
+.draft-list .draft-row-account .provider-icon, .draft-list .draft-row-account .provider-icon svg { width: 12px; height: 12px; flex-shrink: 0; }
+.draft-list .draft-row-content { grid-column: 2; grid-row: 1; gap: 3px; min-width: 0; }
+.draft-list .draft-row-content > strong, .draft-list .draft-row-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-list .draft-row-content > strong { font-weight: 500; }
+.draft-list .draft-row-meta { grid-column: 3; grid-row: 1; align-self: center; }
+@container (max-width: 480px) {
+  .draft-list .draft-row { grid-template-columns: minmax(0, 1fr) auto; padding-inline: 12px; }
+  .draft-row-identity { grid-column: 1; grid-row: 1; flex-direction: row; align-items: center; gap: 10px; }
+  .draft-list .draft-row-recipient { flex: 1; min-width: 0; }
+  .draft-list .draft-row-account { max-width: 100px; flex-shrink: 0; }
+  .draft-list .draft-row-content { grid-column: 1 / -1; grid-row: 2; }
+  .draft-list .draft-row-meta { grid-column: 2; grid-row: 1; }
+}
+.compose-dialog .draft-recovery-actions { flex-wrap: wrap; }
+.draft-refresh { min-height: 30px; }
+.draft-list .draft-warning { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+
+.draft-list > ul > li { position: relative; }
+.draft-row-delete { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; min-height: 30px; padding: 0; display: grid; place-items: center; border-radius: 6px; color: var(--text-3); background: var(--surface); opacity: 0; pointer-events: none; }
+.draft-row-delete:focus-visible { opacity: 1; pointer-events: auto; }
+@media (hover: hover) and (pointer: fine) {
+  .draft-list li:hover .draft-row-delete:not(:disabled) { opacity: 1; pointer-events: auto; }
+  .draft-row-delete:hover { color: var(--danger); background: var(--hover); }
+}
+@media (hover: none) { .draft-row-delete { opacity: 1; pointer-events: auto; } .draft-list .draft-row-meta { padding-right: 34px; } }
+
+/* The nonmodal composer shares navigation chrome while covered mail stays inert. */
+.dialog-backdrop.compose-backdrop { pointer-events: none; }
+.dialog.compose-dialog { pointer-events: auto; }
+
+.compose-link-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding-block: 6px; }
+.compose-link-controls input { flex: 1; min-width: 140px; }
+.compose-link-controls button { min-height: 30px; padding-inline: 8px; font-size: calc(12px * var(--text-scale, 1)); }
+
+/* Keep the sender picker in the envelope, using the same themed menu as the app. */
+.compose-from-field { display: flex; align-items: center; gap: 14px; min-width: 0; min-height: 44px; color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
+.compose-from-field > span { width: calc(48px * var(--text-scale, 1)); flex-shrink: 0; }
+.compose-from-field .dropdown { flex: 1; min-width: 0; }
+.compose-from-field .dropdown-trigger { height: 30px; min-height: 30px; padding: 0 8px; border-color: transparent; border-radius: 6px; background: transparent; font-size: inherit; }
+.compose-from-field .dropdown-trigger:hover:not(:disabled), .compose-from-field .dropdown-trigger[aria-expanded="true"] { background: var(--selected); }
+.compose-from-field .dropdown-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.compose-from-field .dropdown-menu { max-height: 240px; overflow-y: auto; border-radius: 8px; background: var(--raised); backdrop-filter: none; animation: none; }
+.compose-from-field .dropdown-menu li { min-height: 32px; padding: 6px 8px; font-size: inherit; }
+.compose-from-field .dropdown :is(button, li) > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.compose-from-field .dropdown-menu svg { flex-shrink: 0; }
+
+/* Original email uses the reader allowlist and owns its own image consent. */
+.compose-context-body { white-space: normal; }
+.compose-context-body .message-body { max-width: 100%; font-size: calc(14px * var(--text-scale, 1)); line-height: 1.6; }
+.compose-context-body .message-images { min-width: 0; }

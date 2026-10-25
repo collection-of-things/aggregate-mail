@@ -7,12 +7,18 @@ export function Dialog({
   children,
   className,
   toolbarAccess = false,
+  actions,
+  closeLabel = "Close dialog",
+  initialFocus,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   className?: string;
   toolbarAccess?: boolean;
+  actions?: ReactNode;
+  closeLabel?: string;
+  initialFocus?: "close";
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
@@ -20,11 +26,15 @@ export function Dialog({
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     (
-      ref.current?.querySelector<HTMLElement>("input:not(:disabled):not([data-private-field]), select:not(:disabled), textarea:not(:disabled):not([data-private-field])") ||
+      (initialFocus === "close" ? null : ref.current?.querySelector<HTMLElement>("input:not(:disabled):not([data-private-field]), select:not(:disabled), textarea:not(:disabled):not([data-private-field])")) ||
       ref.current?.querySelector<HTMLElement>("button:not(:disabled)")
     )?.focus();
     const handler = (e: KeyboardEvent) => {
+      const dialogs = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].filter(dialog => !dialog.closest("[inert]"));
+      if (dialogs.at(-1) !== ref.current) return;
       const target = e.target instanceof window.Node ? e.target : document.activeElement;
+      if (e.key === "Escape" && (e.defaultPrevented || e.isComposing || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)) return;
+      if (e.key === "Escape" && toolbarAccess && target instanceof HTMLElement && target.closest("[data-escape-owner]")) return;
       if (e.key === "Escape" && (!toolbarAccess || ref.current?.contains(target))) {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -33,9 +43,9 @@ export function Dialog({
       if (e.key !== "Tab") return;
       const selector = "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex='0']";
       const controls = [
-        ...(toolbarAccess ? document.querySelectorAll<HTMLElement>('.app-toolbar [data-compose-access]:not(:disabled)') : []),
+        ...(toolbarAccess ? document.querySelectorAll<HTMLElement>('.sidebar:not(.closed) button:not(:disabled), .app-toolbar [data-compose-access]:not(:disabled)') : []),
         ...(ref.current?.querySelectorAll<HTMLElement>(selector) ?? []),
-      ];
+      ].filter(control => !control.closest("[inert]"));
       if (!controls?.length) return;
       if (toolbarAccess) {
         const index = controls.indexOf(document.activeElement as HTMLElement);
@@ -57,7 +67,7 @@ export function Dialog({
     window.addEventListener("keydown", handler, true);
     return () => {
       window.removeEventListener("keydown", handler, true);
-      previous?.focus();
+      if (previous?.isConnected && !previous.closest("[inert]")) previous.focus();
     };
   }, []);
   return (
@@ -71,9 +81,10 @@ export function Dialog({
       >
         <div className="dialog-title">
           <h2>{title}</h2>
-          <button className="icon" aria-label="Close dialog" onClick={onClose}>
+          <button className="icon" aria-label={closeLabel} onClick={onClose}>
             <Close color="currentColor" size={13} />
           </button>
+          {actions}
         </div>
         {children}
       </div>

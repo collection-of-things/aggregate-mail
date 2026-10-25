@@ -81,7 +81,7 @@ test("mounted calendar and reader prepare bound drafts, recover ordinary Send, p
     assert.equal(store.all("draft").length, 1); assert.equal(container.querySelector(".compose-form"), null);
     await click(button("Prepare invitation draft")); await settle(() => !!container.querySelector(".compose-form"));
     assert.equal(store.all("draft").length, 1); assert.equal(sends, 0);
-    for (const control of container.querySelectorAll<HTMLInputElement | HTMLSelectElement>('.compose-envelope select, .compose-envelope input[type="email"]')) assert.equal(control.disabled, true);
+    for (const control of container.querySelectorAll<HTMLInputElement | HTMLButtonElement>('.compose-envelope [role="combobox"], .compose-envelope input[type="email"]')) assert.equal(control.disabled, true);
     assert.match(container.textContent!, /Nothing is sent until you press Send/);
     const body = container.querySelector<HTMLTextAreaElement>(".compose-body")!;
     await act(async () => { Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")!.set!.call(body, "Reviewed synthetic invitation"); body.dispatchEvent(new dom.window.Event("input", { bubbles: true })); });
