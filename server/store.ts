@@ -1,3 +1,4 @@
+import { conversationMembers } from "./conversation-members.js";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -223,6 +224,18 @@ async function scanMail<T>(ids: string[], visit: (mail: Mail) => T | undefined, 
 }
 export async function readMail(accountId?: string): Promise<Mail[]> {
   return captureMailRows(rows => scanMail([...rows].filter(([, row]) => accountId === undefined || row.summary.accountId === accountId).map(([id]) => id), mail => mail));
+}
+// Choose IDs from the captured metadata without yielding. scanMail establishes
+// its WAL snapshot before its first yield and checks external invalidation.
+export async function readConversationMail(sourceIds: readonly string[]): Promise<Mail[]> {
+  return captureMailRows(rows => {
+    const sources = [...new Set(sourceIds)].flatMap(id => {
+      const row = rows.get(id);
+      return row ? [row.summary] : [];
+    });
+    const selected = conversationMembers(sources, [...rows.values()].map(row => row.summary));
+    return scanMail(selected.map(mail => mail.id), mail => mail);
+  });
 }
 // Sync needs mailbox identity up front, but full bodies only for its current batch.
 export async function syncMailCache(accountId: string) {

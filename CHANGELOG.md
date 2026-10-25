@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Show current MCP permissions in CLI status without account identities, add cached Inbox/Sent/All selection, and request reviewed replies only when the app explicitly guarantees approval to Drafts without sending. Preserve older commands, grants and no automatic retries.
+- Limit workspace proposal refreshes to related conversation bodies, preserving account-scoped membership and changed-source checks while reducing unrelated decryption and allocation.
+
 - Align sidebar, coverage and compose dividers on a shared footer track with clearance around 30px primary buttons. Compact saved-draft rows, move Refresh beside account tabs and add confirmed direct draft deletion while retaining failure and uncertain-send notices.
 
 - Add optional safe rich-text composition with a matching plain-text alternative, encrypted draft recovery and multipart sending. Keep plain-text messages as the default.

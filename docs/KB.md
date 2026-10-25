@@ -1952,3 +1952,21 @@ focus, always visible on touch. Confirm before deletion, including the existing
 unknown-send warning. Use the exact account, draft ID and saved revision; remove
 the row only after confirmed success. Retain failed rows with refresh guidance,
 refresh the sidebar count and return focus to the next row or Refresh.
+
+## Workspace proposal refresh memory
+
+Workspace and proposal reads select the union of source conversations using
+cached envelope summaries, then hydrate only related full mail records through
+one existing SQLite WAL snapshot. Selection does not yield before establishing
+the snapshot. Thread and Message-ID reference indexes remain separate and
+account-scoped. Full-record fingerprints, source-change warnings and synchronous
+approval/execution revalidation retain their prior fields and ordering. Missing
+sources remain changed; external writes invalidate metadata before selection.
+
+A matched synthetic HTTP workload with 3,000 large cached messages, one proposal
+and one related message decoded 3,000 bodies before and one afterward. One run
+measured 22,218ms elapsed / 20,548ms CPU / 528.4MB peak heap before, versus
+20.0ms / 29.4ms / 47.2MB afterward. Process max RSS was about 753MiB versus
+231MiB. These are workload-specific observations, not startup guarantees or
+proof of every native memory spike. Settings, encryption and stored records
+are unchanged. See [ADR 0072](adr/0072-conversation-scoped-proposal-refresh.md).

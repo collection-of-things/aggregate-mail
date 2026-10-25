@@ -61,7 +61,7 @@ test("workspace HTTP preserves confirmed obligations, account boundaries and imm
         });
         try {
           const response = await request(route); assert.equal(response.status, 200);
-          assert.equal(parsedMail, 3, "one decrypt per cached mail, independent of proposal count");
+          assert.equal(parsedMail, 2, "only related conversation records decrypt, independent of proposal count");
           assert.equal(fingerprints, 1, "same-source fingerprint reused within this response");
           const data = await response.json();
           assert.ok((route === "/workspace" ? data.proposals : data).every((p: { sourceChanged: boolean }) => !p.sourceChanged));
@@ -69,6 +69,28 @@ test("workspace HTTP preserves confirmed obligations, account boundaries and imm
       }
       for (const p of store.all("proposal")) store.remove("proposal", p.id);
       store.remove("agent", g.id);
+    });
+    await t.test("proposal refresh tracks related body changes and missing sources without unrelated mail", async () => {
+      const { propose } = await import("./workspace.js");
+      const g = await grant();
+      const proposal = propose(g.id, "read", { mailId: mail.id });
+      const changed = async () => (await (await request("/workspace")).json()).proposals.find((item: { id: string }) => item.id === proposal.id).sourceChanged;
+      try {
+        assert.equal(await changed(), false);
+        const foreign = store.get("mail", "b:1")!;
+        store.put("mail", foreign.id, { ...foreign, body: "Unrelated account body changed" });
+        assert.equal(await changed(), false);
+        store.put("mail", mail.id, { ...mail, body: "Related source body changed" });
+        assert.equal(await changed(), true);
+        store.put("mail", mail.id, mail);
+        assert.equal(await changed(), false);
+        store.remove("mail", mail.id);
+        assert.equal(await changed(), true);
+      } finally {
+        store.put("mail", mail.id, mail);
+        store.put("mail", "b:1", { ...mail, id: "b:1", accountId: "b" });
+        store.remove("proposal", proposal.id); store.remove("agent", g.id);
+      }
     });
     await t.test("separate obligations persist, reopen explicitly and retain due-date history", async () => {
       const response = await request("/commitments", "POST", { accountId: "a", sourceMailId: mail.id, text: "SYNTHETIC-OBLIGATION logo", reason: "Confirmed manually", status: "needs-work", dueAt: 100, evidenceMailIds: [mail.id] });
