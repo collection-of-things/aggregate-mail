@@ -1,5 +1,14 @@
 # Repository knowledge
 
+## Source release version
+
+The source package and both lockfile version fields are 0.2.5. Dependencies and
+release workflows are unchanged. The automatic main-push lane chooses the next
+unused patch above both source and stable tags, so this source selects 0.2.6
+unless a higher stable tag exists. Manual publication of 0.2.5 requires an
+immutable matching tag at the approved source commit and separate publication
+authority. Source version metadata does not establish installer acceptance.
+
 ## Responsiveness and composition
 
 Gmail and Calendar share `server/google-api.ts`, which imports their specific

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Prepare source package and lockfile version 0.2.5 without changing dependencies or release workflows.
+
 - Seed the large sync regression through the encrypted store so flag-batching checks use current summaries without incidental legacy-cache repair. Keep the 25,000-message workload and operation-count assertions.
 
 - Float Settings above the current mail or work view, with a compact header, section rail, independent scrolling, modal keyboard focus and reader-preserving history. Retain unsaved templates, pending-save locks and draft-safe navigation. Show one Linux local-key warning and preserve its session collapse preference across Settings and mail.
