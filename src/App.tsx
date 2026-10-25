@@ -759,7 +759,7 @@ export function App() {
       else if (inbox && action === "density") setDensity((value) => value === "comfortable" ? "compact" : "comfortable");
       else if (inbox && action === "important") switchView("inbox");
       else if (inbox && action === "other") nextTab();
-      else if (target instanceof HTMLElement && target.closest(".row-more") &&
+      else if (target instanceof HTMLElement && target.closest(".row-actions") &&
         ["next", "previous", "open", "done", "reply", "snooze", "teach"].includes(action ?? "")) return;
       else if (inbox && (action === "next" || action === "previous")) {
         event.preventDefault();
@@ -1151,6 +1151,9 @@ export function App() {
                     opening={interaction.opening}
                     accounts={state.accounts}
                     sizeByImportance={appearance.sizeByImportance}
+                    actions={(mail) => mailMenuActions(mail).map((action) => action.id === "snooze"
+                      ? { ...action, run: (event: ReactMouseEvent<HTMLButtonElement>) => showSnooze(mail, event) }
+                      : action)}
                     onOpen={openMail}
                     onSelect={setSelectedId}
                     onMenu={showMailMenu}

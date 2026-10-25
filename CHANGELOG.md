@@ -28,6 +28,8 @@
 - Build with Node 24.22.1 from `.nvmrc` for the 21 October 2026 Node security release. Add grouped monthly dependency updates, scheduled CodeQL and grouped release notes.
 - Run CI in GitHub's merge queue, so every pull request is tested on top of the latest `main` before it lands.
 - Point the README, security policy, issue templates, code of conduct and publish settings at `collection-of-things/aggregate-mail`.
+- Restore clickable Read, Pin, Reply, Archive, Snooze and Trash buttons on mail rows, using the current flat theme without 3D effects. Keep More actions for the full menu.
+
 - Check `collection-of-things/aggregate-mail` for updates first, falling back to `screen-devs/aggregate-mail` until the new repository publishes a newer release, so installed Windows and Linux copies follow the move.
 - Allow the CI test step 20 minutes so the full serial suite can finish on hosted Intel macOS runners.
 

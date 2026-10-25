@@ -24,39 +24,54 @@
 .mail-row:hover .row:not(.selected) {
   background: var(--hover);
 }
-/* One quiet overflow button at the row's right end, in place of the time. It
-   appears only on the selected row or while the row holds keyboard focus; on
-   no-hover devices it stays visible. */
-.row-more {
+/* Flat controls share the current theme and stay separate from opening mail. */
+.row-actions {
   position: absolute;
   top: 50%;
   right: 12px;
   transform: translateY(-50%);
-  width: 28px;
-  height: 28px;
+  display: flex;
+  gap: 2px;
   padding: 0;
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  visibility: hidden;
+}
+.row-actions button {
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  flex-shrink: 0;
   justify-content: center;
   border-radius: var(--radius-control);
   color: var(--text-3);
-  visibility: hidden;
 }
-.row-more:hover {
-  background: var(--selected);
-  color: var(--text);
-}
-.mail-row:has(.row.selected) .row-more,
-.mail-row:focus-within .row-more {
+.row-actions button:hover { background: var(--selected); color: var(--text); }
+.row-actions button:disabled { opacity: 0.4; }
+.row-actions button[aria-pressed="true"] { color: var(--accent); }
+.row-actions .trash-action:hover { color: var(--danger); }
+.mail-row:hover .row-actions,
+.mail-row:has(.row.selected) .row-actions,
+.mail-row:focus-within .row-actions {
   visibility: visible;
 }
-.mail-row:has(.row.selected) .row time,
-.mail-row:focus-within .row time {
+.mail-row:not(.with-action-strip):hover .row time,
+.mail-row:not(.with-action-strip):has(.row.selected) .row time,
+.mail-row:not(.with-action-strip):focus-within .row time {
   opacity: 0;
 }
-@media (hover: none) {
-  .row-more { visibility: visible; }
-  .row time { opacity: 0; }
+.mail-row.with-action-strip { flex-direction: column; align-items: stretch; }
+.with-action-strip .row-actions {
+  position: static;
+  transform: none;
+  visibility: visible;
+  height: 32px;
+  margin: 2px 6px;
+  padding: 0;
+  overflow-x: auto;
 }
-.mail-row:has(.card) .row-more { top: 12px; transform: none; }
+.with-action-strip .row-actions button { min-width: 28px; height: 32px; }
+.row-actions button:focus-visible { outline-offset: -2px; }
 /* Selection: an accent tint while the list has focus, a gray wash otherwise.
    Text keeps its own colors, so it reads with every accent and mode. */
 .row.selected {

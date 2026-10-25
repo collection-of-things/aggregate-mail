@@ -1,23 +1,30 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MailList } from './mail/MailList';
 import type { Mail } from '../shared/types';
 const mail: Mail = { id:'a:1',accountId:'a',remoteId:'1',sender:'Team',address:'sender@example.com',to:'reader@example.com',subject:'Work',preview:'',body:'',date:1,unread:true,category:'important',relevance:2,reason:'',archived:false,snoozedUntil:null };
+test('hover exposes row actions and removes the overlapping timestamp', () => {
+ const css = readFileSync(new URL('./styles/mail-list.css', import.meta.url), 'utf8');
+ assert.match(css, /\.mail-row:hover \.row-actions\s*,[^{}]*\{\s*visibility: visible;/);
+ assert.match(css, /\.mail-row:not\(\.with-action-strip\):hover \.row time\s*,[^{}]*\{\s*opacity: 0;/);
+});
 test('each row offers one More actions button that opens the message menu', () => {
  const html=renderToStaticMarkup(<MailList messages={[mail]} selectedId={undefined} density="comfortable" narrow={false} sort="newest" opening="double" accounts={[]} listRef={{current:null}} focusSelection={false} onOpen={()=>{}} onSelect={()=>{}} onMenu={()=>{}} onMenuKey={()=>{}} />);
  assert.ok(html.includes('class="row-more"'),'rows carry the overflow button');
  assert.ok(html.includes('aria-label="More actions"'));
  assert.ok(html.includes('aria-haspopup="menu"'));
- assert.equal(html.includes('row-actions'),false,'the old hover action strip is gone');
+ assert.ok(html.includes('row-actions'),'actions sit outside the message button');
 });
 
 import { act, createRef } from 'react';
 import { JSDOM } from 'jsdom';
 
 async function mountRows(messages: Mail[] = [mail, {...mail, id:'b:1', relevance:3 as const}, {...mail, id:'c:1', relevance:1 as const}],
-  options: {density?: 'comfortable'|'compact'; narrow?: boolean; sizeByImportance?: boolean; selected?: string} = {}) {
+  options: {density?: 'comfortable'|'compact'; narrow?: boolean; sizeByImportance?: boolean; selected?: string; touch?: boolean} = {}) {
  const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'http://localhost/' });
+ if (options.touch) Object.defineProperty(dom.window, 'matchMedia', {value: (query: string) => ({matches: query === '(hover: none)', addEventListener() {}, removeEventListener() {}})});
  const { HTMLElement } = dom.window;
  const previous = new Map<string, PropertyDescriptor | undefined>();
  for (const [key, value] of Object.entries({ window:dom.window, document:dom.window.document, HTMLElement, IS_REACT_ACT_ENVIRONMENT:true })) {
@@ -50,7 +57,59 @@ test('the More actions button opens the menu for its own mail without selecting 
  }finally{await ui.close();}
 });
 
+test('direct row actions retain target identity, disabled guards and native button activation', async () => {
+ const ui = await mountRows();
+ try {
+  const calls: string[] = [];
+  await ui.render({opening: 'single', actions: (target) => [
+   {id: 'read', label: 'Mark as read', run: () => calls.push(`read:${target.id}`)},
+   {id: 'reply', label: 'Reply', run: () => calls.push(`reply:${target.id}`)},
+   {id: 'archive', label: 'Archive', disabled: true, run: () => calls.push('unexpected archive')},
+   {id: 'trash', label: 'Move to Trash', disabled: true, description: 'Provider does not support safe Trash', run: () => calls.push('unexpected trash')},
+  ]});
+  const row = ui.rows()[1];
+  const read = row.querySelector<HTMLButtonElement>('[aria-label="Mark as read"]')!;
+  assert.equal(read.closest('.row'), null, 'direct controls are siblings of the message button');
+  await act(async () => {
+   read.click();
+   row.querySelector<HTMLButtonElement>('[aria-label="Reply"]')!.click();
+   row.querySelector<HTMLButtonElement>('[aria-label="Archive"]')!.click();
+   row.querySelector<HTMLButtonElement>('[aria-label="Move to Trash"]')!.click();
+  });
+  assert.deepEqual(calls, ['read:b:1', 'reply:b:1']);
+  assert.deepEqual(ui.events, [], 'actions do not select or open mail');
+  assert.equal(row.querySelector('[aria-label="Move to Trash"]')!.getAttribute('aria-description'), 'Provider does not support safe Trash');
+ } finally { await ui.close(); }
+});
+
+test('snoozed rows replace Snooze with Return to inbox and expose local pin state', async () => {
+ const ui = await mountRows([{...mail, snoozedUntil: Date.now() + 60_000, pinned: true}]);
+ try {
+  const calls: string[] = [];
+  await ui.render({actions: (target) => [
+   {id: 'snooze', label: 'Snooze', run: () => calls.push('snooze')},
+   {id: 'unsnooze', label: 'Return to inbox', run: () => calls.push(`unsnooze:${target.id}`)},
+   {id: 'pin', label: 'Unpin email', run: () => calls.push(`pin:${target.id}`)},
+  ]});
+  const row = ui.rows()[0];
+  assert.equal(row.querySelector('[aria-label="Snooze"]'), null);
+  assert.equal(row.querySelector('[aria-label="Unpin email"]')!.getAttribute('aria-pressed'), 'true');
+  await act(async () => row.querySelector<HTMLButtonElement>('[aria-label="Return to inbox"]')!.click());
+  assert.deepEqual(calls, ['unsnooze:a:1']);
+ } finally { await ui.close(); }
+});
+
 const layouts=(mode:{density?:'comfortable'|'compact';narrow?:boolean;sizeByImportance?:boolean})=>({...mode});
+test('touch controls reserve their full strip height in compact and narrow lists', async () => {
+ for (const narrow of [false, true]) for (const density of ['comfortable', 'compact'] as const) {
+  const ui = await mountRows([mail, {...mail, id: 'b:1'}], {touch: true, narrow, density});
+  try {
+   const height = (density === 'compact' ? narrow ? 52 : 24 : narrow ? 78 : 34) + 36;
+   assert.equal(parseFloat(ui.rows()[1].style.top), height);
+   assert.equal(parseFloat(document.querySelector<HTMLElement>('.mail-window')!.style.height), height * 2);
+  } finally { await ui.close(); }
+ }
+});
 test('the rendered row layout and the windowing height agree for every sizing combination',async()=>{
  for(const narrow of [false,true])for(const density of ['comfortable','compact']as const)for(const sizeByImportance of [true,false]){
   const ui=await mountRows(undefined,layouts({narrow,density,sizeByImportance}));try{
@@ -59,9 +118,9 @@ test('the rendered row layout and the windowing height agree for every sizing co
    const expectedClass=(relevance:number)=>density==='compact'?(narrow?'card':'inline')
      :!sizeByImportance?(narrow?'card':'inline')
      :narrow?'card':relevance===3?'stacked':relevance===2?'inline':'brief';
-   const expectedHeight=(relevance:number)=>density==='compact'?(narrow?52:24)
+   const expectedHeight=(relevance:number)=>(density==='compact'?(narrow?52:24)
      :!sizeByImportance?(narrow?78:34)
-     :narrow?(relevance===1?58:78):relevance===3?48:relevance===2?34:28;
+     :narrow?(relevance===1?58:78):relevance===3?48:relevance===2?34:28) + (narrow ? 36 : 0);
    for(const[index,row]of rows.entries()){
     const button=row.querySelector<HTMLElement>('.row')!;
     const relevance=index===0?2:index===1?3:1;

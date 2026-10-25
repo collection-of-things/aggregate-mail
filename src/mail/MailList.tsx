@@ -6,23 +6,27 @@ import { MailListWindow } from "../MailListWindow";
 import type { MailLocation } from "../navigation";
 import { collectPrivateNames, redactPrivateText } from "../privacy";
 import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
-import { More, Pin } from "../ui/icons";
+import type { MenuAction } from "../ui/ContextMenu";
+import { Archive, Check, Clock, Inbox, More, Pin, Reply, Trash } from "../ui/icons";
 import { Avatar } from "./Avatar";
 import { relative, shortLabel } from "./format";
+import { useMedia } from "../ui/useMedia";
 
 type RowLayout = "inline" | "stacked" | "brief" | "card";
+type RowAction = Omit<MenuAction, "run"> & { run: (event: MouseEvent<HTMLButtonElement>) => void };
+const rowIcons = { read: Check, snooze: Clock, unsnooze: Inbox, reply: Reply, archive: Archive, pin: Pin, trash: Trash };
 
 /**
  * Mail rows under sticky date headings. Wide lists keep sender and subject on
  * one line, with height following relevance; beside the reader the list is
  * narrow, so each row becomes a card: sender and time, the subject, then a
- * preview for medium and high relevance. Each row's secondary actions sit in
- * its context menu, opened by the "More actions" button, right-click or the
- * menu key.
+ * preview for medium and high relevance. Direct actions share the message
+ * menu's handlers and guards; More actions, right-click and the menu key
+ * retain the full menu.
  */
 export function MailList<T extends Mail>({
   messages, selectedId, density, narrow, sort, opening, accounts, listRef, focusSelection, sizeByImportance = true,
-  onOpen, onSelect, onMenu, onMenuKey,
+  onOpen, onSelect, onMenu, onMenuKey, actions,
 }: {
   messages: T[];
   listRef: RefObject<HTMLElement | null>;
@@ -38,11 +42,13 @@ export function MailList<T extends Mail>({
   onSelect: (id: string) => void;
   onMenu: (event: MouseEvent<HTMLElement>, mail: T) => void;
   onMenuKey: (event: KeyboardEvent<HTMLElement>, mail: T) => void;
+  actions?: (mail: T) => RowAction[];
 }) {
+  const touchActions = useMedia("(hover: none)", false);
   const { on: privacy } = useContext(PrivacyContext);
   const provider = (mail: Mail) => accounts.find((account) => account.id === mail.accountId)?.provider;
   return <MailListWindow messages={messages} selectedId={selectedId} focusSelection={focusSelection}
-    density={density} sort={sort} listRef={listRef} narrow={narrow} sizeByImportance={sizeByImportance}>{(m) => {
+    density={density} sort={sort} listRef={listRef} narrow={narrow} sizeByImportance={sizeByImportance} touchActions={touchActions || narrow}>{(m) => {
     const relevance = sizeByImportance ? m.relevance : 2;
     const layout: RowLayout = narrow
       ? "card"
@@ -63,7 +69,7 @@ export function MailList<T extends Mail>({
     const time = <time>{relative(m.date)}</time>;
     return (
       <MailPrivacy key={m.id} mail={m}>
-        <div className="mail-row">
+        <div className={`mail-row${touchActions || narrow ? " with-action-strip" : ""}`}>
           <button
             id={`mail-${m.id}`}
             className={`row r${relevance} ${layout}${current ? " selected" : ""}${m.unread ? " unread" : ""}`}
@@ -110,16 +116,29 @@ export function MailList<T extends Mail>({
               </>
             )}
           </button>
-          <button
-            type="button"
-            className="row-more"
-            aria-label="More actions"
-            aria-haspopup="menu"
-            onClick={(event) => onMenu(event, m)}
-            onKeyDown={(event) => onMenuKey(event, m)}
-          >
-            <More size={16} />
-          </button>
+          <div className="row-actions" role="group" aria-label="Email actions">
+            {actions?.(m).filter((action) => action.id in rowIcons &&
+              !(action.id === "snooze" && m.snoozedUntil && m.snoozedUntil > Date.now())).map((action) => {
+              const Icon = rowIcons[action.id as keyof typeof rowIcons];
+              return <button key={action.id} type="button" aria-label={action.label}
+                aria-description={action.description} title={action.description || action.label}
+                disabled={action.disabled} onClick={action.run}
+                className={action.id === "trash" ? "trash-action" : undefined}
+                aria-pressed={action.id === "pin" ? !!m.pinned : undefined}>
+                <Icon size={16} />
+              </button>;
+            })}
+            <button
+              type="button"
+              className="row-more"
+              aria-label="More actions"
+              aria-haspopup="menu"
+              onClick={(event) => onMenu(event, m)}
+              onKeyDown={(event) => onMenuKey(event, m)}
+            >
+              <More size={16} />
+            </button>
+          </div>
         </div>
       </MailPrivacy>
     );

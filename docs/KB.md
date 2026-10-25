@@ -1279,10 +1279,13 @@ contents. Privacy masks draft details; uncertain-send warnings stay visible.
 An initial load failure reports an unavailable count; retained rows are labeled
 cached rather than implying that saved drafts disappeared.
 
-Mail lists fill the working area until a message opens. A More actions button
-sits at the selected or focused row's trailing edge (always visible without
-hover) and opens the row's context menu; the menu's actions are also listed in
-[`mailMenuActions`](../src/App.tsx). The reader omits confirmed-empty attachments and image controls;
+Mail lists fill the working area until a message opens. Flat direct action
+buttons appear on hovered, selected or focused rows. Read, Pin, Reply, Archive,
+Snooze (Return to inbox for snoozed mail) and Trash reuse the handlers and guards
+in [`mailMenuActions`](../src/App.tsx). More actions retains the full menu.
+Narrow lists and devices without hover show a scrollable strip below each message;
+windowing reserves its 36-pixel height. Controls use theme tokens without
+bevels or shadows. The reader omits confirmed-empty attachments and image controls;
 unknown metadata and load failures retain recovery controls. Conversation evidence
 is a disclosure. Single-item quick tracking shows the deliverable once, with an
 explicit action to add another.
