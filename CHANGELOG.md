@@ -3,6 +3,10 @@
 ## Unreleased
 
 - Show current MCP permissions in CLI status without account identities, add cached Inbox/Sent/All selection, and request reviewed replies only when the app explicitly guarantees approval to Drafts without sending. Preserve older commands, grants and no automatic retries.
+- Add optional safe rich-text composition with a matching plain-text alternative, encrypted draft recovery and multipart sending. Keep plain-text messages as the default.
+- Tighten compose fields and reply spacing; place Delete draft and Close beside the Drafts account tabs. Keep the footer on one compact row and remove duplicate sender information. Extend the coverage footer divider to the pane edges.
+- Add subtle press/glow feedback to New Message and Send, respecting reduced motion.
+
 - Reduce startup work by loading only Gmail and Calendar APIs, and bound account-sync body retention to active batches. Reuse list filtering across selection and draft edits.
 - Keep toolbar Search and Privacy usable during composition without releasing draft navigation guards. Show reply context beside the editor, align bottom bars to 30px and combine Today status counts and actions in one row.
 - Match one typo in plain search words while retaining exact quoted text, field operators, addresses and exclusions. Preserve saved device and account preferences.

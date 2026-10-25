@@ -48,7 +48,7 @@ test("composer discloses empty Cc, keeps recovered recipients visible and preser
     assert.equal(cc()!.disabled, true);
     assert.equal(document.querySelector<HTMLTextAreaElement>("textarea")!.disabled, true);
     assert.equal(button("Keep draft").disabled, true);
-    assert.equal(button("Discard draft").disabled, true);
+    assert.equal(button("Delete draft").disabled, true);
     assert.equal(document.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled, true);
   } finally {
     await act(async () => root.unmount());
@@ -73,10 +73,10 @@ test("reply retains original context and file drops reuse attachment validation 
   try{
     await render(); assert.match(document.querySelector('[aria-label="Original email"]')!.textContent!,/Please confirm the delivery date/);
     assert.equal(document.querySelector('[aria-label="Original email"]')?.getAttribute('tabindex'), '0', 'original email supports keyboard scrolling');
-    assert.match(document.querySelector('.compose-format')!.textContent!,/From: me@example.test/);
+    assert.match(document.querySelector('.compose-from-row select option:checked')!.textContent!,/me@example.test/);
     draft.accountId="b";await render();
-    assert.match(document.querySelector('.compose-format')!.textContent!,/From: selected@example.test/);
-    assert.ok(!document.querySelector('.compose-format')!.textContent!.includes('original account'));
+    assert.match(document.querySelector('.compose-from-row select option:checked')!.textContent!,/selected@example.test/);
+    assert.equal(document.querySelector('.compose-footer .compose-format'), null, 'sender is shown once in From, without a repeated footer row');
     await drop([new dom.window.File(["hello"],"note.txt",{type:"text/plain"})]);
     assert.equal(changed?.body,draft.body);assert.deepEqual(changed?.attachments,[{filename:"note.txt",contentType:"text/plain",content:"aGVsbG8="}]);assert.equal(sends,0);
     changed=undefined; await drop([new dom.window.File(["bad"],"../bad.txt")]);assert.equal(changed,undefined);assert.match(document.querySelector('[role="alert"]')!.textContent!,/safe filenames/);
@@ -107,8 +107,8 @@ test("composer From hides account addresses in privacy mode", async () => {
     await render(true);
     assert.ok(!from().includes("from@example.test"));
     assert.match(from(), /^Account 1/);
-    assert.ok(!document.querySelector('.compose-format')!.innerHTML.includes("from@example.test"));
-    assert.match(document.querySelector('.compose-format')!.textContent!,/From: Account 1/);
+    assert.equal(document.querySelector('.compose-footer .compose-format'), null);
+    assert.ok(!document.querySelector('.compose-from-row')!.innerHTML.includes("from@example.test"));
     await render(false);
     assert.equal(from(), "from@example.test");
   } finally {

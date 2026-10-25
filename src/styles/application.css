@@ -466,3 +466,84 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
   .app.desktop[data-view="drafts"] .dialog-backdrop.compose-backdrop { padding-top: 0; }
   .head-tools .work-view-tabs { gap: 10px; }
 }
+
+/* Draft controls share the account-tabs row instead of crowding From. */
+.compose-dialog .dialog-title { display: flex; align-items: center; gap: 12px; }
+.compose-dialog .dialog-title > .icon { order: 2; }
+.compose-dialog .dialog-title .compose-discard { display: inline-flex; align-items: center; gap: 6px; height: 30px; color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
+.app[data-view="drafts"] .compose-dialog .dialog-title { top: -42px; right: 16px; height: 42px; }
+.app[data-view="drafts"]:has(.compose-dialog) .draft-account-tabs { padding-right: 150px; }
+.compose-dialog .compose-form :is(input, select) { min-height: 34px; padding-block: 6px; }
+.compose-dialog .compose-from-row > label { padding-right: 136px; }
+.app[data-view="drafts"] .compose-dialog .compose-from-row > label { padding-right: 0; }
+.compose-dialog .compose-toolbar { min-height: 32px; gap: 8px 12px; }
+.compose-dialog .compose-scroll { padding-inline: 18px; }
+.compose-reply-layout > .compose-context { padding: 16px 18px; }
+.compose-dialog .compose-context-body { padding-top: 8px; line-height: 1.6; }
+.compose-dialog .compose-context h3 { margin-block: 4px; }
+.compose-dialog .compose-form textarea { margin-block: 6px; padding-block: 6px; }
+.compose-dialog .compose-footer { padding: 8px 18px; }
+.compose-dialog .compose-format { margin-top: 3px; }
+@media (max-width: 760px) {
+  .app.desktop[data-view="drafts"] .compose-dialog .dialog-title { top: 0; }
+  .app.desktop[data-view="drafts"] .compose-dialog .compose-from-row > label { padding-right: 136px; }
+}
+.compose-format-tools { display: flex; align-items: center; flex-wrap: wrap; flex-shrink: 0; gap: 3px; min-height: 30px; border-block: 1px solid var(--line); }
+.compose-format-tools button { min-width: 28px; height: 28px; padding: 0 7px; color: var(--text-2); font-size: calc(11px * var(--text-scale, 1)); border-radius: 4px; }
+.compose-format-tools button:hover { background: var(--hover); }
+.compose-format-tools button[aria-label="Bold"] { font-weight: 700; }
+.compose-format-tools button[aria-label="Italic"] { font-style: italic; }
+.compose-format-tools button[aria-label="Underline"] { text-decoration: underline; }
+.compose-rich-body { flex: 1 0 180px; min-height: 180px; min-width: 0; margin: 6px 0; padding: 6px 0; font-size: calc(13px * var(--text-scale, 1)); line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
+.compose-rich-body:focus-visible { outline: 1px solid var(--accent); outline-offset: 3px; }
+.compose-rich-body :is(p, div) { margin: 0; }
+.compose-rich-body :is(ul, ol) { padding-left: 24px; margin: 8px 0; }
+.compose-rich-body blockquote { border-left: 2px solid var(--line); margin: 8px 0; padding-left: 12px; }
+.compose-rich-body a { color: var(--accent); text-decoration: underline; }
+.private .compose-rich-body:not(:focus) { filter: blur(5px); }
+.compose-format-error { color: var(--danger); font-size: calc(12px * var(--text-scale, 1)); }
+.dialog.compose-dialog { overflow: visible; }
+.app[data-view="drafts"]:has(.compose-dialog) .draft-account-tabs { margin-right: 150px; padding-right: 12px; }
+/* Keep the send controls in one row even in a narrow reply column. */
+.compose-dialog .compose-actions { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.compose-dialog .compose-actions > button { white-space: nowrap; }
+.compose-dialog .compose-save-status { min-width: 0; margin: 0; text-align: right; }
+.compose-dialog .compose-send { min-width: 64px; }
+@media (max-width: 760px) {
+  .dialog.compose-with-context { width: calc(100% - var(--sidebar)); }
+  .app:has(.sidebar.closed) .compose-with-context { width: 100%; }
+  .app.desktop[data-view="drafts"] .dialog-backdrop.compose-backdrop { padding-top: 42px; }
+  .app.desktop[data-view="drafts"] .compose-dialog .dialog-title { top: -42px; }
+  .app.desktop[data-view="drafts"] .compose-dialog .compose-from-row > label { padding-right: 0; }
+}
+.compose-dialog .compose-footer { min-height: 30px; padding: 1px 12px; display: flex; flex-direction: column; justify-content: center; }
+.compose-dialog .compose-actions > button { height: 26px; }
+.compose-dialog .compose-send { height: 26px; min-width: 64px; }
+.compose-dialog .compose-actions > button { min-height: 26px; padding-block: 0; }
+
+/* A transient glow and press, without adding permanent depth or layout work. */
+.primary-button.new-message, .compose-dialog .compose-send { transition: transform 140ms ease-out; }
+.primary-button.new-message::before, .compose-dialog .compose-send::before {
+  content: ""; position: absolute; inset: -2px; border-radius: inherit; pointer-events: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 26%, transparent);
+  opacity: 0; transition: opacity 140ms ease-out;
+}
+.primary-button.new-message:active:not(:disabled), .compose-dialog .compose-send:active:not(:disabled) { transform: translateY(1px) scale(.985); }
+.primary-button.new-message:active:not(:disabled)::before, .compose-dialog .compose-send:active:not(:disabled)::before { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .primary-button.new-message, .compose-dialog .compose-send { transform: none !important; transition: none; }
+  .primary-button.new-message::before, .compose-dialog .compose-send::before { transition: none; }
+}
+/* Match the approved New Message height, including its border. */
+.compose-dialog .compose-actions > .compose-send { height: 30px; min-height: 30px; }
+.compose-dialog .compose-footer { padding-block: 0; border-top: 0; box-shadow: inset 0 1px 0 var(--line); }
+/* The coverage footer spans the pane, independent of content padding. */
+.work-content { --coverage-inset: 28px; }
+.work-content.today-content { --coverage-inset: 0px; }
+.work-content details.coverage { margin-inline: calc(-1 * var(--coverage-inset)); }
+.work-content details.coverage > :not(summary) { padding-inline: 12px; }
+@media (max-width: 760px) {
+  .work-content { --coverage-inset: 12px; }
+}
+/* A 30px primary action needs breathing room inside the compose action row. */
+.compose-dialog .compose-footer { min-height: 42px; padding-block: 6px; }

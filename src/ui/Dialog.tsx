@@ -7,12 +7,14 @@ export function Dialog({
   children,
   className,
   toolbarAccess = false,
+  actions,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   className?: string;
   toolbarAccess?: boolean;
+  actions?: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
@@ -74,6 +76,7 @@ export function Dialog({
           <button className="icon" aria-label="Close dialog" onClick={onClose}>
             <Close color="currentColor" size={13} />
           </button>
+          {actions}
         </div>
         {children}
       </div>

@@ -36,6 +36,7 @@ export type MailAttachment = { id: string; filename: string; contentType: string
 export type DraftAttachment = { filename: string; contentType: string; content: string };
 export type RuleCondition = { field: "subject" | "body" | "recipient"; contains: string } | { field: "hasAttachment" | "directQuestion" };
 export type DraftContent = {
+  html?: string;
   invitation?: import("./invitations").Invitation;
   cc?: string[];
   attachments?: DraftAttachment[];

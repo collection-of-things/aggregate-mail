@@ -161,6 +161,20 @@ test("workspace HTTP preserves confirmed obligations, account boundaries and imm
       assert.equal(store.get("mail", "b:1")?.reason, "Other account classification must survive");
       store.remove("mail", fresh.id);
     });
+    await t.test("MCP and agent proposal boundaries remain strictly plain text", async () => {
+      const agent = await grant();
+      const content = { to: "recipient@example.test", subject: "Synthetic", body: "Hello", html: "<strong>Hello</strong>" };
+      const before = store.all("proposal").length;
+      const response = await fetch(`${origin}/mcp`, {
+        method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", Authorization: `Bearer ${agent.token}` },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "propose_draft", arguments: { accountId: "a", content } } }),
+      });
+      const value = await response.json();
+      assert.ok(value.error || value.result?.isError === true, "MCP rejects the HTML field");
+      const { propose } = await import("./workspace.js");
+      for (const action of ["draft", "send"] as const) assert.throws(() => propose(agent.id, action, { accountId: "a", ...content }));
+      assert.equal(store.all("proposal").length, before);
+    });
     await t.test("proposals approve only exact immutable payload once and reply approval saves a draft without sending", async () => {
       const agent = await grant();
       const proposal = await tool(agent.token, "propose_draft", { accountId: "a", sourceMailId: mail.id, content: { to: "other@example.test", subject: "Synthetic", body: "SYNTHETIC proposal" } });

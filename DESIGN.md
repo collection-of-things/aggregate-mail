@@ -79,7 +79,7 @@ highlight, shallow vertical shading and a small drop shadow. Other controls
 stay flat. Blue uses the primary action token; other accents and custom themes
 derive the action fill from their selected accent.
 
-New Message is exactly 30px tall. Send remains 34px tall.
+New Message is exactly 30px tall. Compose uses a 42px minimum footer, with a 30px Send button, 6px vertical clearance and a 26px Keep draft control. Recovery or scaled status text may expand it.
 
 Glass and Subtle retain the native material and one shared window tint.
 Appearance offers Window opacity from 0 to 100 percent, defaulting to 70.
@@ -333,3 +333,24 @@ the same file validation for choosing and dropping attachments.
 The sidebar footer and collapsed coverage/status bar share a 30px height.
 Today places counts beside its status tabs and keeps Refresh and Add task on
 the same toolbar row.
+
+
+## Optional message formatting
+
+Keep the plain-text textarea until a formatting action is applied. A compact
+flat toolbar offers bold, italic, underline, links, lists and quotations.
+Formatted editing keeps a plain-text alternative, native editing undo and
+keyboard shortcuts. Paste inserts only text. No sender assets or arbitrary
+HTML/CSS enter the editor. Privacy blurs the body while it is unfocused.
+
+In Drafts, Delete draft and Close sit at the right of the account-tabs row.
+From, To and Subject use compact 34px controls. Preserve the independent
+side-by-side original and reply scrolling, single-row Send/save footer and no-drag
+controls. Other compose entry points retain actions beside the first field.
+
+New Message and Send give a restrained press/glow response. Animate only
+transform and overlay opacity for 140ms; keep resting depth and geometry.
+Reduced motion removes movement and transitions. Disabled buttons do not glow.
+
+The 30px coverage footer and divider span the entire working pane, including
+Calendar. Its horizontal edges align with the pane and sidebar footer.

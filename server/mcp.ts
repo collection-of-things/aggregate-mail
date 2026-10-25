@@ -7,7 +7,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { AgentTool } from "../shared/workspace.js";
 import { AgentPermissionError, agentCommitmentSchema, agentProjectSchema, assertAgent, conversation, createAgentProject, listAgentCommitments, listAgentProjects, propose, trackAgentCommitment } from "./workspace.js";
-import { contentSchema } from "./drafts.js";
+import { plainContentSchema } from "./drafts.js";
 import type { Mail, McpSettings } from "../shared/types.js";
 import { all, account, put } from "./store.js";
 import { findMail } from "./mail-actions.js";
@@ -281,7 +281,7 @@ export function createMcpServer(
           return propose(agentId!, action === "read" ? "read" : "archive", { mailId: id });
         })(),
     );
-  server.registerTool("propose_draft", { description: "Propose an encrypted draft for explicit user approval. Never sends.", inputSchema: { accountId: z.string(), content: contentSchema, sourceMailId: z.string().optional() }, annotations: { destructiveHint: false, openWorldHint: false } }, async ({ accountId, content, sourceMailId }) => safe(() => propose(agentId!, "draft", { ...content, accountId }, sourceMailId))());
+  server.registerTool("propose_draft", { description: "Propose an encrypted draft for explicit user approval. Never sends.", inputSchema: { accountId: z.string(), content: plainContentSchema, sourceMailId: z.string().optional() }, annotations: { destructiveHint: false, openWorldHint: false } }, async ({ accountId, content, sourceMailId }) => safe(() => propose(agentId!, "draft", { ...content, accountId }, sourceMailId))());
   const workAccount = { accountId: z.string().trim().min(1).max(2000) };
   server.registerTool("list_projects", { description: "List cached single-account projects with available same-account sources. Mixed-account projects are omitted.", inputSchema: workAccount, annotations: readOnly }, async ({ accountId }) => safe(() => ({ projects: listAgentProjects(agentId || "", accountId) }))());
   server.registerTool("list_commitments", { description: "List cached commitments for one account, including closed work. Items with unavailable or mixed-account evidence or project links are omitted.", inputSchema: workAccount, annotations: readOnly }, async ({ accountId }) => safe(() => ({ commitments: listAgentCommitments(agentId || "", accountId) }))());

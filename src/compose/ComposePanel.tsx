@@ -1,3 +1,4 @@
+import { RichBody } from "./RichBody";
 import { useContext, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { Account, Mail } from "../../shared/types";
 import { emptyComposePreferences, type ComposePreferences } from "../../shared/mail-features";
@@ -99,8 +100,6 @@ export function ComposePanel({
   onAttachmentTask?: (task: Promise<void>) => void;
 }) {
   const { on: privacy } = useContext(PrivacyContext);
-  const sendingIndex = accounts.findIndex((account) => account.id === draft.accountId);
-  const sendingAccount = accounts[sendingIndex];
   const [attachmentError, setAttachmentError] = useState("");
   const [loadingFiles, setLoadingFiles] = useState(false);
   const filesBusy = useRef(false);
@@ -127,6 +126,11 @@ export function ComposePanel({
   return (
     <Dialog
       toolbarAccess
+      actions={<button type="button" className="compose-discard" title="Delete draft" aria-label="Delete draft" disabled={busy || loadingFiles} onClick={() => {
+            if (confirm(draft.sendUnknown
+              ? "Discard this saved draft? This message may already have been sent."
+              : "Discard this draft from this device?")) onDiscard();
+          }}><Trash size={15} color="currentColor" /><span>Delete draft</span></button>}
       title={source || draft.inReplyTo ? "Reply" : "New message"}
       className={source ? "compose-dialog compose-with-context" : "compose-dialog"}
       onClose={() => { if (!busy && !loadingFiles) onClose(); }}
@@ -148,6 +152,7 @@ export function ComposePanel({
         onSubmit={(e) => {
           e.preventDefault();
           if (!e.currentTarget.reportValidity()) return;
+          if (!draft.body) { e.currentTarget.querySelector<HTMLElement>('[aria-label="Message body"]')?.focus(); return; }
           onSend();
         }}
       >
@@ -160,9 +165,10 @@ export function ComposePanel({
             <select
               value={draft.accountId}
               disabled={!!draft.invitation || busy || loadingFiles || progress.phase === "saving" || progress.phase === "error"}
-              onChange={(e) =>
-                setDraft(changeComposeAccount(draft, e.target.value, preferences))
-              }
+              onChange={(e) => {
+                try { setDraft(changeComposeAccount(draft, e.target.value, preferences)); }
+                catch { setAttachmentError("Unable to update the signature without changing your message. Your text is unchanged."); }
+              }}
             >
               {accounts.map((a, index) => (
                 <option key={a.id} value={a.id}>
@@ -171,11 +177,7 @@ export function ComposePanel({
               ))}
             </select>
           </label>
-          <button type="button" className="icon compose-discard" title="Discard draft" aria-label="Discard draft" disabled={busy || loadingFiles} onClick={() => {
-            if (confirm(draft.sendUnknown
-              ? "Discard this saved draft? This message may already have been sent."
-              : "Discard this draft from this device?")) onDiscard();
-          }}><Trash size={15} color="currentColor" /><span className="visually-hidden">Discard draft</span></button>
+
           </div>
           <div className="compose-to-row">
             <label>
@@ -218,16 +220,7 @@ export function ComposePanel({
           </label>
           <span id="compose-attachment-limits" className="compose-attachment-limits">Up to 10 files · 512 KiB each · 1 MiB total</span>
         </div>
-        <textarea
-          className="compose-body"
-          aria-label="Message body"
-          placeholder="Write your message"
-          required
-          disabled={busy || loadingFiles}
-          maxLength={1000000}
-          value={draft.body}
-          onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-        />
+        <RichBody draft={draft} disabled={busy || loadingFiles} onChange={setDraft} />
         <div className="compose-extras">
           {(draft.attachments || []).map((file, index) => <p className="compose-attachment" key={index}><Redact text={file.filename} /> <button type="button" disabled={busy || loadingFiles} aria-label={`Remove attachment ${index + 1}`} onClick={() => setDraft({ ...draft, attachments: draft.attachments?.filter((_, i) => i !== index) })}>Remove</button></p>)}
           {attachmentError && <p role="alert">{attachmentError}</p>}
@@ -252,7 +245,7 @@ export function ComposePanel({
               {busy ? "Please wait" : "Send"}
             </button>
           </div>
-          <p className="compose-format">Plain text · From: {sendingAccount ? <Redact text={privacy ? accountLabel(sendingAccount, sendingIndex, true) : sendingAccount.email} /> : "Sending account unavailable"}</p>
+
         </div>
       </form>
       </div>

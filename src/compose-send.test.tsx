@@ -185,7 +185,7 @@ test("explicitly discarding an unknown draft warns about possible delivery witho
   let closes = 0;
   const ui = await panel({ ...initial, to: "", subject: "", body: "", sendUnknown: true }, () => {}, undefined, () => { closes++; });
   try {
-    const discard = [...ui.form.querySelectorAll("button")].find((button) => button.textContent?.trim() === "Discard draft")!;
+    const discard = [...ui.container.querySelectorAll("button")].find((button) => button.getAttribute("aria-label") === "Delete draft")!;
     await ui.click(discard); assert.equal(closes, 0);
     assert.match(prompts[0], /already.*sent/); assert.doesNotMatch(prompts[0], /unsent/);
     approved = true; await ui.click(discard); assert.equal(closes, 1);

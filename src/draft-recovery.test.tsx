@@ -224,8 +224,8 @@ test("mounted drafts use encrypted HTTP persistence, recover edits and guard unc
     assert.doesNotMatch(picker.outerHTML, /Synthetic reply thread|reply@example.test|SYNTHETIC reply content/);
     await click(container.querySelector<HTMLElement>(".draft-row")!);
     await settle(() => !!container.querySelector(".compose-form"));
-    approve = false; await click(button("Discard draft")); assert.equal(store.all("draft").length, 1);
-    approve = true; await click(button("Discard draft"));
+    approve = false; await click(button("Delete draft")); assert.equal(store.all("draft").length, 1);
+    approve = true; await click(button("Delete draft"));
     await settle(() => !container.querySelector(".compose-form"));
     assert.equal(store.all("draft").length, 0); assert.equal(sends, 2);
     await settle(() => draftCount() === 0);

@@ -1887,3 +1887,52 @@ none match, they skip the full-mailbox scan. HTTP regressions count encrypted
 mail reads and retain source validation, conversation filtering, offer ordering
 and booked-event coverage. This removes avoidable work; its whole-app RAM
 effect requires a separate matched runtime comparison.
+
+
+## Optional outbound rich text
+
+[ADR 0070](adr/0070-safe-outbound-rich-text.md) defines the outbound subset.
+The composer starts with plain text. Applying formatting stores optional
+`DraftContent.html` beside its matching plain-text `body` in the existing
+encrypted draft record. No schema migration or settings reset is required.
+Draft snapshots, equality, recovery, separate copies and uncertainty markers
+retain both alternatives. Calendar send validation compares both against the
+reviewed saved snapshot.
+
+`shared/compose-content.ts` owns outbound serialization, independently of the
+inbound renderer. Canonical HTML allows div/p/br, strong/em/u, safe HTTP(S) or
+mailto links, ul/ol/li and blockquote. It strips unsupported wrappers, active
+subtrees and all attributes except validated href, with limits of 256,000 code
+units, 4,000 parser events and depth 48. The draft/send boundary rejects
+noncanonical HTML or mismatched text instead of silently normalizing a saved
+snapshot. Plain alternatives include link destinations, list markers and
+quotation prefixes. Resource-loading markup and CSS never leave the composer.
+
+Formatting uses the Electron editing commands to preserve native undo; support
+is checked before leaving plain mode. Selection is retained across toolbar
+activation. Paste inserts plain text, and drop does not insert HTML. Programmatic
+templates/signature changes retain unchanged leading rich content. A partially
+changed structural node uses its plain text instead of inventing formatting.
+Native physical editing and recipient-client rendering require separate proof.
+
+Both Gmail and SMTP pass text and optional HTML to MailComposer. SMTP Sent
+copies retain the exact transmitted bytes. Gmail API and gmail-imap retain
+their existing no-manual-append behavior. Delivery acceptance followed by a
+Sent-copy failure remains a success with a warning. MCP replies and agent
+proposal contracts remain plain text. Tables and embedded images are excluded.
+
+The normal compose footer is 42px high with 6px vertical padding around a 30px Send button, matching New Message, and one row for
+Keep draft, save status and Send. Recovery or wrapped scaled status may expand
+it. Sender identity is shown in From; no duplicate sender/format footer row.
+In Drafts, Delete draft and Close share the account-tabs row and remain inside
+the compose keyboard cycle. Compact fields are 34px before separators.
+
+New Message and Send use a 140ms transform/overlay-opacity press response.
+The glow is transient, does not change layout, and is suppressed for disabled
+controls. Reduced motion removes the movement and transitions.
+MCP and agent proposals explicitly use strict plain-only schemas; widening the
+UI draft/send HTML schema does not widen these separate tool boundaries.
+
+Coverage footers span the full pane width. Their horizontal inset cancels
+Calendar content padding at each breakpoint; Today/Projects already use zero
+content inset. Expanded details keep 12px inner padding and existing controls.

@@ -6,8 +6,8 @@ import type { Commitment, Project, AgentAction, AgentPayload, AgentProposal, Age
 import type { Mail, Rule } from "../shared/types.js";
 import { all, get, readMail, put, remove, transaction, account } from "./store.js";
 import { findMail, updateMessage, runMailWork } from "./mail-actions.js";
-import { createDraft, contentSchema } from "./drafts.js";
-import { providers, sendSchema } from "./providers.js";
+import { createDraft, plainContentSchema } from "./drafts.js";
+import { providers, plainSendSchema } from "./providers.js";
 import { matchingRule } from "../shared/rules.js";
 import { validDate } from "../shared/commitment-dates.js";
 class WorkspaceError extends Error {
@@ -196,11 +196,11 @@ export function propose(agentId: string, action: AgentAction, value: unknown, so
   let payload: AgentProposal["payload"];
   if (action === "draft") {
     const { accountId: id, ...content } = z.object({ accountId: text }).passthrough().parse(value);
-    payload = { ...contentSchema.parse(content), accountId: id };
+    payload = { ...plainContentSchema.parse(content), accountId: id };
     accountId = id;
   }
   else if (action === "send") {
-    payload = sendSchema.strict().parse(value);
+    payload = plainSendSchema.parse(value);
     accountId = payload.accountId;
   }
   else {

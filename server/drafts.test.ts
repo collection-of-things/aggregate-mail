@@ -69,6 +69,23 @@ test("encrypted drafts: authenticated lifecycle, stale writes, sync and update g
     return await response.json() as Draft;
   };
   try {
+    await t.test("formatted alternatives are exact, encrypted and survive revisions", async () => {
+      const formatted = { ...content, body: "Formatted body", html: "<strong>Formatted body</strong>" };
+      const draft = await create(formatted);
+      assert.equal(draft.html, formatted.html);
+      assert.equal((await (await request(`/${draft.id}`)).json()).html, formatted.html);
+      for (const invalid of [
+        { ...formatted, body: "Different" },
+        { ...formatted, html: '<strong onclick="unsafe()">Formatted body</strong>' },
+        { ...formatted, html: 'x'.repeat(256001) },
+      ]) assert.equal((await request("", "POST", invalid)).status, 400);
+      const response = await request(`/${draft.id}`, "PUT", { ...formatted, revision: draft.revision, sendUnknown: true });
+      assert.equal(response.status, 200);
+      const saved = await response.json() as Draft;
+      assert.equal(saved.html, formatted.html); assert.equal(saved.sendUnknown, true);
+      assertEncrypted(directory);
+      assert.equal((await request(`/${draft.id}`, "DELETE", { revision: saved.revision, confirmUnknown: true })).status, 200);
+    });
     await t.test("session, Host, origin, CSRF and strict validation precede persistence", async () => {
       for (const extra of [
         { "X-Desktop-Token": "wrong" }, { "X-CSRF-Token": "wrong" },
@@ -229,6 +246,7 @@ test("encrypted drafts: authenticated lifecycle, stale writes, sync and update g
 });
 
 test("drafts reopen with the same key after graceful exit and hard process crash", { timeout: 30000 }, async (t) => {
+  const restartContent = { ...content, html: "<strong>reply-body-SYNTHETIC-秘密<br>Unfinished reply</strong>" };
   const directory = mkdtempSync(path.join(tmpdir(), "emc2-drafts-restart-"));
   const imports = `
     import assert from 'node:assert/strict';
@@ -250,13 +268,13 @@ test("drafts reopen with the same key after graceful exit and hard process crash
   try {
     const id = run(`
       store.put('account', 'a', ${JSON.stringify(syntheticAccount("a"))});
-      const draft = drafts.createDraft('a', ${JSON.stringify(content)});
+      const draft = drafts.createDraft('a', ${JSON.stringify(restartContent)});
       console.log(draft.id);
       store.closeStore();
     `);
     run(`
       assert.deepEqual(drafts.readDraft('a', ${JSON.stringify(id)}), {
-        ...${JSON.stringify(content)}, id: ${JSON.stringify(id)}, accountId: 'a', revision: 1,
+        ...${JSON.stringify(restartContent)}, id: ${JSON.stringify(id)}, accountId: 'a', revision: 1,
         updatedAt: drafts.readDraft('a', ${JSON.stringify(id)}).updatedAt, sendUnknown: false,
       });
       store.closeStore();
@@ -265,8 +283,8 @@ test("drafts reopen with the same key after graceful exit and hard process crash
 
     const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", imports + `
       const current = drafts.readDraft('a', ${JSON.stringify(id)});
-      const saved = drafts.saveDraft('a', current.id, { ...${JSON.stringify(content)}, revision: current.revision, sendUnknown: true });
-      const deleted = drafts.createDraft('a', ${JSON.stringify(content)});
+      const saved = drafts.saveDraft('a', current.id, { ...${JSON.stringify(restartContent)}, revision: current.revision, sendUnknown: true });
+      const deleted = drafts.createDraft('a', ${JSON.stringify(restartContent)});
       drafts.deleteDraft('a', deleted.id, { revision: 1 });
       process.send({ id: saved.id, deletedId: deleted.id });
       setInterval(() => {}, 1000);
@@ -288,12 +306,13 @@ test("drafts reopen with the same key after graceful exit and hard process crash
     run(`
       const draft = drafts.readDraft('a', ${JSON.stringify(id)});
       assert.equal(draft.body, ${JSON.stringify(content.body)});
+      assert.equal(draft.html, ${JSON.stringify(restartContent.html)});
       assert.equal(draft.sendUnknown, true);
       assert.equal(draft.revision, 2);
-      assert.throws(() => drafts.saveDraft('a', draft.id, { ...${JSON.stringify(content)}, revision: 1 }), /changed/);
-      assert.throws(() => drafts.saveDraft('a', draft.id, { ...${JSON.stringify(content)}, revision: 2, sendUnknown: false }), /cannot be cleared/);
+      assert.throws(() => drafts.saveDraft('a', draft.id, { ...${JSON.stringify(restartContent)}, revision: 1 }), /changed/);
+      assert.throws(() => drafts.saveDraft('a', draft.id, { ...${JSON.stringify(restartContent)}, revision: 2, sendUnknown: false }), /cannot be cleared/);
       assert.throws(() => drafts.deleteDraft('a', draft.id, { revision: 2 }), /Confirm/);
-      assert.throws(() => drafts.saveDraft('a', ${JSON.stringify(ready.deletedId)}, { ...${JSON.stringify(content)}, revision: 1 }), /not found/);
+      assert.throws(() => drafts.saveDraft('a', ${JSON.stringify(ready.deletedId)}, { ...${JSON.stringify(restartContent)}, revision: 1 }), /not found/);
       assert.equal(drafts.listDrafts('a').length, 1);
       store.closeStore();
     `);
@@ -304,6 +323,7 @@ test("drafts reopen with the same key after graceful exit and hard process crash
     run(`
       const draft = drafts.readDraft('a', ${JSON.stringify(id)});
       assert.equal(draft.body, ${JSON.stringify(content.body)});
+      assert.equal(draft.html, ${JSON.stringify(restartContent.html)});
       assert.equal(draft.sendUnknown, true);
       assert.equal(draft.revision, 2);
       store.closeStore();
