@@ -1,4 +1,4 @@
-# ADR 0078: Standalone Android client
+# ADR 0079: Standalone Android client
 
 Date: 2026-10-25
 Status: Implementation candidate. Standalone operation is owner-requested;
