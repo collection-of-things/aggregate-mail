@@ -81,7 +81,12 @@ derive the action fill from their selected accent.
 
 New Message is exactly 30px tall. Send remains 34px tall.
 
-Glass and Subtle retain the native material and one shared working-pane tint.
+Glass and Subtle retain the native material and one shared window tint.
+Appearance offers Window opacity from 0 to 100 percent, defaulting to 70.
+The tint is painted once on the app; the sidebar and working panes stay clear,
+including Settings group backgrounds. Only background color changes, never
+element opacity. The saved level persists across themes and restarts; the
+control is disabled while transparency is Off or unsupported.
 The Settings section rail, Calendar weekday row and flush composer stay
 transparent. While composing, underlying work is clipped to the list column
 without changing its layout, so text cannot show behind the editor. Controls and draft cards retain

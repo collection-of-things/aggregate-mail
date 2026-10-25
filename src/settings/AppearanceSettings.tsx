@@ -164,6 +164,17 @@ export function AppearanceSettings({ value, scheme, onChange, onPreview = noPrev
             choices={transparencyChoices()} disabled={(choice) => !glass && choice !== "off"}
             onChange={(transparency) => onChange({ ...value, transparency })} />
         </div>
+        <div className="settings-row stacked window-opacity">
+          <div className="opacity-label">
+            <label htmlFor="window-opacity">Window opacity</label>
+            <output htmlFor="window-opacity">{value.glassOpacity}%</output>
+          </div>
+          <input id="window-opacity" type="range" min={0} max={100} step={1}
+            value={value.glassOpacity} aria-valuetext={`${value.glassOpacity} percent`}
+            disabled={!glass || value.transparency === "off"} aria-describedby="window-opacity-help"
+            onChange={(event) => onChange({ ...value, glassOpacity: event.target.valueAsNumber })} />
+          <p id="window-opacity-help" className="note">Lower values show more of the background. Text stays solid.</p>
+        </div>
         <div className="settings-row stacked reading-layouts">
           <span id="reading-label">Reading pane</span>
           <Segmented labelledBy="reading-label" value={value.reading} choices={readingLayouts}

@@ -53,14 +53,16 @@ export type Appearance = {
   theme: ThemeId;
   accent: AccentId;
   transparency: Transparency;
+  glassOpacity: number;
   reading: ReadingLayout;
   // Rows follow relevance (high/medium/low heights) or one uniform medium row.
   sizeByImportance: boolean;
   customThemes: CustomTheme[];
 };
 
-export const defaultAppearance: Appearance = { mode: "dark", theme: "black", accent: "blue", transparency: "glass", reading: "split", sizeByImportance: true, customThemes: [] };
+export const defaultAppearance: Appearance = { mode: "dark", theme: "black", accent: "blue", transparency: "glass", glassOpacity: 70, reading: "split", sizeByImportance: true, customThemes: [] };
 const storageKey = "emc2.appearance.v1";
+const glassOpacitySchema = z.number().int().min(0).max(100);
 
 /** Whether the desktop window has an OS material behind it to show through. */
 export function supportsGlass(): boolean {
@@ -111,6 +113,7 @@ export function readAppearance(): Appearance {
         : customId.success && library.some((theme) => theme.id === customId.data) ? customId.data : defaultAppearance.theme,
       accent: oneOf(accents, input.accent) ? input.accent : defaultAppearance.accent,
       transparency,
+      glassOpacity: glassOpacitySchema.safeParse(input.glassOpacity).data ?? defaultAppearance.glassOpacity,
       reading: oneOf(readingLayouts, input.reading) ? input.reading : defaultAppearance.reading,
       sizeByImportance: typeof input.sizeByImportance === "boolean" ? input.sizeByImportance : defaultAppearance.sizeByImportance,
       customThemes: library,
@@ -123,9 +126,10 @@ export function readAppearance(): Appearance {
 export function saveAppearance(value: Appearance): boolean {
   try {
     const { mode, theme, accent, transparency, reading, sizeByImportance } = value;
+    const glassOpacity = glassOpacitySchema.parse(value.glassOpacity);
     const library = customThemesSchema.parse(value.customThemes);
     if (!oneOf(themes, theme) && !library.some((custom) => custom.id === theme)) return false;
-    localStorage.setItem(storageKey, JSON.stringify({ mode, theme, accent, transparency, reading, sizeByImportance, customThemes: library }));
+    localStorage.setItem(storageKey, JSON.stringify({ mode, theme, accent, transparency, glassOpacity, reading, sizeByImportance, customThemes: library }));
     return true;
   } catch {
     return false;
@@ -148,6 +152,7 @@ export function applyAppearance(value: Appearance, scheme: Scheme = resolveSchem
   const luminance = channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
   root.style.setProperty("--primary-ink", 1.05 / (luminance + 0.05) >= 4.5 ? "#fff" : "#000");
   const glass = supportsGlass() && value.transparency !== "off";
+  root.style.setProperty("--glass-opacity", `${value.glassOpacity}%`);
   // Palettes set --text-3 inline, which beats the stylesheet's glass step-up;
   // write the same text-2/text-4 mix explicitly so faint text brightens under
   // glass for every theme. clearPalette resets it on the next apply.

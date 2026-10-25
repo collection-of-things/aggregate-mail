@@ -35,6 +35,7 @@
 - Enlarge the original-email preview in replies, allow vertical resizing and keyboard scrolling, and keep the Send/status footer outside scrolling content.
 - Show mail-row action controls only on mouse hover. Selection, focus and narrow or touch layouts no longer leave extra action strips visible; keyboard menus and reader actions remain available.
 - Exclude modal surfaces from native window dragging so the composer account menu, Discard and Close remain clickable over pane headers.
+- Use one glass tint across the window and clear opaque Settings group fills. Add a saved 0 to 100 percent Window opacity control in Appearance without fading text or changing native materials.
 
 - Restore clickable Read, Pin, Reply, Archive, Snooze and Trash buttons on mail rows, using the current flat theme without 3D effects. Keep More actions for the full menu.
 

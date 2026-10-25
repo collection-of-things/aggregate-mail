@@ -35,7 +35,13 @@ account and saved-time context. Calendar places Add task in its view toolbar.
 The composer reuses native file selection in a compact attachment toolbar.
 
 With native glass enabled, the rail, Calendar headings and compose surface
-remain transparent over the existing single tint on app-main. Underlying
+remain transparent over a single tint on the app. Appearance stores
+`glassOpacity` as an integer from 0 to 100 in its existing local preference,
+defaulting missing or invalid stored values to 70. The `--glass-opacity` token
+sets the shared surface tint without fading text. The sidebar, app-main and
+Settings groups add no opaque or duplicate tint. Off and unsupported platforms
+ignore the level and disable the slider. See [ADR 0068](adr/0068-window-opacity.md).
+Underlying
 working views are clipped to the visible list column while composing, preventing
 mail text from showing behind the editor. Off keeps the approved opaque
 surfaces. Native material selection and supported-platform checks are unchanged.
@@ -392,7 +398,7 @@ Synthetic tests cover file validation, library limits, persistence/restart, reso
 
 Formatted mail removes sub-6px and unitless-zero font sizes, line heights, heights and max-heights from text-bearing elements so compressed preview text remains readable without collapsing its wrapper. Image styles retain small max-height caps, including in blocked, unsupported, private-source and failed-image placeholders. Inline image status adds no prose to the sender layout. Synthetic parser and renderer tests cover these cases. Installed rendering and remote image delivery are not verified here.
 
-With transparency enabled, `src/styles/tokens.css` puts one shared `--pane-glass` tint on `.app-main`, covering the toolbar and all working panes at 50% of `--surface` in dark mode and 70% in light mode. The toolbar, mail list, reader, Settings, work and Drafts panes stay transparent to avoid stacking tints. Sticky date headings, the agent review tabs and Today mail actions use a 60% surface tint with 12px blur; scrolling panes themselves gain no CSS blur. Secondary text brightens for built-in and custom themes; text opacity and opaque privacy masks remain intact. The `data-glass` gate keeps Off and unsupported platforms opaque. This shared layer replaces the separate pane tints recorded in [ADR 0035](adr/0035-frosted-working-panes.md). Native appearance, contrast over desktop content and movement smoothness still need target-platform verification.
+With transparency enabled, `src/styles/tokens.css` puts one shared `--pane-glass` tint on `.app`, covering the full window. Its persisted `glassOpacity` is 0 to 100 percent, defaulting to 70 in both schemes. See [ADR 0068](adr/0068-window-opacity.md). The toolbar, mail list, reader, Settings, work and Drafts panes stay transparent to avoid stacking tints. Sticky date headings, the agent review tabs and Today mail actions use a 60% surface tint with 12px blur; scrolling panes themselves gain no CSS blur. Secondary text brightens for built-in and custom themes; text opacity and opaque privacy masks remain intact. The `data-glass` gate keeps Off and unsupported platforms opaque. This shared layer replaces the separate pane tints recorded in [ADR 0035](adr/0035-frosted-working-panes.md). Native appearance, contrast over desktop content and movement smoothness still need target-platform verification.
 
 Windows offers Off, Subtle (Mica) and Glass (Acrylic); macOS offers Off and Glass using native vibrancy. Glass is the default and may cost more while the window moves. Open menus/notices use 12px CSS blur and dialogs 16px. `src/mail-state.ts` reuses unchanged snapshot records; stable privacy contexts and memoized text/avatars reduce selection and refresh work. Changed content, recipient/privacy data, images and record order remain observable. Desktop cache-change IPC drives visible windows, with catch-up on show/restore; hidden windows avoid cache-notification redraws. The desktop's duplicate renderer sync and progress-poll timers are disabled. See [ADR 0023](adr/0023-mail-freshness-and-render-cost.md) for the matched synthetic benchmark and native limits. Run `npx tsx scripts/benchmark-mail-ui.tsx` to repeat the 1,800-message React/DOM benchmark without saved accounts or browser automation.
 

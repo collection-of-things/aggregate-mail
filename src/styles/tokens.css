@@ -141,12 +141,10 @@
   --surface: #fdfefd;
 }
 
-/* Transparency: the OS material shows through the window frame, sidebar and
-   one shared pane tint laid over every working pane, so no pane stacks two
-   tints and every pane reads at the same depth. Faint text brightens one
-   step so previews, counts and meta stay readable over bright materials. */
+/* One adjustable tint covers the window. Child panes stay clear so their
+   backgrounds cannot stack into mismatched bands. Text remains opaque. */
 :root[data-glass] {
-  --pane-glass: color-mix(in srgb, var(--surface) 50%, transparent);
+  --pane-glass: color-mix(in srgb, var(--surface) var(--glass-opacity, 70%), transparent);
   /* A text-2/text-4 mix tracks each theme's ramp without a self-reference;
      applyAppearance writes the same mix inline for custom palettes. */
   --text-3: color-mix(in srgb, var(--text-2) 75%, var(--text-4));
@@ -156,17 +154,9 @@
   background: transparent;
 }
 :root[data-glass] .app {
-  background: color-mix(in srgb, var(--bg) 22%, transparent);
-}
-:root[data-glass] .sidebar {
-  background: color-mix(in srgb, var(--bg) 20%, transparent);
-}
-/* One tint layer covers the top bar and every working pane; each pane stays
-   transparent so nothing stacks a second tint. */
-:root[data-glass] .app-main {
   background: var(--pane-glass);
 }
-:root[data-glass] :is(.app-toolbar, .list-pane, .reader-pane, .settings-pane,
+:root[data-glass] :is(.sidebar, .app-main, .app-toolbar, .list-pane, .reader-pane, .settings-pane,
   .work-pane, .drafts-pane, .workspace) {
   background: transparent;
 }
@@ -175,13 +165,4 @@
 :root[data-glass] :is(.group, .agent-navigation, .today-mail > .mail-actions) {
   background: color-mix(in srgb, var(--surface) 60%, transparent);
   backdrop-filter: blur(12px);
-}
-:root[data-glass][data-scheme="light"] {
-  --pane-glass: color-mix(in srgb, var(--surface) 70%, transparent);
-}
-:root[data-glass][data-scheme="light"] .app {
-  background: color-mix(in srgb, var(--bg) 40%, transparent);
-}
-:root[data-glass][data-scheme="light"] .sidebar {
-  background: color-mix(in srgb, var(--bg) 30%, transparent);
 }

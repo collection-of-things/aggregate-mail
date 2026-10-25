@@ -8,6 +8,32 @@ import { generatePalette, parseThemeFile, serializeThemeFile, type CustomTheme }
 let closeMountedApp: (() => Promise<void>) | undefined;
 afterEach(async () => { await closeMountedApp?.(); });
 
+test("window opacity applies immediately, persists and disables with transparency off", async () => {
+  const app = await mount(true, undefined, { platform: "darwin", materials: true });
+  let saved = "";
+  try {
+    await app.click(app.button("Settings"));
+    await app.click(app.button("Appearance"));
+    const input = app.window.document.querySelector<HTMLInputElement>('#window-opacity')!;
+    assert.equal(input.disabled, false);
+    await app.input(input, "35");
+    assert.equal(app.window.document.documentElement.style.getPropertyValue("--glass-opacity"), "35%");
+    assert.equal(app.container.querySelector('.opacity-label output')?.textContent, "35%");
+    saved = app.storage.getItem("emc2.appearance.v1")!;
+    assert.equal(JSON.parse(saved).glassOpacity, 35);
+    await app.click(themeButton(app, "Off"));
+    assert.equal(input.disabled, true);
+    await app.click(themeButton(app, "Glass"));
+    assert.equal(input.disabled, false);
+    assert.equal(input.value, "35");
+    assert.equal(app.mutations.length, 0);
+  } finally { await app.close(); }
+  const restarted = await mount(true, (_state, storage) => storage.setItem("emc2.appearance.v1", saved), { platform: "darwin", materials: true });
+  try {
+    assert.equal(restarted.window.document.documentElement.style.getPropertyValue("--glass-opacity"), "35%");
+  } finally { await restarted.close(); }
+});
+
 async function mount(native = false, setup?: (state: State, storage: Storage) => void, bridge: Partial<NonNullable<Window["desktop"]>> | boolean = {}) {
   const dom = new JSDOM("<!doctype html><div id='root'></div>", { url: "http://localhost/" });
   dom.window.HTMLElement.prototype.scrollTo = function (options?: ScrollToOptions | number, y?: number) {
