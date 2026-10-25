@@ -9,7 +9,11 @@ import { PrivacyContext, Redact } from "../ui/Privacy";
 import { EventDetail } from "./EventPanel";
 import { addDays } from "./events";
 
-export function OfferTimes({ mail, state, api, onOpenDraft }: { mail: Mail; state: State; api: Api; onOpenDraft: (draft: Draft) => void }) {
+type OfferTimesProps = { mail: Mail; state: State; api: Api; onOpenDraft: (draft: Draft) => void };
+export function OfferTimes(props: OfferTimesProps) {
+  return <OfferTimesPanel key={props.mail.id} {...props} />;
+}
+function OfferTimesPanel({ mail, state, api, onOpenDraft }: OfferTimesProps) {
   const [context, setContext] = useState<OfferContext>();
   const [open, setOpen] = useState(false), [pending, setPending] = useState(false), [error, setError] = useState("");
   const [working, setWorking] = useState<AvailabilitySettings>({ days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00", durationMinutes: 30, bufferMinutes: 0, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" });
@@ -18,7 +22,11 @@ export function OfferTimes({ mail, state, api, onOpenDraft }: { mail: Mail; stat
   const [localOnly, setLocalOnly] = useState(false);
   const [included, setIncluded] = useState<BusySelection[]>([]), [preview, setPreview] = useState<CalendarOffer>();
   const [checkRejected, setCheckRejected] = useState(false);
-  const draftRequest = useRef<{ offerId: string; selected: number[] } | undefined>(undefined);
+  const [recipientZone, setRecipientZone] = useState("");
+  let displayZone = "";
+  try { if (recipientZone.trim() && !/^[+-]/.test(recipientZone.trim())) displayZone = new Intl.DateTimeFormat(undefined, { timeZone: recipientZone.trim() }).resolvedOptions().timeZone; } catch { /* Invalid display-only input never changes an offer. */ }
+  const invalidZone = !!recipientZone.trim() && !displayZone;
+  const draftRequest = useRef<{ offerId: string; selected: number[]; sourceMailId: string; fingerprint: string } | undefined>(undefined);
   const [selected, setSelected] = useState<number[]>([]), [event, setEvent] = useState<CalendarEvent>();
   const { on: privacy } = useContext(PrivacyContext);
   const returning = useRef(false);
@@ -42,11 +50,25 @@ export function OfferTimes({ mail, state, api, onOpenDraft }: { mail: Mail; stat
     catch (failure) { if (live.current) setError(failure instanceof Error ? failure.message : "The action could not be confirmed. Review saved offers before trying again."); }
     finally { lock.current = false; if (live.current) setPending(false); }
   };
-  const toggle = (accountId: string, calendarId: string, checked: boolean) => { setLocalOnly(false); setIncluded((items) => {
+  const invalidate = () => { setPreview(undefined); setSelected([]); };
+  const toggle = (accountId: string, calendarId: string, checked: boolean) => { invalidate(); setLocalOnly(false); setIncluded((items) => {
     const ids = items.find((item) => item.accountId === accountId)?.calendarIds || [];
     return [...items.filter((item) => item.accountId !== accountId), { accountId, calendarIds: checked ? [...ids, calendarId] : ids.filter((id) => id !== calendarId) }].filter((item) => item.calendarIds.length);
   }); };
   const settingsLocked = pending || !!checkRequest.current || !!draftRequest.current;
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const summary = context?.settings;
+  const grouped = new Map<string, { slot: CalendarOffer["slots"][number]; index: number }[]>();
+  if (preview) {
+    const date = new Intl.DateTimeFormat(undefined, { timeZone: preview.settings.timeZone, weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    preview.slots.forEach((slot, index) => { const day = date.format(new Date(slot.start)); grouped.set(day, [...(grouped.get(day) || []), { slot, index }]); });
+  }
+  const coverage = (google: BusySelection[]) => <ul className="offer-coverage-sources">{google.flatMap((item) => {
+    const accountIndex = state.accounts.findIndex((account) => account.id === item.accountId);
+    const account = accountIndex < 0 ? "Unavailable account" : accountLabel(state.accounts[accountIndex], accountIndex, privacy);
+    const catalog = context?.google.find((value) => value.accountId === item.accountId);
+    return item.calendarIds.map((id) => <li key={`${item.accountId}:${id}`}><Redact text={account} /> · <Redact text={catalog?.calendars.find((value) => value.id === id)?.name || "Unavailable calendar"} /></li>);
+  })}</ul>;
   if (event) return <EventDetail ref={detail} event={event} state={state} pending={pending} api={api} google={context?.google.some((value) => value.accountId === event.accountId && value.ready)} onOpenDraft={onOpenDraft}
     source={<p className="note">Edit or delete this event in Calendar.</p>} closeLabel="Back to offered times"
     onClose={() => { returning.current = true; setEvent(undefined); }} />;
@@ -55,6 +77,8 @@ export function OfferTimes({ mail, state, api, onOpenDraft }: { mail: Mail; stat
     {open && <div className="settings-form work-form" onKeyDown={(key) => { if (key.key === "Escape" && !pending) { key.preventDefault(); key.stopPropagation(); setOpen(false); trigger.current?.focus(); } }}>
       <p className="note">Choose times for a reviewed reply. Nothing is reserved or sent. All Emc² events are checked, across accounts.</p>
       {!context && <p role="status">Availability context unavailable. Reopen this email to refresh.</p>}
+      <p className="offer-preferences-summary">{summary ? `${summary.durationMinutes} minutes · ${summary.days.map((day) => days[day]).join(", ")} · ${summary.start} to ${summary.end} · ${summary.bufferMinutes} minute buffer · ${summary.timeZone}` : "Save availability on this device before checking."}</p>
+      <details className="offer-preferences"><summary>Edit preferences</summary>
       <fieldset disabled={settingsLocked || !context}><legend>Availability on this device</legend>
         <div className="offer-weekdays">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((name, day) => <label key={day} className="check"><input type="checkbox" checked={working.days.includes(day)} onChange={(change) => setWorking({ ...working, days: change.target.checked ? [...working.days, day].sort() : working.days.filter((value) => value !== day) })} />{name}</label>)}</div>
         <div className="work-form-dates">
@@ -64,12 +88,13 @@ export function OfferTimes({ mail, state, api, onOpenDraft }: { mail: Mail; stat
           <label>Buffer minutes<input type="number" min={0} max={120} value={working.bufferMinutes} onChange={(change) => setWorking({ ...working, bufferMinutes: Number(change.target.value) })} /></label>
         </div>
         <label>IANA time zone<input value={working.timeZone} maxLength={100} onChange={(change) => setWorking({ ...working, timeZone: change.target.value })} /></label>
-        <button type="button" onClick={() => void run(async () => { await api("/calendar/availability", "PUT", working); await load(); setPreview(undefined); setSelected([]); })}>Save availability</button>
+        <button type="button" onClick={() => void run(async () => { await api("/calendar/availability", "PUT", working); invalidate(); await load(); })}>Save availability</button>
       </fieldset>
+      </details>
       <fieldset disabled={settingsLocked || !context}><legend>Dates and included calendars</legend>
-        <div className="work-form-dates"><label>First offered day<input type="date" value={firstDay} onChange={(change) => setFirstDay(change.target.value)} /></label><label>Last offered day<input type="date" min={firstDay} value={lastDay} onChange={(change) => setLastDay(change.target.value)} /></label></div>
+        <div className="work-form-dates"><label>First offered day<input type="date" value={firstDay} onChange={(change) => { invalidate(); setFirstDay(change.target.value); }} /></label><label>Last offered day<input type="date" min={firstDay} value={lastDay} onChange={(change) => { invalidate(); setLastDay(change.target.value); }} /></label></div>
         <p className="note">Up to 31 local dates, 200 results. Select Google calendars explicitly. Every included read must succeed.</p>
-        <label className="check"><input type="checkbox" checked={localOnly} onChange={(change) => { setLocalOnly(change.target.checked); if (change.target.checked) setIncluded([]); }} />Local-only mode: Google calendars are not checked</label>
+        <label className="check"><input type="checkbox" checked={localOnly} onChange={(change) => { invalidate(); setLocalOnly(change.target.checked); if (change.target.checked) setIncluded([]); }} />Local-only mode: Google calendars are not checked</label>
         {context?.google.map((value) => {
           const index = state.accounts.findIndex((account) => account.id === value.accountId);
           if (index < 0) return null;
@@ -81,8 +106,12 @@ export function OfferTimes({ mail, state, api, onOpenDraft }: { mail: Mail; stat
         })}
       </fieldset>
       <p role="status" className="note">{included.length ? "Checking only the selected Google calendars and all Emc² events." : localOnly ? "Local-only: availability excludes every Google calendar." : "Choose local-only mode or select Google calendars before checking."}</p>
+      {coverage(included)}
+      <label>Recipient IANA time zone (display only, optional)<input value={recipientZone} maxLength={100} aria-invalid={invalidZone} onChange={(change) => setRecipientZone(change.target.value)} /></label>
+      {invalidZone && <p role="alert">Enter a valid IANA time zone, such as Europe/London, or leave it empty.</p>}
       <button type="button" className="button" disabled={pending || !!draftRequest.current || !context || !context.settings || !localOnly && !included.length || !checkRequest.current && JSON.stringify(working) !== JSON.stringify(context.settings)} onClick={() => void run(async () => {
         const input = checkRequest.current || { id: crypto.randomUUID(), sourceMailId: mail.id, fingerprint: context!.fingerprint, firstDay, lastDay, google: included };
+        invalidate();
         checkRequest.current = input;
         setCheckRejected(false);
         let offer: CalendarOffer;
@@ -93,19 +122,20 @@ export function OfferTimes({ mail, state, api, onOpenDraft }: { mail: Mail; stat
       })}>{pending ? "Checking…" : checkRequest.current ? "Recover availability check" : "Check free times"}</button>
       {checkRequest.current && !pending && <p className="note">{checkRejected ? "The check was rejected. Recover repeats the same request, or change it explicitly." : "The result is unconfirmed. Recover uses the same request and unchanged inputs."}</p>}
       {checkRequest.current && checkRejected && !pending && <button type="button" onClick={() => { checkRequest.current = undefined; setCheckRejected(false); setPreview(undefined); setSelected([]); setError(""); }}>Change rejected check</button>}
-      {preview && <div className="offer-results"><p className="note">{preview.google.length ? "Selected Google calendars and Emc² events" : "Local-only"} · {preview.settings.timeZone}. Times are not reserved.</p>
+      {preview && <div className="offer-results"><p className="note">Checked snapshot · {new Date(preview.createdAt).toLocaleString(undefined, { timeZone: preview.settings.timeZone })} · {offeredTime({ start: preview.from, end: new Date(Date.parse(preview.to) - 1).toISOString() }, preview.settings.timeZone)}. {preview.google.length ? "Selected Google calendars and all Emc² events across accounts." : "Local-only; every Google calendar excluded."} Times are not reserved.</p>{coverage(preview.google)}
         {!preview.slots.length && <p role="status">No free slots in this range.</p>}
-        <fieldset disabled={pending || !!preview.draftId || !!draftRequest.current}><legend>Choose up to 10 offered times</legend>{preview.slots.map((slot, index) => <label className="check" key={slot.start}><input type="checkbox" checked={selected.includes(index)} onChange={(change) => setSelected(change.target.checked ? [...selected, index] : selected.filter((value) => value !== index))} />{offeredTime(slot, preview.settings.timeZone)}</label>)}</fieldset>
-        <button type="button" disabled={pending || !selected.length || selected.length > 10} onClick={() => void run(async () => {
-          const input = draftRequest.current || { offerId: preview.id, selected: [...selected] };
+        <fieldset disabled={pending || !!preview.draftId || !!draftRequest.current}><legend>Choose up to 10 offered times</legend>{[...grouped].map(([day, slots]) => <fieldset className="offer-day" key={day}><legend>{day}</legend>{slots.map(({ slot, index }) => <label className="check offer-choice" key={index}><input type="checkbox" checked={selected.includes(index)} disabled={!selected.includes(index) && selected.length >= 10} onChange={(change) => setSelected(change.target.checked ? [...selected, index] : selected.filter((value) => value !== index))} /><span>{offeredTime(slot, preview.settings.timeZone)}{displayZone && <small className="offer-recipient-time">Recipient display: {offeredTime(slot, displayZone)}</small>}</span></label>)}</fieldset>)}</fieldset>
+        <button type="button" disabled={pending || !!checkRequest.current || !!preview.draftId || !selected.length || selected.length > 10 || JSON.stringify(working) !== JSON.stringify(context?.settings)} onClick={() => void run(async () => {
+          const input = draftRequest.current || { offerId: preview.id, selected: [...selected], sourceMailId: mail.id, fingerprint: context!.fingerprint };
           draftRequest.current = input;
-          const draft = await api<Draft>(`/calendar/offers/${encodeURIComponent(input.offerId)}/draft`, "POST", { sourceMailId: mail.id, fingerprint: context!.fingerprint, selected: input.selected });
+          const draft = await api<Draft>(`/calendar/offers/${encodeURIComponent(input.offerId)}/draft`, "POST", { sourceMailId: input.sourceMailId, fingerprint: input.fingerprint, selected: input.selected });
           const latest = await load(); if (live.current) { draftRequest.current = undefined; setPreview(latest.offers.find((value) => value.offer.id === input.offerId)?.offer); onOpenDraft(draft); }
         })}>Prepare offered-times reply draft</button>
       </div>}
     </div>}
     {context?.offers.filter(({ offer }) => !offer.draftId).map(({ offer }) => <div key={offer.id} className="offer-saved">
       <p className="note">Checked times · {offer.settings.timeZone} · {offer.google.length ? "Selected Google calendars and all Emc² events" : "Local-only; Google excluded"} · {new Date(offer.from).toLocaleDateString(undefined, { timeZone: offer.settings.timeZone })}</p>
+      {coverage(offer.google)}
       <button type="button" disabled={pending || !!checkRequest.current || !!draftRequest.current} onClick={() => {
         setPreview(offer); setSelected(offer.selected || []); setWorking(offer.settings); setIncluded(offer.google); setLocalOnly(!offer.google.length);
         setFirstDay(new Date(offer.from).toLocaleDateString("en-CA", { timeZone: offer.settings.timeZone }));
@@ -115,9 +145,11 @@ export function OfferTimes({ mail, state, api, onOpenDraft }: { mail: Mail; stat
     </div>)}
     {context?.offers.filter(({ offer }) => offer.draftId).map(({ offer, event: booked }) => <div key={offer.id} className="offer-saved">
       <p className="note">Saved offered times · {offer.settings.timeZone} · {offer.google.length ? "Selected Google calendars and all Emc² events" : "Local-only; Google excluded"}</p>
+      <p role="status">Reply draft prepared. Review and send in the composer. Delivery is not confirmed here; a missing draft may have been sent or removed.</p>
+      {coverage(offer.google)}
       <p>Only book the time you have agreed. A reply never books automatically.</p>
-      {offer.selected?.map((slot) => <div className="offer-slot" key={slot}><span>{offeredTime(offer.slots[slot], offer.settings.timeZone)}</span>
-        {!offer.booking && <button type="button" disabled={pending} onClick={() => void run(async () => {
+      {offer.selected?.map((slot) => <div className="offer-slot" key={slot}><span>{offeredTime(offer.slots[slot], offer.settings.timeZone)}{displayZone && <small className="offer-recipient-time">Recipient display: {offeredTime(offer.slots[slot], displayZone)}</small>}</span>
+        {!offer.booking && <button type="button" disabled={settingsLocked} onClick={() => void run(async () => {
           const value = await api<CalendarEvent>(`/calendar/offers/${encodeURIComponent(offer.id)}/book`, "POST", { slot, sourceMailId: mail.id, fingerprint: context!.fingerprint });
           await load(); if (live.current) setEvent(value);
         })}>Book agreed time</button>}

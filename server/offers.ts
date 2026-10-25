@@ -8,6 +8,8 @@ import { availableSlots, type AvailabilitySettings, type BusyPeriod } from "../s
 import type { CalendarEvent } from "../shared/calendar.js";
 import { validDate } from "../shared/commitment-dates.js";
 import { offeredTime, type BusySelection, type CalendarOffer } from "../shared/offers.js";
+import { CalendarBusyError, localBusy, zonedDayStart } from "./calendar-busy.js";
+export { zonedDayStart } from "./calendar-busy.js";
 import { createDraftInTransaction } from "./drafts.js";
 import { calendarFailure } from "./google-calendar.js";
 import { trackMailWork } from "./mail-actions.js";
@@ -34,32 +36,12 @@ function source(id: string, expected?: string) {
     return fail(409, "Offer times needs one exact external reply address. No aliases are inferred.");
   return { mail, account, fingerprint, recipient: recipients[0] };
 }
-// Earliest instant of a date in the chosen zone, including midnight DST changes.
-// A skipped calendar date has no boundary and is rejected.
-export function zonedDayStart(day: string, timeZone: string) {
-  date.parse(day);
-  const format = new Intl.DateTimeFormat("en-CA", { timeZone, calendar: "iso8601", year: "numeric", month: "2-digit", day: "2-digit" });
-  const local = (at: number) => {
-    const parts = Object.fromEntries(format.formatToParts(at).map(({ type, value }) => [type, value]));
-    return `${parts.year}-${parts.month}-${parts.day}`;
-  };
-  const nominal = Date.parse(`${day}T00:00:00Z`);
-  let low = nominal - 36 * 3600000, high = nominal + 36 * 3600000;
-  while (high - low > 1) { const mid = Math.floor((low + high) / 2); if (local(mid) < day) low = mid; else high = mid; }
-  if (local(high) !== day) return fail(400, "This calendar date does not exist in the chosen time zone.");
-  return new Date(high).toISOString();
-}
 function settings(value: unknown): AvailabilitySettings {
   try { availableSlots(value as AvailabilitySettings, "2026-01-05T00:00:00Z", "2026-01-05T00:00:01Z", []); }
   catch { return fail(400, "Check working days, hours, meeting length, buffer and IANA time zone."); }
   return value as AvailabilitySettings;
 }
 const currentSettings = () => get("availability", "working") || fail(409, "Save your availability settings first.");
-function localBusy(timeZone: string): BusyPeriod[] {
-  const events = all("calendarEvent").filter((event) => !event.cancelled && event.myResponse !== "declined");
-  if (events.length > 10000) return fail(409, "Too many local events to check availability safely.");
-  return events.map((event) => event.allDay ? { start: zonedDayStart(event.start, timeZone), end: zonedDayStart(event.end, timeZone) } : { start: event.start, end: event.end });
-}
 async function googleBusy(included: BusySelection[], from: string, to: string, bufferMinutes: number) {
   const controller = new AbortController(), deadline = setTimeout(() => controller.abort(), 60000);
   const periods: BusyPeriod[] = [], checks: (() => boolean)[] = [];
@@ -192,7 +174,7 @@ export function mountOffers(app: express.Express) {
     } finally { running.delete(offer.id); }
   });
   router.use((error: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (error instanceof OfferError) res.status(error.status).json({ error: error.message });
+    if (error instanceof OfferError || error instanceof CalendarBusyError) res.status(error.status).json({ error: error.message });
     else if (error instanceof z.ZodError || error instanceof RangeError) res.status(400).json({ error: "Invalid availability request. Check settings, dates and busy-data limits." });
     else next(error);
   });

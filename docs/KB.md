@@ -1445,8 +1445,10 @@ all-day last day) to the API shape and rejects skipped daylight-saving times
 instead of shifting them. `meetingFields` builds the Schedule meeting prefill:
 the subject without `Re:`/`Fwd:` prefixes, the sender, To and Cc without any
 connected account address, the email's account and source. `useCalendarEvents`
-loads the visible local month, refreshes on window focus and Refresh, and
-serializes writes, refreshing after each one. New events keep one UUID per form,
+loads the one or two exact local month windows intersecting the visible range,
+serially. It refreshes on window focus and Refresh and serializes writes, refreshing
+after each one. Account/range changes discard obsolete reads and clear prior
+results. New events keep one UUID per form,
 so retrying an uncertain save cannot create a copy.
 
 Calendar day-list and agenda rows stretch their text across the row instead of centering each line. Event dialogs keep the heading and close control outside the scrolling form. The renderer document title is Emc², matching the native window title.
@@ -1471,12 +1473,96 @@ Saving local events sends no invitations. Separate explicit notification and
 reviewed draft actions are described under Phase 3 below.
 See [ADR 0054](adr/0054-emc2-calendar-events.md) for the phase boundaries.
 
+`src/work/calendar-layout.ts` calculates inclusive Day, Monday-based Week and
+month/Agenda ranges, local-midnight boundaries, elapsed-time clipping and stable
+overlap lanes. DST days can have 23, 25 or fractional hours; each column shows
+local clock/UTC-offset ticks and pads only outside its day. Date-only/all-day work
+stays separate from timed spans. Follow-ups and snoozes are zero-duration points;
+full textual buttons keep short events and point markers reachable. Navigation
+changes no event or commitment and invokes no provider operation.
+
+Cross-month reads preserve full source/account/calendar/event identity. Local
+copies prefer revision, then `updatedAt`; Google copies prefer `updatedAt` because
+imported revisions remain 1. Equal-version conflicts choose a canonical field
+ordering independent of response order and keep a stale warning. Coverage is
+retained per month. Failed or missing month coverage cannot become a fresh full
+range. Google controls retain one explicit Sync for each exact month window.
+
+Focused source checks are `src/calendar-layout.test.tsx`, `src/calendar.test.tsx`,
+`src/workbench.test.tsx` and `src/google-calendar.test.tsx`, plus the strict build.
+They use synthetic data. Installed, native, visual-layout and real-provider
+acceptance require separate evidence.
+
 Calendar retains the originating button for events, commitments and snoozed mail.
 Workbench restores focus after the destination renders: the event or commitment
 pane after source-reader return, or the originating row after Back/Escape.
 `src/workbench.test.tsx` exercises these paths through the mounted App. Its narrow
 fixture applies the current CSS hiding selector and models refusal to focus a
 `display:none` ancestor. This synthetic check does not prove native layout or focus.
+
+### Linked local work sessions
+
+`CalendarEvent.workSession` stores a commitment ID, Busy Boolean, planned/finished/
+removed status and the SHA256 of the canonical initial request. Account, source
+and title are captured from the parent on creation. Existing encrypted
+`calendarEvent` storage needs no schema migration or plaintext index. Events
+without metadata retain their ordinary busy meaning. Malformed metadata blocks
+scheduling and availability rather than becoming Free.
+
+`server/calendar.ts` mounts these authenticated routes:
+
+| Method and path | Request | Result |
+| --- | --- | --- |
+| GET `/api/calendar/work-sessions?commitmentId` | Exact parent ID | Nonremoved sessions, availability and unavailable-parent/source/account reason; independent of Calendar month |
+| GET `/api/calendar/work-sessions/:id` | Saved session ID | Saved state, including removed tombstones, for recovery |
+| POST `/api/calendar/work-sessions` | UUID `id`, `commitmentId`, `commitmentRevision`, offset ISO `start`/`end`, Boolean `busy`, IANA `timeZone` | 201 new; 200 canonical replay returning current state; 409 UUID collision or unavailable/stale scheduling state |
+| PATCH `/api/calendar/work-sessions/:id` | Current session `revision`, `commitmentRevision`, `start`, `end`, `busy`, `timeZone` | Move/edit a planned session only; immutable bindings; increment session revision |
+| POST `/api/calendar/work-sessions/:id/finish` | Current `revision` | Planned to finished; parent unchanged |
+| DELETE `/api/calendar/work-sessions/:id` | Current `revision` | Retain encrypted removed tombstone; hide from normal feeds/lists |
+
+Malformed input returns 400; absent saved ID returns 404. Stale revisions,
+conflicts and unavailable scheduling state return 409. Writes retain update
+quiescence checks. New scheduling requires a current open parent, connected
+account and same-account source inside the write transaction. Session duration
+stays within the existing 14-day maximum. The device form rejects DST gaps and
+folds; the API receives explicit offset instants and a validated IANA zone.
+
+`server/calendar-busy.ts` supplies shared local busy periods for sessions and
+offers. Planned Busy sessions block; Free, finished and removed sessions do not.
+Busy edits exclude only their own event. Touching edges are permitted. Google
+calendars are excluded from session conflict checks. Offered-time booking still
+performs its own fresh local and explicitly included Google checks. Ordinary
+calendar PATCH/DELETE, invitation preparation and Google creation reject session
+IDs before side effects.
+
+Exact create replay returns current saved state without resetting later edits,
+finish or removal. Removed is terminal, including finish at the tombstone's
+current revision. Parent closure or account/source loss blocks scheduling and
+moves but permits local finish/removal using the saved session revision. No
+session operation updates the parent or mail, sends or prepares mail, or reads
+providers. Explicit source opening retains its existing separate behavior.
+
+`src/work/WorkSessions.tsx` keeps request/recovery state mounted at Workbench
+level. Pending/unknown inputs freeze until a same-ID GET and explicit review.
+Acknowledged writes with failed refresh say saved, refresh unavailable and block
+resubmission. A genuine remount reads saved sessions; it never automatically
+recreates an unknown operation. There is no private localStorage persistence.
+The rendered session heading receives focus when the dialog closes with focus
+on the document body after Finish or Remove removes its Today trigger. Direct
+success and explicit recovery acknowledgement use the same fallback; a connected
+trigger retains normal dialog focus restoration.
+`src/styles/work.css` gives `.session-dialog` vertical scrolling within the
+shared dialog height limit, including explanatory text and form actions.
+Its `.session-form .form-actions` row wraps at the available width.
+
+Focused synthetic coverage is `server/work-sessions.test.ts` and
+`src/work-sessions.test.tsx`, plus the calendar, offers, event-panel, workbench
+and invitation checks in the [journey map](user-journeys.md). Mounted JSDOM checks
+use independently seeded edit, finish and remove scenarios. The edit targets the
+create request's retained UUID and 13:00 interval while a 15:00 session sorts
+first. Finish and Remove check focus after both direct and recovered outcomes.
+These checks cover control behavior; they do not prove viewport geometry, native focus,
+theme rendering or installed behavior. See [ADR 0076](adr/0076-local-work-sessions-and-calendar-views.md).
 
 ### Optional Google Calendar read sync
 
@@ -1621,6 +1707,25 @@ free/busy integration, automatic booking and Calendar MCP sending are not part
 of Phase 3.
 
 ### Offer times (phase 4)
+
+The renderer shows saved preferences above an Edit preferences disclosure.
+Coverage remains outside it and names the selected accounts/calendars through
+privacy controls, or states that every Google calendar is excluded. Results group
+by the saved IANA zone's dates while preserving original slot indexes and the ten
+selection limit. `shared/offers.ts` formats both endpoint dates, times and numeric
+UTC offsets, including DST and date rollover, for both the preview and reply body.
+An optional recipient IANA zone is manually chosen, validated with `Intl` and
+used only for display. It resets when the source email changes; it never changes
+saved instants, check inputs or reply text.
+
+Date-range, included-source and acknowledged availability saves clear the active
+preview and selection. Slot checkboxes leave the preview intact. New checks clear
+previous results before starting, including failed checks. Unconfirmed requests
+freeze their exact identity, source fingerprint and selected indexes. Only an
+explicitly rejected check permits changing its request. Acknowledged draft
+preparation is separate from ordinary composer Send. A missing draft supplies no
+delivery proof. Preparing offers never books; booking still requires fresh server
+validation and an explicit Book agreed time action.
 
 `server/offers.ts` stores availability and checked offers in encrypted
 `availability` and `calendarOffer` records. The reader's Offer times form saves

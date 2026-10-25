@@ -131,8 +131,15 @@ and projects and Agent permissions and review use the same pane header and
 compact forms. Keep coverage gaps visible beside work, account combinations
 explicit and proposed actions reviewable before execution.
 
-Calendar has month and agenda views, with selected-day entries and expandable
-overdue and undated lists. Deadline days never shift with timezone changes.
+Calendar defaults to Month and also offers Day, Monday-based Week and Agenda.
+Previous/Next follows the selected view; Today keeps that view. Date-only deadlines
+and all-day events use a separate row. Timed spans use elapsed instants clipped to
+each local day, with clock and UTC-offset ticks for DST changes. Short events and
+zero-duration follow-up/snooze points have full labeled entry buttons below the
+timeline. Shorter DST columns end with an outside-day region. The schedule scrolls
+within its own bounds, including horizontally in a narrow Week. Overdue and
+undated entries retain their existing meanings. Deadline days never shift with
+timezone changes.
 Timed follow-ups use local time, appear in Today when due, and leave the deadline
 and completion status unchanged. Use existing theme tokens and native date
 inputs. No operating-system reminders in V2.
@@ -149,10 +156,38 @@ commitment or snoozed email opens it in the
 right-hand pane beside the calendar, never as a separate view. Escape or Back to
 calendar closes the pane and returns focus. See [ADR 0054](docs/adr/0054-emc2-calendar-events.md).
 
+Plan work beside Edit task opens a compact local-session dialog. The default
+length is 60 minutes. Native start/end fields use the device zone and reject
+missing or repeated local clock times. Busy starts selected; Free explicitly
+allows overlap and does not block offered times. The dialog states that conflict
+checks exclude Google. Account, source and task title stay bound to the task.
+The whole session dialog scrolls when its content exceeds the available height,
+including explanatory text and form actions.
+Session form actions wrap when they cannot fit on one row.
+
+Today/details lists sessions independently of the visible Calendar month.
+Calendar labels each session Planned or Finished and Busy or Free. Edit session,
+Finish session and Remove session affect only that session. Finished sessions
+remain as history; removed sessions disappear from normal lists. Session details
+omit meeting notification, invitation and source-unlink controls.
+When Finish or Remove removes its Today trigger, closing the operation dialog
+focuses the rendered Local work sessions heading. This applies after direct
+success and after explicit recovery review; connected triggers keep normal
+dialog focus restoration.
+
+Pending or uncertain session operations freeze their input and revision and
+block dismissal/navigation. Check saved session uses GET only, then requires
+review. A saved result with an unavailable refresh stays acknowledged and cannot
+be submitted again. A genuine remount reloads saved sessions without replaying a
+write. Session controls reuse privacy masking, dialog focus trapping, native
+fields, theme tokens and the existing narrow layout without new animation.
+
 Optional Google Calendar controls sit above the calendar. Each Gmail OAuth
 account shows Not connected, Needs consent, Connected or Calendar API disabled.
-Connect and Reconnect open consent only when activated. Sync refreshes the visible
-month; changing month or returning to the app reads the local cache only.
+Connect and Reconnect open consent only when activated. Sync explicitly refreshes
+one exact month. A cross-month Week lists both months
+and their coverage separately. Navigation, focus and Refresh read the local cache
+only. Partial or conflicting cached coverage stays visible.
 Calendar choices use labeled checkboxes. Cached failures stay visible in the
 controls and their disclosure summary. Synced events use the same views and
 right-hand pane, with the calendar name and read-only event fields. RSVP uses
@@ -174,6 +209,21 @@ messages explain the limit without guessing a date or response. Unknown Google
 outcomes retain the submitted request; Check submitted Google action reads the
 provider and never repeats the write. Privacy and keyboard controls follow the
 existing reader, composer and event pane.
+
+Offer times keeps saved duration, weekdays, hours, buffer and IANA zone in a
+compact summary. Edit preferences opens native disclosure controls; collapsing
+never saves. Busy coverage stays outside the disclosure, with selected account
+and calendar labels using the existing privacy controls, or an explicit local-only
+exclusion. Slots group by saved-zone date and retain their original indexes.
+Each endpoint shows its full date, time and numeric UTC offset. An optional,
+manually entered recipient IANA zone adds display text only and resets on source
+change. Ten selected slots disable further unchecked choices until one is cleared.
+Changing offered dates, busy-source selection or saved availability clears the
+active preview and selection. Slot checkboxes preserve the preview. A new check
+clears the preceding result before it runs. Unknown requests keep exact source,
+fingerprint, offer identity and selected indexes frozen for recovery. Draft
+prepared means acknowledged preparation; the panel has no delivery receipt and
+never treats a missing draft as confirmed Send. Booking remains explicit.
 
 Offer times expands inside the reader with working days, hours, meeting length,
 buffer, an explicit IANA zone, date range and calendar checkboxes. Require an
