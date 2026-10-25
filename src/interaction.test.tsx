@@ -132,3 +132,20 @@ test("mounted settings captures without app dispatch, rejects conflicts, changes
     }
   }
 });
+
+
+test("Settings shell permits only safe shortcuts and its nearest child dialog and editors keep ownership", () => {
+  const dom = new JSDOM('<div role="dialog" class="settings-dialog"><button id="shell"></button><input id="field"><div contenteditable="true" id="editor"></div><section data-interaction-settings><button id="capture"></button></section><div role="dialog"><button id="child"></button></div></div>');
+  try {
+    for (const action of interactionActions) {
+      const event = new dom.window.KeyboardEvent("keydown", { key: action.key, altKey: "alt" in action, bubbles: true });
+      dom.window.document.querySelector("#shell")!.dispatchEvent(event);
+      assert.equal(matches(event as unknown as KeyboardEvent, action.id, defaults), ["search", "privacy", "back", "forward", "settings"].includes(action.id), action.id);
+    }
+    for (const selector of ["#field", "#editor", "#capture", "#child"]) {
+      const event = new dom.window.KeyboardEvent("keydown", { key: "/", bubbles: true });
+      dom.window.document.querySelector(selector)!.dispatchEvent(event);
+      assert.equal(matches(event as unknown as KeyboardEvent, "search", defaults, "darwin", true), false, selector);
+    }
+  } finally { dom.window.close(); }
+});

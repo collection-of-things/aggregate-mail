@@ -1,5 +1,14 @@
 # Repository knowledge
 
+## Source release version
+
+The source package and both lockfile version fields are 0.2.5. Dependencies and
+release workflows are unchanged. The automatic main-push lane chooses the next
+unused patch above both source and stable tags, so this source selects 0.2.6
+unless a higher stable tag exists. Manual publication of 0.2.5 requires an
+immutable matching tag at the approved source commit and separate publication
+authority. Source version metadata does not establish installer acceptance.
+
 ## Responsiveness and composition
 
 Gmail and Calendar share `server/google-api.ts`, which imports their specific
@@ -10,6 +19,12 @@ stream batches without retaining a second completed-mailbox array when the
 service opts into streaming. Missing mail is archived only after a successful
 complete listing. New-mail classification and notifications retain IDs and
 hydrate current records, preserving account and message identity checks.
+
+The 25,000-message flag-batching case in `server/sync-recovery.test.ts` seeds
+mail and its encrypted summary companions through `putBatch` before installing
+or resetting operation counters. Raw mail-only fixtures also trigger legacy
+summary repair and do not isolate flag reconciliation. Workload size, sync
+transaction/event counts and zero provider body reads remain asserted.
 
 Compose leaves toolbar Search and Privacy reachable and keeps underlying
 mail/work panes inert. Search can change the cached view without replacing the
@@ -25,6 +40,29 @@ retain exact semantics. Typo matching stays local to the existing cached search.
 
 The sidebar footer and collapsed coverage bar are 42px tall. Today status-tab
 counts and Refresh/Add task share one row. See [ADR 0069](adr/0069-responsiveness-and-compose-toolbar.md).
+
+## Floating Settings
+
+Settings uses the shared `Dialog` above the mounted mail, Drafts or work pane.
+The background frame and update control are inert. Settings retains its ten
+sections, with separately scrolling rail and content; the rail moves above the
+content in narrow panes. Its fixed header contains Back, Forward and Close.
+Opening Settings focuses Close so hidden private fields remain hidden.
+The Linux local-key warning mounts only in the active Settings or mail surface,
+reading its session collapse preference when moving between them.
+
+Settings history preserves the existing reader and validates its account and
+message on historical restore. Other menu and reader history retains its
+existing behavior. Search and Privacy shortcuts work from the Settings shell;
+Search closes Settings and focuses All cached. Editors, shortcut-capture fields
+and nested dialogs retain their keyboard ownership. Commands stays blocked
+until Settings closes. Compose navigation still flushes the draft before
+opening Settings; unsaved compose preferences and pending-save locks remain in
+App state across closing and section changes.
+
+See [ADR 0077](adr/0077-floating-settings.md). Mounted source tests cover focus,
+history, guards and retained edits. They do not prove installed native layout
+or input.
 
 ## Shared application styling
 

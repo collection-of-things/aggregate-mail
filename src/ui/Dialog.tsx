@@ -8,6 +8,8 @@ export function Dialog({
   className,
   toolbarAccess = false,
   actions,
+  closeLabel = "Close dialog",
+  initialFocus,
 }: {
   title: string;
   onClose: () => void;
@@ -15,6 +17,8 @@ export function Dialog({
   className?: string;
   toolbarAccess?: boolean;
   actions?: ReactNode;
+  closeLabel?: string;
+  initialFocus?: "close";
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
@@ -22,11 +26,14 @@ export function Dialog({
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     (
-      ref.current?.querySelector<HTMLElement>("input:not(:disabled):not([data-private-field]), select:not(:disabled), textarea:not(:disabled):not([data-private-field])") ||
+      (initialFocus === "close" ? null : ref.current?.querySelector<HTMLElement>("input:not(:disabled):not([data-private-field]), select:not(:disabled), textarea:not(:disabled):not([data-private-field])")) ||
       ref.current?.querySelector<HTMLElement>("button:not(:disabled)")
     )?.focus();
     const handler = (e: KeyboardEvent) => {
+      const dialogs = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].filter(dialog => !dialog.closest("[inert]"));
+      if (dialogs.at(-1) !== ref.current) return;
       const target = e.target instanceof window.Node ? e.target : document.activeElement;
+      if (e.key === "Escape" && (e.defaultPrevented || e.isComposing || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)) return;
       if (e.key === "Escape" && toolbarAccess && target instanceof HTMLElement && target.closest("[data-escape-owner]")) return;
       if (e.key === "Escape" && (!toolbarAccess || ref.current?.contains(target))) {
         e.preventDefault();
@@ -60,7 +67,7 @@ export function Dialog({
     window.addEventListener("keydown", handler, true);
     return () => {
       window.removeEventListener("keydown", handler, true);
-      previous?.focus();
+      if (previous?.isConnected && !previous.closest("[inert]")) previous.focus();
     };
   }, []);
   return (
@@ -74,7 +81,7 @@ export function Dialog({
       >
         <div className="dialog-title">
           <h2>{title}</h2>
-          <button className="icon" aria-label="Close dialog" onClick={onClose}>
+          <button className="icon" aria-label={closeLabel} onClick={onClose}>
             <Close color="currentColor" size={13} />
           </button>
           {actions}

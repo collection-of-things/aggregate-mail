@@ -56,7 +56,7 @@ if (!process.env.EMC2_RECOVERY_TEST_CHILD) {
   });
 } else {
   test("recovery through the actual loopback service", async (t) => {
-    const { all, put, putBatch, remove, encrypt } = await import("./store.js");
+    const { all, put, putBatch, remove } = await import("./store.js");
     const { providers } = await import("./providers.js");
     const { startServer } = await import("./index.js");
     let events = 0;
@@ -431,8 +431,11 @@ if (!process.env.EMC2_RECOVERY_TEST_CHILD) {
         const a = fixture("large", "gmail"); put("account", a.id, a);
         const rows = Array.from({ length: 25000 }, (_, i) => mail(a, String(i)));
         const db = new DatabaseSync(path.join(process.env.MAIL_DATA_DIR!, "mail.sqlite"));
-        const insert = db.prepare("INSERT OR REPLACE INTO records VALUES (?,?,?)");
-        const seed = (values: Mail[]) => { db.exec("BEGIN"); for (const m of values) insert.run("mail", m.id, encrypt(m)); db.exec("COMMIT"); };
+        const seed = (values: Mail[]) => {
+          // Measure flag reconciliation against a current cache, not legacy-summary repair.
+          putBatch("mail", values.map((m) => [m.id, m]));
+          assert.equal(Number(db.prepare("SELECT COUNT(*) AS total FROM records WHERE kind='mailSummary'").get()!.total), values.length);
+        };
         const writers = new WeakSet<DatabaseSync>();
         let writes = 0, commits = 0, gets = 0, lists = 0, size = 100, changed = false;
         seed(rows.slice(0, size));
