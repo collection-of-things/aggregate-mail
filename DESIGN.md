@@ -33,6 +33,43 @@ rounded:
 
 # Aggregate interface
 
+## Shared application finish
+
+The revised shell shows the current view in the top toolbar beside history
+and compact search. Drafts has account tabs and recipient-first rows. Settings
+has a separate section rail and content column. The composer starts with From,
+with Discard and Close on that line. Attachment selection sits above the body.
+Save status remains beside Send. These controls reuse existing operations.
+
+Mail, Drafts, Today, Projects, Calendar, Settings and dialogs share neutral
+working surfaces, thin dividers and compact headers. Navigation labels use
+sentence case; selected rows use a neutral wash. The app name sits beside the
+sidebar toggle, with New Message immediately below. Drafts use small bordered
+rows on the navigation surface. Calendar uses a continuous grid with a clear
+selected-day outline. Existing theme, transparency and text-size choices stay
+available.
+
+New Message and Send share one primary control: a 12px radius, narrow inner
+highlight, shallow vertical shading and a small drop shadow. Other controls
+stay flat. Blue uses the primary action token; other accents and custom themes
+derive the action fill from their selected accent.
+
+New Message is exactly 30px tall. Send remains 34px tall.
+
+Glass and Subtle retain the native material and one shared working-pane tint.
+The Settings section rail, Calendar weekday row and flush composer stay
+transparent. While composing, underlying work is clipped to the list column
+without changing its layout, so text cannot show behind the editor. Controls and draft cards retain
+their own fills. Off and unsupported platforms remain opaque.
+
+Compose retains its dialog role, focus trap, Escape handling and save/send
+guards while appearing as a flush right pane below the window toolbar. The
+list remains visible beside it when there is room; narrow windows use the
+available width. Reply context stays above the editor in a bounded scrolling
+region. Save status shares the action row beside Send, with recovery actions
+visible on failure. Scrollbar indicators stay hidden in every scrolling
+region; wheel, trackpad and keyboard scrolling remain available.
+
 ## Direction
 
 A macOS-style working interface across all desktop platforms, in light and dark. A full-height sidebar on the themed window frame sits flush against near-neutral working panes, divided by hairlines. Primary text is white in dark mode and near-black in light mode, with restrained secondary text. A persistent search toolbar spans the working area above each pane’s own title. Grouped Settings controls and consistent curved menus and dialogs. The accent color (blue by default) belongs to current selection, links and switches. Use bordered groups only to distinguish assistant setup, individual proposals and tracked work. Every color comes from the tokens in `src/styles/tokens.css`; the frontmatter lists the dark Black palette.
@@ -143,7 +180,7 @@ Transparency uses the operating system's own material behind the window. On Wind
 
 - A persistent 52px toolbar holds mail search and Commands above the working panes, with the Filters and privacy buttons at its right while the mail list shows; only the privacy button stays for Settings, Drafts and work views. Each pane retains a 48px title header, one height under the 52px toolbar so the hairlines line up across panes, and secondary controls such as category tabs, cached-mail notes and work-view controls share the title line. Headers drag the window apart from their controls; double-clicking maximizes it. The sidebar toggle sits first in the top-left header and moves into the toolbar when the sidebar is closed. Drawn window controls belong to the sidebar and toolbar, so they stay in the window corners as the reader pane changes. Windows-style controls reserve 150px at the toolbar’s right edge. macOS-style drawn controls use the configured left or right corner and existing IPC actions. The app-update control follows the pane tools in the toolbar flow, before the window controls, instead of floating over them.
 - On macOS, the native traffic lights sit at (20px, 20px). The app draws no dots of its own there. The header of the leftmost pane, the sidebar or the mail or Settings header while the sidebar is closed, reserves 84px for them. Native application, File, Edit and Window menus provide standard Command shortcuts.
-- The 196px sidebar runs the full window height, like a macOS source list. Its header holds the collapse toggle. Below it, New message and Drafts come first (search lives in the persistent toolbar). Drafts shows the total saved on this device across all accounts, including zero, using the existing sidebar count style. Then separate Workspace (Today, Calendar, Projects and Agent review) and Mail (Inbox, Snoozed, Archive, Sent and All cached) groups, outline icons and muted counts, then Accounts (All accounts, each account with its provider mark, and Add account), with a Settings gear and sync status sharing one fixed bottom row. The Gmail label filter sits in the Filters popover with read status, relevance and sort. Section headings are 11px semibold secondary text; clicking one folds its section, with a chevron that appears on hover or while folded, and folded sections are remembered. Icons take the accent color, as in Finder and Mail. Rows are 32px with 8px radii and primary text; the current view and account filter carry the selected wash, which slides between rows on a spring instead of jumping. Hover is a 4% wash. Account number hints are not shown; the help dialog lists them. Snoozed appears only when it has mail or is open.
+- The 220px sidebar runs the full window height. Its header holds the app name, collapse toggle and platform window-control space. New Message and Drafts come first. Workspace and Mail views remain in separate folding groups, followed by account filters and Add account. Settings and sync share a fixed footer. The current view and account use a neutral selection wash. Navigation rows are 34px with outline icons, 8px radii and muted counts. Account labels may truncate within the rail. Keyboard account hints remain in the shortcuts help. Snoozed appears when it has mail or is open.
 - The sidebar toggle hides or shows the sidebar and remembers the choice between launches. When the sidebar is closed, the toggle moves into the persistent toolbar at the same spot. The sidebar collapses and expands by width on a spring; its content keeps a fixed width so it clips instead of reflowing. Below 760px window width the sidebar is hidden and its toggle with it.
 - Settings keeps the main sidebar and adds its own ten-section rail beside the content; the rail's divider runs the full pane height. Accounts, AI and agents, Google and connections, Sorting and Teach, Templates and signatures, Notifications, Keyboard and mouse, Appearance, Sender logos, and About and storage each get a 17px semibold title over a one-line secondary description. Controls live in rounded cards: a soft 3% text fill, a 1px hairline and 10px corners, holding 44px rows with 16px insets and hairlines inset to match. Optional 12px semibold secondary labels sit 8px above their card, and groups sit 20px apart — no separators live outside a card. Expandable groups such as Google setup and Connection controls are cards whose summary is the row and whose chevron rotates open. In AI and agents, the assistants list carries a "Your assistants" label row with Refresh as a small button at its right. Visible segmented choices replace dropdowns. The section rail moves above the content in narrow panes. Section changes are immediate.
 - Inbox shows six category tabs in its header beside the title: Primary, Social, Promotions, Newsletters, Transactions and Updates, each with an outline icon and a muted unread count. The tabs fill the header's 48px height in secondary text; the active tab reads in primary text at weight 600, and a 2px accent underline on the header's bottom hairline marks it - exactly as wide as the tab's icon, label and count, sliding between tabs on the spring. Search spans every tab, so the strip hides while searching. See [ADR 0024](docs/adr/0024-inbox-category-tabs.md). Beside the reader the inactive tabs show only their icon and count (only the icon below a 400px column); the name stays in the accessible label and tooltip.

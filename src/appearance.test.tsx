@@ -48,6 +48,8 @@ test("light mode sets the scheme, a deeper accent and the native theme; System f
     applyAppearance({ ...defaultAppearance, mode: "light", accent: "blue" }, "light");
     assert.equal(root.dataset.scheme, "light");
     assert.equal(root.style.getPropertyValue("--accent"), "#2563eb");
+    assert.equal(root.style.getPropertyValue("--primary-fill"), "var(--primary-blue)");
+    assert.equal(root.style.getPropertyValue("--primary-ink"), "#fff");
     assert.ok(calls.includes("scheme:light"));
     assert.equal(resolveScheme("system", true), "light");
     assert.equal(resolveScheme("system", false), "dark");
@@ -88,6 +90,8 @@ test("custom and preview colors follow the resolved scheme and clear fully when 
       assert.equal(root.dataset.scheme, scheme);
       assert.equal(root.style.getPropertyValue("--bg"), theme.palettes[scheme].canvas);
       assert.equal(root.style.getPropertyValue("--accent"), theme.palettes[scheme].accent);
+      assert.equal(root.style.getPropertyValue("--primary-fill"), "var(--accent)");
+      assert.equal(root.style.getPropertyValue("--primary-ink"), scheme === "dark" ? "#000" : "#fff");
       assert.equal(root.style.getPropertyValue("--veil"), theme.palettes[scheme].veil);
     }
     applyAppearance(value, "dark", root, { scheme: "light", palette: { ...theme.palettes.light, canvas: "#ffeedd" } });
@@ -105,6 +109,8 @@ test("custom and preview colors follow the resolved scheme and clear fully when 
     assert.equal(root.style.getPropertyValue("--veil-hover"), "");
     assert.equal(root.style.getPropertyValue("--line-2"), "");
     assert.equal(root.style.getPropertyValue("--accent"), "#6b9cff");
+    assert.equal(root.style.getPropertyValue("--primary-fill"), "var(--primary-blue)");
+    assert.equal(root.style.getPropertyValue("--primary-ink"), "#fff");
   });
 });
 

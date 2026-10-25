@@ -4,10 +4,12 @@ import type { Api } from "../api";
 import { accountLabel } from "../mail-ui";
 import { ProviderIcon } from "../mail/Avatar";
 import { PrivacyContext, Redact } from "../ui/Privacy";
+import { relative } from "../mail/format";
 
-export function DraftList({ accounts, api, accountFilter, query, refreshKey, active, onOpen }: {
+export function DraftList({ accounts, api, accountFilter, query, refreshKey, active, onOpen, onAccount }: {
   accounts: Account[]; api: Api; accountFilter: string; query: string;
   refreshKey?: number; active: boolean; onOpen: (draft: Draft) => void;
+  onAccount?: (id: string) => void;
 }) {
   const [drafts, setDrafts] = useState<DraftSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -53,7 +55,17 @@ export function DraftList({ accounts, api, accountFilter, query, refreshKey, act
     return account && (accountFilter === "all" || draft.accountId === accountFilter) &&
       terms.every((term) => [draft.subject, draft.to, ...(draft.cc || []), draft.preview, account.email, account.name].join(" ").toLocaleLowerCase().includes(term));
   });
-  return <section className="draft-list" aria-label="Saved drafts" aria-busy={loading || opening}>
+  return <>
+    {onAccount && <nav className="draft-account-tabs" aria-label="Draft accounts">
+      {[{ id: "all", label: "All" }, ...accounts.map((account, index) => ({ id: account.id, label: accountLabel(account, index, privateText) }))].map(({ id, label }) => (
+        <button type="button" key={id} aria-pressed={accountFilter === id} disabled={!active || opening}
+          onClick={() => onAccount(id)}>
+          <span className="draft-account-label"><Redact text={label} /></span>
+          {loaded && !unavailable && <span className="tab-count">{id === "all" ? drafts.length : drafts.filter((draft) => draft.accountId === id).length}</span>}
+        </button>
+      ))}
+    </nav>}
+    <section className="draft-list" aria-label="Saved drafts" aria-busy={loading || opening}>
     <div className="draft-list-heading"><span>{loading ? "Loading drafts…" : unavailable ? loaded ? `${visible.length} cached ${visible.length === 1 ? "draft" : "drafts"} · Count unavailable until refresh` : "Draft count unavailable" : `${visible.length} ${visible.length === 1 ? "draft" : "drafts"} · Saved on this device`}</span>
       <button type="button" disabled={loading || opening} onClick={() => setAttempt((value) => value + 1)}>Refresh</button></div>
     {error && <p className="draft-list-error" role="alert">{error}</p>}
@@ -65,15 +77,16 @@ export function DraftList({ accounts, api, accountFilter, query, refreshKey, act
         <button type="button" className="draft-row" disabled={opening || !active} onClick={() => void open(draft)}>
           <span className="draft-row-account"><ProviderIcon provider={account.provider} /><Redact text={accountLabel(account, accountIndex, privateText)} /></span>
           <span className="draft-row-content">
+            <span className="draft-row-recipient">{privateText ? "Hidden recipients" : draft.to || "No recipient"}</span>
             <strong>{privateText ? `Draft ${index + 1}` : draft.subject || "No subject"}</strong>
             <span className="draft-row-addresses">From: {privateText ? "Hidden sender" : account.email} · To: {privateText ? "Hidden recipients" : draft.to || "No recipient"}{!!draft.cc?.length && ` · Cc: ${privateText ? draft.cc.length : draft.cc.join(", ")}`}</span>
             <span className="draft-row-preview">{privateText ? "Preview hidden" : draft.preview || "No message yet"}</span>
             {draft.sendUnknown && <span className="draft-warning">Send status unknown. May already have been sent.</span>}
           </span>
-          <span className="draft-row-meta"><time dateTime={new Date(draft.updatedAt).toISOString()}>{new Date(draft.updatedAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time>
+          <span className="draft-row-meta"><time dateTime={new Date(draft.updatedAt).toISOString()} title={new Date(draft.updatedAt).toLocaleString()}>{relative(draft.updatedAt)}</time>
             {!!draft.attachmentCount && <span>{draft.attachmentCount} {draft.attachmentCount === 1 ? "attachment" : "attachments"}</span>}</span>
         </button>
       </li>;
     })}</ul>
-  </section>;
+  </section></>;
 }

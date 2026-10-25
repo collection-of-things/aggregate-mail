@@ -4,7 +4,7 @@ import { accountLabel } from "../mail-ui";
 import { ProviderIcon } from "../mail/Avatar";
 import { relative, sidebarViews, viewNames, type View } from "../mail/format";
 import { SlidingNav } from "../ui/SlidingNav";
-import { ChevronDown, Compose as ComposeIcon, Mail as MailIcon, Plus, Settings, SidebarIcon } from "../ui/icons";
+import { ChevronDown, Mail as MailIcon, Plus, Settings, SidebarIcon } from "../ui/icons";
 import { captionDoubleClick, type Corner } from "./PaneHeader";
 import { TrafficLights } from "../ui/TrafficLights";
 
@@ -94,12 +94,12 @@ export function Sidebar({
           <SidebarIcon color="currentColor" size={16} />
         </button>
         {corner === "left" && <TrafficLights maximized={maximized} />}
+        <span className="sidebar-brand">Emc²</span>
       </div>
         <div className="sidebar-content" key="mail">
-          <div className="sidebar-brand">Emc² <span>V2</span></div>
           <SlidingNav activeKey={null} label="App" className="sidebar-group sidebar-primary">
-            <button title={`Compose (${mail.shortcut("compose")})`} onClick={mail.onCompose}>
-              <ComposeIcon color="currentColor" size={16} />
+            <button className="primary-button new-message" title={`Compose (${mail.shortcut("compose")})`} onClick={mail.onCompose}>
+              <span className="compose-mark" aria-hidden="true"><Plus color="currentColor" size={10} /></span>
               New message
             </button>
             <button className={!settings && mail.view === "drafts" ? "active" : undefined} aria-current={!settings && mail.view === "drafts" ? "page" : undefined} aria-label={mail.draftCount === undefined ? "Drafts" : `Drafts, ${mail.draftCount} saved`} disabled={mail.blocked || mail.busy || !mail.accounts.length} onClick={mail.onDrafts}>

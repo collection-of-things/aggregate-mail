@@ -15,6 +15,7 @@ test("Drafts lists account, envelope, snippet and saved time; scopes search, ope
   const accounts: Account[] = [{id:"a",email:"sender@example.test",name:"Studio",provider:"imap"},{id:"b",email:"other@example.test",provider:"gmail"}];
   const draft: Draft = {id:"one",accountId:"a",to:"client@example.test",cc:["copy@example.test"],subject:"Project plan",body:"A saved proposal",attachments:[],revision:2,updatedAt:1,sendUnknown:true};
   const requests: string[] = [], opened: Draft[] = [];
+  const filters: string[] = [];
   let fail = false, release: (()=>void) | undefined;
   const api: Api = async <T,>(url: string, method = "GET") => {
     assert.equal(method,"GET"); requests.push(url);
@@ -23,19 +24,26 @@ test("Drafts lists account, envelope, snippet and saved time; scopes search, ope
     return (url.startsWith("/accounts/a/") ? [{...draft,preview:"A saved proposal",attachmentCount:1}] : [{...draft,id:"two",accountId:"b",subject:"Unrelated"}]) as T;
   };
   const {createRoot}=await import("react-dom/client");const root=createRoot(document.getElementById("root")!);
-  const render=(filter="all",query="",privateText=false,key="cached")=>act(async()=>root.render(<PrivacyContext.Provider value={{on:privateText,revealed:new Set(),toggle(){}}}><DraftList key={key} accounts={accounts} api={api} accountFilter={filter} query={query} active onOpen={value=>opened.push(value)}/></PrivacyContext.Provider>));
+  const render=(filter="all",query="",privateText=false,key="cached")=>act(async()=>root.render(<PrivacyContext.Provider value={{on:privateText,names:["Studio"],revealed:new Set(),toggle(){}}}><DraftList key={key} accounts={accounts} api={api} accountFilter={filter} query={query} active onOpen={value=>opened.push(value)} onAccount={id=>filters.push(id)}/></PrivacyContext.Provider>));
   try {
     await render(); assert.equal(document.querySelector('[role="dialog"]'),null);assert.equal(document.querySelectorAll('.draft-row').length,2);
+    const tabs = () => [...document.querySelectorAll<HTMLButtonElement>('.draft-account-tabs button')];
+    assert.equal(tabs()[0].getAttribute('aria-pressed'), 'true');
+    assert.equal(tabs()[0].querySelector('.tab-count')?.textContent, '2');
+    await act(async () => tabs()[1].click());
+    assert.deepEqual(filters, ['a']);
     const text=document.body.textContent!;
     for(const value of ["Studio","sender@example.test","client@example.test","copy@example.test","Project plan","A saved proposal","1 attachment","Send status unknown"]) assert.ok(text.includes(value),value);
     assert.equal(document.querySelector('time')?.getAttribute('dateTime'),new Date(1).toISOString());
     await render("a","proposal"); assert.equal(document.querySelectorAll('.draft-row').length,1);
     await render("a","",true);
+    assert.ok(!document.querySelector('.draft-account-tabs')!.innerHTML.includes('Studio'));
     for(const value of [draft.subject,draft.to,accounts[0].email,draft.body,"copy@example.test"]) assert.ok(!document.body.innerHTML.includes(value),value);
     const row=document.querySelector<HTMLButtonElement>('.draft-row')!;
     await act(async()=>{row.click();row.click();});assert.equal(requests.filter(url=>url.endsWith('/drafts/one')).length,1);assert.equal(opened.length,0);
     await act(async()=>release?.());assert.deepEqual(opened,[draft]);
     fail=true;await act(async()=>document.querySelector<HTMLButtonElement>('.draft-list-heading button')!.click());assert.match(document.querySelector('[role="alert"]')!.textContent!,/could not be loaded/);
+    assert.equal(document.querySelectorAll('.draft-account-tabs .tab-count').length, 0);
     assert.match(document.querySelector('.draft-list-heading')!.textContent!,/1 cached draft · Count unavailable/);
     await render("all","",false,"fresh-failure");
     assert.match(document.querySelector('.draft-list-heading')!.textContent!,/Draft count unavailable/);

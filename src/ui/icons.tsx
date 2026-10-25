@@ -26,6 +26,14 @@ export function ChevronDown(props: IconProps) {
   return <Outline {...props}><path d="m6 9 6 6 6-6" /></Outline>;
 }
 
+export function ChevronRight(props: IconProps) {
+  return <Outline {...props}><path d="m9 6 6 6-6 6" /></Outline>;
+}
+
+export function Paperclip(props: IconProps) {
+  return <Outline {...props}><path d="m8 13 7-7a3 3 0 0 1 4 4L9 20a5 5 0 0 1-7-7L12 3m-7 12 9-9" /></Outline>;
+}
+
 export function ChevronUp(props: IconProps) {
   return <Outline {...props}><path d="m6 15 6-6 6 6" /></Outline>;
 }

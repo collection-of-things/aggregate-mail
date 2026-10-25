@@ -1,0 +1,253 @@
+/* Shared application finish. Working surfaces stay flat; only primary
+   actions have a narrow highlight and a small shadow. */
+.primary-button,
+.sidebar-primary > .primary-button:first-of-type {
+  position: relative;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 16px;
+  border: 1px solid var(--primary-border);
+  border-radius: 12px;
+  color: var(--primary-ink);
+  background: linear-gradient(180deg, var(--primary-top), var(--primary-fill) 20%, var(--primary-fill) 72%, var(--primary-bottom));
+  box-shadow: inset 0 1px 1px var(--primary-highlight),
+    inset 1px 0 2px var(--primary-rim), inset -1px 0 2px var(--primary-rim),
+    inset 0 -1px 2px var(--primary-shade), 0 2px 5px var(--primary-shadow);
+  font-weight: 500;
+}
+.primary-button::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border: 1px solid var(--primary-rim);
+  border-radius: inherit;
+  pointer-events: none;
+}
+.primary-button:hover:not(:disabled),
+.sidebar-primary > .primary-button:first-of-type:hover:not(:disabled) { filter: brightness(1.035); }
+.primary-button:active:not(:disabled) {
+  transform: none;
+  box-shadow: inset 0 1px 3px var(--primary-shade), 0 1px 2px var(--primary-shadow);
+}
+.primary-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* Full-height source list and compact navigation. */
+:root:not([data-glass]) .sidebar { background: var(--chrome); }
+.sidebar-head { border-bottom: 1px solid var(--line); }
+.sidebar-brand { padding: 0; font-size: calc(14px * var(--text-scale, 1)); font-weight: 600; letter-spacing: 0; }
+.sidebar-content { padding: 10px 12px 16px; }
+.sidebar-group > button { min-height: 34px; }
+.sidebar-primary { gap: 10px; }
+.sidebar-primary > .primary-button.new-message:first-of-type { height: 30px; min-height: 30px; margin-bottom: 0; gap: 10px; line-height: 1.2; text-transform: capitalize; }
+.compose-mark { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; flex-shrink: 0; border-radius: 3px; background: var(--primary-ink); color: var(--primary-fill); }
+.sidebar-group + .sidebar-group { margin-top: 22px; }
+.sidebar-heading button { padding-bottom: 9px; text-transform: none; letter-spacing: 0; color: var(--text-3); }
+.sidebar-group button > svg { color: var(--text-2); }
+.sidebar-group button[aria-current="page"],
+.sidebar-group button[aria-pressed="true"] { color: var(--text); font-weight: 600; }
+.sidebar-primary > button[aria-current="page"] { background: var(--selected); }
+.sliding-wash { background: var(--selected); }
+.sidebar-count { border-radius: 20px; font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; background: var(--hover); }
+.sidebar-footer { min-height: 48px; }
+.sidebar-settings svg { color: var(--text-3); }
+
+/* One shared header rhythm across mail, work views and Settings. */
+:root:not([data-glass]) :is(.app-toolbar, .main-head, .reader-head) { background: var(--chrome); }
+.pane-title { font-size: calc(14px * var(--text-scale, 1)); font-weight: 600; }
+.app-toolbar { gap: 10px; }
+.app-context { display: flex; align-items: center; gap: 10px; flex-shrink: 0; min-width: 0; margin-right: 10px; font-size: calc(13px * var(--text-scale, 1)); }
+.app-context > span, .app-context > svg:first-of-type { color: var(--text-3); }
+.app-context > svg:last-of-type { color: var(--accent); }
+.app-context strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-search-toolbar { flex: 1; max-width: 420px; margin-left: auto; }
+.app-search-toolbar .search { max-width: none; background: var(--surface); border-color: var(--line); }
+.commands-button { border: 0; padding: 0 6px; color: var(--text-3); }
+.commands-button kbd { display: none; }
+.app-toolbar .pane-tools { margin-left: 0; }
+.commands-button:hover:not(:disabled) { color: var(--text); background: var(--hover); }
+.icon:hover:not(:disabled), .tool:hover:not(:disabled) { background: var(--hover); }
+.list-pane, .settings-pane, .app-toolbar { border-left: 0; }
+.visually-hidden,
+.main-head:has(.inbox-tabs) > .pane-title,
+.work-pane .main-head > .pane-title,
+.drafts-pane > .main-head {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  padding: 0; margin: -1px; border: 0; clip-path: inset(50%); white-space: nowrap;
+}
+.main-head .inbox-tabs, .work-pane .head-tools { margin-left: 0; }
+.settings-pane > .main-head { display: none; }
+.settings-pane { overflow: hidden; }
+.inbox-tabs { gap: 22px; }
+.inbox-tabs button.active { color: var(--accent); }
+.tab-count { min-width: 18px; padding: 1px 5px; border-radius: 20px; background: var(--hover); text-align: center; font-size: calc(11px * var(--text-scale, 1)); }
+.inbox-tabs button.active .tab-count { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.group { padding-top: 9px; font-size: calc(11px * var(--text-scale, 1)); }
+.message h1 { font-size: calc(24px * var(--text-scale, 1)); letter-spacing: -.025em; }
+.message .message-from { margin-top: 20px; }
+.message-from { padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.mail-actions .tool { border-radius: 6px; }
+
+/* Saved drafts use the same quiet list surface as the reference layout. */
+:root:not([data-glass]) .drafts-pane { background: var(--chrome); }
+.draft-list { flex: 1; padding: 0 12px 12px; }
+.draft-account-tabs { display: flex; flex-shrink: 0; align-items: stretch; gap: 24px; height: var(--subhead-height); padding: 0 24px; overflow-x: auto; border-bottom: 1px solid var(--line); }
+.draft-account-tabs button { position: relative; gap: 8px; flex-shrink: 0; font-size: calc(13px * var(--text-scale, 1)); font-weight: 500; color: var(--text-3); }
+.draft-account-label { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-account-tabs button[aria-pressed="true"] { color: var(--accent); }
+.draft-account-tabs button[aria-pressed="true"]::after { content: ""; position: absolute; bottom: 0; height: 2px; left: -10px; right: -10px; border-radius: 2px 2px 0 0; background: var(--accent); }
+.draft-account-tabs button[aria-pressed="true"] .tab-count { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+.draft-account-tabs button:disabled { opacity: 1; }
+.draft-list-heading { gap: 12px; padding: 10px 2px; border: 0; font-size: calc(11px * var(--text-scale, 1)); }
+.draft-list-heading button { min-height: 28px; padding: 0 6px; border-radius: 6px; }
+.draft-list-heading button:hover:not(:disabled) { background: var(--hover); }
+.draft-list > ul { display: flex; flex-direction: column; gap: 8px; }
+.draft-row { grid-template-columns: minmax(0, 1fr) auto; gap: 0 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+.draft-row:hover:not(:disabled) { border-color: var(--line-2); background: var(--surface); }
+.draft-row:focus-visible { outline-offset: 1px; }
+.draft-row-account { grid-column: 2; grid-row: 2; align-self: end; max-width: 120px; overflow: hidden; white-space: nowrap; color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
+.draft-row-account .provider-icon { width: 11px; height: 11px; }
+.draft-row-content { grid-column: 1; grid-row: 1 / span 2; gap: 3px; }
+.draft-row-recipient { color: var(--text-2); font-size: calc(12px * var(--text-scale, 1)); }
+.draft-row-content .draft-row-addresses { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.draft-row-content > strong { font-size: calc(13px * var(--text-scale, 1)); }
+.draft-row-preview, .draft-row-meta { font-size: calc(11px * var(--text-scale, 1)); }
+.draft-row-meta { grid-column: 2; grid-row: 1; align-self: start; }
+
+/* Compose stays a focus-trapped dialog with its existing save/send guards,
+   presented as a flush working pane rather than a floating card. */
+.dialog-backdrop:has(> .compose-dialog) {
+  inset: 0;
+  padding: 52px 0 0;
+  justify-content: flex-end;
+  align-items: stretch;
+  background: transparent;
+  backdrop-filter: none;
+}
+.dialog.compose-dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: calc(100% - var(--sidebar) - var(--list-width));
+  max-height: none;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--surface);
+  backdrop-filter: none;
+  box-shadow: none;
+  animation: none;
+}
+.app:has(.sidebar.closed) .compose-dialog { width: calc(100% - var(--list-width)); }
+.compose-dialog .dialog-title { position: absolute; z-index: 1; top: 10px; right: 18px; margin: 0; padding: 0; border: 0; background: transparent; }
+.compose-dialog .dialog-title h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.compose-from-row { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+.compose-from-row > label { flex: 1; border-bottom: 0; }
+.compose-from-row .compose-discard { flex-shrink: 0; margin-right: 32px; }
+.compose-dialog .compose-envelope label > span { width: calc(48px * var(--text-scale, 1)); }
+.compose-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 18px; min-height: 44px; flex-shrink: 0; }
+.compose-form .compose-file-action { position: relative; display: inline-flex; flex-shrink: 0; gap: 7px; padding: 6px 2px; border: 0; font-size: calc(11px * var(--text-scale, 1)); cursor: pointer; }
+.compose-form .compose-file-action input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; opacity: 0; cursor: pointer; }
+.compose-file-action:focus-within { outline: 1px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.compose-file-action[aria-disabled="true"] { opacity: .4; cursor: default; }
+.compose-toolbar .compose-attachment-limits { font-size: calc(10px * var(--text-scale, 1)); color: var(--text-4); }
+.app[data-view="drafts"] .dialog-backdrop:has(> .compose-dialog) { padding-top: calc(52px + var(--subhead-height)); }
+.compose-dialog > div:not(.dialog-title) { min-height: 0; }
+.compose-dialog > .compose-layout { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.compose-dialog .compose-reply-layout { display: flex; flex-direction: column; gap: 0; }
+.compose-dialog .compose-context { flex-shrink: 0; max-height: 160px; margin: 0 24px; padding: 12px 0; border: 0; border-bottom: 1px solid var(--line); overflow: auto; }
+.compose-dialog .compose-context h3 { margin: 4px 0; }
+.compose-dialog .compose-context-body { overflow: visible; padding-top: 8px; }
+.compose-dialog .compose-form { flex: 1; min-height: 0; padding: 0; overflow: hidden; }
+.compose-scroll { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; padding: 0 24px; overflow-y: auto; }
+.compose-dialog .compose-envelope { border-top: 0; }
+.compose-dialog .compose-form :is(input, select) { padding: 14px 0; }
+.compose-dialog .compose-form textarea { flex: 1 0 180px; min-height: 180px; margin: 12px 0; padding: 8px 0; border: 0; border-radius: 0; resize: vertical; font-size: calc(13px * var(--text-scale, 1)); }
+.compose-dialog .compose-form textarea:focus-visible { outline-offset: 3px; }
+.compose-dialog .compose-extras { gap: 6px; padding-bottom: 12px; }
+.compose-dialog .compose-extras:empty { display: none; }
+.compose-dialog .compose-footer { position: static; flex-shrink: 0; margin: 0; padding: 10px 20px 10px 24px; }
+.compose-dialog .compose-actions { margin: 0; gap: 10px; }
+.compose-save-status { flex: 1; margin-left: auto; text-align: right; font-size: calc(11px * var(--text-scale, 1)); }
+.compose-save-status.save-error { color: var(--danger); }
+.compose-dialog .compose-send { min-width: 78px; height: 34px; margin-left: 0; }
+.compose-dialog .compose-format { margin-top: 6px; }
+.compose-dialog .draft-recovery-actions { margin: 0 0 10px; font-size: calc(12px * var(--text-scale, 1)); }
+.app:has(.compose-dialog) .draft-list { flex: 1; width: var(--list-width); }
+.app:has(.compose-dialog) .draft-row:disabled { opacity: 1; }
+
+/* Work, Calendar, Settings and secondary dialogs share the same finish. */
+.settings { gap: 0; padding: 0; grid-template-columns: 190px minmax(0, 1fr); }
+.settings-navigation { padding: 22px 12px; background: var(--chrome); }
+.settings-column { max-width: 900px; padding: 28px 32px 48px; }
+.settings .settings-group { background: var(--surface); border-radius: 11px; }
+.settings h1 { font-size: calc(22px * var(--text-scale, 1)); line-height: 1.3; letter-spacing: -.02em; }
+.settings-section-heading { margin-bottom: 28px; }
+.settings-section-heading p { white-space: normal; margin-top: 8px; }
+.settings h2, .settings-group-label h2 { font-size: calc(12px * var(--text-scale, 1)); }
+.settings .settings-row { min-height: 46px; }
+.segmented { background: var(--chrome); padding: 3px; border-color: var(--line); }
+.segmented button.active { background: var(--surface); }
+.dropdown-trigger { background: var(--surface); border-color: var(--line); }
+.work-content { padding: 20px 28px 28px; }
+.work-group h2 { font-size: calc(13px * var(--text-scale, 1)); }
+.work-row { border-radius: 8px; padding: 12px 10px; }
+.work-group h2 { padding: 14px 0 10px; }
+.work-controls .button { min-height: 30px; height: 30px; font-size: calc(12px * var(--text-scale, 1)); }
+.head-tools .work-intro { color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
+.calendar-period h2 { font-size: calc(22px * var(--text-scale, 1)); letter-spacing: -.02em; }
+.work-select { gap: 4px; }
+.work-meta { font-size: calc(11px * var(--text-scale, 1)); }
+.calendar-grid { gap: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.calendar-weekday { background: var(--chrome); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.calendar-grid button { border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0; min-height: 76px; }
+.calendar-grid [aria-current="date"] > span:first-child { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; border-radius: 50%; background: var(--accent); color: var(--surface); }
+.calendar-grid [aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--accent); }
+.dialog:not(.compose-dialog) { border-radius: 14px; padding: 20px 24px 24px; }
+.dialog-title { margin-bottom: 14px; }
+.dialog-title .icon { width: 28px; height: 28px; }
+.mail-menu button:hover:not(:disabled), .dropdown-menu li.active { background: var(--selected); text-decoration: none; }
+
+@media (max-width: 1000px) {
+  .app-context { margin-right: 0; gap: 7px; }
+  .app-context > span, .app-context > svg:first-of-type { display: none; }
+  .app-search-toolbar { max-width: 360px; }
+  .settings { grid-template-columns: 164px minmax(0, 1fr); }
+  .settings-column { padding: 24px; }
+  .dialog.compose-dialog, .app:has(.sidebar.closed) .compose-dialog { width: calc(100% - var(--sidebar)); }
+  .app:has(.sidebar.closed) .compose-dialog { width: 100%; }
+}
+@media (max-width: 760px) {
+  .dialog-backdrop:has(> .compose-dialog) { padding: 0; }
+  .desktop .dialog-backdrop:has(> .compose-dialog) { padding-top: 52px; }
+  .app[data-view="drafts"] .dialog-backdrop:has(> .compose-dialog) { padding-top: 0; }
+  .app.desktop[data-view="drafts"] .dialog-backdrop:has(> .compose-dialog) { padding-top: 52px; }
+  .dialog.compose-dialog, .app:has(.sidebar.closed) .compose-dialog { width: 100%; }
+  .compose-scroll { padding-inline: 16px; }
+  .compose-dialog .compose-footer { padding-inline: 16px; }
+  .compose-dialog .compose-save-status { flex-basis: calc(100% - 100px); margin-left: 0; }
+  .compose-dialog .compose-context { margin-inline: 16px; }
+  .settings { grid-template-columns: minmax(0, 1fr); }
+  .settings-navigation { padding: 12px; }
+  .settings-column { padding: 20px 16px; }
+  .work-content { padding: 12px; }
+  .calendar-grid button { min-height: 52px; }
+}
+
+@container (max-width: 680px) {
+  .settings { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; padding: 0; gap: 0; }
+  .settings-navigation { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .settings-column { padding: 24px 20px 40px; }
+}
+
+/* Native glass already has one tint on app-main. Leave the new rail and
+   composer clear, clipping the covered work without changing its layout. */
+:root[data-glass] :is(.settings-navigation, .calendar-weekday,
+  .dialog.compose-dialog, .compose-dialog .compose-footer) { background: transparent; }
+:root[data-glass] .app:has(.compose-dialog) .app-main > :is(.workspace, .work-pane, .settings-pane, .search-help) {
+  clip-path: inset(0 calc(100% - var(--list-width)) 0 0);
+}
+@media (max-width: 1000px) {
+  :root[data-glass] .app:has(.compose-dialog) .app-main > :is(.workspace, .work-pane, .settings-pane, .search-help) { visibility: hidden; }
+  :root[data-glass] .app:has(.compose-dialog) .draft-list { visibility: hidden; }
+}

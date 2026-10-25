@@ -141,6 +141,12 @@ export function applyAppearance(value: Appearance, scheme: Scheme = resolveSchem
   root.style.setProperty("--accent", accents.find((accent) => accent.id === value.accent)![activeScheme]);
   const palette = preview?.palette ?? value.customThemes.find((theme) => theme.id === value.theme)?.palettes[activeScheme];
   if (palette) applyPalette(palette, root);
+  root.style.setProperty("--primary-fill", !palette && value.accent === "blue" ? "var(--primary-blue)" : "var(--accent)");
+  const primary = !palette && value.accent === "blue" ? "#286cf2" : palette?.accent ?? accents.find((accent) => accent.id === value.accent)![activeScheme];
+  const channels = primary.slice(1).match(/../g)!.map((value) => parseInt(value, 16) / 255)
+    .map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  const luminance = channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  root.style.setProperty("--primary-ink", 1.05 / (luminance + 0.05) >= 4.5 ? "#fff" : "#000");
   const glass = supportsGlass() && value.transparency !== "off";
   // Palettes set --text-3 inline, which beats the stylesheet's glass step-up;
   // write the same text-2/text-4 mix explicitly so faint text brightens under

@@ -1,5 +1,34 @@
 # Repository knowledge
 
+## Shared application styling
+
+The current renderer adds a view breadcrumb to the main toolbar and account
+tabs to Drafts. Those tabs use the existing navigation account filter. Their
+counts are hidden when a list read fails. Recipient-first draft rows keep
+account and saved-time context. Calendar places Add task in its view toolbar.
+The composer reuses native file selection in a compact attachment toolbar.
+
+With native glass enabled, the rail, Calendar headings and compose surface
+remain transparent over the existing single tint on app-main. Underlying
+working views are clipped to the visible list column while composing, preventing
+mail text from showing behind the editor. Off keeps the approved opaque
+surfaces. Native material selection and supported-platform checks are unchanged.
+
+`src/styles/application.css` applies the shared finish after the existing
+area styles: neutral navigation and headers, draft cards, continuous Calendar
+cells and consistent Settings and dialog spacing. Primary action colors and
+depth tokens live in `src/styles/tokens.css`; appearance applies the selected
+accent to those controls. Existing light/dark, custom-theme and transparency
+settings remain in their original layers.
+
+Compose uses the existing `Dialog` component with `compose-dialog` and
+`compose-layout` classes to present a flush right pane. Its dialog role,
+keyboard trap and save/send handlers are unchanged. Save status now shares
+`.compose-actions` with Send; error recovery stays in the footer. The global
+scrollbar rules in `src/styles/base.css` hide indicators without removing
+scrolling from mail, Settings, work views, dialogs or menus. See
+[the design](../DESIGN.md#shared-application-finish).
+
 ## Workflow verification
 
 [User journeys](user-journeys.md) maps expected states, failure branches and

@@ -6,6 +6,7 @@ import { accountLabel } from "../mail-ui";
 import { Dialog } from "../ui/Dialog";
 import { changeComposeAccount, ComposePreferenceControls } from "./ComposePreferences";
 import type { Compose, DraftProgress } from "./draft-session";
+import { Paperclip, Trash } from "../ui/icons";
 
 export type { Compose } from "./draft-session";
 export const unknownSendNotice =
@@ -126,10 +127,10 @@ export function ComposePanel({
   return (
     <Dialog
       title={source || draft.inReplyTo ? "Reply" : "New message"}
-      className={source ? "compose-with-context" : undefined}
+      className={source ? "compose-dialog compose-with-context" : "compose-dialog"}
       onClose={() => { if (!busy && !loadingFiles) onClose(); }}
     >
-      <div className={source ? "compose-reply-layout" : undefined}>
+      <div className={source ? "compose-layout compose-reply-layout" : "compose-layout"}>
       {source && <MailPrivacy mail={source}><aside className="compose-context" aria-label="Original email">
         <span className="compose-context-label">Replying to</span>
         <h3><Redact text={source.subject || "No subject"} /></h3>
@@ -150,7 +151,9 @@ export function ComposePanel({
           onSend();
         }}
       >
+        <div className="compose-scroll">
         <div className="compose-envelope">
+          <div className="compose-from-row">
           <label>
             <span>From</span>
             <select
@@ -162,11 +165,17 @@ export function ComposePanel({
             >
               {accounts.map((a, index) => (
                 <option key={a.id} value={a.id}>
-                  {privacy ? accountLabel(a, index, true) : a.email}
+                  {privacy ? accountLabel(a, index, true) : a.name ? `${a.name} · ${a.email}` : a.email}
                 </option>
               ))}
             </select>
           </label>
+          <button type="button" className="icon compose-discard" title="Discard draft" aria-label="Discard draft" disabled={busy || loadingFiles} onClick={() => {
+            if (confirm(draft.sendUnknown
+              ? "Discard this saved draft? This message may already have been sent."
+              : "Discard this draft from this device?")) onDiscard();
+          }}><Trash size={15} color="currentColor" /><span className="visually-hidden">Discard draft</span></button>
+          </div>
           <div className="compose-to-row">
             <label>
               <span>To</span>
@@ -197,6 +206,17 @@ export function ComposePanel({
             />
           </label>
         </div>
+        <div className="compose-toolbar">
+          <label className="compose-file-action" aria-disabled={busy || loadingFiles}>
+            <Paperclip size={15} color="currentColor" /><span>Attach files</span>
+            <input aria-label="Attach files" aria-describedby="compose-attachment-limits" type="file" multiple disabled={busy || loadingFiles} onChange={(event) => {
+              const files = Array.from(event.target.files || []);
+              event.target.value = "";
+              void addFiles(files);
+            }} />
+          </label>
+          <span id="compose-attachment-limits" className="compose-attachment-limits">Up to 10 files · 512 KiB each · 1 MiB total</span>
+        </div>
         <textarea
           className="compose-body"
           aria-label="Message body"
@@ -208,14 +228,6 @@ export function ComposePanel({
           onChange={(e) => setDraft({ ...draft, body: e.target.value })}
         />
         <div className="compose-extras">
-          <label className="compose-attachments"><span>Attach or drop files</span>
-            <input aria-describedby="compose-attachment-limits" type="file" multiple disabled={busy || loadingFiles} onChange={(event) => {
-              const files = Array.from(event.target.files || []);
-              event.target.value = "";
-              void addFiles(files);
-            }} />
-          </label>
-          <p id="compose-attachment-limits" className="compose-attachment-limits">Up to 10 files · 512 KiB each · 1 MiB total</p>
           {(draft.attachments || []).map((file, index) => <p className="compose-attachment" key={index}><Redact text={file.filename} /> <button type="button" disabled={busy || loadingFiles} aria-label={`Remove attachment ${index + 1}`} onClick={() => setDraft({ ...draft, attachments: draft.attachments?.filter((_, i) => i !== index) })}>Remove</button></p>)}
           {attachmentError && <p role="alert">{attachmentError}</p>}
           {loadingFiles && <p role="status">Reading attachments…</p>}
@@ -224,8 +236,8 @@ export function ComposePanel({
         {draft.sendUnknown && (
           <p className="dialog-copy" role="status">{unknownSendNotice}</p>
         )}
+        </div>
         <div className="compose-footer">
-          <p className="compose-save-status" role="status">{progress.message}</p>
           {progress.phase === "error" && (
             <div className="draft-recovery-actions">
               <button type="button" disabled={busy || loadingFiles} onClick={onRetry}>Retry save</button>
@@ -234,12 +246,8 @@ export function ComposePanel({
           )}
           <div className="compose-actions">
             <button type="button" disabled={busy || loadingFiles} onClick={onClose}>Keep draft</button>
-            <button type="button" disabled={busy || loadingFiles} onClick={() => {
-              if (confirm(draft.sendUnknown
-                ? "Discard this saved draft? This message may already have been sent."
-                : "Discard this draft from this device?")) onDiscard();
-            }}>Discard draft</button>
-            <button className="button compose-send" disabled={busy || loadingFiles || progress.phase === "error"} type="submit">
+            <p className={`compose-save-status${progress.phase === "error" ? " save-error" : ""}`} role="status">{progress.message}</p>
+            <button className="button primary-button compose-send" disabled={busy || loadingFiles || progress.phase === "error"} type="submit">
               {busy ? "Please wait" : "Send"}
             </button>
           </div>

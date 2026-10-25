@@ -24,6 +24,7 @@ test("composer discloses empty Cc, keeps recovered recipients visible and preser
   const cc = () => document.querySelector<HTMLInputElement>('input[type="email"][multiple]');
   try {
     await render(draft);
+    assert.equal(document.querySelector('.compose-actions .compose-save-status')?.nextElementSibling?.getAttribute('type'), 'submit');
     assert.equal(cc(), null);
     const disclose = document.querySelector<HTMLButtonElement>('[aria-label="Add Cc recipients"]')!;
     assert.equal(disclose.type, "button");
