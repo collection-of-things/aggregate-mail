@@ -143,7 +143,7 @@ export function Sidebar({
             {!folded.has("accounts") && mail.accounts.map((account, index) => (
               <button
                 key={account.id}
-                title={accountLabel(account, index, mail.privacy)}
+                title={accountLabel(account, index, mail.privacy, mail.accounts)}
                 className={mail.accountFilter === account.id ? "active" : undefined}
                 aria-pressed={mail.accountFilter === account.id}
                 disabled={mail.blocked}
@@ -152,7 +152,7 @@ export function Sidebar({
                 {index < 9 && <kbd>{index + 1}</kbd>}
                 <ProviderIcon provider={account.provider} />
                 <span className="sidebar-name">
-                  {accountLabel(account, index, mail.privacy)}
+                  {accountLabel(account, index, mail.privacy, mail.accounts)}
                 </span>
                 {account.error && (
                   <i className="error-dot" aria-label="Needs attention" />

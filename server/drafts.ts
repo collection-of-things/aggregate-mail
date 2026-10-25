@@ -7,7 +7,7 @@ import express from "express";
 import { attachmentsSchema } from "./providers.js";
 import { z } from "zod";
 import type { Draft, DraftSummary } from "../shared/types.js";
-import { all, get, put, remove, transaction } from "./store.js";
+import { all, draftSummary, get, put, remove, transaction } from "./store.js";
 
 export const MAX_DRAFTS_PER_ACCOUNT = 100;
 const accountIdSchema = z.string().min(1).max(200);
@@ -59,9 +59,7 @@ export function listDrafts(accountId: string): DraftSummary[] {
   requireAccount(accountId);
   return all("draft").filter((draft) => draft.accountId === accountId)
     .sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id))
-    .map(({ id, accountId, revision, updatedAt, to, cc, subject, body, attachments, sendUnknown }) =>
-      ({ id, accountId, revision, updatedAt, to, cc, subject, sendUnknown,
-        preview: body.replace(/\s+/g, " ").trim().slice(0, 200), attachmentCount: attachments?.length || 0 }));
+    .map(draftSummary);
 }
 export function createDraft(accountId: string, value: unknown): Draft {
   return transaction(() => createDraftInTransaction(accountId, value));
@@ -119,7 +117,11 @@ export function mountDrafts(app: express.Express, onChanged: () => void) {
     res.status(201).json(draft);
   });
   router.get<Params>("/:id", (req, res) => { res.json(readDraft(req.params.accountId, req.params.id)); });
-  router.put<Params>("/:id", (req, res) => { res.json(saveDraft(req.params.accountId, req.params.id, req.body)); });
+  router.put<Params>("/:id", (req, res) => {
+    const draft = saveDraft(req.params.accountId, req.params.id, req.body);
+    onChanged();
+    res.json(draft);
+  });
   router.delete<Params>("/:id", (req, res) => {
     deleteDraft(req.params.accountId, req.params.id, req.body);
     onChanged();

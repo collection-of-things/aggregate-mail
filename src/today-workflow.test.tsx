@@ -200,6 +200,7 @@ test("Today opens a source and conversation inline, preserves account, filters, 
     const search = ui.container.querySelector<HTMLInputElement>('.app-search-toolbar input');
     assert.ok(search, "cached-mail search input");
     await act(async () => { Object.getOwnPropertyDescriptor(ui.dom.window.HTMLInputElement.prototype, "value")!.set!.call(search, 'subject:"missing"'); search.dispatchEvent(new ui.dom.window.Event("input", { bubbles: true })); });
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 150)); });
     await ui.click(ui.sidebar("Today")); await ui.click(ui.container.querySelector<HTMLButtonElement>(".work-select")!);
     assert.ok(ui.container.querySelector(".message")); await ui.click(ui.sidebar("Inbox"));
     assert.equal(ui.container.querySelector<HTMLInputElement>('.app-search-toolbar input')?.value, 'subject:"missing"');

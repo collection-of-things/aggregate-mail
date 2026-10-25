@@ -289,7 +289,7 @@ Transparency uses the operating system's own material behind the window. On Wind
 - No shortcut bar. Current shortcuts appear in the help dialog and can be edited in Settings, Keyboard and mouse. Conflict checks preserve editing, Escape, Tab, account-number and system shortcuts.
 - Commands sits beside the persistent search field. Command+K on macOS and Control+K elsewhere opens a dialog with a focused command search, keyboard selection, disabled actions and focus restoration on close. It uses the existing mail action handlers.
 - Up/Down select the previous or next email in the closed list and prevent page scrolling, including at either end. They do not open mail or mark it read. Inputs, dialogs, sidebar controls and the open reader retain arrow behavior. j/k remain available.
-- Search accepts field operators, phrases and exclusions over cached mail within the active view and filters. A short syntax hint and safe parse error sit below the pane header. A pin action in the toolbar and context menu marks mail locally, with a small row indicator. Search `is:pinned` finds those messages without changing sort order or category semantics.
+- A new nonempty search opens All cached across all accounts and includes saved local drafts. Continued typing respects deliberate account, mailbox and mail filters. Search accepts field operators, phrases and exclusions; plain unquoted words tolerate one typo. A short syntax hint and safe parse error sit below the pane header. A pin action in the toolbar and context menu marks mail locally, with a small row indicator. Search `is:pinned` finds those messages without changing sort order or category semantics.
 - Settings, Templates and signatures edits templates and account signatures. Inserting a template appends its text before an unchanged signature and fills an empty subject. Signature changes on account switch preserve any edited text. Preference text stays out of unfocused editor values in privacy mode; template choices use generic numbered labels.
 - Notices show four at a time with a retained queue. Settings, Notifications chooses Bottom right (default), Bottom center or Top right, and a duration of 3, 6 (default) or 10 seconds, or Until dismissed. Hover and keyboard focus pause expiry. Independent switches control new-mail counts and action confirmations; preview and reset are available. Choices stay on this device. Errors, uncertain sends and Sent-copy warnings always require dismissal. All notice text uses the existing privacy masking. Notices stack from the chosen edge with the newest nearest it, under a count line with Dismiss all and the queued count. Each notice has a labeled Dismiss button beside Open email. Arrivals open their slot so the stack slides; dismissed or expired notices fade and scale out while their slot folds shut over 200ms. The stack scrolls within the viewport at bottom and top anchors, keeping multiline text, Dismiss buttons and the count line reachable at larger text sizes. Internal padding leaves room for notice shadows.
 - Snooze confirms its local return date and time; Return to inbox, Archive and Trash confirm successful actions. Confirmations appear only after the action succeeds. If refreshing then fails, a separate warning preserves the confirmed outcome and asks for an inbox refresh.
@@ -366,12 +366,14 @@ The Filters popover combines All mail/Unread, relevance, sort and Gmail labels w
 
 While Emc² runs, each IMAP account watches its inbox for arrival, flag and removal events. Gmail API accounts check their mailbox revision every 15 seconds; a changed revision requests an account sync through the same queue. The interval starts after the previous request and sync finish, and failures back off up to five minutes. A failed sync never advances the revision. Event bursts coalesce. The first complete import and failed syncs do not notify, including recovery after a partial first import. Account removal or replacement stops the old watcher. The five-minute full sync remains a recovery path. Desktop cache-change events refresh visible windows; hidden windows catch up when shown. The renderer's own periodic timers serve only the browser target. Native notification timing depends on the provider and operating system.
 
-Search stays visible in mail, Today, Calendar, Projects and Agent review.
+Search stays visible in mail, Today, Calendar, Projects, Agent review.
 While Settings is open, the background toolbar remains visible and inert.
-The Search shortcut leaves Settings and focuses All cached within the selected
-account with mail filters cleared. Typing from work also opens All cached and
-clears mail filters. In mail it retains the current view and filters. Search
-keystrokes remain one history visit. Commands includes work views and drafts.
+The first nonempty query opens All cached across all accounts and clears
+inherited mail filters. Continued typing preserves deliberate narrowing. Clear
+and Escape remove the query while retaining the current view and filters.
+Typing updates the input immediately; result work waits for a 120ms pause.
+Navigation cancels pending input. Search keystrokes remain one history visit. Draft matches have a separate
+section and open through draft recovery. Commands includes work views and drafts.
 
 Agent review has a Review queue with a pending count and Activity. Assistant
 setup lives in Settings, AI and agents. Read mail, Organize work and Prepare

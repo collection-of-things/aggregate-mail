@@ -1,7 +1,7 @@
 import { ArrowRight } from "../ui/icons";
 
 /** What an empty mail list says: loading, no accounts, no matches or nothing in this view. */
-export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, syncing, searchPending = false, onConnect, onReset, onSync }: {
+export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, syncing, searchPending = false, includesDrafts = false, onConnect, onReset, onSync }: {
   loaded: boolean;
   hasAccounts: boolean;
   filtered: boolean;
@@ -9,6 +9,7 @@ export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, sync
   viewName: string;
   syncing: boolean;
   searchPending?: boolean;
+  includesDrafts?: boolean;
   onConnect: () => void;
   onReset: () => void;
   onSync: () => void;
@@ -16,7 +17,7 @@ export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, sync
   return (
     <div className="empty" role={searchPending ? "status" : undefined}>
       <p className="empty-title">
-        {!loaded ? "Loading" : !hasAccounts ? "No accounts connected" : searchPending ? "Searching cached mail" : filtered ? "No matching mail" : title}
+        {!loaded ? "Loading" : !hasAccounts ? "No accounts connected" : searchPending ? "Searching cached mail" : filtered ? includesDrafts ? "No matching mail or saved drafts" : "No matching mail" : title}
       </p>
       {loaded &&
         (!hasAccounts ? (
@@ -27,7 +28,7 @@ export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, sync
           <p>Searching message bodies. Header matches appear as soon as they are available.</p>
         ) : filtered ? (
           <>
-            <p>No cached mail matches these controls in {viewName}.</p>
+            <p>No cached mail{includesDrafts ? " or saved drafts" : ""} matches these controls in {viewName}.</p>
             <button type="button" className="link" onClick={onReset}>Reset filters and sort</button>
           </>
         ) : (

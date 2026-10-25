@@ -168,9 +168,13 @@ export type MailSummary = Pick<Mail,
 // Full values remain accepted by isolated renderer fixtures and internal views.
 export type RendererMail = MailSummary | Mail;
 export type MailBodyResponse = { mail: Mail; contentVersion: string };
+export type MailSearchMatch =
+  | ({ kind: "mail" } & Pick<MailSummary, "id" | "accountId" | "contentVersion">)
+  | ({ kind: "draft" } & DraftSummary);
 export type MailSearchResult = {
   mailCursor: string;
-  matches: Pick<MailSummary, "id" | "accountId" | "contentVersion">[];
+  draftToken: string;
+  matches: MailSearchMatch[];
   error?: string;
 };
 export type Rule = {
@@ -194,6 +198,7 @@ export type StateResponse = Omit<State, "messages"> & MailChanges & { csrf: stri
 
 export type State<T = Mail> = {
   draftCount?: number;
+  draftToken?: string;
   composePreferences?: ComposePreferences;
   unreadArrivals?: number;
   mailArrivals?: import("./notifications").MailArrival[];

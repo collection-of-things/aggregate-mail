@@ -96,7 +96,7 @@ export function MailList<T extends Mail>({
                 {density === "comfortable" && relevance > 1 && (
                   <span className="row-preview"><Redact text={previewText(m.preview)} /></span>
                 )}
-                {density === "comfortable" && accountIndex >= 0 && <span className="row-account"><Redact text={accountLabel(accounts[accountIndex], accountIndex, privacy)} /></span>}
+                {density === "comfortable" && accountIndex >= 0 && <span className="row-account">{accountLabel(accounts[accountIndex], accountIndex, privacy, accounts)}</span>}
               </span>
             ) : (
               <>

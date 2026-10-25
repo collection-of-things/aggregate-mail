@@ -2,6 +2,7 @@ import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { act } from "react";
 import { JSDOM } from "jsdom";
+import { compileMailSearch } from "./mail-search";
 import type { Draft, Mail, State } from "../shared/types";
 import { generatePalette, parseThemeFile, serializeThemeFile, type CustomTheme } from "./themes";
 
@@ -34,7 +35,7 @@ test("window opacity applies immediately, persists and disables with transparenc
   } finally { await restarted.close(); }
 });
 
-async function mount(native = false, setup?: (state: State, storage: Storage) => void, bridge: Partial<NonNullable<Window["desktop"]>> | boolean = {}) {
+async function mount(native = false, setup?: (state: State, storage: Storage) => void, bridge: Partial<NonNullable<Window["desktop"]>> | boolean = {}, fixtureDrafts: Draft[] = []) {
   const dom = new JSDOM("<!doctype html><div id='root'></div>", { url: "http://localhost/" });
   dom.window.HTMLElement.prototype.scrollTo = function (options?: ScrollToOptions | number, y?: number) {
     this.scrollTop = typeof options === "number" ? y || 0 : options?.top ?? this.scrollTop;
@@ -90,6 +91,7 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
   (dom.window as unknown as Window).desktop = desktop;
   const previousFetch = globalThis.fetch;
   const mutations: string[] = [];
+  const requests: string[] = [];
   const renames: unknown[] = [];
   let renameFails = false;
   let composePreferencesFail = false;
@@ -102,6 +104,7 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
   let releaseRead: (() => void) | undefined;
   globalThis.fetch = async (input, options) => {
     const url = String(input);
+    requests.push(url);
     if (url === "/api/compose-preferences" && options?.method === "PUT") {
       composeSaveRequests++;
       await composeSaveWait;
@@ -120,7 +123,14 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
         signatures: Object.fromEntries(Object.entries(state.composePreferences.signatures).filter(([accountId]) => accountId !== id)) };
       return { ok: true, json: async () => ({}) } as Response;
     }
-    if (url.endsWith("/drafts") && !options?.method) return { ok: true, json: async () => [] } as unknown as Response;
+    if (url.startsWith("/api/messages/search?")) {
+      const search = compileMailSearch(new URL(url, "http://localhost").searchParams.get("query") || "", state.accounts);
+      return { ok: true, json: async () => ({ mailCursor: "synthetic:0", draftToken: state.draftToken ?? "synthetic-drafts", error: search.error,
+        matches: [...state.messages.filter(search.matches).map(mail => ({ kind: "mail", id: mail.id, accountId: mail.accountId, contentVersion: "synthetic" })),
+          ...fixtureDrafts.filter(draft => { const account = state.accounts.find(a => a.id === draft.accountId); return account && search.matchesDraft(draft, account); }).map(({ body, attachments, ...draft }) => ({ ...draft, kind: "draft", preview: body.slice(0, 200), attachmentCount: attachments?.length || 0 }))] }) } as Response;
+    }
+    if (url.includes("/drafts/") && (!options?.method || options.method === "GET")) return { ok: true, json: async () => fixtureDrafts.find(draft => url.endsWith(`/drafts/${draft.id}`)) } as Response;
+    if (url.endsWith("/drafts") && !options?.method) return { ok: true, json: async () => fixtureDrafts.filter(draft => url.includes(`/accounts/${draft.accountId}/`)).map(({ body, attachments, ...draft }) => ({ ...draft, preview: body.slice(0, 200), attachmentCount: attachments?.length || 0 })) } as Response;
     if (url.includes("/drafts") && ["POST", "PUT"].includes(options?.method || "")) {
       if (draftSaveFails) return { ok: false, json: async () => ({ error: "Synthetic draft save failure" }) } as Response;
       savedDraft = { ...JSON.parse(String(options?.body)), id: "synthetic-draft", accountId: url.split("/")[3],
@@ -223,8 +233,9 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
       Object.getOwnPropertyDescriptor(prototype, "value")!.set!.call(field, value);
       field.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
     });
+    if (field.closest(".search")) await act(async () => { await new Promise(resolve => setTimeout(resolve, 135)); });
   };
-  return { state, storage: dom.window.localStorage, window: dom.window, container, button, click, choose, openFilters, account, activeAccount, accountButtons, back, forward, open, mouse, key, input, mutations,
+  return { state, storage: dom.window.localStorage, window: dom.window, container, button, click, choose, openFilters, account, activeAccount, accountButtons, back, forward, open, mouse, key, input, mutations, requests,
     renames, failRename: (value: boolean) => { renameFails = value; },
     failComposePreferences: (value: boolean) => { composePreferencesFail = value; },
     composeSaveRequests: () => composeSaveRequests,
@@ -827,13 +838,13 @@ test("mounted cached-mail controls combine filters, retain the read-on-open read
   const rows = () => [...app.container.querySelectorAll(".row")].map(row => row.id);
   try {
     assert.deepEqual(rows(), ["mail-b:1", "mail-a:1", "mail-a:2"]);
+    await act(async () => app.container.querySelector<HTMLInputElement>('.app-search-toolbar input')!.focus());
+    await app.input(app.container.querySelector<HTMLInputElement>(".search input")!, "ALPHA");
     await app.click(app.account("first@example.com"));
     await app.choose("Filter by Gmail label", "Team");
     await app.choose("Read status", "Unread");
     await app.choose("Relevance filter", "High relevance");
     await app.choose("Sort mail", "Oldest");
-    await act(async () => app.container.querySelector<HTMLInputElement>('.app-search-toolbar input')!.focus());
-    await app.input(app.container.querySelector<HTMLInputElement>(".search input")!, "ALPHA");
     assert.deepEqual(rows(), ["mail-a:1"]);
     await app.open("a:1");
     assert.equal(app.title(), "Alpha");
@@ -843,6 +854,7 @@ test("mounted cached-mail controls combine filters, retain the read-on-open read
     assert.equal(app.title(), "Alpha", "automatic cache updates retain the opened reader");
     await app.choose("Sort mail", "Relevance");
     assert.equal(app.title(), undefined, "explicit sort change closes the reader");
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 145)); });
     assert.deepEqual(rows(), []);
     assert.match(app.container.querySelector(".empty")!.textContent!, /No matching mail/);
     await app.click(app.back());
@@ -853,7 +865,8 @@ test("mounted cached-mail controls combine filters, retain the read-on-open read
     const reset = app.container.querySelector<HTMLButtonElement>(".empty button")!;
     assert.equal(reset.textContent, "Reset filters and sort");
     await app.click(reset);
-    assert.deepEqual(rows(), ["mail-b:1", "mail-a:1", "mail-a:2"]);
+    assert.deepEqual(rows(), ["mail-a:3", "mail-b:1", "mail-a:1", "mail-a:2"]);
+    assert.equal(app.container.querySelector(".pane-title")?.textContent, "All cached");
     assert.equal(app.activeAccount(), "All accounts");
     for (const [label, value] of [["Read status", "All mail"],
       ["Relevance filter", "All relevance"], ["Sort mail", "Newest"], ["Filter by Gmail label", "All labels"]])
@@ -1246,7 +1259,7 @@ test("menu history restores view, account, search and Settings without restoring
     await app.click(app.back());
     assert.equal(app.container.querySelector(".settings"), null);
     assert.equal(app.container.querySelector<HTMLInputElement>(".search input")?.value, "Other message");
-    assert.equal(app.activeAccount(), "first@example.com");
+    assert.equal(app.activeAccount(), "All accounts", "first nonempty search enters global scope");
     await app.open("a:3");
     assert.equal(app.title(), "Other message");
     await app.key("Escape");
@@ -2087,4 +2100,174 @@ test("Settings history rejects an unavailable reader when returning to mail", as
     assert.equal(app.title(), undefined);
     assert.equal(app.mutations.length, 1);
   } finally { await app.close(); }
+});
+
+test("global search enters all accounts once, preserves narrowing and restores scope through history", async () => {
+  const app = await mount(false, state => {
+    state.messages.push({ ...state.messages[0], id: "b:sent", accountId: "b", subject: "Alpha sent", direction: "sent" },
+      { ...state.messages[0], id: "b:archive", accountId: "b", subject: "Alpha archive", archived: true },
+      { ...state.messages[0], id: "b:snoozed", accountId: "b", subject: "Alpha snoozed", snoozedUntil: Date.now() + 60000 });
+  });
+  try {
+    await app.click(app.account("first@example.com"));
+    await app.choose("Read status", "Unread");
+    const search = app.container.querySelector<HTMLInputElement>(".search input")!;
+    await app.input(search, "   ");
+    assert.equal(app.container.querySelector(".pane-title")?.textContent, "Inbox");
+    await app.input(search, "Alpha");
+    assert.equal(app.container.querySelector(".pane-title")?.textContent, "All cached");
+    assert.equal(app.activeAccount(), "All accounts");
+    assert.equal(app.container.querySelectorAll(".row").length, 4);
+    await app.click(app.account("second@example.com"));
+    await app.click(app.button("Sent"));
+    await app.input(search, "Alpha sent");
+    assert.equal(app.activeAccount(), "second@example.com");
+    assert.equal(app.container.querySelector(".pane-title")?.textContent, "Sent");
+    assert.equal(app.container.querySelectorAll(".row").length, 1);
+    await app.click(app.button("Clear search"));
+    assert.equal(app.activeAccount(), "second@example.com");
+    assert.equal(app.container.querySelector(".pane-title")?.textContent, "Sent");
+    await app.click(app.back());
+    assert.equal(search.value, "Alpha sent", "clear has a predictable history visit");
+    await app.click(app.forward());
+    assert.equal(search.value, "");
+    await app.input(search, "Alpha");
+    assert.equal(app.activeAccount(), "All accounts");
+    assert.equal(app.container.querySelector(".pane-title")?.textContent, "All cached");
+    assert.equal(app.mutations.length, 0);
+  } finally { await app.close(); }
+});
+
+
+test("mixed global search draft focus isolates mail shortcuts and traversal", async (t) => {
+  const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: "client@example.test", subject: "Needle draft", body: "Saved draft body", sendUnknown: false };
+  for (const control of [".draft-row", ".draft-refresh"]) {
+    for (const key of ["e", "r", "s", "m", "j", "k", "ArrowDown", "ArrowUp", "PageDown", "PageUp", "Enter"]) {
+      await t.test(`${control}: ${key}`, async () => {
+        const app = await mount(false, state => {
+          state.messages = state.messages.map(mail => ({ ...mail, subject: `Needle ${mail.subject}` }));
+          state.draftCount = 1; state.draftToken = "d1";
+        }, {}, [draft]);
+        try {
+          await app.input(app.container.querySelector<HTMLInputElement>(".search input")!, "Needle");
+          await act(async () => { await new Promise(resolve => setTimeout(resolve, 145)); });
+          assert.equal(app.container.querySelector(".pane-title")?.textContent, "All cached");
+          assert.equal(app.container.querySelectorAll(".row").length, 4);
+          assert.equal(app.container.querySelectorAll(".draft-row").length, 1);
+          await app.click(app.container.querySelector<HTMLElement>('[id="mail-a:2"]')!);
+          const selected = app.container.querySelector(".row.selected")?.id;
+          assert.equal(selected, "mail-a:2", "selection has mail on both sides for traversal");
+          const messages = structuredClone(app.state.messages);
+          const requestCount = app.requests.length;
+          const target = app.container.querySelector<HTMLButtonElement>(control)!;
+          const event = new app.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+          await act(async () => { target.focus(); target.dispatchEvent(event); });
+          assert.equal(app.mutations.length, 0, "draft focus cannot mutate the selected mail");
+          assert.equal(app.container.querySelector(".compose-dialog, [role=dialog], [role=menu], .message"), null,
+            "draft focus cannot reply, open mail, snooze or teach unrelated mail");
+          assert.equal(app.container.querySelector(".row.selected")?.id, selected, "draft focus cannot traverse mail");
+          assert.deepEqual(app.state.messages, messages);
+          assert.deepEqual(app.requests.slice(requestCount), [], "no mailbox or compose requests");
+          if (key === "Enter") assert.equal(event.defaultPrevented, false, "native button activation remains available");
+        } finally { await app.close(); }
+      });
+    }
+  }
+});
+
+test("mixed global search draft focus preserves global shortcuts and draft activation", async () => {
+  const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: "client@example.test", subject: "Alpha draft", body: "Saved draft body", sendUnknown: false };
+  const app = await mount(false, state => { state.draftCount = 1; state.draftToken = "d1"; }, {}, [draft]);
+  try {
+    const search = app.container.querySelector<HTMLInputElement>(".search input")!;
+    await app.input(search, "Alpha");
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 145)); });
+    assert.equal(app.container.querySelectorAll(".row").length, 1);
+    for (const control of [".draft-row", ".draft-refresh"]) {
+      const target = app.container.querySelector<HTMLButtonElement>(control)!;
+      for (const privacy of ["on", "off"]) {
+        await act(async () => { target.focus(); target.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "p", bubbles: true })); });
+        assert.equal(app.storage.getItem("privacy"), privacy);
+      }
+      await act(async () => { target.focus(); target.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true })); });
+      assert.equal(app.window.document.activeElement, search, "Search remains global from draft controls");
+      assert.equal(search.value, "Alpha");
+    }
+    await app.click(app.container.querySelector<HTMLButtonElement>(".draft-row")!);
+    assert.equal(app.container.querySelector<HTMLTextAreaElement>(".compose-form textarea")?.value, draft.body);
+    assert.match(app.container.querySelector('.compose-form [aria-label="From"]')?.textContent || "", /second@example\.com/);
+    assert.equal(app.mutations.length, 0);
+    assert.equal(app.requests.some(url => url === "/api/send"), false);
+  } finally { await app.close(); }
+});
+
+test("global search finds and opens a saved draft body with no cached mail and no account-list requests", async () => {
+  const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: "client@example.test", subject: "Saved proposal", body: "x".repeat(500) + " Needle", sendUnknown: true };
+  const app = await mount(false, state => { state.messages = []; state.draftCount = 1; state.draftToken = "d1"; }, {}, [draft]);
+  try {
+    const search = app.container.querySelector<HTMLInputElement>(".search input")!;
+    await app.input(search, "body:needle");
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 145)); });
+    assert.equal(app.requests.filter(url => url.startsWith("/api/messages/search?")).length, 1);
+    assert.equal(app.requests.filter(url => /\/accounts\/[^/]+\/drafts$/.test(url)).length, 0, "search never fetches per-account draft lists");
+    assert.equal(app.container.querySelectorAll(".draft-row").length, 1);
+    assert.equal(app.container.querySelectorAll(".row").length, 0);
+    assert.match(app.container.querySelector(".draft-row")!.textContent!, /Send status unknown/);
+    assert.equal(app.container.querySelector(".empty"), null, "draft results do not show a contradictory empty mail list");
+    await app.click(app.container.querySelector<HTMLButtonElement>(".draft-row")!);
+    assert.equal(app.container.querySelector<HTMLTextAreaElement>(".compose-form textarea")?.value, draft.body);
+    assert.match(app.container.querySelector(".compose-form")!.textContent!, /may already have been sent/);
+    assert.equal(app.requests.some(url => url === "/api/send"), false);
+    await app.key("Escape");
+    await app.click(app.button("Inbox"));
+    assert.equal(app.container.querySelector(".draft-row"), null, "mail-only views exclude drafts without dropping the query");
+    assert.equal(search.value, "body:needle");
+    await app.click(app.button("All cached"));
+    assert.equal(app.container.querySelectorAll(".draft-row").length, 1);
+    await app.choose("Read status", "Unread");
+    assert.equal(app.container.querySelector(".draft-row"), null, "mail-only filters exclude drafts");
+  } finally { await app.close(); }
+});
+
+test("global search Gmail label choices use distinct friendly account names without private addresses", async () => {
+  const app = await mount(false, (state, storage) => {
+    storage.setItem("privacy", "on");
+    state.accounts = state.accounts.map(account => ({ ...account, provider: "gmail", name: account.email }));
+    state.labels = state.accounts.map(account => ({ id: "team", accountId: account.id, name: "Team", type: "user" }));
+  });
+  try {
+    assert.ok(app.account("Account 1 · Gmail")); assert.ok(app.account("Account 2 · Gmail"));
+    await app.openFilters(); await app.click(app.button("Filter by Gmail label"));
+    const choices = [...app.container.querySelectorAll('[role="option"]')].map(option => option.textContent);
+    assert.deepEqual(choices, ["All labels", "Team (Account 1 · Gmail)", "Team (Account 2 · Gmail)"]);
+    assert.doesNotMatch(app.container.innerHTML, /first@example\.com|second@example\.com/);
+  } finally { await app.close(); }
+});
+
+
+test("global search draft deletion reports a failed count refresh without retrying deletion", async () => {
+  const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: "client@example.test", subject: "Alpha draft", body: "Saved body", sendUnknown: false };
+  const drafts = [draft];
+  const app = await mount(false, state => { state.draftCount = 1; state.draftToken = "d1"; }, {}, drafts);
+  const priorFetch = globalThis.fetch;
+  let deletes = 0;
+  try {
+    await app.input(app.container.querySelector<HTMLInputElement>(".search input")!, "Alpha");
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 150)); });
+    assert.equal(app.container.querySelectorAll(".draft-row").length, 1);
+    globalThis.fetch = async (input, options) => {
+      if (String(input).includes("/drafts/") && options?.method === "DELETE") {
+        deletes++; drafts.splice(0);
+        return { ok: true, json: async () => ({ ok: true }) } as Response;
+      }
+      if (String(input).startsWith("/api/state")) throw new Error("Synthetic count refresh failure");
+      return priorFetch(input, options);
+    };
+    await app.click(app.button("Delete draft"));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 150)); });
+    assert.match(app.container.textContent || "", /Draft deleted, but refreshing the saved count failed/);
+    assert.equal(deletes, 1);
+    assert.equal(app.container.querySelector(".draft-row"), null);
+    assert.equal(app.container.querySelector(".compose-dialog"), null);
+  } finally { globalThis.fetch = priorFetch; await app.close(); }
 });

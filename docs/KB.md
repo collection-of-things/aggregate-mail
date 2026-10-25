@@ -1006,7 +1006,7 @@ Native and real-provider acceptance remain separate from synthetic checks.
 
 ### Cached-mail tools
 
-`shared/mail-search.ts`, re-exported by `src/mail-search.ts`, defines the query semantics. Summary-only renderer lists use the authenticated local search route with their existing view, account, Gmail-label, read and relevance filters. An empty query creates no body search strings. Recognized invalid operators, dates and unmatched quotes return a generic error without echoing the query. Unknown prefixes remain literal text. Dates use UTC start-of-day boundaries.
+`shared/mail-search.ts`, re-exported by `src/mail-search.ts`, defines the query semantics. Renderer search uses the authenticated local service. New queries start globally; deliberate account, mailbox, Gmail-label, read and relevance choices narrow the results. An empty query creates no body search strings. Recognized invalid operators, dates and unmatched quotes return a generic error without echoing the query. Unknown prefixes remain literal text. Dates use UTC start-of-day boundaries.
 
 Search normalizes canonical Unicode and whitespace and folds Latin accents for
 ordinary text and account display names. Terms containing an email address keep
@@ -1015,7 +1015,10 @@ matching. Non-Latin combining marks remain significant. Phrases match within
 one field, while separate terms can match different fields. Search keeps a
 process-local LRU of searchable strings, bounded to 256 entries and 4 MiB of
 accounted strings. Empty and flag/date-only queries skip body search strings.
-There is no persisted plaintext index, fuzzy matching or remote mailbox search.
+Plain unquoted words of four to 32 letters tolerate one insertion, deletion,
+substitution or adjacent transposition. Phrases, addresses, field terms and
+exclusions remain exact. There is no persisted plaintext index or remote
+mailbox search.
 
 `src/dialogs/CommandPalette.tsx` consumes existing action callbacks from App. The modal uses the shared Dialog focus trap; the underlying frame is inert. The updater closes the palette before installation. The fixed Command/Control+K binding and list Up/Down behavior leave saved j/k preferences intact.
 
@@ -1386,9 +1389,9 @@ provider selection. Arrows, Home and End select enabled choices; one choice is
 in the tab order. Notification values, configuration saves and preference
 persistence reuse their existing handlers.
 
-`SearchToolbar` uses App’s existing search state. Work and Settings searches
-navigate to All cached within the selected account, clearing other mail filters.
-Mail searches keep the current view and filters. The command palette uses the
+`SearchToolbar` uses App’s existing search state. A new nonempty query opens
+All cached across all accounts and clears inherited mail filters. Continued
+typing preserves deliberate narrowing. The command palette uses the
 same navigation and action guards. Agent sections keep their forms mounted,
 so switching to Review queue or Activity retains unsaved setup. Presets do not
 create grants, enable MCP or grant immediate creation. Existing grants are not
@@ -2101,7 +2104,7 @@ Draft rows place recipient/account, subject/preview and time in compact columns.
 Narrow lists reflow without truncating uncertain-send warnings. Refresh shares
 the account-tabs row; the healthy saved-count banner is visually hidden, while
 loading, cached/unavailable and open failures remain visible. Account/draft
-identity, privacy and saved data are unchanged. See [ADR 0071](adr/0071-shared-footer-and-compact-drafts.md).
+identity, privacy and saved data are unchanged. See [ADR 0077](adr/0071-shared-footer-and-compact-drafts.md).
 
 Saved draft rows offer a direct Delete draft action on pointer hover or keyboard
 focus, always visible on touch. Confirm before deletion, including the existing
@@ -2178,3 +2181,32 @@ require the exact account/message/content-version response. Empty pending views
 show a searching state rather than claiming no matches. No index migration,
 plaintext search storage or preference changes are introduced. See
 [ADR 0075](adr/0075-summary-first-search.md).
+
+## Global cached-mail and draft search
+
+The toolbar owns immediate input text and commits result updates after a 120ms
+pause. Navigation, disabling and unmount cancel pending input; Clear and Escape
+cancel it immediately. The search hook reuses equivalent source identities and
+summary matches. Header-only queries still avoid mail-body decoding. Draft and
+mail matches use the same encrypted WAL snapshot and query compiler.
+
+
+New searches include every connected account's imported mail, including Sent,
+Archive and Snoozed, plus saved local drafts. Coverage remains the local cache,
+not complete provider history. Clear and Escape remove the query while retaining
+the current view and filters; the next nonempty query starts globally again.
+Back/Forward restores scope and query together. See
+[ADR 0077](adr/0077-global-cached-mail-search.md).
+
+Draft text search includes the complete saved body, account sender identity,
+To/Cc and subject. Date filters use the last saved time. Read/pin predicates,
+including negations, and mail-only filters exclude drafts. Draft matches have
+a separate section and keep their own recovery and uncertain-send controls.
+Draft-control focus keeps mail shortcuts and traversal from acting on another
+selected message. Search and Privacy remain global. Search returns summaries
+without attachment bytes. Superseded responses and
+stale draft openings must not replace the current search or compose session.
+
+Verification is tracked in [task #42](https://github.com/collection-of-things/aggregate-mail/issues/42).
+Synthetic results, native interaction, installed-app acceptance and provider
+coverage are separate evidence.

@@ -7,7 +7,7 @@ import path from "node:path";
 import express from "express";
 import { google } from "./google-api.js";
 import { z } from "zod";
-import { all, get, syncMailCache, mailSummaryChanges, mailSummary, searchMail, count, put, putBatch, remove, removeAccountAttachments, account, transaction, compactStore, storageStats, type StoredAccount } from "./store.js";
+import { all, get, syncMailCache, mailSummaryChanges, mailSummary, searchMail, draftChangeToken, count, put, putBatch, remove, removeAccountAttachments, account, transaction, compactStore, storageStats, type StoredAccount } from "./store.js";
 import { matchesRule } from "../shared/rules.js";
 import { mountWorkspace } from "./workspace.js";
 import { mountAgentProvider } from "./agent-provider.js";
@@ -138,6 +138,7 @@ app.get("/api/state", async (req, res) => {
       mailArrivals = mailArrivals.filter((arrival) => !!get("mail", arrival.mail.id));
       status = {
       draftCount: count("draft"),
+      draftToken: draftChangeToken(),
       composePreferences: all("compose")[0] ?? emptyComposePreferences,
       unreadArrivals,
       mailArrivals,

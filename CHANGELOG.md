@@ -36,6 +36,10 @@
 - Tighten compose fields and reply spacing; place Delete draft and Close beside the Drafts account tabs. Keep the footer on one compact row and remove duplicate sender information. Extend the coverage footer divider to the pane edges.
 - Add subtle press/glow feedback to New Message and Send, respecting reduced motion.
 
+- Keep search text local to the toolbar while typing and coalesce result updates after 120ms; cancel pending input on navigation or unmount. Preserve summary-first header matches and avoid serializing source identities for every query.
+
+- Search cached mail across all accounts and mailboxes, including Sent, Archive and Snoozed, plus saved local drafts. Keep typo tolerance, make scope visible and clarify account and Gmail-label controls.
+
 - Reduce startup work by loading only Gmail and Calendar APIs, and bound account-sync body retention to active batches. Reuse list filtering across selection and draft edits.
 - Keep toolbar Search and Privacy usable during composition without releasing draft navigation guards. Show reply context beside the editor, align bottom bars and combine Today status counts and actions in one row.
 - Match one typo in plain search words while retaining exact quoted text, field operators, addresses and exclusions. Preserve saved device and account preferences.

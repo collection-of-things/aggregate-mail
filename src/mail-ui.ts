@@ -4,9 +4,14 @@ import { inboxTab, type InboxTab } from "../shared/inbox-tabs";
 import { redactPrivateText } from "./privacy";
 import { compileMailSearch } from "./mail-search";
 
-export function accountLabel(account: Account, index: number, privacy: boolean) {
-  if (account.name) return privacy ? redactPrivateText(account.name) : account.name;
-  return privacy ? `Account ${index + 1} · ${providerNames[account.provider]}` : account.email;
+export function accountLabel(account: Account, index: number, privacy: boolean, accounts: readonly Account[] = []) {
+  const name = account.name?.trim();
+  const safe = name && (privacy ? redactPrivateText(name) : name);
+  // Address-only imported names otherwise collapse to identical privacy bars.
+  if (!safe || privacy && !/[\p{L}\p{N}]/u.test(safe))
+    return privacy ? `Account ${index + 1} · ${providerNames[account.provider]}` : account.email;
+  const duplicates = accounts.filter(other => other.name && (privacy ? redactPrivateText(other.name.trim()) : other.name.trim()) === safe);
+  return duplicates.length > 1 ? `${safe} · ${index + 1}` : safe;
 }
 
 export function textSizeShortcut(event: Pick<KeyboardEvent, "key" | "code" | "ctrlKey" | "altKey" | "metaKey">) {

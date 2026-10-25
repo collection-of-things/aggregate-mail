@@ -125,12 +125,12 @@ test("body hydration rejects late, cross-account and changed-version completions
     await renderSearch("body:local"); const oldSearch = searches[0];
     await renderSearch("body:other");
     assert.equal(oldSearch.signal?.aborted, true);
-    await act(async () => oldSearch.resolve({ mailCursor: "old:1", matches: [summary()] }));
+    await act(async () => oldSearch.resolve({ mailCursor: "old:1", draftToken: "d1", matches: [{ kind: "mail", ...summary() }] }));
     assert.equal(container.textContent, "Pending");
-    await act(async () => searches[1].resolve({ mailCursor: "new:1", matches: [summary("a", "stale-version")] }));
+    await act(async () => searches[1].resolve({ mailCursor: "new:1", draftToken: "d1", matches: [{ kind: "mail", ...summary("a", "stale-version") }] }));
     assert.equal(container.textContent, "No match", "search hits must identify the exact summary version");
     await renderSearch("body:local", summary("b"));
-    await act(async () => searches[2].resolve({ mailCursor: "new:2", matches: [summary()] }));
+    await act(async () => searches[2].resolve({ mailCursor: "new:2", draftToken: "d1", matches: [{ kind: "mail", ...summary() }] }));
     assert.equal(container.textContent, "No match", "cross-account results cannot match a same-id summary");
   } finally {
     await act(async () => root.unmount()); dom.window.close();
@@ -159,7 +159,7 @@ test("pending body searches retain confirmed header matches through result and v
     assert.match(document.body.textContent!, /same-id/);
     assert.match(document.body.textContent!, /Searching/);
     await act(async () => { await new Promise(r => setTimeout(r, 150)); });
-    await act(async () => resolve!({ mailCursor: 'one:1', matches: [hit] }));
+    await act(async () => resolve!({ mailCursor: 'one:1', draftToken: 'd1', matches: [{ kind: 'mail', ...hit }] }));
     assert.match(document.body.textContent!, /Ready/);
     await act(async () => root.render(<Probe version="v2" />));
     assert.match(document.body.textContent!, /same-id/);
@@ -168,8 +168,10 @@ test("pending body searches retain confirmed header matches through result and v
     await act(async () => root.render(<Probe query="subject:Design" />));
     await act(async () => { await new Promise(r => setTimeout(r, 150)); });
     assert.match(document.body.textContent!, /same-id/);
+    assert.match(document.body.textContent!, /Searching/);
+    assert.equal(calls, before + 1, 'header matches remain immediate while saved drafts are searched');
+    await act(async () => resolve!({ mailCursor: 'one:2', draftToken: 'd1', matches: [{ kind: 'mail', ...hit }] }));
     assert.match(document.body.textContent!, /Ready/);
-    assert.equal(calls, before, 'header-only searches never wait on the body API');
   } finally {
     await act(async () => root.unmount()); dom.window.close();
     for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);

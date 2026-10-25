@@ -1,8 +1,9 @@
-import type { Account, Mail, MailSummary } from "./types.js";
+import type { Account, Draft, Mail, MailSummary } from "./types.js";
 
 type SearchDocument = { canonical: string[]; folded: string[] };
 type CachedDocument = SearchDocument & { raw: string[]; bytes: number };
-type SearchTerm = (mail: Mail, document: SearchDocument) => boolean;
+type SearchMail = Pick<Mail, "id" | "accountId" | "sender" | "address" | "to" | "cc" | "subject" | "preview" | "body" | "date" | "unread" | "pinned">;
+type SearchTerm = (mail: SearchMail, document: SearchDocument) => boolean;
 
 const documents = new Map<string, CachedDocument>();
 const documentLimit = 256;
@@ -22,10 +23,10 @@ function foldLatin(value: string): string {
   return value.normalize("NFD").replace(/(\p{Script=Latin})\p{M}+/gu, "$1").normalize("NFC");
 }
 
-function indexMail(mail: Mail): SearchDocument {
+function indexMail(mail: SearchMail, retain = true): SearchDocument {
   const raw = [mail.sender, mail.address, mail.to, mail.cc ?? "", mail.subject, mail.preview, mail.body];
   const key = JSON.stringify([mail.accountId, mail.id]);
-  const cached = documents.get(key);
+  const cached = retain ? documents.get(key) : undefined;
   if (cached) {
     documents.delete(key);
     if (raw.every((value, index) => value === cached.raw[index])) {
@@ -40,7 +41,7 @@ function indexMail(mail: Mail): SearchDocument {
   // even when strings share storage. The entry limit bounds container overhead.
   const bytes = 2 * (key.length + [...raw, ...normalized, ...folded].reduce((sum, value) => sum + value.length, 0));
   const document = { raw, canonical: normalized, folded, bytes };
-  if (bytes <= stringByteLimit) {
+  if (retain && bytes <= stringByteLimit) {
     while (documents.size >= documentLimit || documentBytes + bytes > stringByteLimit) {
       const [oldestKey, oldest] = documents.entries().next().value!;
       documents.delete(oldestKey);
@@ -104,13 +105,14 @@ function dateValue(value: string): number | null {
     : null;
 }
 
-export function compileMailSearch(query: string, accounts: Account[] = []): { matches: (mail: Mail) => boolean; matchesSummary: (mail: MailSummary) => boolean | undefined; error?: string } {
+export function compileMailSearch(query: string, accounts: Account[] = []): { matches: (mail: Mail) => boolean; matchesSummary: (mail: MailSummary) => boolean | undefined; matchesDraft: (draft: Draft, account: Account) => boolean; error?: string } {
   const tokens = tokenize(query);
-  if (!tokens) return { matches: () => false, matchesSummary: () => false, error };
+  if (!tokens) return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error };
   const terms: SearchTerm[] = [];
   const summaryTerms: ((mail: Mail, document: SearchDocument) => boolean | undefined)[] = [];
   const lower = (value: string) => value.toLowerCase();
   let needsDocument = false;
+  let allowsDrafts = true;
 
   for (const { text: raw, phrase } of tokens) {
     let token = raw;
@@ -119,24 +121,25 @@ export function compileMailSearch(query: string, accounts: Account[] = []): { ma
       negative = true;
       token = token.slice(1);
     }
-    if (!token) return { matches: () => false, matchesSummary: () => false, error };
+    if (!token) return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error };
 
     const colon = token.indexOf(":");
     const prefix = colon < 0 ? "" : token.slice(0, colon).toLowerCase();
     const value = colon < 0 ? "" : token.slice(colon + 1);
-    if (fields.has(prefix) && !value) return { matches: () => false, matchesSummary: () => false, error };
+    if (fields.has(prefix) && !value) return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error };
 
     let term: SearchTerm;
     let bodyDependent = false;
     if (prefix === "is") {
+      allowsDrafts = false;
       const state = lower(value);
-      if (state !== "read" && state !== "unread" && state !== "pinned") return { matches: () => false, matchesSummary: () => false, error };
+      if (state !== "read" && state !== "unread" && state !== "pinned") return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error };
       term = state === "read" ? (mail) => !mail.unread
         : state === "unread" ? (mail) => mail.unread
         : (mail) => mail.pinned === true;
     } else if (prefix === "before" || prefix === "after") {
       const date = dateValue(value);
-      if (date === null) return { matches: () => false, matchesSummary: () => false, error };
+      if (date === null) return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error };
       term = prefix === "before" ? (mail) => mail.date < date : (mail) => mail.date >= date;
     } else if (prefix === "account") {
       const needle = lower(value);
@@ -151,7 +154,7 @@ export function compileMailSearch(query: string, accounts: Account[] = []): { ma
       const text = fields.has(prefix) ? value : token;
       const exact = text.includes("@");
       const needle = exact ? canonical(text) : foldLatin(canonical(text));
-      if (!needle) return { matches: () => false, matchesSummary: () => false, error };
+      if (!needle) return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error };
       const indexes = prefix === "from" ? [0, 1] : prefix === "to" ? [2, 3]
         : prefix === "subject" ? [4] : prefix === "body" ? [6] : [0, 1, 2, 3, 4, 5, 6];
       needsDocument = true;
@@ -185,5 +188,14 @@ export function compileMailSearch(query: string, accounts: Account[] = []): { ma
       if (match === undefined) unknown = true;
     }
     return unknown ? undefined : true;
+  }, matchesDraft: (draft, account) => {
+    if (!allowsDrafts || draft.accountId !== account.id) return false;
+    const mail: SearchMail = { id: draft.id, accountId: draft.accountId, sender: account.name || "", address: account.email,
+      to: draft.to, cc: draft.cc?.join(", "), subject: draft.subject, preview: "", body: draft.body,
+      date: draft.updatedAt, unread: false };
+    // Drafts can be large and contain attachment bytes. Retain summaries only;
+    // normalized draft text lives for this one record, outside the mail LRU.
+    const document = needsDocument ? indexMail(mail, false) : emptyDocument;
+    return terms.every(term => term(mail, document));
   } };
 }

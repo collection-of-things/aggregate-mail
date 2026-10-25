@@ -53,7 +53,8 @@ test("encrypted drafts: authenticated lifecycle, stale writes, sync and update g
   const { providers } = await import("./providers.js");
   const send = t.mock.method(providers.imap, "send", async () => { throw new Error("Recovery must never send."); });
   for (const id of ["a", "b"]) store.put("account", id, syntheticAccount(id));
-  const server = await backend.startServer(0, undefined, undefined, undefined, quietImapWatch);
+  let changes = 0;
+  const server = await backend.startServer(0, undefined, () => { changes++; }, undefined, quietImapWatch);
   const address = server.address();
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
@@ -146,9 +147,13 @@ test("encrypted drafts: authenticated lifecycle, stale writes, sync and update g
 
     await t.test("same-revision saves have one winner; stale save/delete cannot replace acknowledged data", async () => {
       const draft = await create();
+      const beforeChanges = changes;
+      const beforeToken = store.draftChangeToken();
       const attempts = await Promise.all(["first", "second"].map((body) =>
         request(`/${draft.id}`, "PUT", { ...content, body, revision: draft.revision })));
       assert.deepEqual(attempts.map((r) => r.status).sort(), [200, 409]);
+      assert.equal(changes - beforeChanges, 1, "only the successful PUT notifies draft/cache consumers");
+      assert.notEqual(store.draftChangeToken(), beforeToken, "a same-count save publishes a new search token");
       const latest = await attempts.find((r) => r.status === 200)!.json() as Draft;
       assert.equal(latest.revision, 2);
       for (const revision of [0, -1, 1.5, "2", Number.MAX_SAFE_INTEGER])

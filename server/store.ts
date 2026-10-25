@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { randomBytes, randomUUID, createCipheriv, createDecipheriv, createHash } from "node:crypto";
-import type { Account, Mail, MailSummary, MailChanges, MailSearchResult, Rule, McpSettings, GmailLabel, Draft } from "../shared/types.js";
+import type { Account, Mail, MailSummary, MailChanges, MailSearchResult, Rule, McpSettings, GmailLabel, Draft, DraftSummary } from "../shared/types.js";
 import type { ComposePreferences } from "../shared/mail-features.js";
 import { storageNeedsVacuum } from "./storage-maintenance.js";
 import { inboxTab } from "../shared/inbox-tabs.js";
@@ -112,9 +112,15 @@ const mailHistory = new Map<string, number>();
 const coldWrites = new Map<string, MailRow | null>();
 let pendingMail: Map<string, Omit<MailRow, "revision"> | null> | undefined;
 let pendingRules = false;
+let draftToken = randomUUID();
+let pendingDrafts = false;
+let cachedSearch: { key: string; result: MailSearchResult } | undefined;
+export function draftChangeToken() { checkMailVersion(); return draftToken; }
+function changeDrafts() { draftToken = randomUUID(); cachedSearch = undefined; }
 let dataVersion = Number(db.prepare("PRAGMA data_version").get()!.data_version);
 const yieldMail = () => new Promise<void>((resolve) => setImmediate(resolve));
 function invalidateMail() {
+  changeDrafts();
   mailRows = undefined;
   coldWrites.clear();
   mailHistory.clear();
@@ -285,25 +291,60 @@ export async function mailSummaryChanges(cursor?: string, captureStatus?: () => 
     return summaries;
   });
 }
+export function draftSummary({ id, accountId, revision, updatedAt, to, cc, subject, body, attachments, sendUnknown }: Draft): DraftSummary {
+  return { id, accountId, revision, updatedAt, to, cc, subject, sendUnknown,
+    preview: body.replace(/\s+/g, " ").trim().slice(0, 200), attachmentCount: attachments?.length || 0 };
+}
 export async function searchMail(query: string, accounts: Account[], signal?: AbortSignal): Promise<MailSearchResult> {
   return captureMailRows(async rows => {
     signal?.throwIfAborted();
-    const search = compileMailSearch(query, accounts);
     const mailCursor = `${generation}:${mailRevision}`;
-    const entries = [...rows];
-    const versions = new Map(entries.map(([id, row]) => [id, row.summary.contentVersion]));
-    const matches = new Map<string, MailSearchResult["matches"][number]>();
-    const unknown: string[] = [];
-    if (!search.error) for (const [id, row] of entries) {
+    const token = draftToken;
+    const key = JSON.stringify([query, mailCursor, token, accounts.map(a => [a.id, a.email, a.name])]);
+    if (cachedSearch?.key === key) return cachedSearch.result;
+    const search = compileMailSearch(query, accounts);
+    const result: MailSearchResult = { mailCursor, draftToken: token, error: search.error, matches: [] };
+    if (search.error) return result;
+    const entries = [...rows].map(([id, row]) => [id, row.summary] as const);
+    const connected = new Map(accounts.map(account => [account.id, account]));
+    const reader = new DatabaseSync(path.join(dataPath, "mail.sqlite"), { readOnly: true });
+    try {
+      reader.exec("BEGIN");
+      // Both kinds share one encrypted-record snapshot, including across yields.
+      reader.prepare("SELECT COUNT(*) FROM records").get();
+      checkMailVersion();
+      if (mailCursor !== `${generation}:${mailRevision}` || token !== draftToken) throw new Error("Cache changed during search. Refresh and try again.");
+      const select = reader.prepare("SELECT value FROM records WHERE kind='mail' AND id=?");
+      let scanned = 0;
+      for (const [id, summary] of entries) {
+        const version = summary.contentVersion;
+        signal?.throwIfAborted();
+        if (!connected.has(summary.accountId)) continue;
+        const known = search.matchesSummary(summary);
+        if (known !== undefined) {
+          if (known) result.matches.push({ kind: "mail", id, accountId: summary.accountId, contentVersion: version });
+          if (++scanned % 32 === 0) await yieldMail();
+          continue;
+        }
+        const row = select.get(id);
+        if (!row) throw new Error("Mail changed during read. Reload the app and try again.");
+        const mail = decrypt(String(row.value)) as Mail;
+        if (connected.has(mail.accountId) && search.matches(mail)) result.matches.push({ kind: "mail", id, accountId: mail.accountId, contentVersion: version });
+        if (++scanned % 32 === 0) await yieldMail();
+      }
+      for (const row of reader.prepare("SELECT value FROM records WHERE kind='draft' ORDER BY id").iterate()) {
+        signal?.throwIfAborted();
+        const draft = decrypt(String(row.value)) as Draft;
+        const account = connected.get(draft.accountId);
+        if (account && search.matchesDraft(draft, account)) result.matches.push({ kind: "draft", ...draftSummary(draft) });
+        if (++scanned % 32 === 0) await yieldMail();
+      }
       signal?.throwIfAborted();
-      const known = search.matchesSummary(row.summary);
-      if (known === true) matches.set(id, { id, accountId: row.summary.accountId, contentVersion: row.summary.contentVersion });
-      else if (known === undefined) unknown.push(id);
-    }
-    if (unknown.length) for (const match of await scanMail(unknown, mail => search.matches(mail)
-      ? { id: mail.id, accountId: mail.accountId, contentVersion: versions.get(mail.id)! } : undefined, signal)) matches.set(match.id, match);
-    signal?.throwIfAborted();
-    return { mailCursor, error: search.error, matches: entries.flatMap(([id]) => matches.has(id) ? [matches.get(id)!] : []) };
+      reader.exec("COMMIT");
+      // A concurrent writer may advance either input while this snapshot yields.
+      if (mailCursor === `${generation}:${mailRevision}` && token === draftChangeToken()) cachedSearch = { key, result };
+      return result;
+    } finally { reader.close(); }
   });
 }
 export function all<K extends keyof Records>(kind: K): Records[K][] {
@@ -324,16 +365,18 @@ export function transaction<T>(work: () => T): T {
   db.exec("BEGIN IMMEDIATE");
   pendingMail = new Map();
   pendingRules = false;
+  pendingDrafts = false;
   try {
     const result = work();
     db.exec("COMMIT");
     for (const [id, row] of pendingMail!) publishMail(id, row);
     if (pendingRules) invalidateMail();
+    if (pendingDrafts) changeDrafts();
     return result;
   } catch (error) {
     db.exec("ROLLBACK");
     throw error;
-  } finally { pendingMail = undefined; pendingRules = false; }
+  } finally { pendingMail = undefined; pendingRules = false; pendingDrafts = false; }
 }
 export function put<K extends keyof Records>(
   kind: K,
@@ -351,6 +394,7 @@ export function put<K extends keyof Records>(
     if (pendingMail) pendingMail.set(id, row);
     else publishMail(id, row);
   }
+  if (kind === "draft") { if (pendingMail) pendingDrafts = true; else changeDrafts(); }
   if (kind === "rule") { if (pendingMail) pendingRules = true; else invalidateMail(); }
 }
 export function putBatch<K extends keyof Records>(kind: K, values: [string, Records[K]][]) {
@@ -365,6 +409,7 @@ export function remove(kind: keyof Records, id: string): void {
     if (pendingMail) pendingMail.set(id, null);
     else publishMail(id, null);
   }
+  if ((kind === "draft" || kind === "account") && result.changes) { if (pendingMail) pendingDrafts = true; else changeDrafts(); }
   if (kind === "rule" && result.changes) { if (pendingMail) pendingRules = true; else invalidateMail(); }
 }
 export function account(id: string) {

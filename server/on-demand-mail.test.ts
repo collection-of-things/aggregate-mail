@@ -109,7 +109,7 @@ else test("cold summaries, exact scans, local body identity and full internal re
       const expected = (await store.readMail()).filter(compileMailSearch(query, accounts).matches).map(m => m.id).sort();
       const result = await store.searchMail(query, accounts);
       assert.deepEqual(result.matches.map(m => m.id).sort(), expected, query);
-      assert.ok(result.matches.every(m => Object.keys(m).sort().join(",") === "accountId,contentVersion,id"));
+      assert.ok(result.matches.every(m => Object.keys(m).sort().join(",") === "accountId,contentVersion,id,kind"));
     }
     const httpSearch = await (await fetch(`${origin}/messages/search?query=${encodeURIComponent('body:"reunion du projet"')}`, { headers })).json();
     assert.deepEqual(httpSearch.matches.map((m: { id: string }) => m.id), ["1"]);
@@ -118,7 +118,7 @@ else test("cold summaries, exact scans, local body identity and full internal re
     setImmediate(() => store.put("mail", "1", { ...mail("1"), body: "Written during scan" }));
     const frozenSearch = await scanSnapshot;
     assert.deepEqual(frozenSearch.matches.map(m => m.id), ["1"], "yielding search holds a coherent SQLite snapshot");
-    assert.equal(frozenSearch.matches[0].contentVersion, first.contentVersion);
+    assert.equal(frozenSearch.matches.find(m => m.kind === "mail")?.contentVersion, first.contentVersion);
     store.put("mail", "1", mail("1"));
     const controller = new AbortController();
     const scan = store.searchMail("body:excluded", accounts, controller.signal);

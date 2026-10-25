@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useContext, useEffect, useRef } from "react";
 import type { Account, GmailLabel } from "../../shared/types";
 import type { MailLocation } from "../navigation";
 import { Dropdown } from "../ui/Dropdown";
+import { accountLabel } from "../mail-ui";
+import { PrivacyContext } from "../ui/Privacy";
 import { Filter } from "../ui/icons";
 
 /**
@@ -23,6 +25,7 @@ export function MailFilters({ open, active, location, labels, accounts, blocked,
   onChange: (patch: Partial<MailLocation>) => void;
   onReset: () => void;
 }) {
+  const { on: privacy } = useContext(PrivacyContext);
   const { readFilter, relevanceFilter, sort, labelFilter, accountFilter } = location;
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -84,9 +87,10 @@ export function MailFilters({ open, active, location, labels, accounts, blocked,
                   options={[
                     { value: "all", label: "All labels" },
                     ...labels.map((label) => {
-                      const email = accounts.find((account) => account.id === label.accountId)?.email || "Gmail";
-                      const name = accountFilter === "all" ? `${label.name} (${email})` : label.name;
-                      return { value: `${label.accountId}:${label.id}`, label: labelName(name) };
+                      const index = accounts.findIndex(account => account.id === label.accountId);
+                      const owner = index < 0 ? "Gmail" : accountLabel(accounts[index], index, privacy, accounts);
+                      const name = accountFilter === "all" ? `${labelName(label.name)} (${owner})` : labelName(label.name);
+                      return { value: `${label.accountId}:${label.id}`, label: name };
                     }),
                   ]}
                   onChange={(labelFilter) => onChange({ labelFilter })}

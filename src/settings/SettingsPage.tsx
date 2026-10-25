@@ -114,7 +114,7 @@ export function SettingsPage({
               <Fragment key={a.id}><div className="account-row">
                 <ProviderIcon provider={a.provider} />
                 <strong>
-                  {accountLabel(a, index, privacy)}
+                  {accountLabel(a, index, privacy, state.accounts)}
                 </strong>
                 <span
                   className={a.error ? "attention" : undefined}

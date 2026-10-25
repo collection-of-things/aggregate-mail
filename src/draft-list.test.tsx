@@ -20,6 +20,7 @@ test("Drafts lists account, envelope, snippet and saved time; scopes search, ope
   const api: Api = async <T,>(url: string, method = "GET") => {
     assert.equal(method,"GET"); requests.push(url);
     if(fail) throw Error("synthetic");
+    if (url.startsWith("/messages/search?")) return { mailCursor: "m:0", draftToken: "d1", matches: [{kind: "draft", id: draft.id, accountId: draft.accountId, revision: draft.revision, updatedAt: draft.updatedAt, to: draft.to, cc: draft.cc, subject: draft.subject, preview: "A saved proposal", sendUnknown: true, attachmentCount: 1}] } as T;
     if(url.endsWith("/drafts/one")){await new Promise<void>(resolve=>{release=resolve;});return draft as T;}
     return (url.startsWith("/accounts/a/") ? [{...draft,preview:"A saved proposal",attachmentCount:1}] : [{...draft,id:"two",accountId:"b",subject:"Unrelated"}]) as T;
   };
@@ -38,9 +39,9 @@ test("Drafts lists account, envelope, snippet and saved time; scopes search, ope
     const text=document.body.textContent!;
     for(const value of ["Studio","sender@example.test","client@example.test","copy@example.test","Project plan","A saved proposal","1 attachment","Send status unknown"]) assert.ok(text.includes(value),value);
     assert.equal(document.querySelector('time')?.getAttribute('dateTime'),new Date(1).toISOString());
-    await render("a","proposal"); assert.equal(document.querySelectorAll('.draft-row').length,1);
+    await render("a","proposal"); await act(async () => { await new Promise(resolve => setTimeout(resolve, 145)); }); assert.equal(document.querySelectorAll('.draft-row').length,1);
     await render("a","",true);
-    assert.ok(!document.querySelector('.draft-account-tabs')!.innerHTML.includes('Studio'));
+    assert.ok(document.querySelector('.draft-account-tabs')!.textContent!.includes('Studio'), 'custom labels stay visible under ADR 0034');
     for(const value of [draft.subject,draft.to,accounts[0].email,draft.body,"copy@example.test"]) assert.ok(!document.body.innerHTML.includes(value),value);
     const row=document.querySelector<HTMLButtonElement>('.draft-row')!;
     await act(async()=>{row.click();row.click();});assert.equal(requests.filter(url=>url.endsWith('/drafts/one')).length,1);assert.equal(opened.length,0);

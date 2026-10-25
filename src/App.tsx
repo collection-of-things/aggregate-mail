@@ -43,7 +43,7 @@ import { useWorkspace } from "./work/useWorkspace";
 import { openCommitment } from "../shared/commitment-dates";
 import { Reader, ReaderEmpty } from "./mail/Reader";
 import { sidebarViews, tabName, viewNames, viewOrder, type View } from "./mail/format";
-import { customLabels, textSizeShortcut, filterMail, matchesLabel, markMailRead } from "./mail-ui";
+import { accountLabel, customLabels, textSizeShortcut, filterMail, matchesLabel, markMailRead } from "./mail-ui";
 import { reuseMailState } from "./mail-state";
 import { MailSearchApiContext, useMailSearch } from "./use-mail-search";
 import { replySource, useMailBody } from "./mail-body";
@@ -487,7 +487,7 @@ export function App() {
   const closeSearch = () => {
     if (toolbarBlocked) return;
     setSearching(false);
-    if (!settings && !workView) navigation.visit({ query: "", opened: false }, true);
+    if (!settings && !workView && query) navigation.visit({ query: "", opened: false });
   };
   const switchView = (next: View) => {
     if (next !== view)
@@ -524,7 +524,17 @@ export function App() {
   const tabs = useMemo(() => new Map(state.messages.map((mail) => [mail.id, "inboxTab" in mail ? mail.inboxTab : inboxTab(mail, state.rules)])),
     [state.messages, state.rules]);
   const tabOf = (mail: Mail) => "inboxTab" in mail ? mail.inboxTab : tabs.get(mail.id) ?? inboxTab(mail, state.rules);
-  const search = useMailSearch(query, state.accounts, state.messages, api);
+  const search = useMailSearch(query, state.accounts, state.messages, api, state.draftToken);
+  const showSearchDrafts = !!query.trim() && (view === "all" || view === "drafts") &&
+    readFilter === "all" && relevanceFilter === "all" && labelFilter === "all";
+  const hasSearchDrafts = showSearchDrafts && search.drafts.some(draft => accountFilter === "all" || draft.accountId === accountFilter);
+  const draftOpeningAllowed = !navigationBlocked && !contextMenu && !palette;
+  const draftOpenGuard = useRef(false);
+  useLayoutEffect(() => { draftOpenGuard.current = draftOpeningAllowed; });
+  const openSavedDraft = (draft: Draft) => {
+    if (!draftOpenGuard.current || draftSession.current || sendLock.current || draftLock.current || attachmentTask.current) return;
+    openCompose(draft);
+  };
   // Keep list sorting out of draft keystrokes, selection and unrelated toolbar
   // changes. Expired snoozes still invalidate on the next render.
   const expiredSnooze = state.messages.reduce((latest, mail) => mail.snoozedUntil !== null && mail.snoozedUntil <= now ? Math.max(latest, mail.snoozedUntil) : latest, 0);
@@ -802,8 +812,9 @@ export function App() {
       }
       if (settings && action !== "settings") return;
       if (target instanceof HTMLElement && target.closest("#sidebar")) return;
-      const inbox = !settings && !workView && view !== "drafts";
-      const mailActions = inbox || !settings && inlineWorkView && opened && !busy;
+      const draftControl = target instanceof HTMLElement && !!target.closest(".draft-list, .draft-tab-bar");
+      const inbox = !draftControl && !settings && !workView && view !== "drafts";
+      const mailActions = !draftControl && (inbox || !settings && inlineWorkView && opened && !busy);
       if (inbox && ["PageDown", "PageUp"].includes(event.key) &&
         !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
         event.preventDefault();
@@ -1083,13 +1094,14 @@ export function App() {
                 <strong>{settings ? "Settings" : viewNames[view]}</strong>
               </div>
               {!settings && historyControls}
-              <SearchToolbar inputRef={searchRef} query={settings || workView ? "" : query}
-                label={`Search ${settings || workView ? "all" : viewNames[view]} cached mail`}
+              <SearchToolbar inputRef={searchRef} scopeKey={JSON.stringify([page, view, accountFilter, labelFilter, readFilter, relevanceFilter, opened])} query={settings || workView ? "" : query}
+                label="Search cached mail and saved drafts"
                 invalid={!settings && !workView && !!search.error} disabled={toolbarBlocked} commandsDisabled={toolbarBlocked || (!!compose && busy)} shortcut={shortcut("search")} onFocus={() => setSearching(true)}
                 onChange={(value) => {
                   setSearching(true);
                   if (toolbarBlocked) return;
-                  navigation.visit({ page: "mail", ...(settings || workView || view === "drafts" ? { view: "all", readFilter: "all", relevanceFilter: "all", labelFilter: "all" } : {}), query: value, opened: false, selectedId: null }, true);
+                  const entering = !!value.trim() && (!query.trim() || settings || workView);
+                  navigation.visit({ page: "mail", ...(entering ? { view: "all", accountFilter: "all", readFilter: "all", relevanceFilter: "all", labelFilter: "all" } : {}), query: value, opened: false, selectedId: null }, true);
                 }} onClear={closeSearch} onCommands={() => compose ? leaveCompose({ type: "commands" }) : setPalette(true)} />
               <div className="pane-tools">
                 {!settings && view !== "drafts" && !workView && <MailFilters
@@ -1110,14 +1122,14 @@ export function App() {
               <div className="update-spacer" aria-hidden="true" />
             </PaneHeader>
             <div hidden={!searching || settings || workView} className="search-help">
-              <span id="mail-search-help" role={search.error ? "alert" : search.pending ? "status" : undefined}>{search.error || (search.pending ? "Searching cached message bodies… Header matches are shown immediately." : `Cached ${viewNames[view]} · current account and filters`)}</span>
-              <details><summary>Search help</summary><p>Use from:, to:, subject:, body:, account:, is:unread, is:pinned, before:YYYY-MM-DD or after:YYYY-MM-DD. Search stays on this device.</p></details>
+              <span id="mail-search-help" role={search.error ? "alert" : search.pending ? "status" : undefined}>{search.error || (search.pending ? "Searching cached mail and saved drafts…" : `Cached ${viewNames[view]} · ${accountFilter === "all" ? "All accounts" : !state.accounts.some(a => a.id === accountFilter) ? "Unavailable account" : accountLabel(state.accounts.find(a => a.id === accountFilter)!, state.accounts.findIndex(a => a.id === accountFilter), privacy, state.accounts)}${showSearchDrafts ? " · Includes saved drafts" : " · Mail only"}${readFilter !== "all" || relevanceFilter !== "all" || labelFilter !== "all" ? " · Filtered" : ""}`)}</span>
+              <details><summary>Search help</summary><p>Use from:, to:, subject:, body:, account:, is:unread, is:pinned, before:YYYY-MM-DD or after:YYYY-MM-DD. Unquoted words allow one typo. Searches imported mail and saved drafts on this device, including Sent, Archive and Snoozed. Provider history may be incomplete.</p></details>
             </div>
         {view === "drafts" ? (
           <main className="drafts-pane" inert={!!compose}>
             <h1 className="pane-title visually-hidden">Drafts</h1>
             <DraftList accounts={state.accounts} api={api} accountFilter={accountFilter} query={query}
-              refreshKey={state.draftCount} active={!compose} onOpen={openCompose}
+              refreshKey={state.draftToken ?? state.draftCount} active={draftOpeningAllowed} onOpen={openSavedDraft} search={query.trim() ? search : undefined}
               onDeleted={() => { void reload().catch(() => setNotice("Draft deleted, but refreshing the saved count failed. Refresh to check it.")); }}
               onAccount={(id) => navigate({ accountFilter: id, labelFilter: "all", selectedId: null, opened: false })} />
           </main>
@@ -1166,9 +1178,10 @@ export function App() {
                     onMenu={showMailMenu}
                     onMenuKey={mailMenuKey}
                   />
-                ) : (
+                ) : hasSearchDrafts ? null : (
                   <ListEmpty
                     searchPending={search.pending}
+                    includesDrafts={showSearchDrafts}
                     loaded={loaded}
                     hasAccounts={state.accounts.length > 0}
                     filtered={hasListControls}
@@ -1180,6 +1193,8 @@ export function App() {
                     onSync={() => void sync()}
                   />
                 )}
+                {hasSearchDrafts && !opened && <DraftList accounts={state.accounts} api={api} accountFilter={accountFilter} query={query}
+                  refreshKey={state.draftToken ?? state.draftCount} active={draftOpeningAllowed} onOpen={openSavedDraft} search={search} onDeleted={() => { void reload().catch(() => setNotice("Draft deleted, but refreshing the saved count failed. Refresh to check it.")); }} />}
               </div>
               </div>
             </section>

@@ -220,6 +220,8 @@
   color: var(--text-4);
 }
 .sidebar-name {
+  flex: 1;
+  text-align: left;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
