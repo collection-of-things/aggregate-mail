@@ -110,20 +110,23 @@ test("details can be dismissed with Escape and expose progress and failure statu
   } finally { await ui.close(); }
 });
 
-test("macOS source action explains prerequisites and uses indeterminate build progress", async () => {
-  const ui = await mount({ phase: "available", version: "0.1.12", method: "mac-source" }, async () => ({ phase: "error", reason: "source-build", method: "mac-source" }));
+test("macOS installer action explains manual replacement and platform trust checks", async () => {
+  const ui = await mount({ phase: "available", version: "0.1.12", method: "mac-installer" }, async () => ({ phase: "error", reason: "download", method: "mac-installer" }));
   try {
     await ui.open();
-    assert.match(ui.container.textContent!, /Node 24 or newer, npm and Xcode Command Line Tools/);
-    assert.equal(ui.commandButton().textContent?.trim(), "Download, build, install and restart");
-    await ui.emit({ phase: "downloading", version: "0.1.12", method: "mac-source" });
-    assert.match(ui.button().getAttribute("aria-label")!, /Downloading and building/);
+    assert.match(ui.container.textContent!, /drag Emc² to Applications and confirm Replace/);
+    assert.match(ui.container.textContent!, /Keep a backup of your current app before replacing it/);
+    assert.match(ui.container.textContent!, /not notarized/);
+    assert.doesNotMatch(ui.container.textContent!, /Git|Node|npm|Xcode|builds on/);
+    assert.equal(ui.commandButton().textContent?.trim(), "Download and open installer");
+    await ui.emit({ phase: "downloading", version: "0.1.12", method: "mac-installer" });
+    assert.match(ui.button().getAttribute("aria-label")!, /Downloading/);
     assert.doesNotMatch(ui.button().getAttribute("aria-label")!, /%/);
     assert.equal(ui.container.querySelector("progress")?.hasAttribute("value"), false);
     assert.equal(ui.commandButton().disabled, true);
-    await ui.emit({ phase: "available", version: "0.1.12", method: "mac-source" });
+    await ui.emit({ phase: "available", version: "0.1.12", method: "mac-installer" });
     await ui.click();
-    assert.match(ui.container.textContent!, /local source build failed/);
+    assert.match(ui.container.textContent!, /update download failed/);
     assert.equal(ui.commandButton().disabled, false);
   } finally { await ui.close(); }
 });

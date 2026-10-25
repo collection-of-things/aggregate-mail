@@ -1,11 +1,11 @@
 export type UpdateReason = "development" | "mac-signing" | "platform" | "appimage" |
   "metadata" | "candidate" | "network" | "download" | "verification" | "mail-busy" |
-  "cancelled" | "installer" | "source-build" | "source-target";
+  "cancelled" | "installer" | "installer-target";
 
 export type UpdateState = {
   phase: "idle" | "checking" | "current" | "available" | "downloading" |
     "ready" | "installing" | "unsupported" | "unavailable" | "error";
-  method?: "mac-source";
+  method?: "mac-installer";
   version?: string;
   percent?: number;
   reason?: UpdateReason;

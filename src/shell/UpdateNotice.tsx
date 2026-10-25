@@ -14,8 +14,7 @@ const explanations: Record<UpdateReason, string> = {
   "mail-busy": "Mail work did not finish in time. The app remains open. Try again after it finishes.",
   cancelled: "Installation cancelled. Your draft is still open.",
   installer: "The update installer could not start. Check for updates to try again.",
-  "source-build": "The local source build failed. Check build tools, free disk space and permission to replace this app, then check for updates again.",
-  "source-target": "The installed app must be in a writable folder with enough free space for a local build and recovery copy.",
+  "installer-target": "The installer download location is unavailable. Check Downloads access and free disk space.",
 };
 
 export function UpdateNotice({ bridge, onInstalling }: { bridge?: UpdateBridge; onInstalling?: (installing: boolean) => void }) {
@@ -63,16 +62,16 @@ export function UpdateNotice({ bridge, onInstalling }: { bridge?: UpdateBridge; 
     } finally { locked.current = false; if (active.current) setPending(false); }
   };
   const busy = pending || ["checking", "downloading", "installing"].includes(state.phase);
-  const source = state.method === "mac-source";
+  const installer = state.method === "mac-installer";
   const text = state.phase === "checking" ? "Checking for updates…"
     : state.phase === "current" ? "You have the latest stable version."
     : state.phase === "available" ? `Emc² ${state.version} is available.`
-    : state.phase === "downloading" ? `${source ? "Downloading and building" : "Downloading"} Emc² ${state.version}…`
+    : state.phase === "downloading" ? `Downloading Emc² ${state.version}…`
     : state.phase === "installing" ? "Finishing mail work before installation…"
-    : state.phase === "ready" ? `Emc² ${state.version} is ${source ? "built and verified" : "downloaded"}.`
+    : state.phase === "ready" ? `Emc² ${state.version} is ${installer ? "verified and ready to open" : "downloaded"}.`
     : state.phase === "idle" ? "App updates"
     : "Automatic update unavailable";
-  const phaseLabel = state.phase === "downloading" && !source ? `${text} ${state.percent ?? 0}%` : text;
+  const phaseLabel = state.phase === "downloading" && !installer ? `${text} ${state.percent ?? 0}%` : text;
   return <aside className="update-notice" aria-label="App update" aria-busy={busy} ref={container}>
     <button ref={trigger} type="button" className="update-notice-trigger" aria-label={phaseLabel}
       aria-expanded={open} aria-controls="update-details" title={phaseLabel} onClick={() => setOpen((value) => !value)}>
@@ -84,13 +83,13 @@ export function UpdateNotice({ bridge, onInstalling }: { bridge?: UpdateBridge; 
       <button type="button" className="update-notice-close" aria-label="Close update details" onClick={() => { setOpen(false); trigger.current?.focus(); }}>×</button>
       <div role="status" aria-live="polite">
         <span>{text}</span>
-        {source && state.phase === "available" && <p>This downloads source and builds on this Mac. Git, Node 24 or newer, npm and Xcode Command Line Tools are required. The local build may take time.</p>}
+        {installer && ["available", "ready"].includes(state.phase) && <p>Download the verified installer and quit Emc². Keep a backup of your current app before replacing it. In the opened disk image, drag Emc² to Applications and confirm Replace, then open Emc² from Applications. Your mail and settings stay saved. If macOS blocks the app, stop. This release is not notarized.</p>}
         {state.reason && <p>{explanations[state.reason]}</p>}
-        {state.phase === "downloading" && <progress aria-label={source ? "Source download and build" : "Update download"} max={100} value={source ? undefined : state.percent} />}
+        {state.phase === "downloading" && <progress aria-label="Update download" max={100} value={installer ? undefined : state.percent} />}
       </div>
       {state.phase !== "unsupported" && <button type="button" className="action" data-update-command disabled={busy}
         onClick={() => void command(state.phase === "available" ? "download" : state.phase === "ready" ? "install" : "check")}>
-        {state.phase === "available" ? source ? "Download, build, install and restart" : "Download, install and restart" : state.phase === "ready" ? "Install and restart" : "Check for updates"}
+        {state.phase === "available" ? installer ? "Download and open installer" : "Download, install and restart" : state.phase === "ready" ? installer ? "Open installer and quit" : "Install and restart" : "Check for updates"}
       </button>}
     </div>}
   </aside>;

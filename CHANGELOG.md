@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replace ordinary macOS source-build updates with a verified release DMG handoff. Download the running architecture, check SHA256 and size, preserve macOS quarantine, drain mail and drafts, then open the installer for manual replacement and restart. No developer tools are needed.
+
 - Add explicit downloads for received attachments of any file type and on-demand PDF and raster-image previews, with privacy reset and load errors. Existing import limits still apply.
 
 - Prepare source package and lockfile version 0.2.5 without changing dependencies or release workflows.

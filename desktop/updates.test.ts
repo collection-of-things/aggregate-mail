@@ -793,40 +793,44 @@ test("download size overruns cancel once and never expose a ready installer", as
   assert.ok(!f.calls.includes("install"));
 });
 
-test("macOS source builds finish before mail drain and use the same cancellation and restoration boundary", async () => {
-  for (const mode of ["success", "cancel", "build-failure", "verify-failure", "helper-failure", "stop"] as const) {
+const macRelease = () => ({ ...release(), assets: [asset("Emc2-0.1.7-mac-x64.dmg"), asset("SHA256SUMS.txt")] });
+const macRead = async (url: string) => url.endsWith("/releases/latest") ? JSON.stringify({ ...macRelease(),
+  assets: macRelease().assets.map(item => ({ ...item, browser_download_url: item.browser_download_url.replace("screen-devs", "collection-of-things") })) }) :
+  `${"a".repeat(64)}  Emc2-0.1.7-mac-x64.dmg\n`;
+
+test("macOS binary download finishes before mail drain and preserves cancellation and restoration", async () => {
+  for (const mode of ["success", "cancel", "download-failure", "verify-failure", "open-failure", "stop"] as const) {
     const calls: string[] = [];
-    const version = "0.1.7";
-    const candidate = { kind: "mac-source" as const, repository: "collection-of-things/aggregate-mail" as const, version, tag: `v${version}`, commit: "a".repeat(40), arch: "x64" as const };
-    const source = { candidate,
-      build: async () => { calls.push("build"); if (mode === "build-failure") throw Error("synthetic build failure"); },
+    const installer = { candidate: { version: "0.1.7" },
+      download: async () => { calls.push("download"); if (mode === "download-failure") throw Error("download failed"); },
       verify: async () => { calls.push("verify"); if (mode === "verify-failure") throw Error("tamper"); },
-      install: async () => { calls.push("helper"); if (mode === "helper-failure") throw Error("helper not ready"); calls.push("quit"); },
+      install: async () => { calls.push("open-dmg"); if (mode === "open-failure") throw Error("open failed"); calls.push("quit"); },
       stop: () => calls.push("stop"), dispose: async () => { calls.push("dispose"); },
-    } as unknown as import("./mac-source-update.js").MacSourceUpdate;
+    } as unknown as import("./mac-installer-update.js").MacInstallerUpdate;
     const flow = fixture({ target: { ...target, platform: "darwin" },
-      mac: { installed: "/synthetic/Emc².app", helper: "/synthetic/helper.cjs", home: "/synthetic/home", quit: () => calls.push("unexpected-quit") },
-      read: async url => url.endsWith("/releases/latest") ? JSON.stringify(release()) : JSON.stringify({ ref: "refs/tags/v0.1.7", object: { type: "commit", sha: candidate.commit } }),
-      source: (selected) => { assert.deepEqual(selected, candidate); return source; },
-      create: async () => { throw Error("Mac source must never use the installer manifest driver"); },
+      mac: { downloads: "/synthetic/Downloads", home: "/synthetic/home", quit() {} }, read: macRead,
+      installer: () => installer,
+      create: async () => { throw Error("Mac must never use the Windows/Linux driver"); },
       quiesce: async () => { calls.push("quiesce"); }, drainRenderer: async () => { calls.push("drain"); },
       closeWindow: async () => { calls.push("close"); return mode !== "cancel"; }, resume: () => calls.push("resume"),
       restoreWindow: async () => { calls.push("restore"); } });
-    assert.equal((await flow.updates.command("check")).method, "mac-source");
+    assert.equal((await flow.updates.command("check")).method, "mac-installer");
     assert.equal(calls.length, 0);
     const downloaded = await flow.updates.command("download");
-    assert.deepEqual(calls, ["build"], "building must not pause mail or close the app");
-    if (mode === "build-failure") { assert.equal(downloaded.reason, "source-build"); continue; }
+    assert.deepEqual(calls, ["download"]);
+    if (mode === "download-failure") { assert.equal(downloaded.reason, "download"); continue; }
     assert.equal(downloaded.phase, "ready");
     if (mode === "stop") flow.updates.stop();
     const state = await flow.updates.command("install");
     if (mode === "success") {
       assert.equal(state.phase, "installing");
-      assert.deepEqual(calls, ["build", "quiesce", "drain", "close", "verify", "helper", "quit"]);
+      assert.deepEqual(calls, ["download", "quiesce", "drain", "close", "verify", "open-dmg", "quit"]);
     } else if (mode === "cancel") {
       assert.equal(state.reason, "cancelled");
-      assert.deepEqual(calls, ["build", "quiesce", "drain", "close", "resume"]);
-    } else if (mode === "stop") assert.deepEqual(calls, ["build", "stop"]);
+      assert.deepEqual(calls, ["download", "quiesce", "drain", "close", "resume"]);
+      await flow.updates.dispose();
+      assert.deepEqual(calls.slice(-2), ["stop", "dispose"]);
+    } else if (mode === "stop") assert.deepEqual(calls, ["download", "stop"]);
     else {
       assert.equal(state.reason, mode === "verify-failure" ? "verification" : "installer");
       assert.ok(!calls.includes("quit"));
@@ -835,60 +839,14 @@ test("macOS source builds finish before mail drain and use the same cancellation
   }
 });
 
-test("ordinary disposal after Keep editing stops and disposes the ready source without installing", async () => {
-  const calls: string[] = [];
-  const source = {
-    candidate: { version: "0.1.7" }, build: async () => {},
-    stop: () => { calls.push("stop"); }, dispose: async () => { calls.push("dispose"); },
-    install: async () => { calls.push("install"); },
-  } as unknown as import("./mac-source-update.js").MacSourceUpdate;
-  const f = fixture({ target: { ...target, platform: "darwin" },
-    mac: { installed: "/synthetic/Emc².app", helper: "/synthetic/helper.cjs", home: "/synthetic/home", quit: () => calls.push("quit") },
-    read: async url => url.endsWith("/releases/latest") ? JSON.stringify(release()) :
-      JSON.stringify({ ref: "refs/tags/v0.1.7", object: { type: "commit", sha: "a".repeat(40) } }),
-    source: () => source, closeWindow: async () => false });
-  await f.updates.command("check"); await f.updates.command("download");
-  assert.equal((await f.updates.command("install")).reason, "cancelled");
-  await f.updates.dispose();
-  assert.deepEqual(calls, ["stop", "dispose"]);
-  assert.ok(f.calls.includes("resume"));
-  await f.updates.command("install");
-  assert.deepEqual(calls, ["stop", "dispose"]);
-});
-
-test("macOS source fallback pins and builds only the repository that supplied the release", async () => {
-  for (const fallback of [false, true]) {
-    const urls: string[] = [];
-    const repository = fallback ? "screen-devs/aggregate-mail" : "collection-of-things/aggregate-mail";
-    let selected: import("./mac-source-update.js").MacSourceCandidate | undefined;
-    const f = fixture({ target: { ...target, platform: "darwin" },
-      mac: { installed: "/synthetic/Emc².app", helper: "/synthetic/helper.cjs", home: "/synthetic/home", quit() {} },
-      read: async url => {
-        urls.push(url);
-        if (fallback && url.includes("collection-of-things")) throw Error("preferred source unavailable");
-        if (url.endsWith("/releases/latest")) return JSON.stringify(release());
-        assert.equal(url, `https://api.github.com/repos/${repository}/git/ref/tags/v0.1.7`);
-        return JSON.stringify({ ref: "refs/tags/v0.1.7", object: { type: "commit", sha: "a".repeat(40) } });
-      },
-      source: candidate => { selected = candidate; return { candidate } as import("./mac-source-update.js").MacSourceUpdate; },
-    });
-    assert.equal((await f.updates.command("check")).phase, "available");
-    assert.equal(selected?.repository, repository);
-    assert.equal(urls.some(url => url.endsWith(".yml")), false, "source builds never use binary manifests");
-    if (!fallback) assert.equal(urls.some(url => url.includes("screen-devs")), false);
-  }
-});
-
-test("macOS pinning distinguishes failed API reads from malformed source metadata", async () => {
-  for (const mode of ["network", "candidate"] as const) {
-    const f = fixture({ target: { ...target, platform: "darwin" }, read: async url => {
-      if (url.endsWith("/releases/latest")) return JSON.stringify(release());
-      if (mode === "network") throw new Error("synthetic network failure");
-      return "null";
-    } });
-    assert.equal((await f.updates.command("check")).reason, mode);
-    assert.ok(!f.calls.includes("download"));
-  }
+test("macOS binary selection does not fall back to an older repository or source build", async () => {
+  const urls: string[] = [];
+  const f = fixture({ target: { ...target, platform: "darwin" }, read: async url => {
+    urls.push(url); throw Error("network unavailable");
+  } });
+  assert.equal((await f.updates.command("check")).reason, "network");
+  assert.equal(urls.length, 1);
+  assert.ok(urls[0].includes("collection-of-things"));
 });
 
 test("update IPC authenticates the main renderer frame and accepts only a command enum with no extra arguments", async () => {
@@ -909,4 +867,16 @@ test("update IPC authenticates the main renderer frame and accepts only a comman
   url = "http://127.0.0.1:32145/foreign"; assert.throws(() => command(good, "check"));
   url = "http://127.0.0.1:32145/";
   assert.equal((await command(good, "check") as UpdateState).phase, "available");
+});
+
+test("macOS selects the published DMG and checksums without requesting source tags", async () => {
+  const urls: string[] = [];
+  const f = fixture({ target: { ...target, platform: "darwin" },
+    mac: { downloads: "/synthetic/Downloads", home: "/synthetic/home", quit() {} },
+    read: async url => {
+      urls.push(url);
+      return macRead(url);
+    } });
+  assert.equal((await f.updates.command("check")).phase, "available");
+  assert.ok(urls.every(url => !url.includes("/git/")));
 });

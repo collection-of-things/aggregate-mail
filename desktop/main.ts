@@ -31,7 +31,6 @@ import { editingMenu } from "./context-menu.js";
 import { menuPosition, nativeMenuItems, overlayColors, readWindowControls, writeWindowControls, type WindowControls } from "./window-chrome.js";
 import { isExternalLink, isLocalNavigation, swipeNavigation, trustedWindowSender } from "./navigation.js";
 import { LEGACY_APP_NAME, migrateLegacyUserData } from "./migrate.js";
-import { explicitUpdateProfile } from "./mac-source-update.js";
 import type { Updates } from "./updates.js";
 import { canonicalKey, readCurrentRecord, migrateLegacyKey, MIGRATION_ERROR, type CurrentRecord } from "./keychain.js";
 import { isOpenCodeCredential, openCodeConfig } from "../shared/opencode.js";
@@ -556,14 +555,9 @@ else {
       };
       if (!checking) {
         const { Updates, registerUpdateIpc } = await import("./updates.js");
-        let mac: import("./mac-source-update.js").MacInstallation | undefined;
-        if (isMac && app.isPackaged) {
-          try {
-            mac = { installed: path.dirname(path.dirname(path.dirname(process.execPath))),
-              helper: path.join(__dirname, "mac-update-helper.cjs"), home: app.getPath("home"),
-              profile: explicitUpdateProfile(process.argv, dataPath), quit: () => app.quit() };
-          } catch { /* An ambiguous restart profile disables updates, not ordinary startup. */ }
-        }
+        const mac = isMac && app.isPackaged ? {
+          downloads: app.getPath("downloads"), home: app.getPath("home"), quit: () => app.quit(),
+        } : undefined;
         updates = new Updates({
           mac,
           target: { platform: process.platform, arch: process.arch, version: app.getVersion(),

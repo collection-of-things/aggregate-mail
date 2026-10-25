@@ -13,7 +13,7 @@ import { parseUpdateInfo } from "electron-updater/out/providers/Provider.js";
 import type { UpdateCommand, UpdateReason, UpdateState } from "../shared/updates.js";
 import { isHigherStableVersion, versionParts } from "../shared/updates.js";
 export { isHigherStableVersion } from "../shared/updates.js";
-import { MacSourceFailure, MacSourceUpdate, sourceCandidate, type MacInstallation } from "./mac-source-update.js";
+import { MacInstallerFailure, MacInstallerUpdate, macInstallerCandidate, macReleaseApi, type MacInstallerInstallation, type MacInstallerCandidate } from "./mac-installer-update.js";
 import { trustedWindowSender } from "./navigation.js";
 
 // Releases move to collection-of-things. Check it first; until it publishes a
@@ -311,8 +311,8 @@ export async function createUpdater(candidate: Candidate, target: Target): Promi
 
 type Dependencies = {
   target: Target;
-  mac?: MacInstallation;
-  source?: (candidate: import("./mac-source-update.js").MacSourceCandidate, installation: MacInstallation) => MacSourceUpdate;
+  mac?: MacInstallerInstallation;
+  installer?: (candidate: MacInstallerCandidate, installation: MacInstallerInstallation) => MacInstallerUpdate;
   publish: (state: UpdateState) => void;
   quiesce: (timeout: number) => Promise<void>;
   resume: () => void;
@@ -328,7 +328,7 @@ type Dependencies = {
 
 export class Updates {
   private state: UpdateState;
-  private source?: MacSourceUpdate;
+  private macInstaller?: MacInstallerUpdate;
   private running = false;
   private candidate?: Candidate;
   private updater?: Driver;
@@ -342,9 +342,9 @@ export class Updates {
     this.state = reason ? { phase: "unsupported", reason } : { phase: "idle" };
   }
   snapshot() { return { ...this.state }; }
-  private set(state: UpdateState) { if (!this.stopped) { this.state = this.deps.target.platform === "darwin" ? { ...state, method: "mac-source" } : state; this.deps.publish(this.snapshot()); } }
-  stop() { this.stopped = true; this.cancel?.cancel(); this.source?.stop(); }
-  async dispose() { this.stop(); await this.source?.dispose(); }
+  private set(state: UpdateState) { if (!this.stopped) { this.state = this.deps.target.platform === "darwin" ? { ...state, method: "mac-installer" } : state; this.deps.publish(this.snapshot()); } }
+  stop() { this.stopped = true; this.cancel?.cancel(); this.macInstaller?.stop(); }
+  async dispose() { this.stop(); await this.macInstaller?.dispose(); }
   async command(command: UpdateCommand) {
     if (this.running || this.stopped || this.state.phase === "unsupported") return this.snapshot();
     this.running = true;
@@ -353,33 +353,27 @@ export class Updates {
       else if (command === "download" && this.state.phase === "available") await this.download();
       else if (command === "install" && this.state.phase === "ready") await this.install();
     } catch (error) {
-      const reason = error instanceof UpdateFailure ? error.reason : command === "check" ? "network" : command === "download" ? (this.source ? "source-build" : "download") : "installer";
-      this.set({ phase: reason === "metadata" || reason === "candidate" ? "unavailable" : "error", version: this.source?.candidate.version ?? this.candidate?.version, reason });
+      const reason = error instanceof UpdateFailure ? error.reason : command === "check" ? "network" : command === "download" ? "download" : "installer";
+      this.set({ phase: reason === "metadata" || reason === "candidate" ? "unavailable" : "error", version: this.macInstaller?.candidate.version ?? this.candidate?.version, reason });
     } finally { this.running = false; }
     return this.snapshot();
   }
   private async check() {
-    await this.source?.dispose(); this.source = undefined;
+    await this.macInstaller?.dispose(); this.macInstaller = undefined;
     this.candidate = undefined; this.updater = undefined; this.downloaded = undefined;
     this.set({ phase: "checking" });
     const read = this.deps.read || readMetadata;
     if (this.deps.target.platform === "darwin") {
-      let candidate: Awaited<ReturnType<typeof sourceCandidate>> = null;
-      for (const [index, source] of releaseSources.entries()) {
-        try {
-          const metadata = JSON.parse(await read(source.latest, 2 * 1024 * 1024));
-          candidate = await sourceCandidate(metadata, this.deps.target, read, source.repository);
-        } catch (error) {
-          if (index === releaseSources.length - 1) {
-            if (error instanceof MacSourceFailure || error instanceof SyntaxError) return fail("candidate");
-            throw error;
-          }
-        }
-        if (candidate) break;
+      let candidate: MacInstallerCandidate | null;
+      try {
+        candidate = await macInstallerCandidate(JSON.parse(await read(macReleaseApi, 2 * 1024 * 1024)), this.deps.target, read);
+      } catch (error) {
+        if (error instanceof MacInstallerFailure || error instanceof SyntaxError) return fail("candidate");
+        throw error;
       }
       if (!candidate) { this.set({ phase: "current" }); return; }
-      if (!this.deps.mac) return fail("source-target");
-      this.source = (this.deps.source || ((value, installation) => new MacSourceUpdate(value, installation)))(candidate, this.deps.mac);
+      if (!this.deps.mac) return fail("installer-target");
+      this.macInstaller = (this.deps.installer || ((value, installation) => new MacInstallerUpdate(value, installation)))(candidate, this.deps.mac);
       this.set({ phase: "available", version: candidate.version });
       return;
     }
@@ -421,10 +415,10 @@ export class Updates {
     this.set({ phase: "available", version: candidate.version });
   }
   private async download() {
-    if (this.source) {
-      this.set({ phase: "downloading", version: this.source.candidate.version });
-      await this.source.build();
-      if (!this.stopped) this.set({ phase: "ready", version: this.source.candidate.version });
+    if (this.macInstaller) {
+      this.set({ phase: "downloading", version: this.macInstaller.candidate.version });
+      await this.macInstaller.download();
+      if (!this.stopped) this.set({ phase: "ready", version: this.macInstaller.candidate.version });
       return;
     }
     const candidate = this.candidate!, updater = this.updater!;
@@ -447,7 +441,7 @@ export class Updates {
   }
   private async install() {
     const candidate = this.candidate, updater = this.updater, file = this.downloaded;
-    const version = this.source?.candidate.version ?? candidate!.version;
+    const version = this.macInstaller?.candidate.version ?? candidate!.version;
     this.set({ phase: "installing", version });
     let closed = false;
     let handedOff = false;
@@ -461,14 +455,14 @@ export class Updates {
         return;
       }
       closed = true;
-      if (this.source) await this.source.verify().catch(() => fail("verification"));
+      if (this.macInstaller) await this.macInstaller.verify().catch(() => fail("verification"));
       else {
         if (updater!.installerPath !== file) return fail("verification");
         await (this.deps.verify || verifyInstaller)(file!, candidate!).catch(() => fail("verification"));
       }
       if (this.stopped) return;
       this.installerFailed = false;
-      if (this.source) await this.source.install();
+      if (this.macInstaller) await this.macInstaller.install();
       else await updater!.quitAndInstall(false, true);
       if (this.installerFailed) return fail("installer");
       handedOff = true;
