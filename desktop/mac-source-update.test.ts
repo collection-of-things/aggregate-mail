@@ -234,7 +234,7 @@ test("only one effective absolute profile argument survives restart, without rea
     assert.throws(() => explicitUpdateProfile(args, profile));
 });
 
-async function builderFixture(beforeRun?: (cmd: string, args: string[], cwd: string, signal: AbortSignal) => Promise<void>) {
+async function builderFixture(beforeRun?: (cmd: string, args: string[], cwd: string, signal: AbortSignal) => Promise<void>, availableBytes = 8 * 1024 ** 3) {
   const root = await realpath(await mkdtemp(path.join(tmpdir(), "emc2-source-builder-")));
   const installed = path.join(root, "Installed.app"), profile = path.join(root, "profile"), helper = path.join(root, "helper.cjs");
   await syntheticBundle(installed, "old bundle"); await mkdir(profile);
@@ -268,11 +268,30 @@ async function builderFixture(beforeRun?: (cmd: string, args: string[], cwd: str
     // Ignored stdio needs no draining; IPC disconnect can omit the close event.
     helperExits.push(new Promise(resolve => child.once("exit", () => resolve())));
     return child;
-  });
-  return { root, installed, helper, profile, adapter, calls, quit: () => quit, fail: (value: string) => { fail = value; },
+  }, async () => ({ bavail: availableBytes, bsize: 1 }));
+  return { root, installed, helper, profile, adapter, calls, space: (bytes: number) => { availableBytes = bytes; }, quit: () => quit, fail: (value: string) => { fail = value; },
     workspace: async () => path.join(root, (await readdir(root)).find(name => name.startsWith(".emc2-update-"))!),
     cleanup: async () => { await Promise.all(helperExits); await rm(root, { recursive: true, force: true }); } };
 }
+
+test("source storage guards reject insufficient build and replacement space before mutation", async () => {
+  for (const available of [1024 ** 3 - 1, 8 * 1024 ** 3 - 1]) {
+    const f = await builderFixture(undefined, available);
+    try {
+      await assert.rejects(f.adapter.build(), /mac-source-update/);
+      assert.equal(f.calls.length, 0, "no tools start without sufficient space");
+      assert.equal((await readdir(f.root)).some(name => name.startsWith(".emc2-update-")), false);
+      assert.equal(await readFile(path.join(f.installed, "Contents/MacOS/Emc²"), "utf8"), "old bundle");
+    } finally { await f.adapter.dispose(); await f.cleanup(); }
+  }
+  const f = await builderFixture();
+  try {
+    await f.adapter.build();
+    f.space(1024 ** 3 - 1);
+    await assert.rejects(f.adapter.verify(), /mac-source-update/);
+    assert.equal(f.quit(), 0);
+  } finally { await f.adapter.dispose(); await f.cleanup(); }
+});
 
 test("builder fetches exact canonical tag, stamps only checkout, builds process arch and stages before quiescence", async () => {
   const f = await builderFixture();
@@ -377,7 +396,7 @@ test("disposal waits for an aborted build child to close before removing its wor
   });
   try {
     const building = assert.rejects(f.adapter.build());
-    await started;
+    await Promise.race([started, building.then(() => { throw new Error("Build stopped before the synthetic npm step"); })]);
     const workspace = await f.workspace();
     let disposed = false;
     const disposing = f.adapter.dispose().then(() => { disposed = true; });

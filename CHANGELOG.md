@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make macOS source-update fixtures independent of runner disk capacity while testing the unchanged 8 GB build and 1 GB replacement limits explicitly.
+
 - Reconcile macOS source updates with the repository move: prefer the current release repository, retain legacy fallback, and pin tag resolution and source checkout to the same repository. Preserve current quit guards and update validation.
 
 - Wait for synthetic update helpers to exit before removing their test workspaces on Windows.

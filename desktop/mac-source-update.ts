@@ -22,6 +22,7 @@ export class MacSourceFailure extends Error {
 }
 const invalid = () => new MacSourceFailure();
 const maxWorkspaceBytes = 6 * 1024 ** 3;
+type DiskSpace = (directory: string) => Promise<{ bavail: number; bsize: number }>;
 
 export async function sourceCandidate(value: unknown, target: { version: string; arch: string }, read: (url: string, limit: number) => Promise<string>, repository: SourceRepository = sourceRepositories[0]): Promise<MacSourceCandidate | null> {
   if (!sourceRepositories.includes(repository)) throw invalid();
@@ -128,13 +129,13 @@ export async function canonicalDirectory(directory: string) {
       await realpath(directory) !== directory || !(await lstat(directory)).isDirectory()) throw invalid();
 }
 
-export async function validateDestination(installed: string) {
+export async function validateDestination(installed: string, diskSpace: DiskSpace = statfs) {
   if (path.extname(installed) !== ".app") throw invalid();
   await canonicalDirectory(installed);
   await canonicalDirectory(path.dirname(installed));
   await access(path.dirname(installed), constants.W_OK);
   await access(installed, constants.W_OK);
-  const disk = await statfs(path.dirname(installed));
+  const disk = await diskSpace(path.dirname(installed));
   if (disk.bavail * disk.bsize < 1024 ** 3) throw invalid();
 }
 
@@ -201,7 +202,8 @@ export class MacSourceUpdate {
   private handedOff = false;
   private pending = new Set<Promise<void>>();
   constructor(readonly candidate: MacSourceCandidate, private installation: MacInstallation, private run: Run = runBounded,
-    private launch: (command: string, args: string[], options: SpawnOptions) => ChildProcess = spawn) {}
+    private launch: (command: string, args: string[], options: SpawnOptions) => ChildProcess = spawn,
+    private diskSpace: DiskSpace = statfs) {}
   private track(operation: Promise<void>) {
     this.pending.add(operation);
     return operation.finally(() => { this.pending.delete(operation); });
@@ -220,8 +222,8 @@ export class MacSourceUpdate {
     const signal = this.abort.signal;
     const deadline = setTimeout(() => this.abort.abort(), 30 * 60000);
     try {
-      await validateDestination(this.installation.installed);
-      const disk = await statfs(path.dirname(this.installation.installed));
+      await validateDestination(this.installation.installed, this.diskSpace);
+      const disk = await this.diskSpace(path.dirname(this.installation.installed));
       if (disk.bavail * disk.bsize < 8 * 1024 ** 3) throw invalid();
       this.workspace = await mkdtemp(path.join(path.dirname(this.installation.installed), ".emc2-update-"));
       await chmod(this.workspace, 0o700);
@@ -268,7 +270,7 @@ export class MacSourceUpdate {
   verify() { return this.track(this.verifyStage()); }
   private async verifyStage() {
     if (!this.workspace || !this.env || !this.digest) throw invalid();
-    await validateDestination(this.installation.installed);
+    await validateDestination(this.installation.installed, this.diskSpace);
     if (await verifyBundle(path.join(this.workspace, "staged.app"), this.candidate, this.workspace, this.env, this.abort.signal, this.run) !== this.digest) throw invalid();
   }
   install() { return this.track(this.installSource()); }
