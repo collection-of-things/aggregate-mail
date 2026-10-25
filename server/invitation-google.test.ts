@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
-import { google, type calendar_v3 } from "googleapis";
+import { google, type calendar_v3 } from "./google-api.js";
 import type { Invitation } from "../shared/invitations.js";
 import type { Mail } from "../shared/types.js";
 import { quietGmailRevision, quietImapWatch } from "./imap-watch-fixture.js";

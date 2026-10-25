@@ -250,7 +250,7 @@ async function mount(mode: "actions"|"calendar"|"projects"|"agents"|"assistants"
     holdPreparation:(lost=false)=>{lostPreparation=lost;preparation=new Promise<void>(resolve=>{settlePreparation=resolve;});return ()=>settlePreparation();},button,click,field,fill,submit,render,dom,setMode:(value:typeof mode)=>{mode=value;},filter:async(value:string)=>{accountFilter=value;await render();},enable:()=>{enabled=true;},fail:()=>{failure=true;},failMcp:()=>{mcpPatchFails=true;},failRefresh:(value:boolean)=>{refreshFailure=value;},privacy:async()=>{privacy=true;await render();},async close(){await act(async()=>{releaseEventSave();});await act(async()=>root.unmount());await act(async()=>{heldReads.forEach(read=>read.release());});dom.window.close();globalThis.fetch=previousFetch;for(const[key,descriptor]of old){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else Reflect.deleteProperty(globalThis,key);}}};
 }
 
-test("real App launches on the manual action screen without selecting or reading hidden Inbox mail",async()=>{const ui=await mount("actions",true);try{assert.equal(ui.container.querySelector("h1")?.textContent,"Today");assert.equal(ui.container.querySelector(".row"),null);assert.ok(ui.container.textContent?.includes("open tasks"));assert.equal(ui.requests.some(request=>request.method==="PATCH"),false);}finally{await ui.close();}});
+test("real App launches on the manual action screen without selecting or reading hidden Inbox mail",async()=>{const ui=await mount("actions",true);try{assert.equal(ui.container.querySelector("h1")?.textContent,"Today");assert.equal(ui.container.querySelector(".row"),null);assert.equal(ui.container.querySelectorAll(".main-head .work-view-tabs button").length,3);assert.equal(ui.requests.some(request=>request.method==="PATCH"),false);}finally{await ui.close();}});
 
 test("work controls and agent sections render inside the pane header",async()=>{const ui=await mount();try{
  assert.ok(ui.container.querySelector(".main-head .work-controls"),"work controls share the header");
@@ -831,7 +831,7 @@ test("templates keep source subjects out of private text and attributes and expl
 });
 
 for(const [mode,purpose] of [["actions","open tasks"],["calendar","Events, tracked work, follow-ups and snoozed mail"],["agents","Review changes before they run"]] as const)test(`${mode} explains its purpose`,async()=>{
- const ui=await mount(mode);try{assert.ok(ui.container.textContent?.includes(purpose));assert.equal(ui.requests.some(request=>request.method!=="GET"),false);}finally{await ui.close();}
+ const ui=await mount(mode);try{if(mode==="actions")assert.equal(ui.container.querySelectorAll(".main-head .work-view-tabs button").length,3);else assert.ok(ui.container.textContent?.includes(purpose));assert.equal(ui.requests.some(request=>request.method!=="GET"),false);}finally{await ui.close();}
 });
 
 test("agent sections preserve setup entries and presets never add immediate creation rights", async () => {
@@ -1211,7 +1211,10 @@ test("Today status views preserve task identity and distinguish overdue, upcomin
   assert.ok(group("Overdue")?.textContent?.includes("Older commitment"));
   assert.ok(group("Upcoming")?.textContent?.includes("Future commitment"));
   assert.ok(!group("Overdue")?.textContent?.includes("Future commitment"));
-  const tab = (name: string) => [...ui.container.querySelectorAll<HTMLButtonElement>(".work-view-tabs button")].find(value => value.textContent === name)!;
+  const tab = (name: string) => [...ui.container.querySelectorAll<HTMLButtonElement>(".work-view-tabs button")].find(value => value.firstChild?.textContent === name)!;
+  assert.equal(tab("Waiting").querySelector(".work-tab-count")?.textContent, "1");
+  assert.ok(tab("Open").closest(".work-toolbar")?.contains(ui.button("Refresh workspace")));
+  assert.ok(tab("Open").closest(".work-toolbar")?.contains(ui.button("Add task")));
   await ui.click(tab("Waiting"));
   assert.deepEqual([...ui.container.querySelectorAll(".work-group .work-select strong")].map(value => value.textContent), ["Waiting commitment"]);
   await ui.click(tab("Completed"));

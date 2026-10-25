@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { google } from "googleapis";
+import { google } from "./google-api.js";
 import { GmailWatch, gmailPollInterval } from "./gmail-watch.js";
 import { gmailHistoryId, providers } from "./providers.js";
 import type { StoredAccount } from "./store.js";

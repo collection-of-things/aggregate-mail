@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import { act } from "react";
 import { JSDOM } from "jsdom";
-import { google, type calendar_v3 } from "googleapis";
+import { google, type calendar_v3 } from "../server/google-api";
 import type { CalendarEvent } from "../shared/calendar";
 import type { Invitation } from "../shared/invitations";
 import type { Mail } from "../shared/types";

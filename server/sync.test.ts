@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import { google } from "googleapis";
+import { google } from "./google-api.js";
 import { ImapFlow } from "imapflow";
 import nodemailer from "nodemailer";
 import { quietImapWatch, quietGmailRevision } from "./imap-watch-fixture.js";

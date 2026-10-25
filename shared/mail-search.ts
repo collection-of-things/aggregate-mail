@@ -56,18 +56,21 @@ function indexMail(mail: Mail): SearchDocument {
 const fields = new Set(["from", "to", "subject", "body", "account", "is", "before", "after"]);
 const error = "Invalid search. Check quotes, fields, and dates.";
 
-function tokenize(query: string): string[] | null {
-  const tokens: string[] = [];
+function tokenize(query: string): { text: string; phrase: boolean }[] | null {
+  const tokens: { text: string; phrase: boolean }[] = [];
   let token = "";
   let quoted = false;
+  let phrase = false;
   let active = false;
   for (const char of query) {
     if (char === '"') {
       quoted = !quoted;
+      phrase = true;
       active = true;
     } else if (/\s/u.test(char) && !quoted) {
-      if (active) tokens.push(token);
+      if (active) tokens.push({ text: token, phrase });
       token = "";
+      phrase = false;
       active = false;
     } else {
       token += char;
@@ -75,8 +78,19 @@ function tokenize(query: string): string[] | null {
     }
   }
   if (quoted) return null;
-  if (active) tokens.push(token);
+  if (active) tokens.push({ text: token, phrase });
   return tokens;
+}
+
+// One insertion, deletion, substitution or adjacent transposition. No matrix.
+function oneTypo(needle: string, word: string): boolean {
+  if (Math.abs(needle.length - word.length) > 1) return false;
+  let i = 0;
+  while (i < needle.length && needle[i] === word[i]) i++;
+  if (i === needle.length && i === word.length) return true;
+  if (needle.length === word.length) return needle.slice(i + 1) === word.slice(i + 1) ||
+    needle[i] === word[i + 1] && needle[i + 1] === word[i] && needle.slice(i + 2) === word.slice(i + 2);
+  return needle.length > word.length ? needle.slice(i + 1) === word.slice(i) : needle.slice(i) === word.slice(i + 1);
 }
 
 function dateValue(value: string): number | null {
@@ -97,7 +111,7 @@ export function compileMailSearch(query: string, accounts: Account[] = []): { ma
   const lower = (value: string) => value.toLowerCase();
   let needsDocument = false;
 
-  for (const raw of tokens) {
+  for (const { text: raw, phrase } of tokens) {
     let token = raw;
     let negative = false;
     if (token.startsWith("-")) {
@@ -139,8 +153,13 @@ export function compileMailSearch(query: string, accounts: Account[] = []): { ma
       const indexes = prefix === "from" ? [0, 1] : prefix === "to" ? [2, 3]
         : prefix === "subject" ? [4] : prefix === "body" ? [6] : [0, 1, 2, 3, 4, 5, 6];
       needsDocument = true;
-      term = (_mail, document) => indexes.some((index) =>
-        (exact ? document.canonical : document.folded)[index].includes(needle));
+      const fuzzy = !negative && !phrase && colon < 0 && /^\p{L}{4,32}$/u.test(needle);
+      term = (_mail, document) => indexes.some((index) => {
+        const text = (exact ? document.canonical : document.folded)[index];
+        if (text.includes(needle)) return true;
+        if (fuzzy) for (const word of text.matchAll(/[\p{L}\p{M}]+/gu)) if (oneTypo(needle, word[0])) return true;
+        return false;
+      });
     }
     terms.push(negative ? (mail, document) => !term(mail, document) : term);
   }

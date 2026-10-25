@@ -1788,3 +1788,63 @@ test('assistant management stays in Settings and Agent review only shows review 
     await ui.click(ui.forward()); assert.equal(ui.container.querySelector('.pane-title')?.textContent, 'Settings');
   } finally { await ui.close(); }
 });
+
+test("compose keeps toolbar search and privacy usable without losing the draft or settings", async () => {
+  const stored = JSON.stringify({ mode: "light", theme: "midnight", accent: "purple", transparency: "glass", glassOpacity: 35, reading: "full", sizeByImportance: false });
+  const app = await mount(true, (_state, storage) => storage.setItem("emc2.appearance.v1", stored), { platform: "darwin", materials: true });
+  try {
+    await app.click(app.button("New message"));
+    const editor = app.container.querySelector<HTMLTextAreaElement>('.compose-form textarea')!;
+    await app.input(editor, "Keep this unsent draft");
+    const search = app.container.querySelector<HTMLInputElement>('.app-search-toolbar input')!;
+    assert.equal(search.disabled, false);
+    assert.equal(app.container.querySelector('.compose-dialog')?.getAttribute('aria-modal'), null);
+    const privacy = app.button("Hide personal information");
+    await act(async () => privacy.focus());
+    await app.key("Tab");
+    assert.equal(app.window.document.activeElement, app.container.querySelector('.compose-dialog .dialog-title button'));
+    await app.key("Tab", { shiftKey: true });
+    assert.equal(app.window.document.activeElement, privacy);
+    await app.click(app.button("Hide personal information"));
+    assert.equal(app.storage.getItem("privacy"), "on");
+    await app.input(search, "Alpha");
+    assert.equal(search.value, "Alpha");
+    await act(async () => search.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+    assert.equal(search.value, "");
+    assert.equal(editor.value, "Keep this unsent draft");
+    assert.ok(app.container.querySelector('.compose-dialog'));
+    assert.equal(app.storage.getItem("emc2.appearance.v1"), stored);
+    assert.equal(app.mutations.length, 0);
+  } finally { await app.close(); }
+});
+
+test("compose improvements preserve device settings and account preferences through restart", async () => {
+  const { defaults } = await import("./interaction");
+  const { notificationDefaults } = await import("./notifications");
+  const theme = sampleTheme();
+  const settings: Record<string, string> = {
+    "emc2.appearance.v1": JSON.stringify({ mode: "light", theme: theme.id, accent: "purple", transparency: "glass", glassOpacity: 35, reading: "full", sizeByImportance: false, customThemes: [theme] }),
+    "emc2.interaction.v1": JSON.stringify({ ...defaults, opening: "single" }),
+    "emc2.notifications.v1": JSON.stringify({ ...notificationDefaults, position: "top-right", duration: 10000, sound: "off" }),
+    "emc2.text-scale": "1.2", privacy: "on", sidebar: "open", "sidebar-folded": '["accounts"]', "window-controls": "right",
+  };
+  for (let restart = 0; restart < 2; restart++) {
+    const app = await mount(true, (state, storage) => {
+      for (const [key, value] of Object.entries(settings)) storage.setItem(key, value);
+      state.accounts[0].name = "Saved account label";
+      state.composePreferences = { templates: [], signatures: { a: "Saved signature" } };
+    }, { platform: "darwin", materials: true });
+    try {
+      const accounts = structuredClone(app.state.accounts);
+      await app.click(app.button("New message"));
+      const search = app.container.querySelector<HTMLInputElement>('.app-search-toolbar input')!;
+      await app.input(search, "Alpha");
+      for (const [key, value] of Object.entries(settings)) assert.equal(app.storage.getItem(key), value, key);
+      assert.equal(app.window.document.documentElement.style.getPropertyValue("--glass-opacity"), "35%");
+      assert.equal(app.window.document.documentElement.dataset.theme, theme.id);
+      assert.deepEqual(app.state.accounts, accounts);
+      assert.equal(app.state.composePreferences?.signatures.a, "Saved signature");
+      assert.equal(app.mutations.length, 0);
+    } finally { await app.close(); }
+  }
+});

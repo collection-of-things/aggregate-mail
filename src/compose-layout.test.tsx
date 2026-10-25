@@ -81,6 +81,10 @@ test("reply retains original context and file drops reuse attachment validation 
     assert.equal(changed?.body,draft.body);assert.deepEqual(changed?.attachments,[{filename:"note.txt",contentType:"text/plain",content:"aGVsbG8="}]);assert.equal(sends,0);
     changed=undefined; await drop([new dom.window.File(["bad"],"../bad.txt")]);assert.equal(changed,undefined);assert.match(document.querySelector('[role="alert"]')!.textContent!,/safe filenames/);
     await render(true);await drop([new dom.window.File(["hello"],"other.txt")]);assert.equal(changed,undefined);assert.equal(sends,0);
+    draft.invitation = { uid: "synthetic-reply", sequence: 0, method: "REPLY", organizer: "client@example.test", attendees: [{ email: "me@example.test", response: "ACCEPTED" }], title: "Review", start: "2026-11-01", end: "2026-11-02", allDay: true };
+    await render();
+    assert.equal(document.querySelector('.compose-reply-layout')?.children.length, 2, 'RSVP replies keep exactly two working columns');
+    assert.ok(document.querySelector('.compose-form .compose-invitation-note'));
   }finally{await act(async()=>root.unmount());dom.window.close();for(const[key,value]of previous)if(value)Object.defineProperty(globalThis,key,value);else Reflect.deleteProperty(globalThis,key);}
 });
 

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { google } from "googleapis";
+import { google } from "./google-api.js";
 import { ImapFlow } from "imapflow";
 import { parse, providers } from "./providers.js";
 import { imapSourceQuery } from "./mime-limits.js";

@@ -96,7 +96,7 @@ export function Sidebar({
         {corner === "left" && <TrafficLights maximized={maximized} />}
         <span className="sidebar-brand">Emc²</span>
       </div>
-        <div className="sidebar-content" key="mail">
+        <div className="sidebar-content" key="mail" inert={mail.blocked}>
           <SlidingNav activeKey={null} label="App" className="sidebar-group sidebar-primary">
             <button className="primary-button new-message" title={`Compose (${mail.shortcut("compose")})`} onClick={mail.onCompose}>
               <span className="compose-mark" aria-hidden="true"><Plus color="currentColor" size={10} /></span>

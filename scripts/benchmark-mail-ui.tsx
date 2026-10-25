@@ -21,9 +21,11 @@ window.desktop = {
   onAccountConnected: () => () => {},
   onMailChanged: (callback) => { changed = callback; return () => { changed = undefined; }; },
 };
+const messageCount = Number(process.env.EMC2_BENCHMARK_MESSAGES || 1800);
+assert.ok(Number.isInteger(messageCount) && messageCount > 0 && messageCount <= 20000);
 const state: State = {
   accounts: [{ id: "synthetic", email: "reader@example.com", provider: "gmail" }],
-  messages: Array.from({ length: 1800 }, (_, i) => ({
+  messages: Array.from({ length: messageCount }, (_, i) => ({
     id: `synthetic:${i}`, remoteId: String(i), accountId: "synthetic",
     sender: `Sender ${i % 40}`, address: `sender${i % 40}@example.com`, to: "reader@example.com",
     subject: `Synthetic message ${i}`, body: "Synthetic body. ".repeat(100), preview: "Synthetic preview",
@@ -34,7 +36,7 @@ const state: State = {
   jevConfigured: false, jevProvider: "typesafe", aiConfigured: false, lastSync: null, syncing: false,
 };
 globalThis.fetch = async (input) => new Response(JSON.stringify(
-  String(input) === "/api/state" ? { ...structuredClone(state), csrf: "synthetic" } : { errors: [] },
+  String(input) === "/api/workspace" ? { commitments: [], projects: [], decisions: [], coverage: [], proposals: [] } : String(input) === "/api/state" ? { ...structuredClone(state), csrf: "synthetic" } : { errors: [] },
 ), { headers: { "Content-Type": "application/json" } });
 const { createRoot } = await import("react-dom/client");
 const { App } = await import("../src/App");
@@ -45,12 +47,14 @@ let renderTime = 0;
 const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 try {
   await act(async () => root.render(<Profiler id="inbox" onRender={(_id, _phase, duration) => { renderTime += duration; }}><App /></Profiler>));
+  await act(async () => { const inbox = container.querySelector<HTMLButtonElement>('.sidebar button[title="Inbox"]') ?? [...container.querySelectorAll<HTMLButtonElement>(".sidebar button")].find(button => button.querySelector(".sidebar-name")?.textContent === "Inbox"); assert.ok(inbox); inbox.click(); });
   const mountedRows = container.querySelectorAll(".row").length;
   assert.ok(mountedRows > 0 && mountedRows < 100);
   assert.ok(parseFloat((container.querySelector(".mail-window") as HTMLElement).style.height) > 0);
   assert.ok(document.documentElement.hasAttribute("data-glass"));
   for (const scenario of ["selection", "unchanged-refresh"] as const) {
     const renders: number[] = [], elapsed: number[] = [];
+    const cpu = process.cpuUsage();
     for (let i = 0; i < 9; i++) {
       renderTime = 0;
       const start = performance.now();
@@ -60,7 +64,7 @@ try {
       });
       if (i > 1) { renders.push(renderTime); elapsed.push(performance.now() - start); }
     }
-    console.log(JSON.stringify({ scenario, messages: state.messages.length, mountedRows: container.querySelectorAll(".row").length,
+    console.log(JSON.stringify({ scenario, memory: process.memoryUsage(), cpu: process.cpuUsage(cpu), messages: state.messages.length, mountedRows: container.querySelectorAll(".row").length,
       medianReactMs: +median(renders).toFixed(2), medianElapsedMs: +median(elapsed).toFixed(2) }));
   }
 } finally {

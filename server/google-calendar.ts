@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { google, type calendar_v3 } from "googleapis";
+import { google, type calendar_v3 } from "./google-api.js";
 import { Parser } from "htmlparser2";
 import { z } from "zod";
 import type { CalendarEvent, CalendarPerson, GoogleCalendarConnection, GoogleCalendarWindow } from "../shared/calendar.js";

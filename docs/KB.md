@@ -1,5 +1,31 @@
 # Repository knowledge
 
+## Responsiveness and composition
+
+Gmail and Calendar share `server/google-api.ts`, which imports their specific
+installed Google API modules. Tests mock this same facade; no other API clients
+are loaded at service startup. Account sync captures account-scoped summaries
+with `syncMailCache` and reads individual full records on demand. Providers
+stream batches without retaining a second completed-mailbox array when the
+service opts into streaming. Missing mail is archived only after a successful
+complete listing. New-mail classification and notifications retain IDs and
+hydrate current records, preserving account and message identity checks.
+
+Compose leaves toolbar Search and Privacy reachable and keeps underlying
+mail/work panes inert. Search can change the cached view without replacing the
+unsent draft. Reply context and editor share the working area side by side.
+Other dialogs remain modal. Appearance, shortcuts, notification preferences,
+privacy, account data and compose preferences use their existing storage;
+there is no preference migration or reset.
+
+Plain unquoted search words of 4 to 32 letters allow one insertion, deletion,
+substitution or adjacent transposition within a word. Quoted phrases, field
+terms, exclusions, addresses, account filters and invalid recognized operators
+retain exact semantics. Typo matching stays local to the existing cached search.
+
+The sidebar footer and collapsed coverage bar are 30px tall. Today status-tab
+counts and Refresh/Add task share one row. See [ADR 0069](adr/0069-responsiveness-and-compose-toolbar.md).
+
 ## Shared application styling
 
 The working layout uses a 208px main rail and names each view once in the

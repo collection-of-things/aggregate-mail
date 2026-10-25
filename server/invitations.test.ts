@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { google } from "googleapis";
+import { google } from "./google-api.js";
 import { simpleParser } from "mailparser";
 import type { Draft, Mail } from "../shared/types.js";
 import type { CalendarEvent } from "../shared/calendar.js";

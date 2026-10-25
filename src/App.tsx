@@ -140,7 +140,8 @@ export function App() {
   // The shared unload guard also protects an event form with unsaved changes.
   const [eventDirty, setEventDirty] = useState(false);
   useEffect(() => { if (updateInstalling) setPalette(false); }, [updateInstalling]);
-  const navigationBlocked = !!(compose || teach || snooze || trashMail || shortcuts || labelMail || connecting || updateInstalling || settingsModal || workModal || quickSource || meetingMail);
+  const toolbarBlocked = !!(teach || snooze || trashMail || shortcuts || labelMail || connecting || updateInstalling || settingsModal || workModal || quickSource || meetingMail);
+  const navigationBlocked = !!compose || toolbarBlocked;
   const navigate = (patch: Partial<MailLocation>, search = false) => {
     if (navigationBlocked) return false;
     navigation.visit(patch, search);
@@ -438,14 +439,14 @@ export function App() {
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
   }), []);
   const showSearch = () => {
-    if (navigationBlocked) return;
+    if (toolbarBlocked) return;
     setSearching(true);
     requestAnimationFrame(() => searchRef.current?.focus());
   };
   const closeSearch = () => {
-    if (navigationBlocked) return;
+    if (toolbarBlocked) return;
     setSearching(false);
-    if (!settings && !workView) navigate({ query: "", opened: false }, true);
+    if (!settings && !workView) navigation.visit({ query: "", opened: false }, true);
   };
   const switchView = (next: View) => {
     if (next !== view)
@@ -483,7 +484,11 @@ export function App() {
     [state.messages, state.rules]);
   const tabOf = (mail: Mail) => "inboxTab" in mail ? mail.inboxTab : tabs.get(mail.id) ?? inboxTab(mail, state.rules);
   const search = useMailSearch(query, state.accounts, state.messages, api);
-  const filtered = filterMail(state.messages, navigation.location, activeLabel, now, undefined, tabOf, search.matches);
+  // Keep list sorting out of draft keystrokes, selection and unrelated toolbar
+  // changes. Expired snoozes still invalidate on the next render.
+  const expiredSnooze = state.messages.reduce((latest, mail) => mail.snoozedUntil !== null && mail.snoozedUntil <= now ? Math.max(latest, mail.snoozedUntil) : latest, 0);
+  const filtered = useMemo(() => filterMail(state.messages, navigation.location, activeLabel, Date.now(), undefined, tabOf, search.matches),
+    [state.messages, view, tab, accountFilter, labelFilter, readFilter, relevanceFilter, sort, query, activeLabel, tabs, search.matches, expiredSnooze]);
   const selected = opened
     ? state.messages.find((m) => m.id === selectedId &&
         state.accounts.some((account) => account.id === m.accountId))
@@ -718,6 +723,8 @@ export function App() {
         });
         return;
       }
+      if (compose && !toolbarBlocked && matches(event, "search", interaction, window.desktop?.platform)) { event.preventDefault(); showSearch(); return; }
+      if (compose && !toolbarBlocked && matches(event, "privacy", interaction, window.desktop?.platform)) { event.preventDefault(); togglePrivacy(); return; }
       if (target instanceof HTMLElement && (target.isContentEditable ||
         ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
       if (target instanceof HTMLElement && target.tagName === "BUTTON" && target.getAttribute("role") === "combobox") return;
@@ -873,6 +880,7 @@ export function App() {
       className={privacy ? "icon on" : "icon"}
       aria-label={privacy ? "Show personal information" : "Hide personal information"}
       aria-pressed={privacy}
+      data-compose-access
       title={privacy ? `Personal information hidden (${shortcut("privacy")})` : `Hide personal information (${shortcut("privacy")})`}
       onClick={togglePrivacy}
     >
@@ -1017,10 +1025,11 @@ export function App() {
               {historyControls}
               <SearchToolbar inputRef={searchRef} query={settings || workView ? "" : query}
                 label={`Search ${settings || workView ? "all" : viewNames[view]} cached mail`}
-                invalid={!settings && !workView && !!search.error} disabled={navigationBlocked} shortcut={shortcut("search")} onFocus={() => setSearching(true)}
+                invalid={!settings && !workView && !!search.error} disabled={toolbarBlocked} commandsDisabled={navigationBlocked} shortcut={shortcut("search")} onFocus={() => setSearching(true)}
                 onChange={(value) => {
                   setSearching(true);
-                  navigate({ page: "mail", ...(settings || workView ? { view: "all", readFilter: "all", relevanceFilter: "all", labelFilter: "all" } : {}), query: value, opened: false, selectedId: null }, true);
+                  if (toolbarBlocked) return;
+                  navigation.visit({ page: "mail", ...(settings || workView || view === "drafts" ? { view: "all", readFilter: "all", relevanceFilter: "all", labelFilter: "all" } : {}), query: value, opened: false, selectedId: null }, true);
                 }} onClear={closeSearch} onCommands={() => setPalette(true)} />
               <div className="pane-tools">
                 {!settings && view !== "drafts" && !workView && <MailFilters
@@ -1045,7 +1054,7 @@ export function App() {
               <details><summary>Search help</summary><p>Use from:, to:, subject:, body:, account:, is:unread, is:pinned, before:YYYY-MM-DD or after:YYYY-MM-DD. Search stays on this device.</p></details>
             </div>
         {settings ? (
-          <div className="settings-pane">
+          <div className="settings-pane" inert={!!compose}>
             <h1 className="pane-title visually-hidden">Settings</h1>
             <CredentialFallbackNotice mode={window.desktop?.credentialFallback} />
             <SettingsPage
@@ -1113,21 +1122,21 @@ export function App() {
             />
           </div>
         ) : view === "drafts" ? (
-          <main className="drafts-pane">
+          <main className="drafts-pane" inert={!!compose}>
             <h1 className="pane-title visually-hidden">Drafts</h1>
             <DraftList accounts={state.accounts} api={api} accountFilter={accountFilter} query={query}
               refreshKey={state.draftCount} active={!compose} onOpen={openCompose}
               onAccount={(id) => navigate({ accountFilter: id, labelFilter: "all", selectedId: null, opened: false })} />
           </main>
         ) : workView ? (
-          <main className="work-pane">
+          <main className="work-pane" inert={!!compose}>
             <Workbench key={`${view}:${accountFilter}:${trackingSession}`} work={work} initialSource={trackingSource} initialItem={trackingItem} initialDraft={trackingDraft} onSourceConsumed={() => { setTrackingSource(undefined); setTrackingItem(undefined); setTrackingDraft(undefined); }} onModalChange={setWorkModal} onEventDirtyChange={setEventDirty} mode={view as "actions" | "calendar" | "projects" | "agents"} state={state} api={api} accountFilter={accountFilter} onOpen={inlineWorkView ? openWorkSource : jumpTo} onMailChanged={reload} onNotice={setNotice} onManageAssistants={() => navigate({ page: "settings", settingsSection: "mcp", opened: false })} onOpenDraft={openCompose}
               renderHead={(tools) => <PaneHeader className="main-head work-action-head" corner={null} maximized={maximized}><h1 className="pane-title visually-hidden">{viewNames[view]}</h1><div className="head-tools">{tools}</div></PaneHeader>}
               readerOpened={opened} fullReading={!splitRoom} onCloseReader={closeReader}
               reader={selected && opened ? <div ref={readerRef} className="today-mail">{actions}{reader}</div> : undefined} />
           </main>
         ) : (
-          <div className="mail-view">
+          <div className="mail-view" inert={!!compose}>
               <h1 className="pane-title visually-hidden">{viewNames[view]}</h1>
               {(view === "sent" || view === "all") && <PaneHeader className="main-head mail-view-head" corner={null} maximized={maximized}>
                 <span className="view-summary">{filtered.length} cached {filtered.length === 1 ? "message" : "messages"}</span>

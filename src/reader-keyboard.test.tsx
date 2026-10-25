@@ -40,6 +40,7 @@ class Element {
 function reader(opened = true, accountFilter = "a", selectedId: string | null = a.id) {
   const requests: unknown[][] = [];
   const scope = {
+    toolbarBlocked: false,
     opened, accountFilter, selectedId, recent: [] as string[], notice: "",
     state: { accounts: [{ id: "a" }, { id: "b" }], messages: [a, b, other] },
     activeLabel: undefined as Parameters<typeof matchesLabel>[1],

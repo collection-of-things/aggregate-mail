@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { google, type calendar_v3 } from "googleapis";
+import { google, type calendar_v3 } from "./google-api.js";
 import type { CalendarOffer, OfferContext } from "../shared/offers.js";
 import type { Draft, Mail } from "../shared/types.js";
 import type { CalendarEvent } from "../shared/calendar.js";

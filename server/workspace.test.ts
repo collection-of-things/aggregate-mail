@@ -151,7 +151,7 @@ test("workspace HTTP preserves confirmed obligations, account boundaries and imm
     await t.test("future-only Teach excludes the existing cache after sync and deletion leaves other accounts untouched", async () => {
       const b = store.get("mail", "b:1")!; store.put("mail", b.id, { ...b, reason: "Other account classification must survive" });
       const fresh = { ...mail, id: "a:future", remoteId: "1:9", messageId: "<future@example.test>" };
-      t.mock.method(providers.imap, "list", async (a: StoredAccount, cached: Map<string, Mail>) => a.id === "a" ? [...cached.values(), fresh] : [...cached.values()]);
+      t.mock.method(providers.imap, "list", async (a: StoredAccount) => { const cached = (await store.readMail(a.id)).filter(mail => mail.direction !== "sent"); return a.id === "a" ? [...cached, fresh] : cached; });
       const result = await backend.syncMail(); assert.deepEqual(result, { errors: [] });
       assert.equal(store.get("mail", mail.id)?.category, "important");
       assert.equal(store.get("mail", fresh.id)?.category, "other");
@@ -238,7 +238,7 @@ test("workspace HTTP preserves confirmed obligations, account boundaries and imm
       assert.deepEqual(store.get("mail", mail.id)?.labelIds, ["INBOX", "UNREAD"]);
       assert.equal(store.get("mail", mail.id)?.direction, "received");
       assert.equal(store.get("mail", sent.id)?.direction, "sent");
-      t.mock.method(providers.imap, "list", async (_a: StoredAccount, cached: Map<string, Mail>) => { assert.equal(cached.has(sent.id), false); return [...cached.values()]; });
+      t.mock.method(providers.imap, "list", async (a: StoredAccount, cached: Parameters<typeof providers.imap.list>[1]) => { assert.equal(cached.has(sent.id), false); return (await store.readMail(a.id)).filter(mail => mail.direction !== "sent"); });
       await backend.syncMail(); assert.equal(store.get("mail", sent.id)?.direction, "sent"); assert.equal(store.get("mail", sent.id)?.archived, true);
       t.mock.method(providers.imap, "sent", async () => { throw new Error("private provider detail must not appear"); });
       const failed = await (await request("/accounts/a/sent/sync", "POST", { bound: 2 })).json();

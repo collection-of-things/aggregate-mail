@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { google, type gmail_v1 } from "googleapis";
+import { google, type gmail_v1 } from "./google-api.js";
 import { ImapFlow, type FetchMessageObject } from "imapflow";
 import type { Mail } from "../shared/types.js";
 

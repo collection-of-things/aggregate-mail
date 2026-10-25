@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { google, type calendar_v3 } from "googleapis";
+import { google, type calendar_v3 } from "./google-api.js";
 import type { CalendarFeed } from "../shared/calendar.js";
 import { quietGmailRevision, quietImapWatch } from "./imap-watch-fixture.js";
 

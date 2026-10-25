@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import addressparser from "nodemailer/lib/addressparser/index.js";
 import express from "express";
-import { google } from "googleapis";
+import { google } from "./google-api.js";
 import { z } from "zod";
 import { availableSlots, type AvailabilitySettings, type BusyPeriod } from "../shared/availability.js";
 import type { CalendarEvent } from "../shared/calendar.js";

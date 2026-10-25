@@ -224,6 +224,23 @@ async function scanMail<T>(ids: string[], visit: (mail: Mail) => T | undefined, 
 export async function readMail(accountId?: string): Promise<Mail[]> {
   return captureMailRows(rows => scanMail([...rows].filter(([, row]) => accountId === undefined || row.summary.accountId === accountId).map(([id]) => id), mail => mail));
 }
+// Sync needs mailbox identity up front, but full bodies only for its current batch.
+export async function syncMailCache(accountId: string) {
+  const summaries = await captureMailRows(rows => new Map([...rows]
+    .filter(([, row]) => row.summary.accountId === accountId && row.summary.direction !== "sent")
+    .map(([id, row]) => [id, row.summary])));
+  return {
+    summaries,
+    size: summaries.size,
+    has: (id: string) => summaries.has(id),
+    get: (id: string) => {
+      const summary = summaries.get(id);
+      if (!summary) return undefined;
+      const mail = get("mail", id);
+      return mail?.accountId === accountId && mail.remoteId === summary.remoteId && mail.messageId === summary.messageId ? mail : undefined;
+    },
+  };
+}
 async function changedMail<T>(cursor: string | undefined, captureStatus: (() => void) | undefined, signal: AbortSignal | undefined,
   decode: (rows: Map<string, MailRow>, signal?: AbortSignal) => Promise<T[]>): Promise<MailChanges<T>> {
   return captureMailRows(async current => {

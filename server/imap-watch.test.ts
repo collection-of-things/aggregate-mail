@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { google } from "googleapis";
+import { google } from "./google-api.js";
 import { ImapFlow, type ImapFlowOptions } from "imapflow";
 import nodemailer from "nodemailer";
 import { imap, providers } from "./providers.js";

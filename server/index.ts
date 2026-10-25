@@ -5,9 +5,9 @@ import type { Server } from "node:http";
 import { randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import express from "express";
-import { google } from "googleapis";
+import { google } from "./google-api.js";
 import { z } from "zod";
-import { all, get, readMail, mailSummaryChanges, mailSummary, searchMail, count, put, putBatch, remove, removeAccountAttachments, account, transaction, compactStore, storageStats, type StoredAccount } from "./store.js";
+import { all, get, syncMailCache, mailSummaryChanges, mailSummary, searchMail, count, put, putBatch, remove, removeAccountAttachments, account, transaction, compactStore, storageStats, type StoredAccount } from "./store.js";
 import { matchesRule } from "../shared/rules.js";
 import { mountWorkspace } from "./workspace.js";
 import { mountAgentProvider } from "./agent-provider.js";
@@ -586,13 +586,11 @@ async function syncAccount(
   onNewUnread: (messages: NotificationMail[]) => void,
 ) {
   const currentAccount = () => all("account").find((current) => sameImapAccount(current, a));
-  const existing = new Map(
-    (await readMail(a.id)).filter((m) => m.direction !== "sent").map((m) => [m.id, m]),
-  );
+  const existing = await syncMailCache(a.id);
   if (!currentAccount()) return;
   const hasSynced = a.hasSynced ?? existing.size > 0;
   const rules = all("rule");
-  const fresh = new Map<string, Mail>();
+  const fresh = new Set<string>();
   const received = new Set<string>();
   const saveBatch: NonNullable<Parameters<typeof providers.gmail.list>[2]> = (batch) => {
     if (!currentAccount()) return;
@@ -613,7 +611,7 @@ async function syncAccount(
       if (!isDeepStrictEqual(previous, saved)) changed.push([m.id, saved]);
     }
     putBatch("mail", changed);
-    for (const [id, saved] of changed) if (!existing.has(id)) fresh.set(id, saved);
+    for (const [id] of changed) if (!existing.has(id)) fresh.add(id);
     if (changed.length) desktopEvents.emit("mail-changed");
   };
   let error: string | undefined;
@@ -627,15 +625,22 @@ async function syncAccount(
       for (const old of all("label").filter((label) => label.accountId === a.id && !labels.some((current) => current.id === label.id)))
         remove("label", `${a.id}:${old.id}`);
     }
-    const incoming = await providers[a.provider].list(a, existing, saveBatch, (warning) => { syncWarning = warning; }, labels);
+    const incoming = await providers[a.provider].list(a, existing, saveBatch, (warning) => { syncWarning = warning; }, labels, false);
     if (!currentAccount()) return;
     // Also support a provider returning its final batch without a progress callback.
     saveBatch(incoming);
-    const ids = new Set(incoming.map((m) => m.id));
-    const archived: [string, Mail][] = [...existing.values()]
-      .filter((m) => !m.archived && !ids.has(m.id)).map((m) => [m.id, { ...m, archived: true, labelIds: m.labelIds?.filter((id) => id !== "INBOX") }]);
+    let archived: [string, Mail][] = [];
+    let archivedCount = 0;
+    for (const summary of existing.summaries.values()) {
+      if (summary.archived || received.has(summary.id)) continue;
+      const mail = existing.get(summary.id);
+      if (!mail || mail.archived) continue;
+      archived.push([mail.id, { ...mail, archived: true, labelIds: mail.labelIds?.filter((id) => id !== "INBOX") }]);
+      archivedCount++;
+      if (archived.length === 32) { putBatch("mail", archived); archived = []; }
+    }
     putBatch("mail", archived);
-    if (archived.length) desktopEvents.emit("mail-changed");
+    if (archivedCount) desktopEvents.emit("mail-changed");
   } catch (failure) {
     const safe = syncError(failure, a.provider, "sync");
     error = `${a.email}: ${safe.message}`;
@@ -643,12 +648,13 @@ async function syncAccount(
     errors.push(error);
   }
   if (fresh.size && (process.env.TYPESAFE_API_KEY || process.env.OPENAI_API_KEY)) {
-    const messages = [...fresh.values()];
+    const messages = [...fresh];
     let cursor = 0;
     let stopped = false;
     await Promise.all(Array.from({ length: Math.min(6, messages.length) }, async () => {
       while (cursor < messages.length && !stopped && currentAccount()) {
-        const m = messages[cursor++];
+        const m = get("mail", messages[cursor++]);
+        if (!m || m.accountId !== a.id) continue;
         try {
           const sorting = await classify(m, rules);
           if (currentAccount()) put("mail", m.id, { ...m, ...sorting });
@@ -666,7 +672,7 @@ async function syncAccount(
   }
   // A first import fills an empty cache, so only a later sync reports arrivals.
   if (!error && currentAccount()) {
-    const arrived = [...fresh.values()].filter((m) => m.unread).map(notificationMail);
+    const arrived = [...fresh].flatMap((id) => { const mail = get("mail", id); return mail?.accountId === a.id && mail.unread ? [notificationMail(mail)] : []; });
     if (arrived.length && hasSynced) onNewUnread(arrived);
   }
   const current = currentAccount();

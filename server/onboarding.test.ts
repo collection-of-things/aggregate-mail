@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { ImapFlow, type ImapFlowOptions } from "imapflow";
 import nodemailer from "nodemailer";
-import { google } from "googleapis";
+import { google } from "./google-api.js";
 import type { Mail } from "../shared/types.js";
 
 test("account onboarding keeps transport identities and Gmail mailbox semantics", async (t) => {

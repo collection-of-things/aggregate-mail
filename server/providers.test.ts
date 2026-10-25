@@ -1,6 +1,6 @@
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
-import { google } from "googleapis";
+import { google } from "./google-api.js";
 import { ImapFlow } from "imapflow";
 import { createServer } from "node:http";
 import { providers, parse, SyncError, syncError } from "./providers.js";
@@ -313,4 +313,20 @@ test("Gmail transport consumes a chunked oversized response with the SDK byte bo
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
+});
+
+test("streamed Gmail synchronization does not retain the completed mailbox bodies", async () => {
+  const cached = new Map(Array.from({ length: 120 }, (_, i) => {
+    const mail = { ...cachedMail(String(i)), body: "Synthetic cached body" };
+    return [mail.id, mail] as const;
+  }));
+  let observed = 0;
+  const gmailMock = mock.method(google, "gmail", () => ({ users: { messages: {
+    list: async (input: { labelIds: string[] }) => ({ data: { messages: input.labelIds.includes("UNREAD") ? [] : [...cached.values()].map(mail => ({ id: mail.remoteId })) } }),
+  } } }));
+  try {
+    const result = await providers.gmail.list(account, cached, batch => { observed += batch.length; }, undefined, undefined, false);
+    assert.equal(observed, cached.size);
+    assert.deepEqual(result, []);
+  } finally { gmailMock.mock.restore(); }
 });

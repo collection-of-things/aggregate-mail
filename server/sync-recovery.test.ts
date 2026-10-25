@@ -9,7 +9,7 @@ import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
-import { google } from "googleapis";
+import { google } from "./google-api.js";
 import { ImapFlow } from "imapflow";
 import type { Mail, State } from "../shared/types.js";
 import type { StoredAccount } from "./store.js";

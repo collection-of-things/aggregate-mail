@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
-import { google, type calendar_v3 } from "googleapis";
+import { google, type calendar_v3 } from "./google-api.js";
 import type { CalendarEvent } from "../shared/calendar.js";
 
 test("explicit Google writes use deterministic identity, exact notification payloads and safe unknown reconciliation", { timeout: 60000 }, async (t) => {

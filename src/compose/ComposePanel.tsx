@@ -126,6 +126,7 @@ export function ComposePanel({
   };
   return (
     <Dialog
+      toolbarAccess
       title={source || draft.inReplyTo ? "Reply" : "New message"}
       className={source ? "compose-dialog compose-with-context" : "compose-dialog"}
       onClose={() => { if (!busy && !loadingFiles) onClose(); }}
@@ -137,7 +138,6 @@ export function ComposePanel({
         <p><Redact text={source.sender} /> · {new Date(source.date).toLocaleDateString()}</p>
         <div className="compose-context-body"><Redact text={source.body || source.preview || "No message text in cache."} /></div>
       </aside></MailPrivacy>}
-      {draft.invitation && <p role="status">Review {draft.invitation.method === "REPLY" ? "your calendar response" : draft.invitation.method === "CANCEL" ? "this cancellation" : "this invitation"}. Calendar details and recipients are fixed. Nothing is sent until you press Send.</p>}
       <form
         className={`compose-form${dragging ? " dragging-files" : ""}`}
         onDragOver={(event) => {
@@ -152,6 +152,7 @@ export function ComposePanel({
         }}
       >
         <div className="compose-scroll">
+        {draft.invitation && <p className="compose-invitation-note" role="status">Review {draft.invitation.method === "REPLY" ? "your calendar response" : draft.invitation.method === "CANCEL" ? "this cancellation" : "this invitation"}. Calendar details and recipients are fixed. Nothing is sent until you press Send.</p>}
         <div className="compose-envelope">
           <div className="compose-from-row">
           <label>

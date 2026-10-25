@@ -6,11 +6,13 @@ export function Dialog({
   onClose,
   children,
   className,
+  toolbarAccess = false,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   className?: string;
+  toolbarAccess?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
@@ -22,16 +24,26 @@ export function Dialog({
       ref.current?.querySelector<HTMLElement>("button:not(:disabled)")
     )?.focus();
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      const target = e.target instanceof window.Node ? e.target : document.activeElement;
+      if (e.key === "Escape" && (!toolbarAccess || ref.current?.contains(target))) {
         e.preventDefault();
         e.stopImmediatePropagation();
         close.current();
       }
       if (e.key !== "Tab") return;
-      const controls = ref.current?.querySelectorAll<HTMLElement>(
-        "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]",
-      );
+      const selector = "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex='0']";
+      const controls = [
+        ...(toolbarAccess ? document.querySelectorAll<HTMLElement>('.app-toolbar [data-compose-access]:not(:disabled)') : []),
+        ...(ref.current?.querySelectorAll<HTMLElement>(selector) ?? []),
+      ];
       if (!controls?.length) return;
+      if (toolbarAccess) {
+        const index = controls.indexOf(document.activeElement as HTMLElement);
+        if (index < 0 || e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        controls[(index + (e.shiftKey ? -1 : 1) + controls.length) % controls.length].focus();
+        return;
+      }
       const first = controls[0],
         last = controls[controls.length - 1];
       if (e.shiftKey && document.activeElement === first) {
@@ -49,11 +61,11 @@ export function Dialog({
     };
   }, []);
   return (
-    <div className="dialog-backdrop">
+    <div className={toolbarAccess ? "dialog-backdrop compose-backdrop" : "dialog-backdrop"}>
       <div
         className={className ? `dialog ${className}` : "dialog"}
         role="dialog"
-        aria-modal="true"
+        aria-modal={toolbarAccess ? undefined : true}
         aria-label={title}
         ref={ref}
       >

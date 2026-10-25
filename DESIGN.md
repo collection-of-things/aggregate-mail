@@ -92,13 +92,14 @@ transparent. While composing, underlying work is clipped to the list column
 without changing its layout, so text cannot show behind the editor. Controls and draft cards retain
 their own fills. Off and unsupported platforms remain opaque.
 
-Compose retains its dialog role, focus trap, Escape handling and save/send
-guards while appearing as a flush right pane below the window toolbar. The
-list remains visible beside it when there is room; narrow windows use the
-available width. Reply context stays above the editor in a bounded scrolling
-region. The reply preview starts at 40 percent of the window height, capped
-at 55 percent of the composer and 420px, and can be resized vertically. It
-supports keyboard scrolling with readable 14px body text. Save status shares
+Compose retains its dialog role, Escape handling and save/send guards below
+the window toolbar. It is nonmodal: its keyboard cycle includes toolbar Search
+and Privacy, while underlying mail/work panes remain inert. Other dialogs
+retain their modal focus traps. New messages keep the list visible when there
+is room; replies use the full working area. Narrow windows use the available
+width. Replies place the original email and editor in equal side-by-side columns
+across the working area. Each column scrolls independently, with readable
+14px original-message text and a keyboard-focusable preview. Save status shares
 the action row beside Send, with recovery actions
 visible on failure. Scrollbar indicators stay hidden in every scrolling
 region; wheel, trackpad and keyboard scrolling remain available.
@@ -326,5 +327,9 @@ active snoozes. Show no sender panel and avoid duplicate action
 bars on the closed mail list. Preserve accessible labels on icon buttons.
 
 Text-size shortcuts scale type and virtual row geometry together. Reply context
-sits beside the composer on wide windows and above it on narrow windows. Reuse
+stays beside the composer in two independently scrolling columns. Reuse
 the same file validation for choosing and dropping attachments.
+
+The sidebar footer and collapsed coverage/status bar share a 30px height.
+Today places counts beside its status tabs and keeps Refresh and Add task on
+the same toolbar row.

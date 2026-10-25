@@ -267,3 +267,10 @@ test("cached evicted and oversized documents preserve Unicode phrase and exclusi
   assert.ok(normalizationWork(() => check(message)) > 0);
   check({ ...message, body: message.body + " " + "x".repeat(750_000) });
 });
+
+test("plain words tolerate one typo while phrases, exclusions, addresses and operators stay exact", () => {
+  for (const query of ['quaterly', 'plannign', 'projcet']) assert.equal(compileMailSearch(query, accounts).matches(mail), true, query);
+  for (const query of ['"quaterly"', 'subject:quaterly', 'ada@exampel.com', 'account:wrok-id']) assert.equal(compileMailSearch(query, accounts).matches(mail), false, query);
+  assert.equal(compileMailSearch('quarterly -plannign', accounts).matches(mail), true, 'negative text stays exact');
+  assert.equal(compileMailSearch('is:unred', accounts).matches(mail), false);
+});

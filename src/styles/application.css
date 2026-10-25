@@ -439,3 +439,30 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
 /* View names live in the persistent toolbar. Secondary bars hold actions only. */
 .work-action-head, .mail-view-head { height: auto; min-height: 42px; padding-block: 6px; }
 .work-action-head .head-tools { flex: 1; }
+
+/* Compose shares only Search and Privacy with the toolbar; other working panes
+   remain inert and its background blocks clicks below the toolbar. */
+.dialog-backdrop.compose-backdrop { inset: 52px 0 0; padding: 0; }
+.app[data-view="drafts"] .dialog-backdrop.compose-backdrop { padding-top: 42px; }
+.dialog.compose-with-context, .app:has(.sidebar.closed) .compose-with-context { width: calc(100% - var(--sidebar)); }
+.app:has(.sidebar.closed) .compose-with-context { width: 100%; }
+.compose-dialog > .compose-reply-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.compose-reply-layout > .compose-context { height: auto; min-height: 0; max-height: none; min-width: 0; margin: 0; padding: 20px 24px; border-bottom: 0; border-right: 1px solid var(--line); resize: none; }
+.compose-reply-layout > .compose-form { min-width: 0; }
+.app:has(.compose-with-context) .app-main > :is(.mail-view, .work-pane, .settings-pane, .search-help) { visibility: hidden; }
+.app:has(.compose-with-context) .draft-list { visibility: hidden; }
+.compose-invitation-note { padding: 12px 32px 4px 0; margin: 0; font-size: calc(12px * var(--text-scale, 1)); }
+.head-tools .work-view-tabs { height: 32px; padding: 0; gap: 20px; border: 0; }
+.work-view-tabs button { display: inline-flex; align-items: center; gap: 6px; }
+.work-tab-count { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.sidebar-footer { height: 30px; min-height: 30px; padding: 0 12px; }
+.sidebar-footer .sidebar-settings { width: 24px; height: 24px; }
+.sidebar-footer .sync { height: 28px; padding-block: 0; font-size: calc(11px * var(--text-scale, 1)); }
+.work-content details.coverage { flex-shrink: 0; margin-top: auto; border-top: 0; }
+.work-content details.coverage > summary { height: 30px; min-height: 30px; padding: 0 12px; line-height: 29px; border-top: 1px solid var(--line); }
+@media (max-width: 760px) {
+  .dialog.compose-with-context { width: 100%; }
+  .compose-reply-layout > .compose-context { padding: 16px 12px; }
+  .app.desktop[data-view="drafts"] .dialog-backdrop.compose-backdrop { padding-top: 0; }
+  .head-tools .work-view-tabs { gap: 10px; }
+}
