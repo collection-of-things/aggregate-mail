@@ -432,7 +432,9 @@ all available file types, including spreadsheets and archives. Preview is limite
 to PDFs (canvas pages through a lazy-loaded local PDF.js worker) and PNG, JPEG,
 GIF, WebP, BMP and AVIF images. HTML, SVG and Office files remain download-only.
 Preview activation fetches only the authenticated local attachment endpoint;
-PDF links and actions are not exposed. Enabling privacy clears previews and
+PDF links and actions are not exposed. Decoder fallbacks, CMaps and fonts ship
+locally through `scripts/pdf-assets.ts`; PDF.js uses JavaScript decoders so
+the renderer keeps its existing script execution policy. Enabling privacy clears previews and
 pending results; a new explicit preview may expose personal information in
 pixels. Image preview URLs are revoked on hide, privacy changes and unmount.
 Unavailable or oversized imports keep their existing metadata and explanation.

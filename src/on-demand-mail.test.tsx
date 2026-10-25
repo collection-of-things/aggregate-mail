@@ -59,7 +59,7 @@ test("summary hydration preserves legacy content recovery and retry without imag
     assert.equal(contentAttempts, 2);
     assert.doesNotMatch(container.textContent || "", /Formatted email is unavailable/);
     assert.match(container.textContent || "", /synthetic.txt/);
-    assert.ok(container.querySelector('a[download]'));
+    assert.ok(container.querySelector('button[aria-label="Download attachment 1"]'));
     assert.equal(container.querySelectorAll('[aria-label="Email content"] img').length, 0, "recovery must not activate remote images");
     await act(async () => button("Show images").click());
     assert.equal(container.querySelectorAll('[aria-label="Email content"] img').length, 1);

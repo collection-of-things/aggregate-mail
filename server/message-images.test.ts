@@ -150,7 +150,8 @@ test("image API protects access, caches one message and preserves concurrent mai
     assert.equal((await fetch(`${base}/api/messages/missing/images`, { method: "POST", headers: authorized })).status, 400);
     const page = await fetch(`${base}/`);
     const csp = page.headers.get("content-security-policy")!;
-    assert.match(csp, /img-src 'self' data: https:/);
+    assert.match(csp, /worker-src 'self'/);
+    assert.match(csp, /img-src 'self' blob: data: https:/);
     assert.match(csp, /script-src 'self'; style-src 'self'/);
     assert.match(csp, /connect-src 'self'; object-src 'none'/);
 

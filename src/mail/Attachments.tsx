@@ -18,7 +18,8 @@ function PdfPreview({ bytes }: { bytes: Uint8Array }) {
       const { default: worker } = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
       if (!active) return;
       pdfjs.GlobalWorkerOptions.workerSrc = worker;
-      const task = pdfjs.getDocument({ data: bytes.slice(), disableFontFace: true, useSystemFonts: true });
+      const task = pdfjs.getDocument({ data: bytes.slice(), disableFontFace: true, useSystemFonts: true,
+        cMapUrl: "/pdfjs/cmaps/", standardFontDataUrl: "/pdfjs/standard_fonts/", wasmUrl: "/pdfjs/wasm/", useWasm: false });
       destroy = () => { void task.destroy(); };
       const pdf = await task.promise;
       if (!active) return;

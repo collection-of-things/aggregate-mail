@@ -161,7 +161,7 @@ function ImageConsent({ mail, loadImages, loadContent, body }: ImageProps) {
     {body && contentStatus === "error" && <p role="status">Formatted email is unavailable. The text is shown below. <button type="button" className="link" onClick={() => void recoverContent()}>Try again</button></p>}
     {body && content.attachments?.length !== 0 && ((content.attachments || []).length
       ? <Attachments mailId={mail.id} files={content.attachments!} />
-      : <p>{contentStatus === "ready" ? "No cached attachment metadata." : "Attachment metadata is not yet available."}</p>)}
+      : <section className="reader-attachments" aria-label="Attachments"><h2>Attachments</h2><p>{contentStatus === "ready" ? "No cached attachment metadata." : "Attachment metadata is not yet available."}</p></section>)}
     <div id={region}>
       {status === "error" && <p role="status">Images could not be loaded. The email may be unavailable or archived.</p>}
       {body && <div className="message-body">
