@@ -547,3 +547,57 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
 }
 /* A 30px primary action needs breathing room inside the compose action row. */
 .compose-dialog .compose-footer { min-height: 42px; padding-block: 6px; }
+
+/* One footer track aligns every visible column. Compose can raise the track
+   for wrapped status text; the measured action row does not depend on it. */
+:root { --app-footer-height: 42px; }
+.sidebar-footer { height: var(--app-footer-height); min-height: var(--app-footer-height); }
+.work-content details.coverage > summary { height: var(--app-footer-height); min-height: var(--app-footer-height); line-height: calc(var(--app-footer-height) - 1px); }
+.compose-dialog .compose-footer { min-height: var(--app-footer-height); }
+.compose-reply-layout > .compose-context { margin-bottom: var(--app-footer-height); }
+.app:has(.compose-dialog)::after {
+  content: ""; position: absolute; left: 0; right: 0;
+  bottom: calc(var(--app-footer-height) - 1px); height: 1px;
+  background: var(--line); pointer-events: none; z-index: 11;
+}
+.app:has(.compose-dialog) .sidebar-footer { border-top-color: transparent; }
+.app:has(.compose-dialog) .compose-footer { box-shadow: none; }
+.app:has(.compose-dialog) .app-main > :is(.mail-view, .drafts-pane, .work-pane, .settings-pane) { padding-bottom: var(--app-footer-height); }
+.app:has(.compose-dialog) .work-pane .coverage { display: none; }
+
+/* Compact saved drafts use the same column rhythm as the mail list. */
+.draft-tab-bar { display: flex; flex-shrink: 0; align-items: center; height: 42px; min-width: 0; border-bottom: 1px solid var(--line); }
+.draft-tab-bar .draft-account-tabs { flex: 1; min-width: 0; height: 100%; border-bottom: 0; }
+.draft-refresh { flex-shrink: 0; height: 30px; margin-left: auto; padding: 0 18px; color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
+.draft-list { container-type: inline-size; }
+.draft-list .draft-row { grid-template-columns: minmax(120px, 180px) minmax(0, 1fr) auto; grid-template-rows: auto; align-items: center; column-gap: 16px; row-gap: 3px; min-height: 58px; padding: 10px 18px; background: transparent; }
+:root:not([data-glass]) .draft-list .draft-row { background: transparent; }
+.draft-list .draft-row:hover:not(:disabled) { background: var(--hover); }
+.draft-row-identity { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.draft-list .draft-row-recipient { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-list .draft-row-account { grid-column: auto; grid-row: auto; margin: 0; display: flex; align-items: center; gap: 6px; min-width: 0; font-size: calc(11px * var(--text-scale, 1)); }
+.draft-list .draft-row-account .provider-icon, .draft-list .draft-row-account .provider-icon svg { width: 12px; height: 12px; flex-shrink: 0; }
+.draft-list .draft-row-content { grid-column: 2; grid-row: 1; gap: 3px; min-width: 0; }
+.draft-list .draft-row-content > strong, .draft-list .draft-row-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-list .draft-row-content > strong { font-weight: 500; }
+.draft-list .draft-row-meta { grid-column: 3; grid-row: 1; align-self: center; }
+@container (max-width: 480px) {
+  .draft-list .draft-row { grid-template-columns: minmax(0, 1fr) auto; padding-inline: 12px; }
+  .draft-row-identity { grid-column: 1; grid-row: 1; flex-direction: row; align-items: center; gap: 10px; }
+  .draft-list .draft-row-recipient { flex: 1; min-width: 0; }
+  .draft-list .draft-row-account { max-width: 100px; flex-shrink: 0; }
+  .draft-list .draft-row-content { grid-column: 1 / -1; grid-row: 2; }
+  .draft-list .draft-row-meta { grid-column: 2; grid-row: 1; }
+}
+.compose-dialog .draft-recovery-actions { flex-wrap: wrap; }
+.draft-refresh { min-height: 30px; }
+.draft-list .draft-warning { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+
+.draft-list > ul > li { position: relative; }
+.draft-row-delete { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; min-height: 30px; padding: 0; display: grid; place-items: center; border-radius: 6px; color: var(--text-3); background: var(--surface); opacity: 0; pointer-events: none; }
+.draft-row-delete:focus-visible { opacity: 1; pointer-events: auto; }
+@media (hover: hover) and (pointer: fine) {
+  .draft-list li:hover .draft-row-delete:not(:disabled) { opacity: 1; pointer-events: auto; }
+  .draft-row-delete:hover { color: var(--danger); background: var(--hover); }
+}
+@media (hover: none) { .draft-row-delete { opacity: 1; pointer-events: auto; } .draft-list .draft-row-meta { padding-right: 34px; } }

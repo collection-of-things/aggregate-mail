@@ -23,7 +23,7 @@ substitution or adjacent transposition within a word. Quoted phrases, field
 terms, exclusions, addresses, account filters and invalid recognized operators
 retain exact semantics. Typo matching stays local to the existing cached search.
 
-The sidebar footer and collapsed coverage bar are 30px tall. Today status-tab
+The sidebar footer and collapsed coverage bar are 42px tall. Today status-tab
 counts and Refresh/Add task share one row. See [ADR 0069](adr/0069-responsiveness-and-compose-toolbar.md).
 
 ## Shared application styling
@@ -1921,9 +1921,13 @@ their existing no-manual-append behavior. Delivery acceptance followed by a
 Sent-copy failure remains a success with a warning. MCP replies and agent
 proposal contracts remain plain text. Tables and embedded images are excluded.
 
-The normal compose footer is 42px high with 6px vertical padding around a 30px Send button, matching New Message, and one row for
-Keep draft, save status and Send. Recovery or wrapped scaled status may expand
-it. Sender identity is shown in From; no duplicate sender/format footer row.
+The shared footer track is at least 42px high, with 6px clearance around the
+30px Send button, matching New Message. Sidebar, collapsed coverage and compose
+actions align to this track. Compose observes only its action row, adds 12px,
+and applies the height to its app instance; unmount disconnects the observer
+and removes the temporary override. Recovery controls stay above this row.
+Original-message scrolling stops above the footer. A pointer-transparent
+app-wide divider aligns visible columns during composition. Sender identity is shown in From; no duplicate sender/format footer row.
 In Drafts, Delete draft and Close share the account-tabs row and remain inside
 the compose keyboard cycle. Compact fields are 34px before separators.
 
@@ -1936,3 +1940,15 @@ UI draft/send HTML schema does not widen these separate tool boundaries.
 Coverage footers span the full pane width. Their horizontal inset cancels
 Calendar content padding at each breakpoint; Today/Projects already use zero
 content inset. Expanded details keep 12px inner padding and existing controls.
+
+Draft rows place recipient/account, subject/preview and time in compact columns.
+Narrow lists reflow without truncating uncertain-send warnings. Refresh shares
+the account-tabs row; the healthy saved-count banner is visually hidden, while
+loading, cached/unavailable and open failures remain visible. Account/draft
+identity, privacy and saved data are unchanged. See [ADR 0071](adr/0071-shared-footer-and-compact-drafts.md).
+
+Saved draft rows offer a direct Delete draft action on pointer hover or keyboard
+focus, always visible on touch. Confirm before deletion, including the existing
+unknown-send warning. Use the exact account, draft ID and saved revision; remove
+the row only after confirmed success. Retain failed rows with refresh guidance,
+refresh the sidebar count and return focus to the next row or Refresh.

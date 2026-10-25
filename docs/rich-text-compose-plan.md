@@ -55,3 +55,31 @@ No profile reset, schema migration, key replacement or release is authorized.
 Keep draft, save status and Send remain in one grid row at narrow reply widths.
 The repeated sender/format line is removed from the footer. Sender identity
 remains in From and the formatting toolbar identifies supported actions.
+
+## Shared footer track
+
+Use one app-scoped footer height, default 42px, for Sidebar, coverage summaries,
+and the bottom action row. Keep Send and New Message at 30px. Reserve the same
+space below original-email scrolling and visible background panes. During
+composition, draw one pointer-transparent divider across the full app width
+and suppress duplicate local dividers. A ResizeObserver on the compose action
+row raises the shared height only when wrapped/scaled status needs more room;
+remove the observer and temporary CSS variable on close. Recovery actions stay
+above the shared bottom row. Preserve full status text, focus and scrolling,
+settings, privacy, no-drag controls, native glass and send/save guards.
+
+Verify equal divider positions across all columns at wide/narrow widths, 6px
+button clearance, expanded status, observer cleanup, and then exact Mac launch
+before the follow-up commit. Performance work is retained separately.
+
+## Compact draft list
+
+Replace the oversized stacked draft rows with a recipient/account column,
+subject/preview column and trailing time/attachment metadata. Use a roughly
+58px minimum at normal text scale; permit height growth for uncertainty warnings
+and scaled text. Narrow lists may stack the same data compactly. Put Refresh
+beside the account tabs and remove the redundant healthy count banner. Preserve
+loading/error feedback, query/account filtering, privacy masking, exact draft
+identity and the existing open/save/delete operations. Do not merge or remove
+records based on matching subjects. Verify narrow/wide geometry and existing
+mounted draft recovery/filtering tests with synthetic records.

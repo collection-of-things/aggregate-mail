@@ -79,7 +79,7 @@ highlight, shallow vertical shading and a small drop shadow. Other controls
 stay flat. Blue uses the primary action token; other accents and custom themes
 derive the action fill from their selected accent.
 
-New Message is exactly 30px tall. Compose uses a 42px minimum footer, with a 30px Send button, 6px vertical clearance and a 26px Keep draft control. Recovery or scaled status text may expand it.
+New Message and Send are exactly 30px tall. The sidebar, collapsed coverage and compose action row share a 42px footer track, with 6px clearance around Send. Wrapped compose status expands the shared track. Recovery controls stay above it, and original-message content stops above the divider.
 
 Glass and Subtle retain the native material and one shared window tint.
 Appearance offers Window opacity from 0 to 100 percent, defaulting to 70.
@@ -330,7 +330,7 @@ Text-size shortcuts scale type and virtual row geometry together. Reply context
 stays beside the composer in two independently scrolling columns. Reuse
 the same file validation for choosing and dropping attachments.
 
-The sidebar footer and collapsed coverage/status bar share a 30px height.
+The sidebar footer and collapsed coverage/status bar share a 42px height.
 Today places counts beside its status tabs and keeps Refresh and Add task on
 the same toolbar row.
 
@@ -352,5 +352,17 @@ New Message and Send give a restrained press/glow response. Animate only
 transform and overlay opacity for 140ms; keep resting depth and geometry.
 Reduced motion removes movement and transitions. Disabled buttons do not glow.
 
-The 30px coverage footer and divider span the entire working pane, including
+The 42px coverage footer and divider span the entire working pane, including
 Calendar. Its horizontal edges align with the pane and sidebar footer.
+
+Saved drafts use compact recipient/account, subject/preview and time columns.
+Refresh shares the account-tabs row. Healthy saved-count text remains available
+to assistive technology without a separate visible banner; loading and cached
+failures remain visible. Narrow rows reflow, and uncertain-send warnings stay
+fully readable. Matching subjects do not merge distinct drafts.
+
+Saved draft rows offer a direct Delete draft action on pointer hover or keyboard
+focus, always visible on touch. Confirm before deletion, including the existing
+unknown-send warning. Use the exact account, draft ID and saved revision; remove
+the row only after confirmed success. Retain failed rows with refresh guidance,
+refresh the sidebar count and return focus to the next row or Refresh.

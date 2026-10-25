@@ -1,5 +1,5 @@
 import { RichBody } from "./RichBody";
-import { useContext, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useContext, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { Account, Mail } from "../../shared/types";
 import { emptyComposePreferences, type ComposePreferences } from "../../shared/mail-features";
 import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
@@ -100,6 +100,21 @@ export function ComposePanel({
   onAttachmentTask?: (task: Promise<void>) => void;
 }) {
   const { on: privacy } = useContext(PrivacyContext);
+  const footerActions = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const row = footerActions.current;
+    const app = row?.closest<HTMLElement>(".app");
+    if (!row || !app) return;
+    const measure = () => {
+      const height = `${Math.max(42, Math.ceil(row.getBoundingClientRect().height + 12))}px`;
+      if (app.style.getPropertyValue("--app-footer-height") !== height) app.style.setProperty("--app-footer-height", height);
+    };
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measure);
+    observer?.observe(row);
+    return () => { observer?.disconnect(); app.style.removeProperty("--app-footer-height"); };
+  }, []);
+
   const [attachmentError, setAttachmentError] = useState("");
   const [loadingFiles, setLoadingFiles] = useState(false);
   const filesBusy = useRef(false);
@@ -238,7 +253,7 @@ export function ComposePanel({
               <button type="button" disabled={busy || loadingFiles} onClick={onSaveCopy}>Save separate copy</button>
             </div>
           )}
-          <div className="compose-actions">
+          <div className="compose-actions" ref={footerActions}>
             <button type="button" disabled={busy || loadingFiles} onClick={onClose}>Keep draft</button>
             <p className={`compose-save-status${progress.phase === "error" ? " save-error" : ""}`} role="status">{progress.message}</p>
             <button className="button primary-button compose-send" disabled={busy || loadingFiles || progress.phase === "error"} type="submit">

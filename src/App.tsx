@@ -1126,6 +1126,7 @@ export function App() {
             <h1 className="pane-title visually-hidden">Drafts</h1>
             <DraftList accounts={state.accounts} api={api} accountFilter={accountFilter} query={query}
               refreshKey={state.draftCount} active={!compose} onOpen={openCompose}
+              onDeleted={() => { void reload().catch(() => setNotice("Draft deleted, but refreshing the saved count failed. Refresh to check it.")); }}
               onAccount={(id) => navigate({ accountFilter: id, labelFilter: "all", selectedId: null, opened: false })} />
           </main>
         ) : workView ? (
