@@ -1,5 +1,14 @@
 # Repository knowledge
 
+## Standalone Android client
+
+`android/` is an independent Java/Android IMAP and SMTP client. It does not run
+the Electron renderer or Node mail service. The native client keeps a bounded
+offline inbox, accounts, a draft and uncertain-send state in one atomic
+Keystore-backed encrypted snapshot. It never shares or migrates desktop data.
+Build commands, limits and proof boundaries are in [Android](android.md).
+The architecture is recorded in [ADR 0078](adr/0078-standalone-android-client.md).
+
 ## Source release version
 
 The source package and both lockfile version fields are 0.2.5. Dependencies and

@@ -66,6 +66,7 @@ npm run dev      # Electron with React/CSS hot reload; restart after desktop or 
 | MCP | Also `node scripts/check-mcp.mjs` (isolated handshake and access check; not live delivery) |
 | Electron, preload, storage, packaging | Also `npm run check:desktop` with an isolated profile per [docs/KB.md](docs/KB.md); require startup result and exit |
 | Native Windows or macOS | Startup on the affected OS and architecture (macOS needs desktop and Keychain access) |
+| Android (`android/`) | Bounded unit tests, lint, APK build and synthetic Device Hub smoke per [docs/android.md](docs/android.md); desktop checks still apply to shared/root application changes |
 | Documentation only | Relative links, command names, factual claims, `git diff --check` |
 
 - Tests use `tsx --test` over `server/`, `desktop/`, `src/` and `scripts/` test files.

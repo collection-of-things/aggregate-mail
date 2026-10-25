@@ -4,7 +4,7 @@
 
 ## Platform
 
-Windows desktop and a macOS build target
+Windows, macOS and Linux desktop, plus an experimental standalone Android IMAP/SMTP client. See [Android scope and limits](docs/android.md).
 
 ## Stack
 

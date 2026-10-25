@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an experimental standalone Android IMAP/SMTP client with multiple accounts, encrypted offline mail, a text reader, durable drafts and locked recovery after uncertain sends. This slice has no OAuth, attachments, background sync or desktop feature-parity claim.
+
 - Add explicit downloads for received attachments of any file type and on-demand PDF and raster-image previews, with privacy reset and load errors. Existing import limits still apply.
 
 - Prepare source package and lockfile version 0.2.5 without changing dependencies or release workflows.
