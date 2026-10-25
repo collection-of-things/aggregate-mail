@@ -248,7 +248,7 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
 
 function themeButton(app: Awaited<ReturnType<typeof mount>>, label: string): HTMLButtonElement {
   const document = app.window.document;
-  const scope = document.querySelector('[role="dialog"]') ?? app.container;
+  const scope = document.querySelector('[role="dialog"]:not([aria-label="Settings"])') ?? app.container;
   const button = [...scope.querySelectorAll<HTMLButtonElement>("button")]
     .find((button) => button.textContent?.trim() === label || button.getAttribute("aria-label") === label);
   assert.ok(button, `theme button ${label}`);
@@ -272,8 +272,10 @@ test("theme dialogs retain edits and block Back/Forward until closed", async () 
     await app.click(app.button("Accounts"));
     await app.native("back");
     for (const action of ["Create theme", "Edit theme", "Import theme", "Delete theme"]) {
-      await app.click(themeButton(app, action));
-      const dialog = document.querySelector('[role="dialog"]')!;
+      const opener = themeButton(app, action);
+      await act(async () => opener.focus());
+      await app.click(opener);
+      const dialog = document.querySelector('[role="dialog"]:not([aria-label="Settings"])')!;
       const color = dialog.querySelector<HTMLInputElement>('[aria-label="Background hex"]');
       if (color) await app.input(color, "#123456");
       for (const direction of ["back", "forward"] as const) {
@@ -284,6 +286,7 @@ test("theme dialogs retain edits and block Back/Forward until closed", async () 
         if (color) assert.equal(color.value, "#123456");
       }
       await app.click(themeButton(app, "Cancel"));
+      assert.equal(document.activeElement === opener, true, `${action} restores its Settings opener after the portal closes`);
     }
     await app.native("forward");
     assert.equal(app.container.querySelector(".settings h1")?.textContent, "Accounts", "closing restores navigation");
@@ -301,20 +304,24 @@ for (const mac of [false, true]) test(`${mac ? "Cmd" : "Ctrl"}+K cannot stack Co
     await app.click(app.button("Appearance"));
     for (const action of ["Create theme", "Edit theme", "Import theme", "Delete theme"]) {
       await app.click(themeButton(app, action));
-      const dialog = document.querySelector('[role="dialog"]')!;
+      const dialog = document.querySelector('[role="dialog"]:not([aria-label="Settings"])')!;
       await app.key("k", mac ? { metaKey: true } : { ctrlKey: true });
-      assert.equal(document.querySelectorAll('[role="dialog"]').length, 1, action);
-      assert.equal(document.querySelector('[role="dialog"]'), dialog);
+      assert.equal(document.querySelectorAll('[role="dialog"]:not([aria-label="Settings"])').length, 1, action);
+      assert.ok(document.querySelector('[role="dialog"][aria-label="Settings"]'), "Settings stays beneath its child dialog");
+      assert.equal(document.querySelector('[role="dialog"]:not([aria-label="Settings"])'), dialog);
       if (mac) {
         await app.key("[", { metaKey: true });
         await app.key("]", { metaKey: true });
         assert.equal(dialog.isConnected, true);
       }
       await app.key("Escape");
-      assert.equal(document.querySelector('[role="dialog"]'), null);
+      assert.equal(document.querySelector('[role="dialog"]:not([aria-label="Settings"])'), null);
     }
     await app.key("k", mac ? { metaKey: true } : { ctrlKey: true });
-    assert.equal(document.querySelector('[role="dialog"]')?.getAttribute("aria-label"), "Commands", "closing restores Commands");
+    assert.equal(document.querySelector('[aria-label="Search commands"]'), null, "Settings remains modal after its child closes");
+    await app.click(app.button("Close settings"));
+    await app.key("k", mac ? { metaKey: true } : { ctrlKey: true });
+    assert.equal(document.querySelector('[role="dialog"]:not([aria-label="Settings"])')?.getAttribute("aria-label"), "Commands", "closing restores Commands");
   } finally { await app.close(); }
 });
 
@@ -337,12 +344,12 @@ test("custom theme preview cancels without saving; both palettes persist through
     await app.input(color, "#1234");
     assert.equal(color.getAttribute("aria-invalid"), "true");
     await app.click(themeButton(app, "Save theme"));
-    assert.ok(document.querySelector('[role="dialog"]'), "invalid colors block saving");
+    assert.ok(document.querySelector('[role="dialog"]:not([aria-label="Settings"])'), "invalid colors block saving");
     await app.input(color, "#123456");
     assert.equal(root.style.getPropertyValue("--bg"), "#123456");
     assert.equal(app.storage.getItem("emc2.appearance.v1"), before);
     await app.key("Escape");
-    assert.equal(document.querySelector('[role="dialog"]'), null);
+    assert.equal(document.querySelector('[role="dialog"]:not([aria-label="Settings"])'), null);
     assert.equal(root.style.getPropertyValue("--bg"), "");
     assert.equal(root.dataset.theme, "midnight");
     assert.equal(app.storage.getItem("emc2.appearance.v1"), before);
@@ -354,7 +361,7 @@ test("custom theme preview cancels without saving; both palettes persist through
     await app.input(document.querySelector<HTMLInputElement>('[aria-label="Background hex"]')!, "#eef0f8");
     assert.equal(root.dataset.scheme, "light");
     await app.click(themeButton(app, "Save theme"));
-    assert.equal(document.querySelector('[role="dialog"]'), null);
+    assert.equal(document.querySelector('[role="dialog"]:not([aria-label="Settings"])'), null);
     assert.equal(root.dataset.scheme, "dark", "saving returns to the selected appearance mode");
     assert.equal(root.style.getPropertyValue("--bg"), "#202530");
     saved = app.storage.getItem("emc2.appearance.v1")!;
@@ -399,7 +406,7 @@ test("edit, duplicate, rename conflicts and confirmed deletion preserve independ
     await app.click(themeButton(app, "Edit theme"));
     await app.input(document.querySelector<HTMLInputElement>('.theme-name input')!, "Nightfall");
     await app.click(themeButton(app, "Save theme"));
-    assert.match(document.querySelector('[role="dialog"] [role="alert"]')!.textContent!, /already has this name/);
+    assert.match(document.querySelector('[role="dialog"]:not([aria-label="Settings"]) [role="alert"]')!.textContent!, /already has this name/);
     assert.equal(read().customThemes[1].name, "Nightfall copy");
     await app.click(themeButton(app, "Cancel"));
     await app.click(themeButton(app, "Delete theme"));
@@ -434,12 +441,12 @@ test("JSON import validates before saving and export downloads a portable copy",
     await app.click(themeButton(app, "Import theme"));
     await app.input(document.querySelector<HTMLTextAreaElement>("textarea")!, '{"version":2}');
     await app.click(themeButton(app, "Import theme"));
-    assert.match(document.querySelector('[role="dialog"] [role="alert"]')!.textContent!, /Emc² version 1/);
+    assert.match(document.querySelector('[role="dialog"]:not([aria-label="Settings"]) [role="alert"]')!.textContent!, /Emc² version 1/);
     assert.equal(app.storage.getItem("emc2.appearance.v1"), null);
     const theme = sampleTheme();
     await app.input(document.querySelector<HTMLTextAreaElement>("textarea")!, serializeThemeFile(theme));
     await app.click(themeButton(app, "Import theme"));
-    assert.equal(document.querySelector('[role="dialog"]'), null);
+    assert.equal(document.querySelector('[role="dialog"]:not([aria-label="Settings"])'), null);
     const imported = JSON.parse(app.storage.getItem("emc2.appearance.v1")!).customThemes[0];
     assert.notEqual(imported.id, theme.id);
     await app.click(themeButton(app, "Export theme"));
@@ -472,8 +479,8 @@ test("failed theme saves keep the editor and draft available and Cancel restores
     await app.click(themeButton(app, "Create theme"));
     await app.input(app.window.document.querySelector<HTMLInputElement>('[aria-label="Background hex"]')!, "#202530");
     await app.click(themeButton(app, "Save theme"));
-    assert.ok(app.window.document.querySelector('[role="dialog"]'));
-    assert.match(app.window.document.querySelector('[role="dialog"] [role="alert"]')!.textContent!, /could not be saved/);
+    assert.ok(app.window.document.querySelector('[role="dialog"]:not([aria-label="Settings"])'));
+    assert.match(app.window.document.querySelector('[role="dialog"]:not([aria-label="Settings"]) [role="alert"]')!.textContent!, /could not be saved/);
     assert.equal(app.storage.getItem("emc2.appearance.v1"), saved);
     await app.click(themeButton(app, "Cancel"));
     assert.equal(app.window.document.documentElement.dataset.theme, "midnight");
@@ -492,7 +499,7 @@ test("theme file input reads bounded files and ignores a read completed after Ca
     const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
     Object.defineProperty(input, "files", { configurable: true, value: [new File(["x".repeat(65537)], "large.json")] });
     await act(async () => input.dispatchEvent(new app.window.Event("change", { bubbles: true })));
-    assert.match(document.querySelector('[role="dialog"] [role="alert"]')!.textContent!, /64 KB/);
+    assert.match(document.querySelector('[role="dialog"]:not([aria-label="Settings"]) [role="alert"]')!.textContent!, /64 KB/);
     Object.defineProperty(input, "files", { configurable: true, value: [new File([exported], "theme.json")] });
     await act(async () => input.dispatchEvent(new app.window.Event("change", { bubbles: true })));
     assert.equal(document.querySelector<HTMLTextAreaElement>("textarea")!.value, exported);
@@ -507,7 +514,7 @@ test("theme file input reads bounded files and ignores a read completed after Ca
     assert.ok(themeButton(app, "Reading file…").disabled);
     await app.click(themeButton(app, "Cancel"));
     await act(async () => { finish(exported); await pending; });
-    assert.equal(document.querySelector('[role="dialog"]'), null);
+    assert.equal(document.querySelector('[role="dialog"]:not([aria-label="Settings"])'), null);
     assert.equal(app.storage.getItem("emc2.appearance.v1"), saved);
   } finally { await app.close(); }
 });
@@ -701,7 +708,9 @@ test("formatted privacy keeps image order and keyboard reveal across image bound
     assert.equal(body.querySelector("img"), null);
     await app.click(app.button("Show images"));
     assert.equal(body.querySelectorAll("img").length, 2);
-    await app.key("Escape"); await app.open("a:1");
+    await app.key("Escape");
+    assert.equal(app.container.querySelectorAll(".message").length, 0, "Escape closes the reader before reopening resets image consent");
+    await app.open("a:1");
     assert.equal(app.container.querySelector(".message-body img"), null);
   } finally { await app.close(); }
 });
@@ -1381,7 +1390,7 @@ test("private rename confirms saving and displays the custom account label", { t
     assert.equal(app.state.accounts[0].name, "Work inbox");
     assert.match(app.container.querySelector(".toast-text")?.textContent || "", /^Account name saved\.$/);
     assert.match(app.container.querySelector(".settings")!.textContent!, /Work inbox/);
-    await app.click(app.button("Show personal information"));
+    await app.key("p");
     assert.match(app.container.querySelector(".settings")!.textContent!, /Work inbox/, "the saved name appears when privacy is off");
   } finally { await app.close(); }
 });
@@ -1648,8 +1657,12 @@ test("global search leaves Settings for cached mail and Commands navigates to wo
   const app = await mount();
   try {
     const search = app.container.querySelector<HTMLInputElement>('.app-search-toolbar input')!;
+    await act(async () => app.button("Settings").focus());
     await app.click(app.button("Settings"));
     assert.equal(app.container.querySelector('.app-search-toolbar input'), search);
+    assert.ok(search.closest("[inert]"), "the background search is inert while Settings is open");
+    await act(async () => app.button("Close settings").dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true })));
+    assert.equal(app.window.document.activeElement === search, true, "Settings Search keeps focus after restoring its opener");
     await app.input(search, 'subject:Alpha');
     assert.equal(app.container.querySelector('.settings'), null);
     assert.equal(app.container.querySelector('.pane-title')?.textContent, 'All cached');
@@ -1663,8 +1676,10 @@ test("global search leaves Settings for cached mail and Commands navigates to wo
     assert.equal(app.container.querySelector('.pane-title')?.textContent, 'Projects');
     assert.equal(app.container.querySelector('.app-search-toolbar input'), search);
     await app.click(app.button('Settings'));
+    assert.ok(app.button('Inbox').closest('[inert]'));
+    await app.click(app.button('Close settings'));
     await app.click(app.button('Inbox'));
-    assert.equal(app.container.querySelector('.settings'), null, 'persistent mail navigation leaves Settings');
+    assert.equal(app.container.querySelector('.settings'), null, 'explicit close restores persistent mail navigation');
     assert.equal(app.container.querySelector('.pane-title')?.textContent, 'Inbox');
   } finally { await app.close(); }
 });
@@ -1730,6 +1745,8 @@ test('pane tools live in the persistent toolbar and section controls share the t
     await ui.click(ui.button("Settings"));
     assert.ok(ui.button("Hide personal information").closest(".app-toolbar"), "privacy stays in the toolbar on Settings");
     assert.equal(ui.container.querySelector('[aria-label="Filters"]'), null, "Settings has no Filters");
+    assert.ok(ui.button("Drafts").closest("[inert]"));
+    await ui.click(ui.button("Close settings"));
     await ui.click(ui.button("Drafts"));
     assert.equal(ui.container.querySelector(".drafts-pane > .main-head"), null, "Drafts has no duplicated title row");
     assert.ok(ui.button("Hide personal information").closest(".app-toolbar"), "privacy stays in the toolbar on Drafts");
@@ -1767,18 +1784,20 @@ test('assistant management stays in Settings and Agent review only shows review 
   const ui = await mount();
   try {
     await ui.click(ui.button('Settings')); await ui.click(ui.button('AI and agents'));
-    assert.equal(ui.container.querySelector('.pane-title')?.textContent, 'Settings');
+    assert.equal(ui.container.querySelector('.settings-dialog > .dialog-title h2')?.textContent, 'Settings');
     assert.ok(ui.container.querySelector('.settings .agent-assistants'));
     assert.equal(ui.container.querySelector('.settings .agent-proposals'), null);
+    assert.ok(ui.button('Agent review').closest('[inert]'));
+    await ui.click(ui.button('Close settings'));
     await ui.click(ui.button('Agent review'));
     assert.equal(ui.container.querySelector('.pane-title')?.textContent, 'Agent review');
     assert.ok(ui.container.querySelector('.agent-proposals'));
     assert.equal(ui.container.querySelector('.agent-assistants'), null);
     await ui.click(ui.button('Manage assistants'));
-    assert.equal(ui.container.querySelector('.pane-title')?.textContent, 'Settings');
+    assert.equal(ui.container.querySelector('.settings-dialog > .dialog-title h2')?.textContent, 'Settings');
     assert.ok(ui.container.querySelector('.settings .agent-assistants'));
     await ui.click(ui.back()); assert.equal(ui.container.querySelector('.pane-title')?.textContent, 'Agent review');
-    await ui.click(ui.forward()); assert.equal(ui.container.querySelector('.pane-title')?.textContent, 'Settings');
+    await ui.click(ui.forward()); assert.equal(ui.container.querySelector('.settings-dialog > .dialog-title h2')?.textContent, 'Settings');
   } finally { await ui.close(); }
 });
 
@@ -1977,4 +1996,95 @@ for (const failed of [false, true]) test(`compose attachment drain ${failed ? "r
     if (previous) Object.defineProperty(globalThis, "FileReader", previous); else Reflect.deleteProperty(globalThis, "FileReader");
     await app.close();
   }
+});
+
+
+test("Settings floats over the mounted reader, owns focus and restores its opener", async () => {
+  const app = await mount();
+  try {
+    await app.open("a:1");
+    const mailView = app.container.querySelector(".mail-view");
+    const reader = app.container.querySelector(".message");
+    const opener = app.button("Settings");
+    opener.focus();
+    await app.click(opener);
+    const dialog = app.container.querySelector<HTMLElement>('[role="dialog"][aria-label="Settings"]');
+    assert.ok(dialog, "Settings is a modal dialog");
+    assert.equal(dialog.getAttribute("aria-modal"), "true");
+    assert.equal(app.container.querySelector(".mail-view"), mailView, "mail view stays mounted");
+    assert.equal(app.container.querySelector(".message"), reader, "open reader stays mounted");
+    assert.equal(app.title(), "Alpha");
+    assert.ok(mailView?.closest("[inert]"), "background mail cannot receive input");
+    assert.ok(app.container.querySelector(".sidebar")?.closest("[inert]"), "background navigation is inert");
+    assert.ok(dialog.contains(app.window.document.activeElement), "focus enters Settings");
+    await app.key("Escape", { cancelable: true });
+    assert.equal(app.container.querySelector('[role="dialog"][aria-label="Settings"]'), null);
+    assert.equal(app.container.querySelector(".message"), reader);
+    assert.equal(app.title(), "Alpha");
+    assert.equal(app.window.document.activeElement, opener);
+    assert.equal(app.mutations.length, 1, "opening and closing Settings does not mutate mail");
+  } finally { await app.close(); }
+});
+
+
+test("Settings history keeps the mounted reader through sections, Back and Forward", async () => {
+  const app = await mount();
+  try {
+    await app.open("a:1");
+    const reader = app.container.querySelector(".message");
+    await app.click(app.button("Settings"));
+    await app.click(app.button("Appearance"));
+    await app.click(app.back());
+    assert.equal(app.container.querySelector(".settings h1")?.textContent, "Keyboard and mouse");
+    assert.equal(app.container.querySelector(".message"), reader);
+    await app.click(app.back());
+    assert.equal(app.container.querySelector(".settings"), null);
+    assert.equal(app.container.querySelector(".message"), reader);
+    await app.click(app.forward());
+    assert.ok(app.container.querySelector(".settings"));
+    assert.equal(app.container.querySelector(".message"), reader);
+    await app.click(app.button("Close settings"));
+    assert.equal(app.title(), "Alpha");
+    assert.equal(app.mutations.length, 1);
+  } finally { await app.close(); }
+});
+
+test("Settings keeps the work view mounted and limits shortcuts to safe modal actions", async () => {
+  const app = await mount();
+  try {
+    await app.click(app.button("Calendar"));
+    const work = app.container.querySelector(".work-pane");
+    await app.click(app.button("Settings"));
+    assert.equal(app.container.querySelector(".work-pane"), work);
+    assert.ok(work?.closest("[inert]"));
+    await app.click(app.button("Appearance"));
+    app.button("Close settings").focus();
+    await app.key("k", { metaKey: true });
+    assert.equal(app.container.querySelector('[aria-label="Search commands"]'), null);
+    await app.key("c");
+    assert.equal(app.container.querySelector(".compose-dialog"), null);
+    await act(async () => app.button("Close settings").dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "p", bubbles: true, cancelable: true })));
+    assert.equal(app.storage.getItem("privacy"), "on");
+    assert.ok(app.container.querySelector(".settings"));
+    await act(async () => app.button("Close settings").dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true })));
+    assert.equal(app.container.querySelector(".settings"), null);
+    assert.equal(app.container.querySelector(".pane-title")?.textContent, "All cached");
+    assert.equal(app.window.document.activeElement, app.container.querySelector(".app-search-toolbar input"));
+    assert.equal(app.mutations.length, 0);
+  } finally { await app.close(); }
+});
+
+test("Settings history rejects an unavailable reader when returning to mail", async () => {
+  const app = await mount();
+  try {
+    await app.open("a:1");
+    await app.click(app.button("Settings"));
+    app.state.accounts = app.state.accounts.filter(account => account.id !== "a");
+    app.state.messages = app.state.messages.filter(mail => mail.accountId !== "a");
+    await app.refresh();
+    await app.click(app.back());
+    assert.equal(app.container.querySelector(".settings"), null);
+    assert.equal(app.title(), undefined);
+    assert.equal(app.mutations.length, 1);
+  } finally { await app.close(); }
 });

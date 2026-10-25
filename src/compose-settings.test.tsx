@@ -154,14 +154,14 @@ test("compose saves lock every field, retain failed edits and never clear a newe
 test("Settings resets scroll for section transitions and history restoration, not same-section refresh", async () => {
   await withDOM(async ({ document, render }) => {
     await render(settings("about"));
-    const pane = document.querySelector("main")!;
+    const pane = document.querySelector<HTMLElement>(".settings-column")!;
     const scrolls: ScrollToOptions[] = [];
     pane.scrollTo = (options?: ScrollToOptions | number) => {
       if (typeof options === "object") { scrolls.push(options); pane.scrollTop = options.top ?? pane.scrollTop; }
     };
     pane.scrollTop = 480;
     await render(settings("branding"));
-    assert.equal(document.querySelector("main"), pane);
+    assert.equal(document.querySelector(".settings-column"), pane);
     assert.equal(pane.scrollTop, 0);
     assert.deepEqual(scrolls, [{ top: 0, behavior: "instant" }]);
     pane.scrollTop = 90;
