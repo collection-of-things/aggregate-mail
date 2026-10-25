@@ -93,8 +93,11 @@ without changing its layout, so text cannot show behind the editor. Controls and
 their own fills. Off and unsupported platforms remain opaque.
 
 Compose retains its dialog role, Escape handling and save/send guards below
-the window toolbar. It is nonmodal: its keyboard cycle includes toolbar Search
-and Privacy, while underlying mail/work panes remain inert. Other dialogs
+the window toolbar. It is nonmodal: its keyboard cycle includes the sidebar and available toolbar controls,
+while covered mail/work panes remain inert. Navigation, Commands, Filters and
+new-message actions first keep the current draft, waiting for saves and
+attachments. Failed saves keep the composer open. Search and Privacy work
+without closing it. Other dialogs
 retain their modal focus traps. New messages keep the list visible when there
 is room; replies use the full working area. Narrow windows use the available
 width. Replies place the original email and editor in equal side-by-side columns
@@ -366,3 +369,11 @@ focus, always visible on touch. Confirm before deletion, including the existing
 unknown-send warning. Use the exact account, draft ID and saved revision; remove
 the row only after confirmed success. Retain failed rows with refresh guidance,
 refresh the sidebar count and return focus to the next row or Refresh.
+
+Attachment reads finish before edit freezing; failed reads retain the composer
+and error. Inert descendants are excluded from the explicit keyboard cycle.
+Insert link uses a compact inline address field with Add link and Cancel link.
+Enter applies the validated link without submitting email; Escape cancels only
+link entry. Selected text, plain alternatives and safe URL rules are retained.
+
+The composer From selector uses the shared themed dropdown: a 30px trigger, compact account rows, arrow/Home/End selection, Enter to confirm and Escape or Tab to dismiss. Private mode omits account addresses. Account switching retains the existing signature and saved-copy behavior.

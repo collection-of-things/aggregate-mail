@@ -26,7 +26,7 @@ export function SearchToolbar({ inputRef, query, label, invalid, disabled, comma
         <Close color="currentColor" size={13} />
       </button> : <kbd aria-hidden="true">{shortcut}</kbd>}
     </div>
-    <button type="button" className="commands-button" disabled={commandsDisabled} onClick={onCommands}
+    <button data-compose-access type="button" className="commands-button" disabled={commandsDisabled} onClick={onCommands}
       aria-haspopup="dialog" title="Commands (Cmd/Ctrl+K)">Commands <kbd>⌘/Ctrl K</kbd></button>
   </div>;
 }

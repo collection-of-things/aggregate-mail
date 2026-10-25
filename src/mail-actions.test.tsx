@@ -502,8 +502,9 @@ test("saved Compose settings reach new drafts, templates and account signatures 
     await act(async () => { template.value = "followup"; template.dispatchEvent(new app.container.ownerDocument.defaultView!.Event("change", { bubbles: true })); });
     await app.click(app.button("Insert template", dialog));
     assert.equal(body.value, "Template body\n\n-- \nWork signature");
-    const from = dialog.querySelector<HTMLSelectElement>("select")!;
-    await act(async () => { from.value = "b"; from.dispatchEvent(new app.container.ownerDocument.defaultView!.Event("change", { bubbles: true })); });
+    const from = dialog.querySelector<HTMLButtonElement>('[role="combobox"][aria-label="From"]')!;
+    await app.click(from);
+    await app.click([...dialog.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent?.includes("second@example.com"))!);
     assert.equal(body.value, "Template body\n\n-- \nPersonal signature");
     assert.deepEqual([...app.drafts.values()].map((draft) => [draft.accountId, draft.body]), [
       ["a", "Template body\n\n-- \nWork signature"],
@@ -512,7 +513,9 @@ test("saved Compose settings reach new drafts, templates and account signatures 
     assert.equal(app.mutations.length, 0);
     assert.equal((await app.key("ArrowDown", body)).defaultPrevented, false);
     await app.key("k", body, { ctrlKey: true });
-    assert.equal(app.dialog().getAttribute("aria-label"), "New message", "palette cannot replace a draft");
+    assert.equal(app.dialog().getAttribute("aria-label"), "Commands", "Commands opens after keeping the draft");
+    assert.equal(app.drafts.size, 2);
+    assert.equal([...app.drafts.values()].find(draft => draft.accountId === "b")?.body, "Template body\n\n-- \nPersonal signature");
   } finally { await app.close(); }
 });
 

@@ -5,6 +5,7 @@ import { emptyComposePreferences, type ComposePreferences } from "../../shared/m
 import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
 import { accountLabel } from "../mail-ui";
 import { Dialog } from "../ui/Dialog";
+import { Dropdown } from "../ui/Dropdown";
 import { changeComposeAccount, ComposePreferenceControls } from "./ComposePreferences";
 import type { Compose, DraftProgress } from "./draft-session";
 import { Paperclip, Trash } from "../ui/icons";
@@ -134,9 +135,9 @@ export function ComposePanel({
         reader.readAsDataURL(file);
       })));
       setDraft({ ...draft, attachments: [...(draft.attachments || []), ...attachments] });
-    } catch { setAttachmentError("Attachment could not be read. Choose it again."); }
+    } catch { setAttachmentError("Attachment could not be read. Choose it again."); throw new Error("Attachment read failed"); }
     finally { filesBusy.current = false; setLoadingFiles(false); } })();
-    onAttachmentTask?.(task); await task;
+    onAttachmentTask?.(task); await task.catch(() => {});
   };
   return (
     <Dialog
@@ -175,23 +176,22 @@ export function ComposePanel({
         {draft.invitation && <p className="compose-invitation-note" role="status">Review {draft.invitation.method === "REPLY" ? "your calendar response" : draft.invitation.method === "CANCEL" ? "this cancellation" : "this invitation"}. Calendar details and recipients are fixed. Nothing is sent until you press Send.</p>}
         <div className="compose-envelope">
           <div className="compose-from-row">
-          <label>
+          <div className="compose-from-field">
             <span>From</span>
-            <select
+            <Dropdown
+              label="From"
               value={draft.accountId}
               disabled={!!draft.invitation || busy || loadingFiles || progress.phase === "saving" || progress.phase === "error"}
-              onChange={(e) => {
-                try { setDraft(changeComposeAccount(draft, e.target.value, preferences)); }
+              options={accounts.map((account, index) => ({
+                value: account.id,
+                label: privacy ? accountLabel(account, index, true) : account.name ? `${account.name} · ${account.email}` : account.email,
+              }))}
+              onChange={(accountId) => {
+                try { setDraft(changeComposeAccount(draft, accountId, preferences)); }
                 catch { setAttachmentError("Unable to update the signature without changing your message. Your text is unchanged."); }
               }}
-            >
-              {accounts.map((a, index) => (
-                <option key={a.id} value={a.id}>
-                  {privacy ? accountLabel(a, index, true) : a.name ? `${a.name} · ${a.email}` : a.email}
-                </option>
-              ))}
-            </select>
-          </label>
+            />
+          </div>
 
           </div>
           <div className="compose-to-row">

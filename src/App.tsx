@@ -109,10 +109,22 @@ export function App() {
   const [connecting, setConnecting] = useState<ImapProvider | "choose" | null>(null);
   const [compose, setCompose] = useState<Compose | null>(null);
   const [replyContext, setReplyContext] = useState<Mail | undefined>();
+  const afterCompose = useRef<
+    { type: "visit"; patch: Partial<MailLocation>; search: boolean } |
+    { type: "history"; direction: -1 | 1 } |
+    { type: "new" | "connect" | "commands" | "filters" | "shortcuts" } | null
+  >(null);
+  const leaveCompose = (next: NonNullable<typeof afterCompose.current>) => runDraftAction(async session => {
+    await session.flush();
+    afterCompose.current = next;
+    draftSession.current = null;
+    setCompose(null);
+  });
 
   const [draftProgress, setDraftProgress] = useState<DraftProgress>({ phase: "idle", message: "Draft saves on this device as you type." });
   const draftSession = useRef<DraftSession | null>(null);
   const draftLock = useRef(false);
+  const draftAdmissionLock = useRef(false);
   const attachmentTask = useRef<Promise<void> | undefined>(undefined);
   const draftTask = useRef<Promise<void> | undefined>(undefined);
   const [updateInstalling, setUpdateInstalling] = useState(false);
@@ -143,12 +155,17 @@ export function App() {
   const toolbarBlocked = !!(teach || snooze || trashMail || shortcuts || labelMail || connecting || updateInstalling || settingsModal || workModal || quickSource || meetingMail);
   const navigationBlocked = !!compose || toolbarBlocked;
   const navigate = (patch: Partial<MailLocation>, search = false) => {
-    if (navigationBlocked) return false;
+    if (toolbarBlocked) return false;
+    if (compose) { leaveCompose({ type: "visit", patch, search }); return false; }
     navigation.visit(patch, search);
     return true;
   };
   const travel = (direction: -1 | 1) => {
-    if (navigationBlocked || contextMenu || palette) return;
+    if (toolbarBlocked || contextMenu || palette) return;
+    if (compose) {
+      if (direction === 1 && !navigation.canForward) return;
+      leaveCompose({ type: "history", direction }); return;
+    }
     const active = document.activeElement;
     const restoreFocus = active === document.body || active instanceof HTMLElement && !!active.closest(".row, .message");
     navigation.travel(direction, (target) => {
@@ -177,7 +194,8 @@ export function App() {
       event.preventDefault();
       const element = event.target instanceof Element ? event.target : null;
       const guarded = element?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [role="menu"], [data-update-command], .update-notice, .credential-fallback-notice');
-      if (!native && !guarded && event.type === "mouseup") travel(event.button === 3 ? -1 : 1);
+      const composeTarget = element?.closest(".compose-dialog") && !element.closest('select, [role="menu"]');
+      if (!native && (!guarded || composeTarget) && event.type === "mouseup") travel(event.button === 3 ? -1 : 1);
     };
     window.addEventListener("mousedown", mouse, true);
     window.addEventListener("mouseup", mouse, true);
@@ -325,12 +343,16 @@ export function App() {
   };
   const runDraftAction = (task: (session: DraftSession) => Promise<void>) => {
     const session = draftSession.current;
-    if (!session || busy || sendLock.current || draftLock.current || updateInstalling) return;
-    draftLock.current = true;
+    if (!session || busy || sendLock.current || draftAdmissionLock.current || updateInstalling) return;
+    draftAdmissionLock.current = true;
     setBusy(true);
-    draftTask.current = Promise.resolve(attachmentTask.current).then(() => task(session)).catch(() => {
+    draftTask.current = Promise.resolve(attachmentTask.current).then(() => {
+      // Admit the current FileReader completion before freezing draft edits.
+      draftLock.current = true;
+      return task(session);
+    }).catch(() => {
       setNotice("Draft action could not be confirmed. Your text is still open. Check the draft save status before closing.");
-    }).finally(() => { draftLock.current = false; setBusy(false); });
+    }).finally(() => { draftAdmissionLock.current = false; draftLock.current = false; setBusy(false); });
   };
   const closeCompose = () => runDraftAction(async (session) => {
     await session.flush();
@@ -438,6 +460,18 @@ export function App() {
     // Let the send result update the draft/unload guard before native close.
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
   }), []);
+  useEffect(() => {
+    if (compose || !afterCompose.current) return;
+    const next = afterCompose.current;
+    afterCompose.current = null;
+    if (next.type === "visit") { navigation.visit(next.patch, next.search); setSearching(!!next.patch.query); }
+    else if (next.type === "history") travel(next.direction);
+    else if (next.type === "new") startCompose();
+    else if (next.type === "connect") setConnecting("choose");
+    else if (next.type === "commands") setPalette(true);
+    else if (next.type === "filters") setFiltersOpen(true);
+    else if (next.type === "shortcuts") setShortcuts(true);
+  });
   const showSearch = () => {
     if (toolbarBlocked) return;
     setSearching(true);
@@ -704,7 +738,7 @@ export function App() {
       const target = event.target;
       if (event.key.toLowerCase() === "k" && !event.altKey && !event.shiftKey &&
         (window.desktop?.platform === "darwin" ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)) {
-        if (!navigationBlocked) { event.preventDefault(); setFiltersOpen(false); setPalette((value) => !value); }
+        if (!toolbarBlocked) { event.preventDefault(); setFiltersOpen(false); if (compose) leaveCompose({ type: "commands" }); else setPalette((value) => !value); }
         return;
       }
       if (palette) return;
@@ -723,10 +757,10 @@ export function App() {
         });
         return;
       }
-      if (compose && !toolbarBlocked && matches(event, "search", interaction, window.desktop?.platform)) { event.preventDefault(); showSearch(); return; }
-      if (compose && !toolbarBlocked && matches(event, "privacy", interaction, window.desktop?.platform)) { event.preventDefault(); togglePrivacy(); return; }
+      if (compose && !toolbarBlocked && matches(event, "search", interaction, window.desktop?.platform, true)) { event.preventDefault(); showSearch(); return; }
+      if (compose && !toolbarBlocked && matches(event, "privacy", interaction, window.desktop?.platform, true)) { event.preventDefault(); togglePrivacy(); return; }
       if (target instanceof HTMLElement && (target.isContentEditable ||
-        ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
+        ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.closest('[role="combobox"]'))) return;
       if (target instanceof HTMLElement && target.tagName === "BUTTON" && target.getAttribute("role") === "combobox") return;
       if (event.key === "Escape" && !event.ctrlKey && !event.metaKey && !event.altKey) {
         if (compose) return;
@@ -736,7 +770,15 @@ export function App() {
         setLabelMail(null); setSettings(false);
         return;
       }
-      if (compose || teach || snooze || trashMail || shortcuts || labelMail || connecting) return;
+      if (compose) {
+        const action = interactionActions.find(({ id }) => matches(event, id, interaction, window.desktop?.platform, true))?.id;
+        if (action === "back" || action === "forward") { event.preventDefault(); travel(action === "back" ? -1 : 1); }
+        else if (action === "settings") { event.preventDefault(); setSettings(value => !value); }
+        else if (action === "help") { event.preventDefault(); leaveCompose({ type: "shortcuts" }); }
+        else if (action === "compose") { event.preventDefault(); leaveCompose({ type: "new" }); }
+        return;
+      }
+      if (teach || snooze || trashMail || shortcuts || labelMail || connecting) return;
       const action = interactionActions.find(({ id }) => matches(event, id, interaction, window.desktop?.platform))?.id;
       if (action === "back" || action === "forward") {
         event.preventDefault(); travel(action === "back" ? -1 : 1); return;
@@ -796,7 +838,7 @@ export function App() {
   });
   useEffect(() => {
     const handle = (e: BeforeUnloadEvent) => {
-      if (sendLock.current || draftLock.current || attachmentTask.current || draftSession.current?.dirty || compose?.sendUnknown || eventDirty)
+      if (sendLock.current || draftAdmissionLock.current || attachmentTask.current || draftSession.current?.dirty || compose?.sendUnknown || eventDirty)
         e.preventDefault();
     };
     window.addEventListener("beforeunload", handle);
@@ -864,7 +906,7 @@ export function App() {
     return windowSide === "left" ? (pane === left ? "left" : null) : (pane === "main" ? "right" : null);
   };
   const sidebarToggle = !sidebarOpen && roomy && (
-    <button
+    <button data-compose-access
       className="icon"
       id="sidebar-toggle"
       aria-label="Show sidebar"
@@ -932,10 +974,10 @@ export function App() {
   );
   const historyControls = (
     <nav className="mail-navigation" aria-label="Mail history">
-      <button type="button" aria-label="Back" title="Back" disabled={navigationBlocked || !!contextMenu || !navigation.canBack} onClick={() => travel(-1)}>
+      <button data-compose-access type="button" aria-label="Back" title="Back" disabled={toolbarBlocked || !!contextMenu || (!!compose && busy) || !(navigation.canBack || compose)} onClick={() => travel(-1)}>
         <ArrowLeft size={15} />
       </button>
-      <button type="button" aria-label="Forward" title="Forward" disabled={navigationBlocked || !!contextMenu || !navigation.canForward} onClick={() => travel(1)}>
+      <button data-compose-access type="button" aria-label="Forward" title="Forward" disabled={toolbarBlocked || !!contextMenu || (!!compose && busy) || !navigation.canForward} onClick={() => travel(1)}>
         <ArrowRight size={15} />
       </button>
     </nav>
@@ -998,10 +1040,10 @@ export function App() {
               accountFilter,
               onAccount: (id) => navigate({ page: "mail", accountFilter: id, labelFilter: "all", selectedId: null, opened: false }),
               privacy,
-              blocked: navigationBlocked,
+              blocked: toolbarBlocked || (!!compose && busy),
               busy,
-              onAddAccount: () => setConnecting("choose"),
-              onCompose: () => startCompose(),
+              onAddAccount: () => compose ? leaveCompose({ type: "connect" }) : setConnecting("choose"),
+              onCompose: () => compose ? leaveCompose({ type: "new" }) : startCompose(),
               onDrafts: () => switchView("drafts"),
               draftCount: state.draftCount,
               onSettings: () => setSettings(true),
@@ -1025,12 +1067,12 @@ export function App() {
               {historyControls}
               <SearchToolbar inputRef={searchRef} query={settings || workView ? "" : query}
                 label={`Search ${settings || workView ? "all" : viewNames[view]} cached mail`}
-                invalid={!settings && !workView && !!search.error} disabled={toolbarBlocked} commandsDisabled={navigationBlocked} shortcut={shortcut("search")} onFocus={() => setSearching(true)}
+                invalid={!settings && !workView && !!search.error} disabled={toolbarBlocked} commandsDisabled={toolbarBlocked || (!!compose && busy)} shortcut={shortcut("search")} onFocus={() => setSearching(true)}
                 onChange={(value) => {
                   setSearching(true);
                   if (toolbarBlocked) return;
                   navigation.visit({ page: "mail", ...(settings || workView || view === "drafts" ? { view: "all", readFilter: "all", relevanceFilter: "all", labelFilter: "all" } : {}), query: value, opened: false, selectedId: null }, true);
-                }} onClear={closeSearch} onCommands={() => setPalette(true)} />
+                }} onClear={closeSearch} onCommands={() => compose ? leaveCompose({ type: "commands" }) : setPalette(true)} />
               <div className="pane-tools">
                 {!settings && view !== "drafts" && !workView && <MailFilters
                   open={filtersOpen}
@@ -1038,10 +1080,10 @@ export function App() {
                   location={navigation.location}
                   labels={labels}
                   accounts={state.accounts}
-                  blocked={navigationBlocked}
+                  blocked={toolbarBlocked || (!!compose && busy)}
                   showReset={hasListControls}
                   labelName={(name) => privacy ? redactPrivateText(name, collectPrivateNames(state.accounts, opened ? selected || {} : {})) : name}
-                  onOpen={setFiltersOpen}
+                  onOpen={(open) => open && compose ? leaveCompose({ type: "filters" }) : setFiltersOpen(open)}
                   onChange={(patch) => navigate({ ...patch, selectedId: null, opened: false })}
                   onReset={resetListControls}
                 />}
@@ -1274,7 +1316,7 @@ export function App() {
           onSaved={() => { setMeetingMail(null); pushToast("Meeting added to your Emc² calendar. No invitation was sent.", "success"); }} />}
         {compose && (
           <ComposePanel
-            onAttachmentTask={(task) => { attachmentTask.current = task; void task.finally(() => { if (attachmentTask.current === task) attachmentTask.current = undefined; }); }}
+            onAttachmentTask={(task) => { attachmentTask.current = task; const clear = () => { if (attachmentTask.current === task) attachmentTask.current = undefined; }; void task.then(clear, clear); }}
             draft={compose}
             source={hydratedReply.mail}
             setDraft={editCompose}
@@ -1293,12 +1335,12 @@ export function App() {
               setCompose(session.content);
             })}
             onSaveCopy={() => {
-              if (busy || sendLock.current || draftLock.current || updateInstalling) return;
+              if (busy || sendLock.current || draftAdmissionLock.current || attachmentTask.current || updateInstalling) return;
               if (confirm("Save a separate copy? The previous saved draft may still exist. Neither copy will be sent automatically.")) openCompose(draftSession.current?.content || compose);
             }}
             onSend={() => {
               const session = draftSession.current;
-              if (!session || busy || draftLock.current || sendLock.current || updateInstalling) return;
+              if (!session || busy || draftAdmissionLock.current || sendLock.current || attachmentTask.current || updateInstalling) return;
               const snapshot = { ...session.content, to: session.content.to.trim(), cc: session.content.cc?.map((value) => value.trim()).filter(Boolean) };
               sendTask.current = sendCompose(snapshot, {
                 lock: sendLock,

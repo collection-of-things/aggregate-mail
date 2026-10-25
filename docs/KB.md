@@ -1970,3 +1970,30 @@ measured 22,218ms elapsed / 20,548ms CPU / 528.4MB peak heap before, versus
 231MiB. These are workload-specific observations, not startup guarantees or
 proof of every native memory spike. Settings, encryption and stored records
 are unchanged. See [ADR 0072](adr/0072-conversation-scoped-proposal-refresh.md).
+
+## Compose navigation and input ownership
+
+The nonmodal compose backdrop is pointer-transparent, while the composer itself
+accepts pointer input and covered mail/work panes remain inert. Sidebar and
+exposed toolbar controls share its explicit Tab cycle. Back/Forward, sidebar
+view/account/Settings changes, New message, Add account, Commands and Filters
+first drain attachments and flush the current draft using the existing shared
+lock. Only a successful save queues the requested action. A fresh post-close
+render consumes it; failed or uncertain saves keep the text open. Forward at a
+history edge does not close a draft. No automatic send or draft deletion occurs.
+
+Mouse side buttons work over composer fields; native selects/menus retain their
+own pointer handling. Native history IPC remains the sole side-button source
+on Windows/Linux. Safe shortcuts work from nonediting compose controls; text
+fields, dropdown arrows, rich editing and native undo/copy/paste retain ownership.
+Search and Privacy remain usable without leaving composition. Other modal
+dialogs keep their existing navigation and focus guards. No saved interaction
+preferences change. See [ADR 0073](adr/0073-compose-navigation-access.md).
+
+Attachment reads finish before edit freezing; failed reads retain the composer
+and error. Inert descendants are excluded from the explicit keyboard cycle.
+Insert link uses a compact inline address field with Add link and Cancel link.
+Enter applies the validated link without submitting email; Escape cancels only
+link entry. Selected text, plain alternatives and safe URL rules are retained.
+
+The composer From selector uses the shared themed dropdown: a 30px trigger, compact account rows, arrow/Home/End selection, Enter to confirm and Escape or Tab to dismiss. Private mode omits account addresses. Account switching retains the existing signature and saved-copy behavior.

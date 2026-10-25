@@ -86,3 +86,21 @@ test("dialog falls back to a safe button when its fields are disabled", async ()
   try { assert.ok(document.activeElement === document.querySelector('[aria-label="Close dialog"]'), "safe button receives initial focus"); }
   finally { await ui.unmount(); await ui.close(); }
 });
+
+test("compose focus cycle skips controls inside an inert sidebar while busy", async () => {
+  const dom = { window: new DOMWindow({ url: "http://localhost/" }) };
+  const globals = { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true };
+  const previous = new Map(Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, value });
+  document.body.innerHTML = '<div id="root"></div>';
+  const { createRoot } = await import("react-dom/client"); const root = createRoot(document.getElementById("root")!);
+  try {
+    await act(async () => root.render(<><aside className="sidebar"><button id="toggle">Toggle</button><div inert><button id="unavailable">New message</button></div></aside><header className="app-toolbar"><button data-compose-access id="privacy">Privacy</button></header><Dialog toolbarAccess title="New message" onClose={() => {}}><button>Keep draft</button></Dialog></>));
+    document.getElementById("toggle")!.focus();
+    await act(async () => dom.window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })));
+    assert.equal(document.activeElement?.id, "privacy", "inert descendants are excluded from the allowed cycle");
+  } finally {
+    await act(async () => root.unmount()); await dom.window.happyDOM.close();
+    for (const [key, value] of previous) if (value) Object.defineProperty(globalThis, key, value); else Reflect.deleteProperty(globalThis, key);
+  }
+});

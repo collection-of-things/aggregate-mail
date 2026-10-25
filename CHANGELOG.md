@@ -3,6 +3,10 @@
 ## Unreleased
 
 - Show current MCP permissions in CLI status without account identities, add cached Inbox/Sent/All selection, and request reviewed replies only when the app explicitly guarantees approval to Drafts without sending. Preserve older commands, grants and no automatic retries.
+- Replace the native composer From popup with a compact themed account menu, retaining private labels and keyboard selection.
+
+- Restore composer mouse history and sidebar/toolbar access with save-before-navigation. Extend its keyboard cycle to exposed controls while retaining editing keys, attachment reads and failed-save recovery. Use inline link entry with Enter/Cancel support.
+
 - Limit workspace proposal refreshes to related conversation bodies, preserving account-scoped membership and changed-source checks while reducing unrelated decryption and allocation.
 
 - Align sidebar, coverage and compose dividers on a shared footer track with clearance around 30px primary buttons. Compact saved-draft rows, move Refresh beside account tabs and add confirmed direct draft deletion while retaining failure and uncertain-send notices.

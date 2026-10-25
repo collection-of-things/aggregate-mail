@@ -39,7 +39,7 @@ test("composer discloses empty Cc, keeps recovered recipients visible and preser
     assert.equal(cc()!.value, "copy@example.test");
     assert.match(document.body.textContent!, /Send status unknown/);
     assert.equal(document.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled, true);
-    assert.equal(document.querySelector<HTMLSelectElement>("select")!.disabled, true);
+    assert.equal(document.querySelector<HTMLButtonElement>('[role="combobox"][aria-label="From"]')!.disabled, true);
     await act(async () => { button("Retry save").click(); button("Save separate copy").click(); button("Keep draft").click(); });
     assert.deepEqual([retry, copy, close], [1, 1, 1]);
     assert.match(document.querySelector(".compose-footer")!.textContent!, /Draft could not be saved/);
@@ -73,9 +73,9 @@ test("reply retains original context and file drops reuse attachment validation 
   try{
     await render(); assert.match(document.querySelector('[aria-label="Original email"]')!.textContent!,/Please confirm the delivery date/);
     assert.equal(document.querySelector('[aria-label="Original email"]')?.getAttribute('tabindex'), '0', 'original email supports keyboard scrolling');
-    assert.match(document.querySelector('.compose-from-row select option:checked')!.textContent!,/me@example.test/);
+    assert.match(document.querySelector('.compose-from-row [role="combobox"]')!.textContent!,/me@example.test/);
     draft.accountId="b";await render();
-    assert.match(document.querySelector('.compose-from-row select option:checked')!.textContent!,/selected@example.test/);
+    assert.match(document.querySelector('.compose-from-row [role="combobox"]')!.textContent!,/selected@example.test/);
     assert.equal(document.querySelector('.compose-footer .compose-format'), null, 'sender is shown once in From, without a repeated footer row');
     await drop([new dom.window.File(["hello"],"note.txt",{type:"text/plain"})]);
     assert.equal(changed?.body,draft.body);assert.deepEqual(changed?.attachments,[{filename:"note.txt",contentType:"text/plain",content:"aGVsbG8="}]);assert.equal(sends,0);
@@ -102,9 +102,12 @@ test("composer From hides account addresses in privacy mode", async () => {
       onClose={() => {}} onDiscard={() => {}} onRetry={() => {}} onSaveCopy={() => {}}
       progress={{ phase: "saved", message: "Draft saved." }} onSend={() => {}} />
   </PrivacyContext.Provider>));
-  const from = () => dom.window.document.querySelector("select option")!.textContent!;
+  const from = () => dom.window.document.querySelector('[role="combobox"][aria-label="From"] > span')!.textContent!;
   try {
     await render(true);
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="From"]')!.click());
+    assert.equal(document.querySelectorAll('[role="option"]').length, 1);
+    assert.ok(!document.querySelector('[role="listbox"]')!.innerHTML.includes("from@example.test"));
     assert.ok(!from().includes("from@example.test"));
     assert.match(from(), /^Account 1/);
     assert.equal(document.querySelector('.compose-footer .compose-format'), null);

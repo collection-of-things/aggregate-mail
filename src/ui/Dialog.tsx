@@ -27,6 +27,7 @@ export function Dialog({
     )?.focus();
     const handler = (e: KeyboardEvent) => {
       const target = e.target instanceof window.Node ? e.target : document.activeElement;
+      if (e.key === "Escape" && toolbarAccess && target instanceof HTMLElement && target.closest("[data-escape-owner]")) return;
       if (e.key === "Escape" && (!toolbarAccess || ref.current?.contains(target))) {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -35,9 +36,9 @@ export function Dialog({
       if (e.key !== "Tab") return;
       const selector = "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex='0']";
       const controls = [
-        ...(toolbarAccess ? document.querySelectorAll<HTMLElement>('.app-toolbar [data-compose-access]:not(:disabled)') : []),
+        ...(toolbarAccess ? document.querySelectorAll<HTMLElement>('.sidebar:not(.closed) button:not(:disabled), .app-toolbar [data-compose-access]:not(:disabled)') : []),
         ...(ref.current?.querySelectorAll<HTMLElement>(selector) ?? []),
-      ];
+      ].filter(control => !control.closest("[inert]"));
       if (!controls?.length) return;
       if (toolbarAccess) {
         const index = controls.indexOf(document.activeElement as HTMLElement);

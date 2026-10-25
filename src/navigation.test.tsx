@@ -97,6 +97,7 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
   let releaseComposeSave: (() => void) | undefined;
   let composeSaveRequests = 0;
   let savedDraft: Draft | undefined;
+  let draftSaveFails = false;
   let readWait: Promise<void> | undefined;
   let releaseRead: (() => void) | undefined;
   globalThis.fetch = async (input, options) => {
@@ -121,6 +122,7 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
     }
     if (url.endsWith("/drafts") && !options?.method) return { ok: true, json: async () => [] } as unknown as Response;
     if (url.includes("/drafts") && ["POST", "PUT"].includes(options?.method || "")) {
+      if (draftSaveFails) return { ok: false, json: async () => ({ error: "Synthetic draft save failure" }) } as Response;
       savedDraft = { ...JSON.parse(String(options?.body)), id: "synthetic-draft", accountId: url.split("/")[3],
         revision: (savedDraft?.revision || 0) + 1, updatedAt: 1 };
       return { ok: true, json: async () => savedDraft } as Response;
@@ -239,6 +241,7 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
     holdRead: () => { readWait = new Promise<void>((resolve) => { releaseRead = resolve; }); },
     finishRead: async () => { await act(async () => { releaseRead?.(); await readWait; readWait = undefined; }); },
     savedDraft: () => savedDraft,
+    failDraftSave: (value: boolean) => { draftSaveFails = value; },
     close,
   };
 }
@@ -881,7 +884,7 @@ test("multiple IMAP accounts stay distinguishable and private, choose compose Fr
     hidden();
     assert.deepEqual([...app.container.querySelectorAll(".row")].map(row => row.id), ["mail-b:1"]);
     await app.key("c");
-    assert.equal(app.container.querySelector<HTMLSelectElement>(".compose-form select")?.value, "b");
+    assert.match(app.container.querySelector('.compose-from-row [role="combobox"]')!.textContent!, /Account 2/);
     await app.key("Escape");
     await app.click(app.button("Add account"));
     assert.equal(app.container.querySelector('[role="dialog"] h2')?.textContent, "Connect account");
@@ -1197,7 +1200,7 @@ test("mouse side buttons leave and restore an initial reader while dialogs guard
     assert.equal(app.title(), undefined);
     await app.mouse(4);
     assert.equal(app.title(), "Alpha");
-    for (const shortcut of ["c", "m", "s", "?"]) {
+    for (const shortcut of ["m", "s", "?"]) {
       await app.key(shortcut);
       assert.ok(app.container.querySelector(shortcut === "s" ? '[role="menu"]' : '[role="dialog"]'));
       await app.mouse(3); await app.mouse(4);
@@ -1582,7 +1585,7 @@ test("reader history restores row focus from a removed reader and preserves focu
   } finally { await app.close(); }
 });
 
-test("mounted App guards drafts/dialogs and uses one native side-button source with cleanup", { timeout: 10000 }, async () => {
+test("mounted App guards modal dialogs and uses one native side-button source with cleanup", { timeout: 10000 }, async () => {
   const app = await mount(true);
   try {
     await app.open("a:1");
@@ -1597,24 +1600,14 @@ test("mounted App guards drafts/dialogs and uses one native side-button source w
     await app.native("back");
     await app.open("a:1");
     const mutations = app.mutations.length;
-    for (const shortcut of ["c", "m", "s", "?"]) {
+    for (const shortcut of ["m", "s", "?"]) {
       await app.key(shortcut);
       assert.ok(app.container.querySelector(shortcut === "s" ? '[role="menu"]' : '[role="dialog"]'));
-      const body = app.container.querySelector<HTMLTextAreaElement>("textarea");
-      if (shortcut === "c") {
-        assert.ok(body);
-        await app.input(body, "Keep this draft");
-      }
       assert.ok(app.back().disabled && app.forward().disabled);
       await app.native("back");
       await app.native("forward");
       assert.equal(app.title(), "Alpha");
-      if (shortcut === "c") assert.equal(body!.value, "Keep this draft");
       await app.key("Escape");
-      if (shortcut === "c") {
-        assert.equal(app.container.querySelector('[role="dialog"]'), null);
-        assert.equal(app.savedDraft()?.body, "Keep this draft", "Escape retains the acknowledged draft");
-      }
     }
     await app.key("Escape");
     assert.equal(app.title(), undefined);
@@ -1846,5 +1839,142 @@ test("compose improvements preserve device settings and account preferences thro
       assert.equal(app.state.composePreferences?.signatures.a, "Saved signature");
       assert.equal(app.mutations.length, 0);
     } finally { await app.close(); }
+  }
+});
+
+
+for (const native of [false, true]) test(`compose history saves before ${native ? "native" : "mouse"} Back and retains Forward`, async () => {
+  const app = await mount(native);
+  try {
+    await app.click(app.button("Archive"));
+    await app.click(app.button("New message"));
+    const editor = app.container.querySelector<HTMLTextAreaElement>(".compose-form textarea")!;
+    await app.input(editor, "Keep this history draft");
+    if (native) await app.native("back");
+    else await act(async () => {
+      for (const type of ["mousedown", "mouseup", "auxclick"]) editor.dispatchEvent(new app.window.MouseEvent(type, { button: 3, bubbles: true, cancelable: true }));
+    });
+    assert.equal(Boolean(app.container.querySelector(".compose-dialog")), false);
+    assert.equal(app.savedDraft()?.body, "Keep this history draft");
+    assert.equal(app.container.querySelector(".app-context strong")?.textContent, "Inbox");
+    if (native) await app.native("forward"); else await app.mouse(4);
+    assert.equal(app.container.querySelector(".app-context strong")?.textContent, "Archive");
+  } finally { await app.close(); }
+});
+
+test("compose navigation keeps failed saves open and sidebar navigation saves before leaving", async () => {
+  const app = await mount();
+  try {
+    await app.click(app.button("New message"));
+    const editor = app.container.querySelector<HTMLTextAreaElement>(".compose-form textarea")!;
+    await app.input(editor, "Retain across Settings");
+    await app.click(app.button("Settings"));
+    assert.equal(Boolean(app.container.querySelector(".compose-dialog")), false);
+    assert.ok(app.container.querySelector(".settings"));
+    assert.equal(app.savedDraft()?.body, "Retain across Settings");
+    await app.click(app.button("Close settings"));
+    app.failDraftSave(true);
+    await app.click(app.button("New message"));
+    const failed = app.container.querySelector<HTMLTextAreaElement>(".compose-form textarea")!;
+    await app.input(failed, "Keep this failed save");
+    await app.mouse(3);
+    assert.ok(app.container.querySelector(".compose-dialog"));
+    assert.equal(failed.value, "Keep this failed save");
+    assert.match(app.container.textContent!, /could not be confirmed|could not be saved/);
+  } finally { await app.close(); }
+});
+
+
+test("compose keyboard cycle reaches sidebar and toolbar without stealing editing or native field keys", async () => {
+  const app = await mount();
+  try {
+    await app.click(app.button("New message"));
+    const doc = app.window.document;
+    const editor = app.container.querySelector<HTMLTextAreaElement>(".compose-form textarea")!;
+    await app.input(editor, "Typing stays in the editor");
+    for (const key of ["c", "/", "p", ",", "?", "ArrowLeft", "ArrowRight"]) {
+      const event = new app.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+      await act(async () => editor.dispatchEvent(event));
+      assert.equal(event.defaultPrevented, false, `editor owns ${key}`);
+    }
+    const from = app.container.querySelector<HTMLButtonElement>('.compose-from-row [role="combobox"]')!;
+    const fromKey = async (key: string) => act(async () => from.dispatchEvent(new app.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })));
+    const arrow = new app.window.KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true });
+    await act(async () => from.dispatchEvent(arrow));
+    assert.equal(arrow.defaultPrevented, true, "From dropdown opens with arrows");
+    assert.equal(from.getAttribute("aria-expanded"), "true");
+    await fromKey("End");
+    const lastOption = app.container.querySelector('[role="option"]:last-child')!;
+    assert.equal(from.getAttribute("aria-activedescendant"), lastOption.id);
+    await fromKey("Home");
+    assert.equal(from.getAttribute("aria-activedescendant"), app.container.querySelector('[role="option"]')!.id);
+    const hiddenBefore = app.storage.getItem("privacy");
+    await fromKey("p");
+    assert.equal(app.storage.getItem("privacy"), hiddenBefore, "account picker owns printable keys");
+    await fromKey("Escape");
+    assert.equal(from.getAttribute("aria-expanded"), "false");
+    assert.ok(app.container.querySelector(".compose-dialog"), "menu Escape keeps the composer open");
+    await app.click(from);
+    await act(async () => from.focus());
+    await fromKey("Tab");
+    assert.equal(from.getAttribute("aria-expanded"), "false");
+    assert.notEqual(doc.activeElement, from, "Tab dismisses the menu and moves focus");
+    await app.click(app.button("Hide sidebar"));
+    await act(async () => app.button("Show sidebar").focus());
+    await app.key("Tab");
+    assert.equal(doc.activeElement?.getAttribute("aria-label"), "Back", "collapsed sidebar toggle stays in the compose cycle");
+    await app.click(app.button("Show sidebar"));
+    await act(async () => app.button("New message").focus());
+    await app.key("Tab");
+    assert.equal(doc.activeElement, app.button("Drafts"));
+    await act(async () => app.button("Back").focus());
+    await app.key("Tab");
+    assert.ok(doc.activeElement?.closest(".app-toolbar"));
+    await act(async () => app.button("Close dialog").focus());
+    await act(async () => app.button("Close dialog").dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "p", bubbles: true, cancelable: true })));
+    assert.equal(app.storage.getItem("privacy"), "on");
+    await act(async () => app.button("Close dialog").dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+    assert.equal(Boolean(app.container.querySelector(".compose-dialog")), false);
+    assert.equal(app.savedDraft()?.body, "Typing stays in the editor");
+    await app.click(app.button("New message"));
+    await app.click(app.button("Commands"));
+    assert.equal(Boolean(app.container.querySelector(".compose-dialog")), false);
+    assert.ok(app.container.querySelector(".command-palette"));
+  } finally { await app.close(); }
+});
+
+for (const failed of [false, true]) test(`compose attachment drain ${failed ? "retains failed reads" : "keeps completed bytes"} during navigation`, async () => {
+  const app = await mount();
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "FileReader");
+  let finish: (() => void) | undefined;
+  class HeldReader {
+    result = "data:text/plain;base64,U3ludGhldGlj";
+    onload?: () => void;
+    onerror?: () => void;
+    readAsDataURL() { finish = () => failed ? this.onerror?.() : this.onload?.(); }
+  }
+  Object.defineProperty(globalThis, "FileReader", { configurable: true, value: HeldReader });
+  try {
+    await app.click(app.button("New message"));
+    const input = app.container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(input, "files", { configurable: true, value: [new app.window.File(["Synthetic"], "notes.txt", { type: "text/plain" })] });
+    await act(async () => input.dispatchEvent(new app.window.Event("change", { bubbles: true })));
+    assert.ok(finish, "synthetic file read is pending");
+    await app.click(app.button("Settings"));
+    assert.ok(app.container.querySelector(".compose-dialog"), "navigation waits for the file read");
+    await act(async () => finish?.());
+    if (failed) {
+      assert.ok(app.container.querySelector(".compose-dialog"));
+      assert.match(app.container.textContent!, /Attachment could not be read/);
+      assert.equal(Boolean(app.container.querySelector(".settings")), false);
+    } else {
+      assert.equal(Boolean(app.container.querySelector(".compose-dialog")), false);
+      assert.equal(app.savedDraft()?.attachments?.[0]?.filename, "notes.txt");
+      assert.equal(app.savedDraft()?.attachments?.[0]?.content, "U3ludGhldGlj");
+      assert.ok(app.container.querySelector(".settings"));
+    }
+  } finally {
+    if (previous) Object.defineProperty(globalThis, "FileReader", previous); else Reflect.deleteProperty(globalThis, "FileReader");
+    await app.close();
   }
 });
