@@ -47,7 +47,7 @@ export function MailFilters({ open, active, location, labels, accounts, blocked,
   }, [open, onOpen]);
   return (
     <div className="filter-menu" ref={root}>
-      <button
+      <button data-compose-access
         className={active || open ? "icon on" : "icon"}
         aria-label="Filters"
         aria-haspopup="dialog"

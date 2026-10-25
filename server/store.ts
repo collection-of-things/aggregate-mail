@@ -1,3 +1,4 @@
+import { conversationMembers } from "./conversation-members.js";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -224,6 +225,18 @@ async function scanMail<T>(ids: string[], visit: (mail: Mail) => T | undefined, 
 export async function readMail(accountId?: string): Promise<Mail[]> {
   return captureMailRows(rows => scanMail([...rows].filter(([, row]) => accountId === undefined || row.summary.accountId === accountId).map(([id]) => id), mail => mail));
 }
+// Choose IDs from the captured metadata without yielding. scanMail establishes
+// its WAL snapshot before its first yield and checks external invalidation.
+export async function readConversationMail(sourceIds: readonly string[]): Promise<Mail[]> {
+  return captureMailRows(rows => {
+    const sources = [...new Set(sourceIds)].flatMap(id => {
+      const row = rows.get(id);
+      return row ? [row.summary] : [];
+    });
+    const selected = conversationMembers(sources, [...rows.values()].map(row => row.summary));
+    return scanMail(selected.map(mail => mail.id), mail => mail);
+  });
+}
 // Sync needs mailbox identity up front, but full bodies only for its current batch.
 export async function syncMailCache(accountId: string) {
   const summaries = await captureMailRows(rows => new Map([...rows]
@@ -277,9 +290,20 @@ export async function searchMail(query: string, accounts: Account[], signal?: Ab
     signal?.throwIfAborted();
     const search = compileMailSearch(query, accounts);
     const mailCursor = `${generation}:${mailRevision}`;
-    const versions = new Map([...rows].map(([id, row]) => [id, row.summary.contentVersion]));
-    return { mailCursor, error: search.error, matches: search.error ? [] : await scanMail([...rows.keys()], mail =>
-      search.matches(mail) ? { id: mail.id, accountId: mail.accountId, contentVersion: versions.get(mail.id)! } : undefined, signal) };
+    const entries = [...rows];
+    const versions = new Map(entries.map(([id, row]) => [id, row.summary.contentVersion]));
+    const matches = new Map<string, MailSearchResult["matches"][number]>();
+    const unknown: string[] = [];
+    if (!search.error) for (const [id, row] of entries) {
+      signal?.throwIfAborted();
+      const known = search.matchesSummary(row.summary);
+      if (known === true) matches.set(id, { id, accountId: row.summary.accountId, contentVersion: row.summary.contentVersion });
+      else if (known === undefined) unknown.push(id);
+    }
+    if (unknown.length) for (const match of await scanMail(unknown, mail => search.matches(mail)
+      ? { id: mail.id, accountId: mail.accountId, contentVersion: versions.get(mail.id)! } : undefined, signal)) matches.set(match.id, match);
+    signal?.throwIfAborted();
+    return { mailCursor, error: search.error, matches: entries.flatMap(([id]) => matches.has(id) ? [matches.get(id)!] : []) };
   });
 }
 export function all<K extends keyof Records>(kind: K): Records[K][] {

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { google, type calendar_v3 } from "./google-api.js";
-import type { CalendarOffer, OfferContext } from "../shared/offers.js";
+import { offeredTime, type CalendarOffer, type OfferContext } from "../shared/offers.js";
 import type { Draft, Mail } from "../shared/types.js";
 import type { CalendarEvent } from "../shared/calendar.js";
 import { quietGmailRevision, quietImapWatch } from "./imap-watch-fixture.js";
@@ -234,4 +234,17 @@ test("offers use encrypted settings, complete explicit Google reads, reviewed re
       for (const suffix of ["", "-wal"]) { const bytes = readFileSync(path.join(directory, `mail.sqlite${suffix}`)); assert.equal(bytes.includes(Buffer.from(mail.subject)), false); assert.equal(bytes.includes(Buffer.from("Would one of these times")), false); assert.equal(bytes.includes(Buffer.from("durationMinutes")), false); }
     });
   } finally { await new Promise<void>((resolve) => server.close(() => resolve())); store.closeStore(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+
+test("offered reply times name both endpoint dates, numeric offsets and the saved IANA zone", () => {
+  const fold = offeredTime({ start: "2026-11-01T05:30:00Z", end: "2026-11-01T06:30:00Z" }, "America/New_York");
+  assert.match(fold, /UTC-04:00/); assert.match(fold, /UTC-05:00/);
+  assert.equal((fold.match(/2026/g) || []).length, 2); assert.match(fold, /\(America\/New_York\)$/);
+  const rollover = offeredTime({ start: "2026-10-25T09:30:00Z", end: "2026-10-25T10:30:00Z" }, "Pacific/Kiritimati");
+  assert.match(rollover, /25/); assert.match(rollover, /26/); assert.equal((rollover.match(/UTC\+14:00/g) || []).length, 2);
+  const utc = offeredTime({ start: "2026-10-25T23:30:00Z", end: "2026-10-26T00:30:00Z" }, "UTC");
+  assert.equal((utc.match(/UTC\+00:00/g) || []).length, 2);
+  const half = offeredTime({ start: "2026-04-04T14:45:00Z", end: "2026-04-04T15:15:00Z" }, "Australia/Lord_Howe");
+  assert.match(half, /UTC\+11:00/); assert.match(half, /UTC\+10:30/);
 });

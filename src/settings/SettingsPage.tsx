@@ -87,11 +87,11 @@ export function SettingsPage({
   const { on: privacy, names } = useContext(PrivacyContext);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameError, setRenameError] = useState("");
-  const scrollPane = useRef<HTMLElement>(null);
+  const scrollPane = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => { scrollPane.current?.scrollTo({ top: 0, behavior: "instant" }); }, [section]);
   const current = settingsSections.find((item) => item.id === section)!;
   return (
-    <main className="settings" ref={scrollPane}>
+    <main className="settings">
       {onSection && <nav className="settings-navigation" aria-label="Settings sections">
         <span className="settings-rail-label">Preferences</span>
         {settingsSections.map(({ id, label, Icon }) => <button key={id} type="button"
@@ -99,7 +99,7 @@ export function SettingsPage({
           <Icon color="currentColor" size={15} />{label}
         </button>)}
       </nav>}
-      <div className="settings-column" key={section}>
+      <div className="settings-column" ref={scrollPane}>
         <header className="settings-section-heading"><h1>{current.label}</h1><p>{current.description}</p></header>
         {section === "interaction" && <section>
           <InteractionSettings value={interaction} onChange={onInteraction} />

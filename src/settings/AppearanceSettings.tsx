@@ -36,7 +36,7 @@ export function AppearanceSettings({ value, scheme, onChange, onPreview = noPrev
   const [error, setError] = useState("");
   const selected = value.customThemes.find((theme) => theme.id === value.theme);
   const full = value.customThemes.length >= maxCustomThemes;
-  const close = () => { setDialog(null); setError(""); };
+  const close = () => { onModalChange?.(false); setDialog(null); setError(""); };
   const create = (source?: CustomTheme) => {
     const builtIn = themes.find((theme) => theme.id === value.theme) ?? themes[0];
     const accent = accents.find((accent) => accent.id === value.accent) ?? accents[0];

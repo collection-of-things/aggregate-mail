@@ -33,7 +33,21 @@ export type CalendarEvent = {
   cancelled?: boolean;
   revision: number;
   updatedAt: number;
+  workSession?: WorkSession;
 };
+export type WorkSession = {
+  commitmentId: string;
+  busy: boolean;
+  status: "planned" | "finished" | "removed";
+  creationInput: string;
+};
+export type WorkSessionInput = {
+  id: string; commitmentId: string; commitmentRevision: number;
+  start: string; end: string; busy: boolean; timeZone: string;
+};
+export type WorkSessionList = { sessions: CalendarEvent[]; available: boolean; reason?: string };
+export const sessionLabel = (event: CalendarEvent) => event.workSession
+  ? `Work session · ${event.workSession.status} · ${event.workSession.busy ? "Busy" : "Free"}` : "Event";
 export type CalendarEventInput = {
   title: string;
   start: string;

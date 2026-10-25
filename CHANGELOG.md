@@ -2,7 +2,32 @@
 
 ## Unreleased
 
+- Prepare source package and lockfile version 0.2.5 without changing dependencies or release workflows.
+
+- Seed the large sync regression through the encrypted store so flag-batching checks use current summaries without incidental legacy-cache repair. Keep the 25,000-message workload and operation-count assertions.
+
+- Float Settings above the current mail or work view, with a compact header, section rail, independent scrolling, modal keyboard focus and reader-preserving history. Retain unsaved templates, pending-save locks and draft-safe navigation. Show one Linux local-key warning and preserve its session collapse preference across Settings and mail.
+
+- Resolve header searches from summaries immediately and decrypt only unresolved bodies. Keep confirmed header matches visible during body searches and display an explicit searching state instead of a premature empty result.
+
+- Display original emails in reply composers through the safe formatted reader, retaining per-opening image consent, privacy and plain-text fallback.
+
+- Allow vertical scrolling in local-session dialogs when content exceeds the available height.
+- Wrap local-session form actions when the dialog is too narrow for one row.
+
+- Add explicit local work sessions linked to a tracked task. Plan multiple Busy or Free sessions, move planned sessions, finish one session or remove it without changing task dates, status, history or email. Recover uncertain saves through reads and retain removed-session tombstones. Restore focus to the session heading when Finish or Remove removes its Today trigger, including after recovery review. Sessions check local conflicts only and never notify Google or send invitations.
+
+- Compact offered-time preferences, keep busy coverage visible, group selectable times by saved-zone date, and show full endpoint dates with numeric UTC offsets. Add an optional recipient-zone display without changing reply instants or text. Clear superseded previews after input changes while preserving exact check/draft recovery and explicit local booking.
+
+- Add Day and Monday-based Week calendar views with elapsed-time event spans, local UTC-offset ticks, separate date-only/all-day entries and point reminders. Read cross-month weeks from exact month caches, keep conflicting or partial coverage visible, and retain explicit Google Sync for each month.
+
 - Show current MCP permissions in CLI status without account identities, add cached Inbox/Sent/All selection, and request reviewed replies only when the app explicitly guarantees approval to Drafts without sending. Preserve older commands, grants and no automatic retries.
+- Replace the native composer From popup with a compact themed account menu, retaining private labels and keyboard selection.
+
+- Restore composer mouse history and sidebar/toolbar access with save-before-navigation. Extend its keyboard cycle to exposed controls while retaining editing keys, attachment reads and failed-save recovery. Use inline link entry with Enter/Cancel support.
+
+- Limit workspace proposal refreshes to related conversation bodies, preserving account-scoped membership and changed-source checks while reducing unrelated decryption and allocation.
+
 - Align sidebar, coverage and compose dividers on a shared footer track with clearance around 30px primary buttons. Compact saved-draft rows, move Refresh beside account tabs and add confirmed direct draft deletion while retaining failure and uncertain-send notices.
 
 - Add optional safe rich-text composition with a matching plain-text alternative, encrypted draft recovery and multipart sending. Keep plain-text messages as the default.

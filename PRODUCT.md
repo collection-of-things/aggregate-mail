@@ -34,6 +34,13 @@ Compose supports
 Cc and small attachments. The built-in calendar displays date-only deadlines
 and optional timed follow-ups, with month and agenda views. Follow-ups stay local
 and require explicit rescheduling or clearing; they do not complete commitments.
+Plan work adds explicit local sessions to a tracked task. Sessions have their own
+planned, finished and removed lifecycle and Busy or Free meaning. Multiple sessions
+leave the task deadline, follow-up, completion, history and email unchanged.
+Scheduling checks local calendar conflicts only; it excludes Google calendars.
+Sessions cannot send invitations or become Google events. Their encrypted saved
+state supports read-only recovery after uncertain writes. See
+[the local-session decision](docs/adr/0076-local-work-sessions-and-calendar-views.md).
 See [the experiment and acceptance examples](docs/confirmed-work-experiment.md).
 
 Cached-mail search supports combined text, quoted phrases, exclusions, sender/recipient/subject/body/account fields, read state, local pins and UTC date boundaries within the chosen mail view and filters. Commands opens from the sidebar or Command+K on macOS and Control+K elsewhere. Settings, Compose manages plain-text templates and per-account signatures in the existing encrypted store. Templates append text without replacing a draft; signatures follow the chosen sending account when their suffix is unchanged. Local pins survive sync and do not change provider flags. In-app toasts report later unread arrivals, sending and operation outcomes; errors and delivery warnings require dismissal. Up/Down select closed-list mail while editors and the reader retain their arrow behavior.

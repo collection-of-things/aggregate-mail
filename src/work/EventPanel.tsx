@@ -2,6 +2,7 @@ import { forwardRef, useContext, useEffect, useRef, useState, type ReactNode } f
 import type { Api } from "../api";
 import { CalendarActions } from "./InvitationActions";
 import { Dialog } from "../ui/Dialog";
+import { sessionLabel } from "../../shared/calendar";
 import type { CalendarEvent, CalendarEventInput } from "../../shared/calendar";
 import { mailLink, privateMailLink } from "../../shared/mail-content";
 import type { Draft, RendererMail as Mail, RendererState as State } from "../../shared/types";
@@ -83,8 +84,8 @@ export function eventWhen(event: Pick<CalendarEvent, "start" | "end" | "allDay">
 }
 
 export const EventDetail = forwardRef<HTMLElement, {
-  event: CalendarEvent; state: State; pending: boolean; source?: ReactNode; api?: Api; google?: boolean; onOpenDraft?: (draft: Draft) => void; onChanged?: () => unknown; onEdit?: () => void; onDelete?: () => void; onClose: () => void; closeLabel?: string;
-}>(function EventDetail({ event, state, pending, source, api, google = false, onOpenDraft, onChanged, onEdit, onDelete, onClose, closeLabel = "Back to calendar" }, ref) {
+  event: CalendarEvent; state: State; pending: boolean; source?: ReactNode; sessionActions?: ReactNode; api?: Api; google?: boolean; onOpenDraft?: (draft: Draft) => void; onChanged?: () => unknown; onEdit?: () => void; onDelete?: () => void; onClose: () => void; closeLabel?: string;
+}>(function EventDetail({ event, state, pending, source, sessionActions, api, google = false, onOpenDraft, onChanged, onEdit, onDelete, onClose, closeLabel = "Back to calendar" }, ref) {
   const { on: privacy, names } = useContext(PrivacyContext);
   const [reviewed, setReviewed] = useState<{ sourceId: string; event: CalendarEvent }>();
   const createdEvent = reviewed?.sourceId === event.id ? reviewed.event : undefined;
@@ -96,7 +97,7 @@ export const EventDetail = forwardRef<HTMLElement, {
   const linkHidden = !!link && privacy && privateMailLink(link, (text) => redactPrivateText(text, names));
   return <section className="work-inspector event-detail" aria-label="Event details" ref={ref} tabIndex={-1}
     onKeyDown={(key) => { if (key.key === "Escape" && !key.defaultPrevented) { key.preventDefault(); onClose(); } }}>
-    <div className="work-toolbar"><span className="work-meta">{event.source === "google" ? "Google Calendar" : "Emc² event"}</span><button type="button" onClick={onClose}>{closeLabel}</button></div>
+    <div className="work-toolbar"><span className="work-meta">{event.workSession ? sessionLabel(event) : event.source === "google" ? "Google Calendar" : "Emc² event"}</span><button type="button" onClick={onClose}>{closeLabel}</button></div>
     <h2><Redact text={event.title} /></h2>
     <p>{eventWhen(event)}</p>
     <dl>
@@ -104,13 +105,14 @@ export const EventDetail = forwardRef<HTMLElement, {
       {event.calendarName && <><dt>Calendar</dt><dd><Redact text={event.calendarName} /></dd></>}
       {event.location && <><dt>Location</dt><dd><Redact text={event.location} /></dd></>}
       {event.meetLink && <><dt>Meeting</dt><dd>{link && !linkHidden ? <><a href={link} target="_blank" rel="noopener noreferrer">Join meeting</a> <span className="work-meta">{new URL(link).hostname}</span></> : linkHidden ? "Link hidden while personal information is hidden" : "Link unavailable"}</dd></>}
-      <dt>Attendees</dt><dd>{event.attendees.length ? <ul className="event-people">{event.attendees.map((person) => <li key={person.email}><Address value={person.email} />{person.response && ` · ${person.response}`}</li>)}</ul> : "None"}</dd>
+      {!event.workSession && <><dt>Attendees</dt><dd>{event.attendees.length ? <ul className="event-people">{event.attendees.map((person) => <li key={person.email}><Address value={person.email} />{person.response && ` · ${person.response}`}</li>)}</ul> : "None"}</dd></>}
     </dl>
     {event.description && <><h3>Notes</h3><p className="event-notes"><Redact text={event.description} /></p></>}
     {source && <><h3>From email</h3>{source}</>}
     {event.source === "google" && <p className="work-meta">Google event details. Read-only in Emc².{api && " Your response can be changed explicitly."}</p>}
-    {api && <CalendarActions key={`${event.id}:${event.revision}`} event={event} api={api} google={google} accountAvailable={index >= 0} onOpenDraft={onOpenDraft} onChanged={onChanged} onReviewResult={(result) => setReviewed({ sourceId: event.id, event: result })} />}
-    {event.source === "local" && onEdit && onDelete && <div className="form-actions"><button className="button" type="button" disabled={pending} onClick={onEdit}>Edit event</button><button type="button" className="trash-action" disabled={pending} onClick={onDelete}>Delete event</button></div>}
+    {api && !Object.hasOwn(event, "workSession") && <CalendarActions key={`${event.id}:${event.revision}`} event={event} api={api} google={google} accountAvailable={index >= 0} onOpenDraft={onOpenDraft} onChanged={onChanged} onReviewResult={(result) => setReviewed({ sourceId: event.id, event: result })} />}
+    {sessionActions}
+    {event.source === "local" && !Object.hasOwn(event, "workSession") && onEdit && onDelete && <div className="form-actions"><button className="button" type="button" disabled={pending} onClick={onEdit}>Edit event</button><button type="button" className="trash-action" disabled={pending} onClick={onDelete}>Delete event</button></div>}
   </section>;
 });
 
