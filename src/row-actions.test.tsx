@@ -7,8 +7,10 @@ import type { Mail } from '../shared/types';
 const mail: Mail = { id:'a:1',accountId:'a',remoteId:'1',sender:'Team',address:'sender@example.com',to:'reader@example.com',subject:'Work',preview:'',body:'',date:1,unread:true,category:'important',relevance:2,reason:'',archived:false,snoozedUntil:null };
 test('hover exposes row actions and removes the overlapping timestamp', () => {
  const css = readFileSync(new URL('./styles/mail-list.css', import.meta.url), 'utf8');
- assert.match(css, /\.mail-row:hover \.row-actions\s*,[^{}]*\{\s*visibility: visible;/);
- assert.match(css, /\.mail-row:not\(\.with-action-strip\):hover \.row time\s*,[^{}]*\{\s*opacity: 0;/);
+ assert.match(css, /@media \(hover: hover\) and \(pointer: fine\)/);
+ assert.match(css, /\.mail-row:hover \.row-actions\s*\{\s*visibility: visible;/);
+ assert.match(css, /\.mail-row:hover \.row time\s*\{\s*opacity: 0;/);
+ assert.doesNotMatch(css, /\.mail-row(?::focus-within|:has\(\.row\.selected\)) \.row-actions/);
 });
 test('each row offers one More actions button that opens the message menu', () => {
  const html=renderToStaticMarkup(<MailList messages={[mail]} selectedId={undefined} density="comfortable" narrow={false} sort="newest" opening="double" accounts={[]} listRef={{current:null}} focusSelection={false} onOpen={()=>{}} onSelect={()=>{}} onMenu={()=>{}} onMenuKey={()=>{}} />);
@@ -100,11 +102,12 @@ test('snoozed rows replace Snooze with Return to inbox and expose local pin stat
 });
 
 const layouts=(mode:{density?:'comfortable'|'compact';narrow?:boolean;sizeByImportance?:boolean})=>({...mode});
-test('touch controls reserve their full strip height in compact and narrow lists', async () => {
+test('touch and narrow lists do not reserve a persistent action strip', async () => {
  for (const narrow of [false, true]) for (const density of ['comfortable', 'compact'] as const) {
   const ui = await mountRows([mail, {...mail, id: 'b:1'}], {touch: true, narrow, density});
   try {
-   const height = (density === 'compact' ? narrow ? 52 : 24 : narrow ? 100 : 34) + 36;
+   const height = density === 'compact' ? narrow ? 52 : 24 : narrow ? 100 : 34;
+   assert.equal(document.querySelectorAll('.with-action-strip').length, 0);
    assert.equal(parseFloat(ui.rows()[1].style.top), height);
    assert.equal(parseFloat(document.querySelector<HTMLElement>('.mail-window')!.style.height), height * 2);
   } finally { await ui.close(); }
@@ -120,7 +123,7 @@ test('the rendered row layout and the windowing height agree for every sizing co
      :narrow?'card':relevance===3?'stacked':relevance===2?'inline':'brief';
    const expectedHeight=(relevance:number)=>(density==='compact'?(narrow?52:24)
      :!sizeByImportance?(narrow?100:34)
-     :narrow?(relevance===1?80:100):relevance===3?48:relevance===2?34:28) + (narrow ? 36 : 0);
+     :narrow?(relevance===1?80:100):relevance===3?48:relevance===2?34:28);
    for(const[index,row]of rows.entries()){
     const button=row.querySelector<HTMLElement>('.row')!;
     const relevance=index===0?2:index===1?3:1;

@@ -72,6 +72,7 @@ test("reply retains original context and file drops reuse attachment validation 
   const drop=async(files:File[])=>{const event=new dom.window.Event("drop",{bubbles:true,cancelable:true});Object.defineProperty(event,"dataTransfer",{value:{files,types:["Files"]}});await act(async()=>{document.querySelector('form')!.dispatchEvent(event);await task;});assert.equal(event.defaultPrevented,true);};
   try{
     await render(); assert.match(document.querySelector('[aria-label="Original email"]')!.textContent!,/Please confirm the delivery date/);
+    assert.equal(document.querySelector('[aria-label="Original email"]')?.getAttribute('tabindex'), '0', 'original email supports keyboard scrolling');
     assert.match(document.querySelector('.compose-format')!.textContent!,/From: me@example.test/);
     draft.accountId="b";await render();
     assert.match(document.querySelector('.compose-format')!.textContent!,/From: selected@example.test/);

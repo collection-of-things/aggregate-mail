@@ -50,27 +50,10 @@
 .row-actions button:disabled { opacity: 0.4; }
 .row-actions button[aria-pressed="true"] { color: var(--accent); }
 .row-actions .trash-action:hover { color: var(--danger); }
-.mail-row:hover .row-actions,
-.mail-row:has(.row.selected) .row-actions,
-.mail-row:focus-within .row-actions {
-  visibility: visible;
+@media (hover: hover) and (pointer: fine) {
+  .mail-row:hover .row-actions { visibility: visible; }
+  .mail-row:hover .row time { opacity: 0; }
 }
-.mail-row:not(.with-action-strip):hover .row time,
-.mail-row:not(.with-action-strip):has(.row.selected) .row time,
-.mail-row:not(.with-action-strip):focus-within .row time {
-  opacity: 0;
-}
-.mail-row.with-action-strip { flex-direction: column; align-items: stretch; }
-.with-action-strip .row-actions {
-  position: static;
-  transform: none;
-  visibility: visible;
-  height: 32px;
-  margin: 2px 6px;
-  padding: 0;
-  overflow-x: auto;
-}
-.with-action-strip .row-actions button { min-width: 28px; height: 32px; }
 .row-actions button:focus-visible { outline-offset: -2px; }
 /* Selection: an accent tint while the list has focus, a gray wash otherwise.
    Text keeps its own colors, so it reads with every accent and mode. */

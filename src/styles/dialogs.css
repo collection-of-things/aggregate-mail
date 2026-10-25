@@ -18,6 +18,7 @@
 }
 .label-options input { flex-shrink: 0; }
 .dialog-backdrop {
+  -webkit-app-region: no-drag;
   position: fixed;
   inset: 0;
   z-index: 10;
@@ -29,6 +30,7 @@
   animation: fade-in 200ms var(--ease-out);
 }
 .dialog {
+  -webkit-app-region: no-drag;
   width: 540px;
   max-width: 100%;
   max-height: 90dvh;

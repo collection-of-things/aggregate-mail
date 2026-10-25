@@ -1046,9 +1046,7 @@ export function App() {
             </div>
         {settings ? (
           <div className="settings-pane">
-            <PaneHeader className="main-head" corner={null} maximized={maximized}>
-              <h1 className="pane-title">Settings</h1>
-            </PaneHeader>
+            <h1 className="pane-title visually-hidden">Settings</h1>
             <CredentialFallbackNotice mode={window.desktop?.credentialFallback} />
             <SettingsPage
               notifications={notifications}
@@ -1116,9 +1114,7 @@ export function App() {
           </div>
         ) : view === "drafts" ? (
           <main className="drafts-pane">
-            <PaneHeader className="main-head" corner={null} maximized={maximized}>
-              <h1 className="pane-title">Drafts</h1>
-            </PaneHeader>
+            <h1 className="pane-title visually-hidden">Drafts</h1>
             <DraftList accounts={state.accounts} api={api} accountFilter={accountFilter} query={query}
               refreshKey={state.draftCount} active={!compose} onOpen={openCompose}
               onAccount={(id) => navigate({ accountFilter: id, labelFilter: "all", selectedId: null, opened: false })} />
@@ -1126,17 +1122,17 @@ export function App() {
         ) : workView ? (
           <main className="work-pane">
             <Workbench key={`${view}:${accountFilter}:${trackingSession}`} work={work} initialSource={trackingSource} initialItem={trackingItem} initialDraft={trackingDraft} onSourceConsumed={() => { setTrackingSource(undefined); setTrackingItem(undefined); setTrackingDraft(undefined); }} onModalChange={setWorkModal} onEventDirtyChange={setEventDirty} mode={view as "actions" | "calendar" | "projects" | "agents"} state={state} api={api} accountFilter={accountFilter} onOpen={inlineWorkView ? openWorkSource : jumpTo} onMailChanged={reload} onNotice={setNotice} onManageAssistants={() => navigate({ page: "settings", settingsSection: "mcp", opened: false })} onOpenDraft={openCompose}
-              renderHead={(tools) => <PaneHeader className="main-head" corner={null} maximized={maximized}><h1 className="pane-title">{viewNames[view]}</h1><div className="head-tools">{tools}</div></PaneHeader>}
+              renderHead={(tools) => <PaneHeader className="main-head work-action-head" corner={null} maximized={maximized}><h1 className="pane-title visually-hidden">{viewNames[view]}</h1><div className="head-tools">{tools}</div></PaneHeader>}
               readerOpened={opened} fullReading={!splitRoom} onCloseReader={closeReader}
               reader={selected && opened ? <div ref={readerRef} className="today-mail">{actions}{reader}</div> : undefined} />
           </main>
         ) : (
           <div className="mail-view">
-              <PaneHeader className="main-head mail-view-head" corner={null} maximized={maximized}>
-                <h1 className="pane-title">{viewNames[view]}</h1>
+              <h1 className="pane-title visually-hidden">{viewNames[view]}</h1>
+              {(view === "sent" || view === "all") && <PaneHeader className="main-head mail-view-head" corner={null} maximized={maximized}>
                 <span className="view-summary">{filtered.length} cached {filtered.length === 1 ? "message" : "messages"}</span>
                 {(view === "sent" || view === "all") && <div className="head-note">Cached mail only. <button type="button" title={accountFilter === "all" ? "Select one account to fetch up to 50 Sent messages" : "Fetch up to 50 Sent messages"} disabled={busy || accountFilter === "all"} onClick={() => void perform(async () => { const coverage = await api<SentCoverage>(`/accounts/${encodeURIComponent(accountFilter)}/sent/sync`, "POST", { bound: 50 }); if (coverage.error) throw new Error("Sent import failed. Existing cached mail remains available."); }, "Sent cache refreshed.")}>Fetch Sent</button>{accountFilter === "all" && <small>Choose an account first.</small>}</div>}
-              </PaneHeader>
+              </PaneHeader>}
               {view === "inbox" && !query && <div className="mail-category-bar"><InboxTabs tab={tab} unread={tabUnread} onTab={switchTab} /></div>}
           <main className={split ? "workspace split" : "workspace"}>
             <section className="list-pane">

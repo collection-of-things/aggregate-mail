@@ -35,8 +35,12 @@ rounded:
 
 ## Application layout
 
-The app uses a 208px source rail, a shared view header and separate working
-columns. Mail category tabs span the working area above the list and reader.
+The app uses a 208px source rail, one view name in the persistent toolbar and
+separate working columns. Inbox category and Drafts account tabs sit directly
+below that toolbar. Other views show secondary bars only for actions or cache
+controls. Work headings remain available to assistive technology, and Settings
+retains its distinct section titles. Mail category tabs span the working area
+above the list and reader.
 The reader keeps the subject and sender above the body, with secondary label,
 reply-all and scheduling controls below it. Narrow mail rows include account
 context within the same measured virtual row.
@@ -87,7 +91,10 @@ Compose retains its dialog role, focus trap, Escape handling and save/send
 guards while appearing as a flush right pane below the window toolbar. The
 list remains visible beside it when there is room; narrow windows use the
 available width. Reply context stays above the editor in a bounded scrolling
-region. Save status shares the action row beside Send, with recovery actions
+region. The reply preview starts at 40 percent of the window height, capped
+at 55 percent of the composer and 420px, and can be resized vertically. It
+supports keyboard scrolling with readable 14px body text. Save status shares
+the action row beside Send, with recovery actions
 visible on failure. Scrollbar indicators stay hidden in every scrolling
 region; wheel, trackpad and keyboard scrolling remain available.
 
@@ -266,7 +273,7 @@ An app-update icon follows the toolbar's pane tools, right before the window con
 
 Selected mail uses the icon actions on its row. Opened mail has an action group in the reader header (or above the opened email in Full width). Its groups are divided by a hairline: Archive, Move to Trash and Snooze, then Reply, Read, Track and Pin. Text labels appear when space permits; narrow layouts keep the icons, accessible labels and tooltips. Snoozed mail shows Return to inbox in place of Snooze. Move to Trash opens the same confirmation as the row icon. Archive uses the existing archive operation and shortcut. The group wraps at narrow widths and uses the shared focus styles. Read requests show a pending label, coalesce duplicate actions and apply confirmed state immediately; a later refresh failure does not turn a successful read into a failed action. Selection alone still leaves unread state unchanged.
 
-Each mail row exposes flat Read, Pin, Reply, Archive, Snooze and Trash icon buttons on hover, selection or keyboard focus. Snoozed mail replaces Snooze with Return to inbox. More actions retains the full context menu. Controls use the current theme with no bevels or shadows. In narrow lists and on devices without hover the strip stays visible below the message, with horizontal scrolling when needed; list windowing includes its height. The reader toolbar keeps its existing layout.
+Each mail row exposes flat Read, Pin, Reply, Archive, Snooze and Trash icon buttons only while a fine pointer hovers over that row. Selection and keyboard focus do not keep the strip visible. Narrow and touch layouts reserve no action strip. The row context menu, its keyboard invocation and the reader toolbar retain the existing operations. Snoozed mail replaces Snooze with Return to inbox. Controls remain flat and use the current theme. See [ADR 0067](docs/adr/0067-hover-only-mail-row-actions.md).
 
 Row actions are separate from the message button. Opening the menu selects that row without marking it read or opening it. Read uses the existing confirmed-read queue; Snooze and Pin remain local. Reply uses the row's sending account and reply address. Archiving another row leaves an unrelated reader open. Move to Trash requires a confirmation dialog and remains distinct from Archive. It removes the target email from the local cache only after the provider confirms the move. Failure keeps the email and the dialog available, with a notice to check the provider before retrying. The confirmation contains no subject or address. The app never permanently deletes mail, and recovery uses the provider's Trash. Unsupported IMAP MOVE, missing or ambiguous special-use folders, and unsafe message identities fail without guessing. Archived IMAP mail without a Message-ID disables Trash and provides an accessible explanation. See [ADR 0043](docs/adr/0043-theme-matched-row-actions.md).
 

@@ -3,7 +3,7 @@ import type { RendererMail as Mail } from "../shared/types";
 import type { MailLocation } from "./navigation";
 import { dayGroup } from "./mail/format";
 
-export function MailListWindow<T extends Mail>({ messages, selectedId, focusSelection, density, sort, listRef, narrow = false, sizeByImportance = true, touchActions = false, children }: {
+export function MailListWindow<T extends Mail>({ messages, selectedId, focusSelection, density, sort, listRef, narrow = false, sizeByImportance = true, children }: {
   messages: T[];
   selectedId: string | undefined;
   focusSelection: boolean;
@@ -12,7 +12,6 @@ export function MailListWindow<T extends Mail>({ messages, selectedId, focusSele
   listRef: RefObject<HTMLElement | null>;
   narrow?: boolean;
   sizeByImportance?: boolean;
-  touchActions?: boolean;
   children: (mail: T, index: number) => ReactNode;
 }) {
   const windowRef = useRef<HTMLDivElement>(null);
@@ -33,12 +32,11 @@ export function MailListWindow<T extends Mail>({ messages, selectedId, focusSele
       height += density === "compact" ? sizes.compact :
         !sizeByImportance ? sizes.medium :
         mail.relevance === 3 ? sizes.high : mail.relevance === 2 ? sizes.medium : sizes.low;
-      if (touchActions) height += 36;
       return { top, bottom: height };
     });
     if (groups.length) groups[groups.length - 1].height = height - groups[groups.length - 1].top;
     return { rows, groups, height };
-  }, [messages, density, sort, sizes, sizeByImportance, touchActions]);
+  }, [messages, density, sort, sizes, sizeByImportance]);
   const windowOffset = useCallback(() => {
     let offset = 0;
     let element: HTMLElement | null = windowRef.current;

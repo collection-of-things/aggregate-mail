@@ -131,7 +131,7 @@ export function ComposePanel({
       onClose={() => { if (!busy && !loadingFiles) onClose(); }}
     >
       <div className={source ? "compose-layout compose-reply-layout" : "compose-layout"}>
-      {source && <MailPrivacy mail={source}><aside className="compose-context" aria-label="Original email">
+      {source && <MailPrivacy mail={source}><aside className="compose-context" aria-label="Original email" tabIndex={0}>
         <span className="compose-context-label">Replying to</span>
         <h3><Redact text={source.subject || "No subject"} /></h3>
         <p><Redact text={source.sender} /> · {new Date(source.date).toLocaleDateString()}</p>

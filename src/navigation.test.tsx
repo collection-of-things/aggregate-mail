@@ -1692,7 +1692,8 @@ test('pane tools live in the persistent toolbar and section controls share the t
     assert.equal(update.closest(".frame"), null, "the update control stays usable while the frame is inert");
     const tabs = ui.container.querySelector(".inbox-tabs")!;
     assert.ok(tabs.parentElement?.classList.contains("mail-category-bar"), "categories span the working area");
-    assert.ok(tabs.parentElement?.previousElementSibling?.classList.contains("mail-view-head"), "categories follow the shared view header");
+    assert.equal(ui.container.querySelector(".mail-view-head"), null, "Inbox has no duplicated title row");
+    assert.ok(ui.container.querySelector(".mail-view > h1")?.classList.contains("visually-hidden"), "Inbox keeps its accessible heading");
     assert.equal(ui.container.querySelectorAll(".inbox-tabs").length, 1, "one category strip");
     await ui.open("a:1");
     assert.ok(ui.container.querySelector(".reader-head"), "split layout shows the reader pane");
@@ -1705,12 +1706,13 @@ test('pane tools live in the persistent toolbar and section controls share the t
     await ui.click(ui.button("Sent"));
     const note = ui.container.querySelector(".head-note")!;
     assert.ok(note.parentElement?.classList.contains("main-head"), "the cached note sits inside the header");
-    assert.ok(note.parentElement?.querySelector(".pane-title"), "cached-mail context shares the view title");
+    assert.ok(note.closest(".mail-view")?.querySelector("h1.visually-hidden"), "cached-mail context retains the accessible view title");
     assert.equal(ui.container.querySelector(".list-pane > .search-help"), null, "no separate note row");
     await ui.click(ui.button("Settings"));
     assert.ok(ui.button("Hide personal information").closest(".app-toolbar"), "privacy stays in the toolbar on Settings");
     assert.equal(ui.container.querySelector('[aria-label="Filters"]'), null, "Settings has no Filters");
     await ui.click(ui.button("Drafts"));
+    assert.equal(ui.container.querySelector(".drafts-pane > .main-head"), null, "Drafts has no duplicated title row");
     assert.ok(ui.button("Hide personal information").closest(".app-toolbar"), "privacy stays in the toolbar on Drafts");
     assert.equal(ui.container.querySelector('[aria-label="Filters"]'), null, "Drafts has no Filters");
     await ui.click(ui.button("Agent review"));

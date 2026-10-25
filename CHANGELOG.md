@@ -31,6 +31,10 @@
 - Revamp the shell with view breadcrumbs, compact search, account tabs and recipient-first draft rows. Give Settings a dedicated section rail and move attachment controls above the message. Keep softly shaded primary actions, Discard and Close beside From, save status beside Send, and scrolling without scrollbar indicators.
 - Preserve native Glass and Subtle across the Settings rail, Calendar headings and flush composer, using the existing shared pane tint without mail text behind the editor.
 - Rebuild the complete working layout: shared mail category strip, account context in narrow rows, secondary reader tools below the body, grouped Today status views, project context and decisions, side-by-side Calendar agenda, Agent review context and consistent Settings and dialog forms. Preserve source reading, privacy and existing mail operations.
+- Remove repeated view-title rows beneath the persistent toolbar. Inbox and Drafts place tabs directly below it; work views retain only their compact action controls, while Settings keeps its distinct section titles.
+- Enlarge the original-email preview in replies, allow vertical resizing and keyboard scrolling, and keep the Send/status footer outside scrolling content.
+- Show mail-row action controls only on mouse hover. Selection, focus and narrow or touch layouts no longer leave extra action strips visible; keyboard menus and reader actions remain available.
+- Exclude modal surfaces from native window dragging so the composer account menu, Discard and Close remain clickable over pane headers.
 
 - Restore clickable Read, Pin, Reply, Archive, Snooze and Trash buttons on mail rows, using the current flat theme without 3D effects. Keep More actions for the full menu.
 

@@ -2,8 +2,11 @@
 
 ## Shared application styling
 
-The working layout uses a 208px main rail and a shared mail view header above
-the list and reader. Category navigation sits outside the list column. Card
+The working layout uses a 208px main rail and names each view once in the
+persistent toolbar. Inbox categories and Drafts account tabs follow it without
+another title row. Work action and cached-mail bars keep their existing
+controls; Settings keeps its section heading. Category navigation sits outside
+the list column. Card
 heights and the list virtualizer share the tokens in `styles/tokens.css`;
 account metadata stays inside those measured rows.
 
@@ -14,6 +17,16 @@ state when the source reader opens. Calendar month and day agenda use separate
 columns, falling back to one column for selected details or narrow space.
 The Agent review context shows counts and the existing Settings destination.
 All operations still use the original handlers and uncertainty guards.
+
+Mail-row action strips appear only for fine-pointer hover. The virtualizer
+reserves the message row height alone; narrow and touch lists do not add a
+second strip. Selection and focus preserve their row treatment without
+exposing controls. Keyboard context menus and reader actions are unchanged.
+See [ADR 0067](adr/0067-hover-only-mail-row-actions.md).
+
+Dialog backdrops and surfaces explicitly use `-webkit-app-region: no-drag`.
+This excludes their full bounds from native drag regions on pane headers
+behind them, including the composer account selector, Discard and Close.
 
 The current renderer adds a view breadcrumb to the main toolbar and account
 tabs to Drafts. Those tabs use the existing navigation account filter. Their
