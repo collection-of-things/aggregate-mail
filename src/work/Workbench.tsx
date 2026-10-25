@@ -13,7 +13,9 @@ import { Dialog } from "../ui/Dialog";
 import { ArrowLeft } from "../ui/icons";
 import { GoogleCalendar } from "./GoogleCalendar";
 import { Calendar } from "./Calendar";
+import { rangeMonths, visibleRange } from "./calendar-layout";
 import type { CalendarEvent, CalendarEventInput } from "../../shared/calendar";
+import { SessionActions, SessionDialog, WorkSessions, useWorkSessions } from "./WorkSessions";
 import { EventDetail, EventForm } from "./EventPanel";
 import { blankEvent, eventFields, useCalendarEvents, type EventFields } from "./events";
 import { AgentProvider } from "./AgentProvider";
@@ -195,11 +197,13 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   const { workspace, error, loaded, pending, stale, now, blocked } = work;
   const acknowledged = useRef(false);
   const [editor, setEditor] = useState<Commitment | "new" | null>(initialItem || (initialSource ? "new" : null));
-  const [calendarMonth, setCalendarMonth] = useState(() => localDate(new Date()).slice(0, 7));
-  const calendar = useCalendarEvents(api, calendarMonth, mode === "calendar");
+  const [calendarRange, setCalendarRange] = useState(() => visibleRange(localDate(new Date(now)), "month"));
+  const calendarMonths = rangeMonths(calendarRange);
+  const calendar = useCalendarEvents(api, calendarMonths, mode === "calendar", accountFilter);
   const [eventId, setEventId] = useState<string | null>(null);
   // A new event keeps one ID across retries so an uncertain save cannot create a copy.
   const [eventEditor, setEventEditor] = useState<{ fields: EventFields; existing?: CalendarEvent; id: string } | null>(null);
+  const [eventDirty, setEventDirty] = useState(false);
   const [eventDelete, setEventDelete] = useState<CalendarEvent | null>(null);
   const [deleteError, setDeleteError] = useState("");
   const calendarOrigin = useRef<HTMLElement | null>(null);
@@ -220,7 +224,6 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
     wasReading.current = readerOpened;
   }, [readerOpened, mode]);
   const [projectEditor, setProjectEditor] = useState<Project | "new" | null>(null);
-  useEffect(() => { onModalChange?.(!!editor || !!projectEditor || !!eventEditor || !!eventDelete); return () => onModalChange?.(false); }, [!!editor, !!projectEditor, !!eventEditor, !!eventDelete, onModalChange]);
   const [projectId, setProjectId] = useState("");
   const [decision, setDecision] = useState("");
   const [decisionSources, setDecisionSources] = useState<string[]>([]);
@@ -273,9 +276,16 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   const selectedProject = projects.find((project) => project.id === projectId);
   const sorted = [...commitments].sort((a, b) => (deadlineDate(a) || "9999-12-31").localeCompare(deadlineDate(b) || "9999-12-31") || b.updatedAt - a.updatedAt);
   const selected = commitments.find((item) => item.id === selectedId && (mode !== "projects" || item.projectId === selectedProject?.id));
+  const sessionEvent = calendar.events.find(event => event.id === eventId && event.workSession && (accountFilter === "all" || event.accountId === accountFilter));
+  const sessionParentId = sessionEvent?.workSession?.commitmentId || (detailOpen ? selected?.id : undefined);
+  const sessionParent = workspace.commitments.find(item => item.id === sessionParentId && (accountFilter === "all" || item.accountId === accountFilter));
+  const sessions = useWorkSessions(api, sessionParentId, accountFilter, async () => mode !== "calendar" || await calendar.refresh());
+  const sessionModal = !!sessions.editor || !!sessions.operation;
+  useEffect(() => { onModalChange?.(!!editor || !!projectEditor || !!eventEditor || !!eventDelete || sessionModal); return () => onModalChange?.(false); }, [!!editor, !!projectEditor, !!eventEditor, !!eventDelete, sessionModal, onModalChange]);
+  useEffect(() => { onEventDirtyChange?.(eventDirty || sessions.dirty || sessions.locked); return () => onEventDirtyChange?.(false); }, [eventDirty, sessions.dirty, sessions.locked, onEventDirtyChange]);
   const accountName = (item: Commitment) => { const index = state.accounts.findIndex((account) => account.id === item.accountId); return index < 0 ? "Account unavailable" : accountLabel(state.accounts[index], index, privacy); };
   const itemRow = (item: Commitment) => <article key={item.id} className={`work-item work-row${selectedId === item.id ? " selected" : ""}`}>
-    <button type="button" className="work-select" aria-pressed={selectedId === item.id} onClick={(event) => { selectedRow.current = event.currentTarget; setSelectedId(item.id); setDetailOpen(true); if (mode === "actions" || mode === "projects") { const mail = state.messages.find((mail) => mail.id === item.sourceMailId && mail.accountId === item.accountId && state.accounts.some((account) => account.id === mail.accountId)); if (mail) { missingSelection.current = false; onOpen(mail); } else { missingSelection.current = true; onCloseReader?.(); } } }}>
+    <button type="button" className="work-select" aria-pressed={selectedId === item.id} onClick={(event) => { selectedRow.current = event.currentTarget; if (sessionModal) return; setSelectedId(item.id); setDetailOpen(true); if (mode === "actions" || mode === "projects") { const mail = state.messages.find((mail) => mail.id === item.sourceMailId && mail.accountId === item.accountId && state.accounts.some((account) => account.id === mail.accountId)); if (mail) { missingSelection.current = false; onOpen(mail); } else { missingSelection.current = true; onCloseReader?.(); } } }}>
       <span className="work-row-marker" aria-hidden="true" /><strong><Redact text={item.text} /></strong>
       <span className="work-meta">{`${statusNames[item.status]} · `}<Redact text={accountName(item)} />{deadlineDate(item) && ` · Due ${deadlineDate(item)}`}{item.followUpAt === undefined ? "" : ` · Remind ${new Date(item.followUpAt).toLocaleString()}`}</span>
     </button>
@@ -286,7 +296,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
     <h3>Source and evidence</h3>{[...new Set([selected.sourceMailId, ...selected.evidenceMailIds])].map((id) => <Source key={id} id={id} state={state} onOpen={onOpen} />)}
     <details><summary>Change history ({selected.history.length})</summary>{selected.history.map((change, index) => <div className="work-item" key={index}><p>{new Date(change.at).toLocaleString()} · {statusNames[change.status]}</p><p><Redact text={change.text} /> · <Redact text={change.reason} /></p><p>Deadline: {deadlineDate(change) || "Not set"} · Follow up: {change.followUpAt === undefined ? "Not set" : new Date(change.followUpAt).toLocaleString()}</p>{change.evidenceMailIds?.map((id) => <Source key={id} id={id} state={state} onOpen={onOpen} />)}</div>)}</details>
   </>;
-  const closeDetail = () => { setDetailOpen(false); missingSelection.current = false; onCloseReader?.(); if (mode !== "calendar") selectedRow.current?.focus({ preventScroll: true }); };
+  const closeDetail = () => { if (sessionModal) return; setDetailOpen(false); missingSelection.current = false; onCloseReader?.(); if (mode !== "calendar") selectedRow.current?.focus({ preventScroll: true }); };
   const detail = selected && detailOpen && <section className={mode === "calendar" ? "work-inspector" : "work-summary"} aria-label="Commitment details" ref={inspector} tabIndex={-1}
     onKeyDown={(event) => { if (mode === "calendar" && event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); closeDetail(); } }}>
     <div className="work-summary-bar">
@@ -294,7 +304,9 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       <span className="work-status">{statusNames[selected.status]}</span>
       <strong><Redact text={selected.text} /></strong>
       <button type="button" disabled={blocked} onClick={() => setEditor(selected)}>Edit task</button>
+      <button type="button" disabled={blocked || sessions.locked || !sessions.value?.available} onClick={() => sessions.open(selected)}>Plan work</button>
     </div>
+    <WorkSessions parent={selected} sessions={sessions} disabled={blocked} />
     {mode === "calendar" ? detailBody : <details key={selected.id} className="work-task-details"><summary>Details{deadlineDate(selected) && ` · Due ${deadlineDate(selected)}`}{selected.followUpAt !== undefined && ` · Remind ${new Date(selected.followUpAt).toLocaleString()}`}</summary>{detailBody}</details>}
   </section>;
   const dueFollowUps = sorted.filter((item) => openCommitment(item) && item.followUpAt !== undefined && item.followUpAt <= now);
@@ -303,12 +315,12 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   const visibleEvents = useMemo(() => calendar.events.filter((event) => accountFilter === "all" || !event.accountId || event.accountId === accountFilter), [calendar.events, accountFilter]);
   const selectedEvent = visibleEvents.find((event) => event.id === eventId);
   useEffect(() => {
-    if (mode !== "calendar" || readerOpened || eventEditor || editor || eventDelete) return;
+    if (mode !== "calendar" || readerOpened || eventEditor || editor || eventDelete || sessionModal) return;
     if (selectedEvent) eventPanel.current?.focus();
     else if (detailOpen) inspector.current?.focus();
     else (calendarOrigin.current?.isConnected ? calendarOrigin.current : calendarMain.current?.querySelector<HTMLElement>("button:not(:disabled)"))?.focus({ preventScroll: true });
-  }, [mode, eventId, selectedEvent?.id, selectedId, detailOpen, readerOpened, !!eventEditor, !!editor]);
-  const closeEvent = () => { if (!eventDelete && !calendar.pending) setEventId(null); };
+  }, [mode, eventId, selectedEvent?.id, selectedId, detailOpen, readerOpened, !!eventEditor, !!editor, sessionModal]);
+  const closeEvent = () => { if (!eventDelete && !calendar.pending && !sessionModal) setEventId(null); };
   const saveEvent = async (input: CalendarEventInput) => {
     const editing = eventEditor;
     if (!editing) return null;
@@ -332,6 +344,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   const calendarPane = mode === "calendar" && (readerOpened
     ? <aside className="work-inspector calendar-reader" aria-label="Calendar reading pane">{reader || <p role="status">Opened email unavailable in cache. <button type="button" onClick={onCloseReader}>Back to calendar</button></p>}</aside>
     : selectedEvent ? <EventDetail ref={eventPanel} event={selectedEvent} state={state} pending={calendar.pending} api={api} google={calendar.google.some((value) => value.accountId === selectedEvent.accountId && value.status === "connected")} onOpenDraft={onOpenDraft} onChanged={calendar.refresh}
+      sessionActions={selectedEvent.workSession ? <><p className="note">Local calendar conflicts only. Google calendars are excluded. Task dates and completion remain independent.</p>{sessions.error && <p role="alert">{sessions.error}</p>}{sessions.value && !sessions.value.available && <p role="alert">{sessions.value.reason}</p>}<SessionActions event={sessions.value?.sessions.find(event => event.id === selectedEvent.id) || selectedEvent} parent={sessionParent} sessions={sessions} disabled={blocked} /></> : undefined}
       source={selectedEvent.sourceMailId ? <Source id={selectedEvent.sourceMailId} state={state} onOpen={onOpen} /> : undefined}
       onClose={closeEvent} onEdit={() => setEventEditor({ fields: eventFields(selectedEvent), existing: selectedEvent, id: selectedEvent.id })}
       onDelete={() => { setDeleteError(""); setEventDelete(selectedEvent); }} /> : detail);
@@ -365,10 +378,10 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
     {loaded && <fieldset className="work-editing" disabled={mode !== "actions" && mode !== "calendar" && (blocked || (mode === "agents" || mode === "assistants") && agentStale)}>
       {(mode === "actions" || mode === "calendar") && <>
         {mode === "calendar" && calendar.error && <p role="alert">{calendar.error}</p>}
-        {mode === "calendar" && <><p className="work-meta" role="status">{calendarStatus}</p><GoogleCalendar state={state} calendar={calendar} api={api} month={calendarMonth} accountFilter={accountFilter} /></>}
+        {mode === "calendar" && <><p className="work-meta" role="status">{calendarStatus}</p><GoogleCalendar state={state} calendar={calendar} api={api} months={calendarMonths} accountFilter={accountFilter} /></>}
         <div className={`work-layout${detailOpen || readerOpened || mode === "calendar" && selectedEvent ? " has-selection" : ""}${mode === "actions" ? " today-layout" : ""}${readerOpened ? " has-reader" : ""}${fullReading ? " full-reading" : ""}`}><div className="work-main" ref={calendarMain}>
           {mode === "calendar" ? <Calendar items={commitments} messages={state.messages.filter((mail) => (accountFilter === "all" || mail.accountId === accountFilter) && state.accounts.some((account) => account.id === mail.accountId))}
-            events={visibleEvents} now={now} selectedEventId={selectedEvent?.id} jump={calendarJump} onMonthChange={setCalendarMonth}
+            events={visibleEvents} now={now} selectedEventId={selectedEvent?.id} jump={calendarJump} onRangeChange={setCalendarRange}
             onOpenMail={(mail, origin) => { calendarOrigin.current = origin; setEventId(null); setDetailOpen(false); onOpen(mail); }}
             onSelect={(id, origin) => { calendarOrigin.current = origin; setEventId(null); setSelectedId(id); setDetailOpen(true); if (readerOpened) onCloseReader?.(); }}
             onSelectEvent={(event, origin) => { calendarOrigin.current = origin; setDetailOpen(false); setEventId(event.id); setCalendarStatus(""); if (readerOpened) onCloseReader?.(); }}
@@ -522,8 +535,9 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       </Dialog>}
       {eventEditor && <Dialog title={eventEditor.existing ? "Edit event" : "New event"} className="event-dialog" onClose={() => { if (!calendar.pending) setEventEditor(null); }}>
         <EventForm key={eventEditor.id} initial={eventEditor.fields} existing={eventEditor.existing} state={state} pending={calendar.pending}
-          onCancel={() => setEventEditor(null)} onSave={saveEvent} onDirtyChange={onEventDirtyChange} />
+          onCancel={() => setEventEditor(null)} onSave={saveEvent} onDirtyChange={setEventDirty} />
       </Dialog>}
+    <SessionDialog sessions={sessions} state={state} parent={sessionParent} />
   </div></PrivacyContext.Provider>;
 }
 

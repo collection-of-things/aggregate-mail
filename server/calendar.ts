@@ -1,10 +1,12 @@
 import { createGoogleMeeting, googleRSVP, GoogleCalendarWriteError, calendarWindowId, syncGoogleCalendar } from "./google-calendar.js";
 import { trackMailWork } from "./mail-actions.js";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import express from "express";
 import { z } from "zod";
 import type { CalendarEvent } from "../shared/calendar.js";
 import { CALENDAR_RANGE_DAYS, EVENT_MAX_DAYS } from "../shared/calendar.js";
+import { CalendarBusyError, checkedSession, hasSession, localBusy } from "./calendar-busy.js";
+import { openCommitment } from "../shared/commitment-dates.js";
 import { validDate } from "../shared/commitment-dates.js";
 import { all, get, put, remove, transaction } from "./store.js";
 
@@ -67,8 +69,86 @@ function calendarRange(value: unknown) {
   return { from: new Date(start).toISOString(), to: new Date(end).toISOString(), start, end };
 }
 
+const parentId = z.string().min(1).max(300);
+const sessionTimes = z.object({ start: instant, end: instant, busy: z.boolean(), timeZone: z.string().min(1).max(100).refine(value => {
+  try { if (/^[+-]/.test(value)) return false; new Intl.DateTimeFormat("en", { timeZone: value }); return true; } catch { return false; }
+}) });
+const sessionCreate = sessionTimes.extend({ id: z.uuid(), commitmentId: parentId, commitmentRevision: revision }).strict();
+const sessionEdit = sessionTimes.extend({ revision, commitmentRevision: revision }).strict();
+function parentState(id: string, binding?: CalendarEvent) {
+  const parent = get("commitment", id);
+  const account = parent && get("account", parent.accountId), mail = parent && get("mail", parent.sourceMailId);
+  const available = !!parent && openCommitment(parent) && !!account && !!mail && mail.accountId === parent.accountId &&
+    (!binding || binding.accountId === parent.accountId && binding.sourceMailId === parent.sourceMailId);
+  return { parent, available, reason: available ? undefined : "Task is closed or its source/account is unavailable or changed. Scheduling is paused; local finish and removal remain available." };
+}
+function schedulingParent(id: string, expected: number, binding?: CalendarEvent) {
+  const current = parentState(id, binding);
+  if (!current.available || !current.parent) return fail(409, current.reason!);
+  if (current.parent.revision !== expected) return fail(409, "Task changed. Refresh and review it before scheduling.");
+  return current.parent;
+}
+function savedSession(id: string, expected?: number) {
+  const event = get("calendarEvent", id);
+  if (!event || !hasSession(event)) return fail(404, "Work session not found.");
+  checkedSession(event);
+  if (expected !== undefined && event.revision !== expected) return fail(409, "Work session changed. Read its saved state before continuing.");
+  return event;
+}
+function checkSessionTimes(input: z.infer<typeof sessionTimes>, excludeId?: string) {
+  const interval = bounds({ ...input, allDay: false });
+  // Read and validate all local metadata even for Free. Free explicitly permits overlap.
+  const busy = localBusy(input.timeZone, excludeId);
+  if (input.busy && busy.some(value => Date.parse(value.start) < interval.end && Date.parse(value.end) > interval.start))
+    fail(409, "This time overlaps a busy local event. Google calendars are excluded. Choose another time or Free.");
+}
+
 export function mountCalendar(app: express.Express) {
   const router = express.Router();
+  router.get("/calendar/work-sessions", (req, res) => {
+    const { commitmentId } = z.object({ commitmentId: parentId }).strict().parse(req.query);
+    const state = parentState(commitmentId);
+    const sessions = all("calendarEvent").filter(event => hasSession(event) && checkedSession(event).commitmentId === commitmentId && event.workSession!.status !== "removed");
+    const available = state.available && sessions.every(event => parentState(commitmentId, event).available);
+    res.json({ sessions: sessions.sort((a, b) => a.start.localeCompare(b.start) || a.id.localeCompare(b.id)), available, reason: available ? undefined : state.reason || "Session source/account changed. Review saved work before scheduling." });
+  });
+  router.get("/calendar/work-sessions/:id", (req, res) => { res.json(savedSession(req.params.id)); });
+  router.post("/calendar/work-sessions", (req, res) => {
+    const input = sessionCreate.parse(req.body);
+    const creationInput = createHash("sha256").update(JSON.stringify([input.id, input.commitmentId, input.commitmentRevision, new Date(input.start).toISOString(), new Date(input.end).toISOString(), input.busy, input.timeZone])).digest("hex");
+    const result = transaction(() => {
+      const current = get("calendarEvent", input.id);
+      if (current) {
+        if (!hasSession(current) || checkedSession(current).creationInput !== creationInput) return fail(409, "This UUID already belongs to different saved work. Read the saved record.");
+        return { event: current, status: 200 };
+      }
+      const parent = schedulingParent(input.commitmentId, input.commitmentRevision);
+      checkSessionTimes(input);
+      const event: CalendarEvent = { id: input.id, source: "local", title: parent.text.slice(0, 300), accountId: parent.accountId, sourceMailId: parent.sourceMailId,
+        start: new Date(input.start).toISOString(), end: new Date(input.end).toISOString(), allDay: false, attendees: [], revision: 1, updatedAt: Date.now(),
+        workSession: { commitmentId: parent.id, status: "planned", busy: input.busy, creationInput } };
+      put("calendarEvent", event.id, event); return { event, status: 201 };
+    });
+    res.status(result.status).json(result.event);
+  });
+  router.patch("/calendar/work-sessions/:id", (req, res) => {
+    const input = sessionEdit.parse(req.body);
+    const event = transaction(() => {
+      const current = savedSession(req.params.id, input.revision), session = checkedSession(current);
+      if (session.status !== "planned") return fail(409, "Only a planned session can move. Removed sessions cannot be restored.");
+      schedulingParent(session.commitmentId, input.commitmentRevision, current); checkSessionTimes(input, current.id);
+      const next: CalendarEvent = { ...current, start: new Date(input.start).toISOString(), end: new Date(input.end).toISOString(), workSession: { ...session, busy: input.busy }, revision: current.revision + 1, updatedAt: Date.now() };
+      put("calendarEvent", next.id, next); return next;
+    }); res.json(event);
+  });
+  const transitionSession = (id: string, expected: number, status: "finished" | "removed") => transaction(() => {
+    const current = savedSession(id, expected), session = checkedSession(current);
+    if (session.status === "removed" || status === "finished" && session.status !== "planned") return fail(409, "This session is already finished or removed. Read its saved state.");
+    const next: CalendarEvent = { ...current, workSession: { ...session, status }, revision: current.revision + 1, updatedAt: Date.now() };
+    put("calendarEvent", next.id, next); return next;
+  });
+  router.post("/calendar/work-sessions/:id/finish", (req, res) => { const input = z.object({ revision }).strict().parse(req.body); res.json(transitionSession(req.params.id, input.revision, "finished")); });
+  router.delete("/calendar/work-sessions/:id", (req, res) => { const input = z.object({ revision }).strict().parse(req.body); res.json(transitionSession(req.params.id, input.revision, "removed")); });
   router.get("/calendar/operations", (req, res) => {
     const { eventId } = z.object({ eventId: z.string().min(1).max(300) }).strict().parse(req.query);
     res.json(all("calendarOperation").filter((op) => op.eventId === eventId && get("account", op.accountId) && op.kind.startsWith("google-")).map(({ id, state, kind, requestId, response, result, sourceMailId, sourceFingerprint }) => ({ id, state, kind, requestId, response, result, sourceMailId, sourceFingerprint })));
@@ -76,6 +156,7 @@ export function mountCalendar(app: express.Express) {
   router.post("/calendar/events/:id/google", async (req, res) => {
     const input = z.object({ revision, reconcile: z.boolean().optional() }).strict().parse(req.body);
     const event = get("calendarEvent", req.params.id);
+    if (event && hasSession(event)) return fail(409, "Work sessions stay local and cannot notify Google.");
     if (!event?.accountId) return fail(409, "Choose a connected Gmail account on this event first.");
     res.json(await trackMailWork(() => createGoogleMeeting(event.accountId!, event.id, input.revision, input.reconcile)));
   });
@@ -89,7 +170,7 @@ export function mountCalendar(app: express.Express) {
   });
   router.get("/calendar/events", (req, res) => {
     const { from, to, start, end } = calendarRange(req.query);
-    const events = all("calendarEvent").filter((event) => { const value = span(event); return value.start < end && value.end > start; });
+    const events = all("calendarEvent").filter((event) => { if (hasSession(event) && checkedSession(event).status === "removed") return false; const value = span(event); return value.start < end && value.end > start; });
     const google = all("account").filter((account) => account.provider === "gmail").map((account) => {
       const connection = get("googleCalendar", account.id);
       const cache = get("googleCalendarWindow", calendarWindowId(account.id, from, to));
@@ -127,6 +208,7 @@ export function mountCalendar(app: express.Express) {
     const input = checked(rest);
     const result = transaction(() => {
       const current = get("calendarEvent", id);
+      if (current && hasSession(current)) return fail(409, "Use the work session controls for this saved UUID.");
       if (current) return same(current, input) && current.revision === 1 ? { event: current, status: 200 } : fail(409, "This event was already saved with different details. Refresh the calendar.");
       const event: CalendarEvent = { ...input, id, source: "local", revision: 1, updatedAt: Date.now() };
       put("calendarEvent", event.id, event);
@@ -139,6 +221,7 @@ export function mountCalendar(app: express.Express) {
     const event = transaction(() => {
       const current = get("calendarEvent", req.params.id);
       if (!current) return fail(404, "Event not found.");
+      if (hasSession(current)) return fail(409, "Use the work session controls. Sessions cannot be changed through ordinary events.");
       const input = checked(rest, current);
       if (current.source !== "local") return fail(409, "Edit synced events in their own calendar.");
       if (current.revision !== expected) return fail(409, "Event changed. Refresh before saving.");
@@ -154,6 +237,7 @@ export function mountCalendar(app: express.Express) {
     transaction(() => {
       const current = get("calendarEvent", req.params.id);
       if (!current) return fail(404, "Event not found.");
+      if (hasSession(current)) return fail(409, "Use the work session controls. Sessions cannot be changed through ordinary events.");
       if (current.source !== "local") return fail(409, "Delete synced events in their own calendar.");
       if (current.revision !== expected) return fail(409, "Event changed. Refresh before deleting.");
       remove("calendarEvent", current.id);
@@ -161,7 +245,8 @@ export function mountCalendar(app: express.Express) {
     res.json({ ok: true });
   });
   router.use((error: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (error instanceof CalendarError || error instanceof GoogleCalendarWriteError) res.status(error.status).json({ error: error.message });
+    if (error instanceof CalendarError || error instanceof CalendarBusyError || error instanceof GoogleCalendarWriteError) res.status(error.status).json({ error: error.message });
+    else if (error instanceof z.ZodError) res.status(400).json({ error: "Invalid calendar request. Check fields, times and time zone." });
     else next(error);
   });
   app.use("/api", router);

@@ -14,7 +14,7 @@ export type OfferContext = {
   offers: { offer: CalendarOffer; event?: CalendarEvent }[];
 };
 export function offeredTime(slot: BusyPeriod, timeZone: string) {
-  const date = new Intl.DateTimeFormat(undefined, { timeZone, weekday: "short", year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
-  const end = new Intl.DateTimeFormat(undefined, { timeZone, hour: "numeric", minute: "2-digit", timeZoneName: "short" });
-  return `${date.format(new Date(slot.start))} to ${end.format(new Date(slot.end))}`;
+  const date = new Intl.DateTimeFormat(undefined, { timeZone, weekday: "short", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "longOffset" });
+  const endpoint = (instant: string) => date.formatToParts(new Date(instant)).map(({ type, value }) => type === "timeZoneName" ? value === "GMT" ? "UTC+00:00" : value.replace("GMT", "UTC") : value).join("");
+  return `${endpoint(slot.start)} to ${endpoint(slot.end)} (${timeZone})`;
 }

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import express from "express";
 import { z } from "zod";
 import type { CalendarEvent } from "../shared/calendar.js";
+import { hasSession } from "./calendar-busy.js";
 import type { Invitation, InvitationResponse } from "../shared/invitations.js";
 import { trackMailWork } from "./mail-actions.js";
 import { createDraftInTransaction, readDraft } from "./drafts.js";
@@ -35,7 +36,7 @@ function supported(id: string, expected?: string) {
   return { ...value, invitation };
 }
 function localMatches(accountId: string, invite: Invitation) {
-  return all("calendarEvent").filter((event) => event.accountId === accountId && event.uid === invite.uid && event.organizer?.toLowerCase() === invite.organizer.toLowerCase());
+  return all("calendarEvent").filter((event) => !hasSession(event) && event.accountId === accountId && event.uid === invite.uid && event.organizer?.toLowerCase() === invite.organizer.toLowerCase());
 }
 function remoteMatch(accountId: string, invite: Invitation) {
   const matches = new Map<string, CalendarEvent>();
@@ -47,6 +48,7 @@ export function prepareEventInvitation(id: string, expected: number, method: "RE
   return transaction(() => {
     const event = get("calendarEvent", id);
     if (!event || event.source !== "local") return invitationFail(404, "Local event not found.");
+    if (hasSession(event)) return invitationFail(409, "Work sessions stay local and cannot prepare notifications.");
     if (event.revision !== expected) return invitationFail(409, "Event changed. Refresh before preparing a draft.");
     const account = event.accountId && get("account", event.accountId);
     if (!account) return invitationFail(409, "Choose a connected account by editing this event before preparing an invitation.");
