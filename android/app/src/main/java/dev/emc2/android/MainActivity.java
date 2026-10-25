@@ -198,7 +198,10 @@ public final class MainActivity extends Activity {
             }
             if (id.equals(next.getJSONObject("draft").optString("account"))) next.put("draft", new JSONObject()).put("pending", false);
         }), "Account removed from this device.", "Account could not be removed. Saved data was preserved.", ok -> {
-            if (ok) { try { app.editingDraft = app.state().getJSONObject("draft"); app.draftDirty = false; app.draftRevision++; } catch (Exception ignored) { } }
+            if (ok && app.editingDraft != null && account.optString("id").equals(app.editingDraft.optString("account"))) {
+                app.main.removeCallbacks(app.autosave);
+                app.editingDraft = new JSONObject(); app.draftDirty = false; app.draftRevision++;
+            }
         });
     }
 
