@@ -1,9 +1,13 @@
 /* Command search and nonblocking action feedback. */
 .command-palette input { width: 100%; margin-bottom: 10px; }
 .command-options { max-height: min(360px, 50dvh); overflow-y: auto; }
+.command-group + .command-group { margin-top: 6px; border-top: 1px solid var(--line); }
+.command-group-label { padding: 8px 10px 2px; color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
 .command-option { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 9px 10px; border-radius: var(--radius-control); cursor: pointer; }
 .command-option[aria-selected="true"] { background: var(--selected); }
 .command-option[aria-disabled="true"] { color: var(--text-3); cursor: default; }
+.command-side { display: flex; align-items: center; gap: 10px; }
+.command-reason { color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
 .command-option kbd, .command-empty { color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
 .command-empty { padding: 12px 10px; }
 /* Notices stack from the anchored edge, newest nearest it. Padding leaves room
