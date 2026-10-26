@@ -51,6 +51,11 @@ export function shortcutLabel(shortcut: Shortcut): string {
   return [binding.ctrl && "Ctrl", binding.meta && "Cmd", binding.alt && "Alt", binding.shift && "Shift", key].filter(Boolean).join("+");
 }
 
+// The platform's primary modifier: the ⌘ symbol on macOS, Ctrl elsewhere.
+export const commandModifier = () =>
+  (typeof window === "undefined" ? undefined : window.desktop?.platform) === "darwin" ? "⌘" : "Ctrl";
+export const commandsChord = () => (commandModifier() === "⌘" ? "⌘K" : "Ctrl+K");
+
 export function validateShortcut(action: InteractionAction, shortcut: Shortcut, value: InteractionPreferences): string | null {
   const binding = canonical(shortcut);
   const navigation = binding.alt && !binding.ctrl && !binding.meta && !binding.shift &&
