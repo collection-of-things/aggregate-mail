@@ -498,9 +498,9 @@ test("saved Compose settings reach new drafts, templates and account signatures 
     const dialog = app.dialog();
     const body = dialog.querySelector<HTMLTextAreaElement>("textarea")!;
     assert.equal(body.value, "\n\n-- \nWork signature");
-    const template = dialog.querySelector<HTMLSelectElement>(".compose-preference-controls select")!;
-    await act(async () => { template.value = "followup"; template.dispatchEvent(new app.container.ownerDocument.defaultView!.Event("change", { bubbles: true })); });
-    await app.click(app.button("Insert template", dialog));
+    const templateSearch = dialog.querySelector<HTMLElement>(".compose-template-picker input")!;
+    await act(async () => templateSearch.focus());
+    await app.click([...dialog.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent === "Follow up")!);
     assert.equal(body.value, "Template body\n\n-- \nWork signature");
     const from = dialog.querySelector<HTMLButtonElement>('[role="combobox"][aria-label="From"]')!;
     await app.click(from);
