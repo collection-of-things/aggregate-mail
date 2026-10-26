@@ -1,16 +1,6 @@
-# Groups the notes GitHub generates for each release.
+# Configures the notes GitHub generates for each release.
+# Omit category groupings so pull requests appear directly under "What's Changed".
 changelog:
   exclude:
     authors:
       - dependabot
-  categories:
-    - title: Features
-      labels: [feature, enhancement]
-    - title: Fixes
-      labels: [bug]
-    - title: Accessibility
-      labels: [accessibility]
-    - title: Documentation
-      labels: [documentation]
-    - title: Other changes
-      labels: ["*"]

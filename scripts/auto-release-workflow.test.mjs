@@ -164,3 +164,10 @@ test("publication needs all four successful builds and validates artifacts befor
   assert.match(workflow, /group: release\n/);
   assert.match(workflow, /cancel-in-progress: false/);
 });
+
+test("release notes configuration omits category groups and excludes dependabot", () => {
+  const releaseConfig = readFileSync(new URL("../.github/release.yml", import.meta.url), "utf8");
+  assert.match(releaseConfig, /exclude:\s*\n\s*authors:\s*\n\s*-\s*dependabot/);
+  assert.doesNotMatch(releaseConfig, /categories:/);
+  assert.doesNotMatch(releaseConfig, /Other changes/i);
+});
