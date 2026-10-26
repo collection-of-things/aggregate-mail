@@ -1,4 +1,4 @@
-import { AtSign, Bell, Compose, Cpu, Image as ImageIcon, Info, Keyboard, Palette, Plug, Sort } from "../ui/icons";
+import { AtSign, Bell, Compose, Cpu, Image as ImageIcon, Info, Keyboard, Palette, Plug, Sort, Users } from "../ui/icons";
 
 // Settings shows one section at a time, chosen from its section rail.
 export const settingsSections = [
@@ -7,6 +7,7 @@ export const settingsSections = [
   { id: "connection", label: "Google and connections", description: "Set up Google sign-in and optional sorting providers on this computer.", Icon: Plug },
   { id: "sorting", label: "Sorting and Teach", description: "Review the rules you taught Emc² to organize your mail.", Icon: Sort },
   { id: "compose", label: "Templates and signatures", description: "Reuse message text and add a sign-off to your emails.", Icon: Compose },
+  { id: "contacts", label: "Contacts", description: "Save people you write to and review recent recipients.", Icon: Users },
   { id: "notifications", label: "Notifications", description: "Choose which floating notices appear and where they show.", Icon: Bell },
   { id: "interaction", label: "Keyboard and mouse", description: "Choose how mail opens and customize your keyboard shortcuts.", Icon: Keyboard },
   { id: "appearance", label: "Appearance", description: "Choose a comfortable theme, reading layout and window style.", Icon: Palette },

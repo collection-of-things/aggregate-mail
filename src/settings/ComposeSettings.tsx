@@ -5,7 +5,7 @@ import { accountLabel } from "../mail-ui";
 import { Segmented } from "../ui/Segmented";
 import { PrivacyContext } from "../ui/Privacy";
 
-function PrivateField({ label, value, maxLength, multiline, disabled, required, onChange }: {
+export function PrivateField({ label, value, maxLength, multiline, disabled, required, onChange }: {
   label: string; value: string; maxLength: number; multiline?: boolean; disabled: boolean; required?: boolean;
   onChange: (value: string) => void;
 }) {

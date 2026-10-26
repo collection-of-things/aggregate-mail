@@ -4,6 +4,7 @@ import { Fragment, useContext, useId, useLayoutEffect, useRef, useState, type Re
 import { jevProviders, type Account, type RendererState as State } from "../../shared/types";
 import { emptyComposePreferences, type ComposePreferences } from "../../shared/mail-features";
 import { ComposeSettings } from "./ComposeSettings";
+import { ContactsSettings } from "./ContactsSettings";
 import type { Api, Perform } from "../api";
 import type { Appearance, Scheme } from "../appearance";
 import type { ThemePreview } from "../themes";
@@ -179,6 +180,9 @@ export function SettingsPage({
         {section === "compose" && onComposePreferences && <section>
           <ComposeSettings accounts={state.accounts} value={state.composePreferences ?? emptyComposePreferences}
             draft={composeDraft} onDraftChange={onComposeDraft} onSave={onComposePreferences} busy={busy || composeSaving} />
+        </section>}
+        {section === "contacts" && <section>
+          <ContactsSettings api={api} accounts={state.accounts} busy={busy} />
         </section>}
         {section === "sorting" && <section>
           <p className="note">
