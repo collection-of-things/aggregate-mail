@@ -42,6 +42,12 @@ Other dialogs remain modal. Appearance, shortcuts, notification preferences,
 privacy, account data and compose preferences use their existing storage;
 there is no preference migration or reset.
 
+Local contacts (ADR 0084) are encrypted, account-scoped store records served
+from `/api/contacts`. Recent recipients are recorded in `sendMail` only after
+the provider accepts a send. `RecipientInput` completes the address after the
+last comma, so one component serves single-address and comma-separated fields.
+Settings > Contacts lists, adds, edits and deletes them.
+
 Plain unquoted search words of 4 to 32 letters allow one insertion, deletion,
 substitution or adjacent transposition within a word. Quoted phrases, field
 terms, exclusions, addresses, account filters and invalid recognized operators

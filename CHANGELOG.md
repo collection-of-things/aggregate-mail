@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add a threat model to SECURITY.md covering trust boundaries, components, attackers, assets and lower-priority areas.
+- Add local contacts and recipient suggestions. To and Cc suggest saved contacts and addresses you sent to from Emc², per account, with keyboard and screen-reader support and privacy-mode redaction. Manage contacts and recent recipients in Settings. Nothing is inserted until you pick it.
 
 - List pull requests directly under What's Changed in generated release notes, without an "Other changes" group.
 
