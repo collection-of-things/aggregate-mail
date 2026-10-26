@@ -139,7 +139,8 @@ test("provider evidence: bounded Sent, exact threads and encrypted attachment ro
         await assert.rejects(providers.imap.send({ ...a, provider: "imap" }, { ...input, attachments: [invalid] }));
       }
       assert.equal(gmail.mock.callCount(), 0); assert.equal(smtp.mock.callCount(), 0);
-      assert.equal(sendSchema.safeParse({ ...input, attachments: Array(11).fill(attachment) }).success, false);
+      assert.equal(sendSchema.safeParse({ ...input, attachments: Array(20).fill(attachment) }).success, true);
+      assert.equal(sendSchema.safeParse({ ...input, attachments: Array(21).fill(attachment) }).success, false);
       assert.equal(sendSchema.safeParse({ ...input, attachments: Array(3).fill({ ...attachment, content: Buffer.alloc(524288).toString("base64") }) }).success, false);
       assert.equal(sendSchema.safeParse({ ...input, body: "a".repeat(1000000), attachments: Array(2).fill({ ...attachment, content: Buffer.alloc(524288).toString("base64") }) }).success, false);
     });

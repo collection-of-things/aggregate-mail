@@ -5,6 +5,10 @@ import { phonePasskeys } from "./phone-passkeys.js";
 import { phoneAccess, mountPhoneAccess } from "./phone-access.js";
 import { Outbox, outboxStatuses } from "./outbox.js";
 import { mountWorkspaceBackup } from "./workspace-backup.js";
+import { downloadProviderAttachment } from "./attachment-download.js";
+import { attachmentWork, storeAttachmentBytes } from "./attachment-bytes.js";
+import { ATTACHMENT_BYTES } from "../shared/attachments.js";
+import { attachmentMetadataSchema } from "./providers.js";
 import { notificationMail, type MailArrival, type NotificationMail } from "../shared/notifications.js";
 import { isDeepStrictEqual } from "node:util";
 import { EventEmitter } from "node:events";
@@ -14,7 +18,7 @@ import path from "node:path";
 import express from "express";
 import { google } from "./google-api.js";
 import { z } from "zod";
-import { all, get, syncMailCache, mailSummaryChanges, mailSummary, searchMail, draftChangeToken, count, put, putBatch, remove, removeAccountAttachments, account, transaction, compactStore, storageStats, type StoredAccount } from "./store.js";
+import { all, get, syncMailCache, mailSummaryChanges, mailSummary, searchMail, draftChangeToken, count, put, putBatch, remove, removeAccountAttachments, account, transaction, compactStore, storageStats, type StoredAccount, eraseUpload } from "./store.js";
 import { matchesRule } from "../shared/rules.js";
 import { mountWorkspace } from "./workspace.js";
 import { mountAgentProvider } from "./agent-provider.js";
@@ -161,6 +165,57 @@ app.use("/api/workspace-backup", (_error: unknown, _req: express.Request, res: e
   res.status(400).json({ error: "Invalid backup request or file exceeds the size limit." });
 });
 mountWorkspaceBackup(app, () => desktopEvents.emit("mail-changed"), assertNotSyncing);
+app.post("/api/messages/:id/attachments/:attachmentId/download", mailRequest(async (req, res) => {
+  await attachmentWork(async () => {
+    const m = findMail(z.string().parse(req.params.id));
+    const file = m.attachments?.find(f => f.id === req.params.attachmentId);
+    if (!file) throw new Error("Attachment metadata unavailable. The message may not have been parsed.");
+    if (!file.unavailable) return res.json({ ok: true });
+    const a = account(m.accountId);
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 60000);
+    const cancel = () => { if (!res.writableEnded) abort.abort(); };
+    res.once("close", cancel);
+    let saved: Awaited<ReturnType<typeof downloadProviderAttachment>> | undefined;
+    try {
+      saved = await downloadProviderAttachment(a, m, file, abort.signal);
+      abort.signal.throwIfAborted();
+      const current = findMail(m.id);
+      const currentFile = current.attachments?.find(f => f.id === file.id);
+      if (!sameImapAccount(account(a.id), a) || current.accountId !== m.accountId || current.remoteId !== m.remoteId || current.messageId !== m.messageId || !isDeepStrictEqual(current.mailbox, m.mailbox) || !isDeepStrictEqual(currentFile, file))
+        throw new Error("Account or attachment identity changed. Download was not cached.");
+      put("mail", m.id, { ...current, attachments: current.attachments!.map(f => f.id === file.id ? { ...f, unavailable: false, uploadId: saved!.id, size: saved!.size, sizeIsEstimate: false } : f) });
+      saved = undefined;
+      res.json({ ok: true });
+    } finally {
+      if (saved) eraseUpload(saved.id);
+      clearTimeout(timer); res.off("close", cancel);
+    }
+  });
+}));
+app.post("/api/accounts/:accountId/attachments", mailRequest(async (req, res) => {
+  if (!req.is("application/octet-stream")) throw new Error("Upload raw attachment bytes.");
+  const a = account(z.string().parse(req.params.accountId));
+  const metadata = attachmentMetadataSchema.parse(req.query);
+  const declared = Number(req.headers["content-length"]);
+  if (!Number.isSafeInteger(declared) || declared < 0 || declared > ATTACHMENT_BYTES) throw new Error("Attachment upload must declare at most 25 MiB.");
+  await attachmentWork(async () => {
+    const abort = new AbortController();
+    const timer = setTimeout(() => { abort.abort(); req.destroy(); }, 60000);
+    const cancel = () => abort.abort();
+    req.once("aborted", cancel);
+    let file: Awaited<ReturnType<typeof storeAttachmentBytes>> | undefined;
+    try {
+      file = await storeAttachmentBytes(a.id, metadata.filename, metadata.contentType, req, abort.signal);
+      if (file.size !== declared || !sameImapAccount(account(a.id), a)) throw new Error("Attachment upload identity or length changed.");
+      res.status(201).json(file);
+      file = undefined;
+    } finally {
+      if (file) eraseUpload(file.id);
+      clearTimeout(timer); req.off("aborted", cancel);
+    }
+  });
+}));
 mountDrafts(app, () => desktopEvents.emit("mail-changed"));
 mountWorkspace(app);
 mountCalendar(app);

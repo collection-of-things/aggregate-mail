@@ -7,7 +7,7 @@ import express from "express";
 import { attachmentsSchema } from "./providers.js";
 import { z } from "zod";
 import type { Draft, DraftSummary } from "../shared/types.js";
-import { all, draftSummary, get, put, remove, transaction } from "./store.js";
+import { all, draftSummary, get, put, remove, transaction, validateAttachmentRefs, cleanupUploads } from "./store.js";
 
 export const MAX_DRAFTS_PER_ACCOUNT = 100;
 const accountIdSchema = z.string().min(1).max(200);
@@ -70,6 +70,7 @@ export function createDraftInTransaction(accountId: string, value: unknown, invi
   const content = contentSchema.parse(value);
   if (content.invitation) throw new DraftError(400, "Prepare calendar drafts from their event or source email.");
   requireAccount(accountId);
+  validateAttachmentRefs(accountId, content.attachments);
   if (listDrafts(accountId).length >= MAX_DRAFTS_PER_ACCOUNT)
     throw new DraftError(409, "Draft limit reached. Explicitly delete a draft before creating another.");
   const draft: Draft = {
@@ -85,6 +86,7 @@ export function saveDraft(accountId: string, id: string, value: unknown): Draft 
     if (all("outbox").some(entry => entry.sourceDraftId === id))
       throw new DraftError(409, "Review this draft in the Outbox before editing or deleting it.");
     const current = readDraft(accountId, id);
+    validateAttachmentRefs(accountId, content.attachments);
     if (current.revision !== revision) throw new DraftError(409, "Draft changed. Read it before saving again.");
     if (!isDeepStrictEqual(current.invitation, content.invitation)) throw new DraftError(409, "Calendar details cannot be changed in the composer. Prepare from the event again.");
     if (current.invitation && (!isDeepStrictEqual(current.to, content.to) || !isDeepStrictEqual(current.cc, content.cc) || !isDeepStrictEqual(current.bcc, content.bcc))) throw new DraftError(409, "Calendar recipients are bound to this reviewed invitation.");
@@ -108,6 +110,7 @@ export function deleteDraft(accountId: string, id: string, value: unknown) {
     if (current.sendUnknown && !input.confirmUnknown)
       throw new DraftError(409, "Confirm discarding a draft whose send status is unknown.");
     remove("draft", id);
+    cleanupUploads();
   });
 }
 

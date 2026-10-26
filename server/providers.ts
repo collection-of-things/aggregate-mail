@@ -1,10 +1,14 @@
+import { Readable } from "node:stream";
+import { ATTACHMENT_BYTES, ATTACHMENT_COUNT, MIME_BYTES, attachmentSize } from "../shared/attachments.js";
+import { AttachmentPreflightError, attachmentWork, mimeAttachments, storeAttachmentBytes, gmailJson } from "./attachment-bytes.js";
 import { COMPOSE_HTML_LIMIT, validComposeMarkup } from "../shared/compose-content.js";
 import { parseUnsubscribe } from "../shared/unsubscribe.js";
 import { parseICalendar, generateICalendar } from "./ical.js";
 import { google } from "./google-api.js";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { ImapFlow, type SearchObject } from "imapflow";
+import { ImapFlow, type SearchObject, type FetchMessageObject, type MessageStructureObject } from "imapflow";
+import type { gmail_v1 } from "./google-api.js";
 import { simpleParser } from "mailparser";
 import { workLimit } from "./resource-limits.js";
 import { canonicalBase64Size, checkMimeSource, decodeGmailSource, gmailResponseLimit, imapSourceQuery, parseMailSource, rawMailLimit } from "./mime-limits.js";
@@ -113,7 +117,7 @@ export function oauth(origin?: string) {
     `${origin || process.env.APP_URL || "http://127.0.0.1:5173"}/api/oauth/google/callback`,
   );
 }
-function gmail(a: StoredAccount, timeout = 30000) {
+export function gmail(a: StoredAccount, timeout = 30000) {
   const auth = oauth();
   auth.setCredentials({ refresh_token: a.credentials.refreshToken });
   auth.transporter.defaults.timeout = timeout;
@@ -231,7 +235,7 @@ async function parseMessage(
       }
     }
     const contentId = attachment.contentId?.replace(/^<|>$/g, "").trim();
-    attachments.push({ id, contentId: contentId && contentId.length <= 500 ? contentId : null, filename: filename.replace(/[\u0000-\u001f\u007f/\\]/g, "_").slice(0, 255), contentType: /^[\w!#$&^.+-]+\/[\w!#$&^.+-]+$/.test(contentType) ? contentType : "application/octet-stream", size: attachment.size, ...(!valid ? { unavailable: true } : {}) });
+    attachments.push({ id, sourceIndex: index, contentId: contentId && contentId.length <= 500 ? contentId : null, filename: filename.replace(/[\u0000-\u001f\u007f/\\]/g, "_").slice(0, 255), contentType: /^[\w!#$&^.+-]+\/[\w!#$&^.+-]+$/.test(contentType) ? contentType : "application/octet-stream", size: attachment.size, ...(!valid ? { unavailable: true } : {}) });
   }
   const calendars = m.attachments.filter((part) => part.contentType.toLowerCase() === "text/calendar");
   const invitation = calendars.length > 1 ? { status: "unsupported" as const, reason: "multiple-calendars" } : calendars.length ? calendars[0].content.length > 131072 ? { status: "invalid" as const, reason: "limit" } : parseICalendar(calendars[0].content.toString("utf8")) : undefined;
@@ -483,23 +487,22 @@ export const providers: Record<
                 ...(labels ? { labelIds: ["INBOX", ...(unreadIds.has(item.id!) ? ["UNREAD"] : []), ...(memberships.get(item.id!) || [])] } : {}),
                 ...(item.threadId ? { threadId: item.threadId } : {}),
               };
-              const result = await syncOperation(a.provider, "read", () => api.users.messages.get({
-                userId: "me",
-                id: item.id!,
-                format: "raw",
-              }, { ...options, maxContentLength: gmailResponseLimit }));
-              const unread = result.data.labelIds?.includes("UNREAD") || false;
-              return {
-                ...(await syncOperation(a.provider, "parse", () => parse(
-                  a,
-                  item.id!,
-                  decodeGmailSource(result.data.raw),
-                  unread,
-                  Number(result.data.internalDate),
-                ))),
-                threadId: result.data.threadId || undefined,
-                labelIds: result.data.labelIds || [],
-              };
+              try {
+                const result = await api.users.messages.get({ userId: "me", id: item.id!, format: "raw" }, { ...options, maxContentLength: gmailResponseLimit });
+                const unread = result.data.labelIds?.includes("UNREAD") || false;
+                let source: Buffer;
+                try { source = decodeGmailSource(result.data.raw); }
+                catch (error) {
+                  if (error instanceof Error && /byte limit/i.test(error.message)) return recoverGmailMetadata(a, item.id!, api);
+                  throw syncError(error, a.provider, "parse");
+                }
+                return { ...(await syncOperation(a.provider, "parse", () => parse(a, item.id!, source, unread, Number(result.data.internalDate)))),
+                  threadId: result.data.threadId || undefined, labelIds: result.data.labelIds || [] };
+              } catch (error) {
+                if (error instanceof Error && /(?:byte limit|maxContentLength|maximum.*size|response.*size)/i.test(error.message))
+                  return recoverGmailMetadata(a, item.id!, api);
+                throw syncError(error, a.provider, "read");
+              }
             }),
           );
           const batch = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
@@ -546,6 +549,7 @@ export const providers: Record<
     },
     async send(a, input) {
       input = sendSchema.parse(input);
+      if (input.attachments?.some(file => "id" in file)) return sendReferenced(a, input);
       const message = new MailComposer({
         from: a.email,
         to: input.to,
@@ -557,7 +561,7 @@ export const providers: Record<
         inReplyTo: input.inReplyTo,
         references: input.references || input.inReplyTo,
         icalEvent: await calendarMime(a, input),
-        attachments: input.attachments?.map((attachment) => ({ ...attachment, content: Buffer.from(attachment.content, "base64") })),
+        attachments: input.attachments?.map((attachment) => ({ ...attachment, content: Buffer.from("content" in attachment ? attachment.content : "", "base64") })),
       })
         .compile();
       message.keepBcc = true;
@@ -715,9 +719,10 @@ function imapProvider() {
           if (!exists) { complete(); return result; }
           const seen = new Set<number>();
           const missing: number[] = [];
+          const oversized = new Set<number>();
           let batch: Incoming[] = [];
           // Drain flags first: ImapFlow cannot issue commands inside this iterator.
-          for await (const m of imapFetch(client, "1:*", { uid: true, flags: true })) {
+          for await (const m of imapFetch(client, "1:*", { uid: true, flags: true, size: true })) {
             if (!Number.isSafeInteger(m.uid) || m.uid <= 0 || seen.has(m.uid) || !m.flags) incomplete();
             seen.add(m.uid);
             const previous = cached.get(`${a.id}:${validity}:${m.uid}`);
@@ -726,14 +731,22 @@ function imapProvider() {
               if (retain || !onBatch) result.push(incoming);
               batch.push(incoming);
               if (batch.length === 100) { onBatch?.(batch); batch = []; }
-            } else missing.push(m.uid);
+            } else { missing.push(m.uid); if ((m.size || 0) > rawMailLimit) oversized.add(m.uid); }
           }
           if (batch.length) onBatch?.(batch);
           if (seen.size !== exists) incomplete();
           complete();
           phase = "read";
-          for (let offset = 0; offset < missing.length; offset += 2) {
-            const expected = new Set(missing.slice(offset, offset + 2));
+          for (const uid of oversized) {
+            const metadata = await imapOperation(client, () => client.fetchOne(String(uid), { uid: true, envelope: true, bodyStructure: true, flags: true }, { uid: true }));
+            if (!metadata || metadata.uid !== uid) incomplete();
+            const incoming = await recoverImapMetadata(a, `${validity}:${uid}`, metadata as FetchMessageObject);
+            if (retain || !onBatch) result.push(incoming);
+            onBatch?.([incoming]); complete();
+          }
+          const ordinary = missing.filter(uid => !oversized.has(uid));
+          for (let offset = 0; offset < ordinary.length; offset += 2) {
+            const expected = new Set(ordinary.slice(offset, offset + 2));
             batch = [];
             for await (const m of imapFetch(client, [...expected].join(","), {
               uid: true, source: imapSourceQuery, flags: true,
@@ -938,6 +951,7 @@ function imapProvider() {
     },
     async send(a: StoredAccount, input: SendInput) {
       input = sendSchema.parse(input);
+      if (input.attachments?.some(file => "id" in file)) return sendReferenced(a, input);
       const raw = await new MailComposer({
         from: a.email,
         to: input.to,
@@ -948,12 +962,12 @@ function imapProvider() {
         inReplyTo: input.inReplyTo,
         references: input.references || input.inReplyTo,
         icalEvent: await calendarMime(a, input),
-        attachments: input.attachments?.map((attachment) => ({ ...attachment, content: Buffer.from(attachment.content, "base64") })),
+        attachments: input.attachments?.map((attachment) => ({ ...attachment, content: Buffer.from("content" in attachment ? attachment.content : "", "base64") })),
       })
         .compile()
         .build();
       const receipt = await smtp(a).sendMail({
-        envelope: { from: a.email, to: [...input.to, ...(input.cc || []), ...(input.bcc || [])] },
+        envelope: { from: a.email, to: [...input.to, ...(input.cc || []), ...(input.bcc || [])], size: raw.length },
         raw,
       });
       const warnings: string[] = [];
@@ -1002,8 +1016,9 @@ export const attachmentSchema = z.object({
   contentType: z.string().max(127).regex(/^[\w!#$&^.+-]+\/[\w!#$&^.+-]+$/),
   content: z.string().max(699052).refine((value) => { const size = canonicalBase64Size(value); return size !== null && size <= 524288; }, "Attachment content must be canonical base64 of at most 512 KiB"),
 }).strict();
-const attachmentMetadataSchema = attachmentSchema.omit({ content: true });
-export const attachmentsSchema = z.array(attachmentSchema).max(10).refine((attachments) => attachments.reduce((size, attachment) => size + (canonicalBase64Size(attachment.content) ?? Infinity), 0) <= 1048576, "Attachments exceed 1 MiB total");
+export const attachmentMetadataSchema = attachmentSchema.omit({ content: true });
+export const attachmentReferenceSchema = attachmentMetadataSchema.extend({ id: z.uuid(), size: z.number().int().min(0).max(ATTACHMENT_BYTES) }).strict();
+export const attachmentsSchema = z.array(z.union([attachmentSchema, attachmentReferenceSchema])).max(ATTACHMENT_COUNT).refine((files) => files.reduce((n, file) => n + attachmentSize(file), 0) <= ATTACHMENT_BYTES, "Attachments exceed 25 MiB total").refine(files => files.reduce((n, file) => n + ("content" in file ? attachmentSize(file) : 0), 0) <= 1048576, "Inline legacy attachments exceed 1 MiB total");
 export const sendSchema = z.object({
   accountId: z.string(),
   calendarDraft: z.object({ id: z.uuid(), revision: z.number().int().min(1) }).strict().optional(),
@@ -1059,4 +1074,120 @@ export async function calendarMime(account: StoredAccount, input: SendInput) {
   if (invitation.method === "REPLY" ? invitation.attendees.length !== 1 || invitation.attendees[0].email.toLowerCase() !== own : invitation.organizer.toLowerCase() !== own)
     throw new Error("The invitation belongs to another account.");
   return { method: invitation.method, filename: "invitation.ics", content: generateICalendar(invitation, { stamp: new Date().toISOString().replace(/\.\d{3}Z$/, ".000Z"), replyingAttendee: invitation.method === "REPLY" ? account.email : undefined }) };
+}
+
+// Referenced envelopes are spooled as encrypted chunks, measured, then replayed.
+// The SMTP transport passes envelope.size to its connection, which rejects an
+// advertised SIZE overflow before MAIL FROM on that same connection.
+async function sendReferenced(a: StoredAccount, input: SendInput) {
+  return attachmentWork(async () => {
+    const { uploadBytes, eraseUpload, account } = await import("./store.js");
+    const message = new MailComposer({
+      from: a.email, to: input.to, cc: input.cc, ...(a.provider === "gmail" ? { bcc: input.bcc } : {}),
+      subject: input.subject, text: input.body, html: input.html,
+      inReplyTo: input.inReplyTo, references: input.references || input.inReplyTo,
+      icalEvent: await calendarMime(a, input), attachments: await mimeAttachments(a.id, input.attachments),
+    }).compile();
+    message.keepBcc = a.provider === "gmail";
+    const signal = AbortSignal.timeout(60000);
+    const source = message.createReadStream();
+    const abort = () => source.destroy(new Error("Attachment preparation timed out."));
+    signal.addEventListener("abort", abort, { once: true });
+    let spool: { id: string; size: number } | undefined;
+    let submitted = false, accepted = false;
+    try {
+      spool = await storeAttachmentBytes(a.id, "message.eml", "message/rfc822", source, signal, MIME_BYTES);
+      const current = account(a.id);
+      if (current.provider !== a.provider || current.email !== a.email || !isDeepStrictEqual(current.credentials, a.credentials)) throw new AttachmentPreflightError("Sending account changed before submission.");
+      if (a.provider === "gmail") {
+        const auth = oauth();
+        auth.setCredentials({ refresh_token: a.credentials.refreshToken });
+        auth.transporter.defaults.retry = false;
+        const data = Readable.from(gmailJson(uploadBytes(spool.id), input.threadId));
+        submitted = true;
+        try {
+          await auth.request({ url: "https://gmail.googleapis.com/gmail/v1/users/me/messages/send", method: "POST",
+            headers: { "Content-Type": "application/json" }, data, timeout: 60000, retry: false });
+          accepted = true;
+        } finally { data.destroy(); }
+      } else {
+        const transport = smtp(a);
+        const raw = Readable.from(uploadBytes(spool.id));
+        try {
+          submitted = true;
+          await transport.sendMail({ envelope: { from: a.email, to: [...input.to, ...(input.cc || []), ...(input.bcc || [])], size: spool.size }, raw });
+          accepted = true;
+        } finally { raw.destroy(); transport.close(); }
+        // ImapFlow APPEND only accepts a complete Buffer. Do not defeat the
+        // streaming memory bound to make an optional Sent copy.
+        if (a.provider !== "gmail-imap") throw new SentCopyError("Email was sent. This server's streamed attachment message was not copied to Sent. Do not resend.");
+      }
+    } catch (error) {
+      if (accepted && !(error instanceof SentCopyError)) throw new SentCopyError("Email was sent, but closing its attachment stream failed. Do not resend.");
+      const failure = error as { code?: string; command?: string; message?: string };
+      if (!submitted || (failure.code === "EMESSAGE" && failure.command === "MAIL FROM" && /size larger than allowed/i.test(failure.message || "")))
+        throw new AttachmentPreflightError(error instanceof Error ? error.message : "Attachment preparation failed before submission.");
+      throw error;
+    } finally {
+      signal.removeEventListener("abort", abort); source.destroy();
+      if (spool) {
+        try { eraseUpload(spool.id); }
+        catch (error) { if (accepted) throw new SentCopyError("Email was sent, but temporary attachment cleanup failed. Do not resend."); throw error; }
+      }
+    }
+  });
+}
+
+const metadataBody = "Message body was not parsed because the source exceeds the automatic import limit. Attachments can be downloaded separately.";
+function safeHeader(value: string) { return value.replace(/[\r\n\0]/g, " ").slice(0, 8192); }
+async function metadataIncoming(a: StoredAccount, remoteId: string, headers: { name?: string | null; value?: string | null }[], files: MailAttachment[], unread: boolean, date?: number) {
+  const kept = new Set(["from", "to", "cc", "reply-to", "subject", "date", "message-id", "in-reply-to", "references"]);
+  const source = headers.filter(h => h.name && kept.has(h.name.toLowerCase())).slice(0, 64)
+    .map(h => `${h.name}: ${safeHeader(h.value || "")}`).join("\r\n");
+  const parsed = await parse(a, remoteId, Buffer.from(`${source}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${metadataBody}`), unread, date);
+  return { ...parsed, bodyUnavailable: true, attachments: files, html: null, images: [] };
+}
+// Exclude body.data from Gmail's full-message response. The response retains only
+// attachment locators and bounded headers, even for a huge message.
+export const gmailMetadataFields = (() => {
+  let part = "partId,mimeType,filename,headers,body(attachmentId,size)";
+  for (let depth = 0; depth < 16; depth++) part = `partId,mimeType,filename,headers,body(attachmentId,size),parts(${part})`;
+  return `id,threadId,labelIds,internalDate,payload(${part})`;
+})();
+export async function recoverGmailMetadata(a: StoredAccount, remoteId: string, api = gmail(a)) {
+  const result = await api.users.messages.get({ userId: "me", id: remoteId, format: "full", fields: gmailMetadataFields },
+    { timeout: 30000, retry: false, maxContentLength: 2 * 1024 * 1024 });
+  if (result.data.id !== remoteId) throw new Error("Email identity changed.");
+  const files: MailAttachment[] = [];
+  const walk = (part: gmail_v1.Schema$MessagePart, depth: number) => {
+    if (depth > 16 || files.length >= 128) throw new Error("Attachment metadata limit exceeded.");
+    if (part.filename && part.body?.attachmentId && typeof part.body.size === "number") files.push({
+      id: createHash("sha256").update(`${a.id}:${remoteId}:gmail:${part.body.attachmentId}`).digest("hex"),
+      filename: part.filename.replace(/[\u0000-\u001f\u007f/\\]/g, "_").slice(0, 255), contentType: part.mimeType || "application/octet-stream", size: part.body.size, remotePart: part.body.attachmentId, unavailable: true,
+    });
+    for (const child of part.parts || []) walk(child, depth + 1);
+  };
+  if (result.data.payload) walk(result.data.payload, 0);
+  return { ...(await metadataIncoming(a, remoteId, result.data.payload?.headers || [], files, result.data.labelIds?.includes("UNREAD") || false, Number(result.data.internalDate))), threadId: result.data.threadId || undefined, labelIds: result.data.labelIds || [] };
+}
+export async function recoverImapMetadata(a: StoredAccount, remoteId: string, message: FetchMessageObject) {
+  const files: MailAttachment[] = [];
+  let nodes = 0;
+  const walk = (part: MessageStructureObject, depth: number) => {
+    if (++nodes > 128 || depth > 16) throw new Error("Attachment metadata limit exceeded.");
+    const name = part.dispositionParameters?.filename || part.parameters?.name;
+    if (part.part && name) {
+      const wireSize = part.size || 0;
+      files.push({ id: createHash("sha256").update(`${a.id}:${remoteId}:imap:${part.part}`).digest("hex"),
+        filename: name.replace(/[\u0000-\u001f\u007f/\\]/g, "_").slice(0, 255), contentType: part.type || "application/octet-stream",
+        size: part.encoding?.toLowerCase() === "base64" ? Math.ceil(wireSize * 3 / 4) : wireSize,
+        sizeIsEstimate: true, remotePart: part.part, unavailable: true });
+    }
+    for (const child of part.childNodes || []) walk(child, depth + 1);
+  };
+  if (message.bodyStructure) walk(message.bodyStructure, 0);
+  const env = message.envelope;
+  const addresses = (list: NonNullable<FetchMessageObject["envelope"]>["from"]) => (list || []).map(x => `${x.name || ""} <${x.address || ""}>`).join(", ");
+  return metadataIncoming(a, remoteId, [{ name: "From", value: addresses(env?.from) }, { name: "To", value: addresses(env?.to) }, { name: "Cc", value: addresses(env?.cc) },
+    { name: "Subject", value: env?.subject }, { name: "Message-ID", value: env?.messageId }, { name: "Date", value: env?.date?.toUTCString() }], files, !message.flags?.has("\\Seen"));
 }

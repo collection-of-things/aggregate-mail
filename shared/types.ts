@@ -32,8 +32,8 @@ export type Account = {
   syncStatus?: "queued" | "running";
 };
 export type Category = "important" | "other";
-export type MailAttachment = { id: string; filename: string; contentType: string; size: number; unavailable?: boolean; contentId?: string | null };
-export type DraftAttachment = { filename: string; contentType: string; content: string };
+export type MailAttachment = { id: string; filename: string; contentType: string; size: number; unavailable?: boolean; contentId?: string | null; uploadId?: string; sourceIndex?: number; remotePart?: string; sizeIsEstimate?: boolean };
+export type DraftAttachment = { filename: string; contentType: string } & ({ content: string; id?: never; size?: never } | { id: string; size: number; content?: never });
 export type RuleCondition = { field: "subject" | "body" | "recipient"; contains: string } | { field: "hasAttachment" | "directQuestion" };
 export type DraftContent = {
   html?: string;
@@ -141,6 +141,7 @@ export function logoDomain(value: string) {
 export type MailImage = { src: string; alt: string };
 export type Mail = {
   unsubscribe?: import("./unsubscribe").Unsubscribe;
+  bodyUnavailable?: boolean;
   invitation?: { status: "ok"; invitation: import("./invitations").Invitation } | { status: "invalid" | "unsupported"; reason: string };
   direction?: "received" | "sent";
   inReplyTo?: string;

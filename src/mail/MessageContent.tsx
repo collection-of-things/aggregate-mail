@@ -1,3 +1,4 @@
+import type { Api } from "../api";
 import { useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { imageSource, type Mail, type MailImage, type MailAttachment } from "../../shared/types";
 import { privateMailLink, needsEmbeddedContentRecovery } from "../../shared/mail-content";
@@ -73,7 +74,8 @@ function ReaderImage({ image, index }: { image: MailImage; index: number }) {
 }
 export type ContentResult = { html: string | null; images?: MailImage[]; attachments?: MailAttachment[] };
 type ImageProps = {
-  mail: Pick<Mail, "id" | "images"> & Partial<Pick<Mail, "accountId" | "html" | "body" | "attachments">> & { contentVersion?: string };
+  api?: Api;
+  mail: Pick<Mail, "id" | "images"> & Partial<Pick<Mail, "accountId" | "html" | "body" | "attachments" | "bodyUnavailable">> & { contentVersion?: string };
   loadImages: (id: string) => Promise<{ images: MailImage[] }>;
   loadContent?: (id: string) => Promise<ContentResult>;
   body?: boolean;
@@ -84,7 +86,7 @@ export function MessageImages(props: ImageProps) {
 export function ReaderContent(props: ImageProps) {
   return <ImageConsent key={JSON.stringify([props.mail.accountId, props.mail.id, props.mail.contentVersion])} {...props} body />;
 }
-function ImageConsent({ mail, loadImages, loadContent, body }: ImageProps) {
+function ImageConsent({ mail, loadImages, loadContent, body, api }: ImageProps) {
   const { on: privacy, names } = useContext(PrivacyContext);
   const [status, setStatus] = useState("blocked");
   const [consentInPrivacy, setConsentInPrivacy] = useState(false);
@@ -157,10 +159,11 @@ function ImageConsent({ mail, loadImages, loadContent, body }: ImageProps) {
       <span>Remote images can tell the sender you opened this email.
         {privacy && " Image pixels may contain personal information."}</span>
     </div>}
+    {body && mail.bodyUnavailable && <p role="status">Message body could not be parsed within the import limit. Downloadable attachment metadata is shown separately.</p>}
     {body && contentStatus === "loading" && <p role="status">Loading formatted email…</p>}
     {body && contentStatus === "error" && <p role="status">Formatted email is unavailable. The text is shown below. <button type="button" className="link" onClick={() => void recoverContent()}>Try again</button></p>}
     {body && content.attachments?.length !== 0 && ((content.attachments || []).length
-      ? <Attachments mailId={mail.id} files={content.attachments!} />
+      ? <Attachments api={api} mailId={mail.id} files={content.attachments!} />
       : <section className="reader-attachments" aria-label="Attachments"><h2>Attachments</h2><p>{contentStatus === "ready" ? "No cached attachment metadata." : "Attachment metadata is not yet available."}</p></section>)}
     <div id={region}>
       {status === "error" && <p role="status">Images could not be loaded. The email may be unavailable or archived.</p>}

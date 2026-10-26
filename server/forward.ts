@@ -1,6 +1,7 @@
+import { ATTACHMENT_BYTES, ATTACHMENT_COUNT, attachmentSize } from "../shared/attachments.js";
 import type { DraftContent, Mail } from "../shared/types.js";
 import { get } from "./store.js";
-import { attachmentSchema } from "./providers.js";
+import { attachmentSchema, attachmentReferenceSchema } from "./providers.js";
 
 // Cached text only. Sender HTML and threading metadata never enter a forward.
 export function forwardContent(mail: Mail): DraftContent {
@@ -8,10 +9,17 @@ export function forwardContent(mail: Mail): DraftContent {
   const omitted: string[] = [];
   let total = 0;
   for (const file of mail.attachments || []) {
+    if (!file.unavailable && file.uploadId) {
+      const saved = get("upload", file.uploadId);
+      const reference = attachmentReferenceSchema.safeParse({ id: file.uploadId, filename: file.filename, contentType: file.contentType, size: file.size });
+      if (saved?.complete && saved.accountId === mail.accountId && reference.success && attachments.length < ATTACHMENT_COUNT && total + attachmentSize(reference.data) <= ATTACHMENT_BYTES) {
+        attachments.push(reference.data); total += file.size; continue;
+      }
+    }
     const saved = !file.unavailable && get("attachment", `${mail.id}:${file.id}`);
     const parsed = saved && saved.accountId === mail.accountId && attachmentSchema.safeParse({ filename: file.filename, contentType: file.contentType, content: saved.content });
     const size = saved ? Buffer.from(saved.content, "base64").length : Infinity;
-    if (parsed && parsed.success && attachments.length < 10 && total + size <= 1048576) {
+    if (parsed && parsed.success && attachments.length < ATTACHMENT_COUNT && total + size <= ATTACHMENT_BYTES) {
       attachments.push(parsed.data); total += size;
     } else omitted.push(file.filename);
   }

@@ -74,3 +74,30 @@ test("attachments download every format, preview only on demand, and clear previ
     for (const [key, descriptor] of originals) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key); }
   }
 });
+
+test("large attachment download is explicit and the Cancel action aborts it", async () => {
+  const dom = new JSDOM("<div id='root'></div>");
+  const originals = new Map(["window", "document", "IS_REACT_ACT_ENVIRONMENT"].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true });
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  let signal: AbortSignal | undefined, calls = 0;
+  const api: import("./api").Api = async <T,>(url: string, method?: string, _body?: unknown, abort?: AbortSignal): Promise<T> => {
+    calls++; signal = abort;
+    assert.equal(url, "/messages/synthetic/attachments/large/download"); assert.equal(method, "POST");
+    return new Promise<T>((_resolve, reject) => abort!.addEventListener("abort", () => reject(new Error("cancelled")), { once: true }));
+  };
+  try {
+    await act(async () => root.render(<Attachments mailId="synthetic" api={api} files={[{ id: "large", filename: "large.bin", contentType: "application/octet-stream", size: 20 * 1024 * 1024, unavailable: true }]} />));
+    assert.equal(calls, 0); assert.match(dom.window.document.body.textContent!, /not downloaded yet/);
+    await act(async () => dom.window.document.querySelector<HTMLButtonElement>('[aria-label="Download attachment 1"]')!.click());
+    assert.equal(calls, 1); assert.equal(signal!.aborted, false);
+    await act(async () => Array.from(dom.window.document.querySelectorAll("button")).find(button => button.textContent === "Cancel download")!.click());
+    assert.equal(signal!.aborted, true); assert.match(dom.window.document.body.textContent!, /download cancelled/);
+    await act(async () => root.render(<Attachments key="cached-large" mailId="synthetic" api={api} files={[{ id: "pdf", filename: "large.pdf", contentType: "application/pdf", size: 20 * 1024 * 1024 }]} />));
+    assert.equal(dom.window.document.querySelector('[aria-label="Preview attachment 1"]'), null, "large cached files do not enter the in-app preview parser");
+    assert.equal(dom.window.document.querySelector("img"), null);
+  } finally {
+    await act(async () => root.unmount()); dom.window.close();
+    for (const [key, descriptor] of originals) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);
+  }
+});
