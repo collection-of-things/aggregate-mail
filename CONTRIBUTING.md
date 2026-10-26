@@ -45,7 +45,9 @@ npm run dev      # Electron with React/CSS hot reload; restart after desktop or 
 ```
 
 `npm run dev:web` (optional browser target) reads `.env` copied from
-[.env.example](.env.example); never commit it. Other environment variables
+[.env.example](.env.example); never commit it. Open the session link the mail
+server prints at startup (it changes on every launch); `/api` refuses requests
+without it. Other environment variables
 (Jev/`TYPESAFE_*`, `MAIL_*`) are described in [README.md](README.md) and
 [docs/KB.md](docs/KB.md).
 
