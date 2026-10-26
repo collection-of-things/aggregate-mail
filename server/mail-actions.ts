@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { all, get, account, put, remove } from "./store.js";
-import { providers, sendSchema, SentCopyError, updateGmailLabels } from "./providers.js";
+import { providers, sendSchema, SentCopyError, updateGmailLabels, type SendInput } from "./providers.js";
+import { recordRecentRecipients } from "./contacts.js";
 
 let mailWork = Promise.resolve();
 let quiesced = false;
@@ -146,10 +147,18 @@ export async function sendMail(value: unknown, beforeExecution?: () => void) {
     try {
       await providers[a.provider].send(a, input);
     } catch (error) {
-      if (error instanceof SentCopyError)
+      if (error instanceof SentCopyError) {
+        rememberRecipients(input);
         return { ok: true, warning: error.message };
+      }
       throw error;
     }
+    rememberRecipients(input);
     return { ok: true };
   });
+}
+
+// Delivery already succeeded, so a failed contact write must not turn it into a send error.
+function rememberRecipients(input: SendInput) {
+  try { recordRecentRecipients(input.accountId, [input.to, ...(input.cc ?? [])]); } catch { /* suggestions are optional */ }
 }
