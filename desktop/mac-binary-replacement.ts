@@ -111,15 +111,19 @@ export async function replaceBinaryAndLaunch(request: BinaryReplacement, run: Ru
     await receipt(state); child.unref();
     if (code !== 0) await revealBinaryRecovery(request, run);
   } catch (error) {
-    if (!dispatched) {
-      if (promoted) await rename(installed, stage);
-      if (backedUp) await rename(backup, installed);
-      await receipt(backedUp ? "rolled-back-before-start" : "failed-before-start");
-      await revealBinaryRecovery(request, run, installed);
-    } else {
-      await receipt("launch-uncertain-retained-backup");
-      await revealBinaryRecovery(request, run);
+    let restored = !backedUp;
+    if (!dispatched && backedUp) {
+      try {
+        if (promoted) await rename(installed, stage);
+        await rename(backup, installed);
+        restored = true;
+      } catch { restored = false; }
     }
+    const state = dispatched ? "launch-uncertain-retained-backup" : !restored ? "rollback-failed-before-start" :
+      backedUp ? "rolled-back-before-start" : "failed-before-start";
+    // Recovery must remain visible even when restoring or writing its receipt fails.
+    await receipt(state).catch(() => {});
+    await revealBinaryRecovery(request, run, !dispatched && restored ? installed : undefined).catch(() => {});
     throw error;
   }
 }

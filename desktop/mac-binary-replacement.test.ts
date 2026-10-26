@@ -129,3 +129,44 @@ test("bundling the ordinary updater does not execute the replacement helper boot
     assert.equal(child.status, 0, child.stderr); assert.match(child.stdout, /function ordinary-import/);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+
+test("rollback failure still reveals the retained original app", async () => {
+  const f = await fixture();
+  try {
+    const run: Run = async (command, ...args) => {
+      if (command.endsWith("xattr") && args[0].at(-1) === f.installed) {
+        await mkdir(f.stage);
+        await writeFile(path.join(f.stage, "blocks-rollback"), "synthetic collision");
+        throw Error("synthetic promoted verification failure");
+      }
+      return f.run(command, ...args);
+    };
+    await assert.rejects(replaceBinaryAndLaunch(f.request, run));
+    assert.equal(await readFile(path.join(f.workspace, "previous.app/old"), "utf8"), "original app");
+    assert.ok(f.calls.some(call => call.command.endsWith("open") &&
+      call.args.join("|") === ["-R", path.join(f.workspace, "previous.app")].join("|")), "retained original is revealed even when rollback fails");
+    assert.ok(f.calls.some(call => call.command.endsWith("osascript")));
+  } finally { await f.cleanup(); }
+});
+
+test("receipt write failures cannot suppress recovery before or after dispatch", async (t) => {
+  for (const mode of ["before", "after"]) await t.test(mode, async () => {
+    const f = await fixture();
+    let exited = Promise.resolve();
+    try {
+      await mkdir(path.join(f.workspace, "result.json"));
+      const launch: Launch = () => {
+        const child = mode === "before" ? spawn(path.join(f.root, "missing"), [], { stdio: "ignore" }) :
+          spawn(process.execPath, ["-e", "process.exit(0)"], { stdio: "ignore" });
+        exited = new Promise(resolve => { child.once("exit", () => resolve()); child.once("close", () => resolve()); });
+        return child;
+      };
+      await assert.rejects(replaceBinaryAndLaunch(f.request, f.run, undefined, launch));
+      const target = mode === "before" ? f.installed : path.join(f.workspace, "previous.app");
+      assert.equal(await readFile(path.join(target, "old"), "utf8"), "original app");
+      assert.ok(f.calls.some(call => call.command.endsWith("open") && call.args.join("|") === ["-R", target].join("|")), "recovery does not depend on its receipt being writable");
+      assert.ok(f.calls.some(call => call.command.endsWith("osascript")));
+    } finally { await exited; await f.cleanup(); }
+  });
+});
