@@ -46,6 +46,7 @@ function decrypt(value: string): unknown {
   );
 }
 type Records = {
+  phoneCredential: import("../shared/phone-access.js").PhoneCredential;
   phoneAccess: import("../shared/phone-access.js").PhoneAccessRecord;
   availability: import("../shared/availability.js").AvailabilitySettings;
   calendarOffer: import("../shared/offers.js").CalendarOffer;

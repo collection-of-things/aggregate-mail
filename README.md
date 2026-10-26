@@ -6,7 +6,7 @@ An installable desktop email client for Windows, with a macOS build target, base
 
 The optional browser target uses the same mail interface without Electron.
 It requires Node 24.x and installed dependencies. Build once with
-`npx tsc --noEmit && npx vite build`, then run `npm run start:web` and open
+`npm run build:web`, then run `npm run start:web` and open
 `http://127.0.0.1:3001`. This build does not package or compile Electron.
 The local service must remain running.
 
@@ -16,24 +16,32 @@ URLs, source files or shared launch scripts:
 
 | Variable | Requirement |
 | --- | --- |
-| `MAIL_WEB_PASSWORD` | A unique password of 16 to 256 characters |
-| `MAIL_DATA_KEY` | A securely provisioned 32-byte key encoded as base64; preserve this exact key across restarts |
-| `MAIL_DATA_DIR` | An absolute, separate browser-profile directory outside the source and built frontend folders |
+| `MAIL_WEB_PASSWORD` | A host recovery passphrase of 16 to 256 characters, supplied by a password manager; phones use passkeys |
+| `MAIL_DATA_KEY` | Optional with `npm run start:web`: the launcher generates and protects the key in the OS credential store. Existing externally managed profiles must supply their original 32-byte base64 key |
+| `MAIL_DATA_DIR` | Optional separate browser profile; defaults to the user app-data directory, outside the source and frontend |
 | `MAIL_WEB_PORT` | Optional loopback backend port, 1024 to 65535; default 3001 |
 | `APP_URL` | Loopback frontend origin; defaults to `http://127.0.0.1:<MAIL_WEB_PORT>` |
 
-Missing or unsafe configuration stops startup before opening storage. Browser
-mode refuses existing desktop or legacy key files. Do not point it at a desktop
-profile or copy desktop key files. Losing the encryption key prevents recovery
-of saved mail and credentials. External key provisioning is required; this
-mode does not create a replacement key or provide OS-backed key management.
+`npm run start:web` automatically provisions a data key in macOS Keychain,
+Windows Credential Manager or an unlocked persistent Linux Secret Service. It
+never asks users to type or remember that key. Linux memory-only keyutils and
+plaintext key files are not used. Missing, locked, unreadable or inconsistent
+existing credentials stop startup before SQLite opens. Unlock the original
+credential store to recover access. Do not delete keys or reset profiles.
 
-Open `/auth` to unlock or lock the inbox. The password stays out of URLs and
-browser storage. A new login replaces the previous session. Restart and Lock
-invalidate it. Sessions expire after 30 minutes without a request or eight hours
-total; background polling counts as activity. Closing a tab does not lock other
-tabs. Use Lock when finished. Five login attempts in a minute temporarily block
-further attempts, including correct passwords.
+Browser and desktop profiles remain separate. Existing external-key profiles
+continue to require their original `MAIL_DATA_KEY`; they are not automatically
+migrated into the OS store. Losing that key prevents recovery. Direct backend
+and development startup still require explicit key and profile provisioning.
+
+Open `/auth` locally to unlock with the recovery passphrase; password managers
+can fill it. It is accepted only at the configured localhost Host and Origin.
+Five attempts per minute are allowed. Phones use paired passkeys instead.
+Sessions lock after 30 minutes without a request or eight hours total;
+background polling counts as activity. Lock ends the current session. Closing a
+tab does not lock it. Restart locks every session. Phone login keeps the host
+session, while another login with the same passkey replaces that passkey's
+previous session. Removing a paired phone locks its sessions immediately.
 
 For development, export `APP_URL=http://127.0.0.1:5173` with the same required
 variables and run `npm run dev:web`. Open `http://127.0.0.1:5173/auth` first.
@@ -50,10 +58,23 @@ port from 8444 to 8454. The host user must have permission to manage Serve.
 Emc² does not sign in to Tailscale or change its permissions.
 
 Settings shows the URL only after checking the live host, private route, TLS
-certificate and Emc² gate. Open that URL on the phone and unlock with the browser
-password. Copy URL is hidden while Privacy is on. Manage Enable and Disable
-from the signed-in localhost browser on the host; the desktop target does not
-configure browser hosting. Keep both Emc² and Tailscale running on the host.
+certificate and Emc² gate. Choose **Connect phone**, scan its QR code and compare
+the code shown on the phone with the host. Click **Approve matching phone** on
+the host. On the phone choose **Save passkey and open inbox**, using Face ID,
+fingerprint or the screen lock supported by that phone. Future visits offer
+**Unlock with passkey**. No password or encryption key needs typing on the phone.
+
+The invitation expires after two minutes, works once and grants no access before
+host approval. Its token is a URL fragment, immediately removed from browser
+history. Registration and login challenges are cookie-bound and consumed once.
+Up to eight passkeys may be paired. Settings lists phones with Remove controls;
+a synced passkey may represent more than one physical device. Removing it
+revokes every session using that passkey.
+
+Privacy removes the URL, QR and comparison code from the Settings DOM and hides
+the approval action. Host route management and pairing require the signed-in
+localhost browser, exact Origin and CSRF. The desktop target does not configure
+browser hosting. Keep Emc² and Tailscale running on the host.
 
 The backend stays on loopback. Existing Serve routes are preserved and public
 Funnel is refused for the Emc² endpoint. Checks renew every 30 seconds with a

@@ -123,7 +123,7 @@ export function phoneAccess(options: {
       if (record?.phase === "ready") await refresh();
       if (record?.phase === "pending") return { supported: true, state: "error", canManage, hasRoute: true, message: warning || "A previous setup did not finish. Disable its matching route before trying again." };
       return { supported: true, state: verified ? "ready" : "off", canManage, hasRoute: !!record,
-        message: verified ? "Private HTTPS access is ready. Sign in to the same Tailscale network on your phone, then unlock Emc²." : "Enable a private HTTPS address on this host. Your browser password is still required.",
+        message: verified ? "Private HTTPS access is ready. Sign in to the same Tailscale network on your phone, then use your paired passkey to unlock Emc²." : "Enable a private HTTPS address on this host. Connect your phone and save a passkey from Settings.",
         ...(verified && record ? { url: `${record.origin}/auth` } : {}) };
     } catch (error) {
       revoke();

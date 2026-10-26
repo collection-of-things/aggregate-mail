@@ -1,4 +1,5 @@
 import { browserGate, browserPort } from "./browser-preflight.js";
+import { phonePasskeys } from "./phone-passkeys.js";
 import { phoneAccess, mountPhoneAccess } from "./phone-access.js";
 import { notificationMail, type MailArrival, type NotificationMail } from "../shared/notifications.js";
 import { isDeepStrictEqual } from "node:util";
@@ -141,6 +142,9 @@ const phoneService = browserGate ? phoneAccess({ gate: browserGate, port: () => 
   save: (value) => value ? put("phoneAccess", "host", value) : remove("phoneAccess", "host"),
 }) : undefined;
 mountPhoneAccess(app, phoneService, browserGate);
+if (browserGate) phonePasskeys({ gate: browserGate, list: () => all("phoneCredential"),
+  save: (value) => put("phoneCredential", value.id, value), remove: (id) => remove("phoneCredential", id),
+}).mount(app);
 mountDrafts(app, () => desktopEvents.emit("mail-changed"));
 mountWorkspace(app);
 mountCalendar(app);

@@ -33,6 +33,7 @@ test("Settings displays verified URL, hides it from private DOM and confirms rou
     const calls: [string, string | undefined, unknown][] = [];
     let hasRoute = false;
     const api: Api = async <T,>(path: string, method?: string, body?: unknown) => {
+      if (path === "/phone-devices") return { devices: [] } as T;
       calls.push([path, method, body]);
       if (path.endsWith("/enable")) hasRoute = true;
       if (path.endsWith("/disable")) hasRoute = false;
@@ -71,5 +72,29 @@ test("Settings presents remote and unsupported states without management control
     await act(async () => document.querySelector("button")!.click());
     assert.equal(document.querySelectorAll("button").length, 1);
     assert.match(document.body.textContent!, /Synthetic unavailable/);
+  });
+});
+
+test("localhost can revoke paired phones while the route is off or unavailable", async () => {
+  for (const state of ["off", "unavailable"] as const) await withDOM(async ({ document, render }) => {
+    let removed = false;
+    const api: Api = async <T,>(route: string) => {
+      if (route === "/phone-access") return { supported: true, state, canManage: true, hasRoute: state === "unavailable", message: "Synthetic route state" } as T;
+      if (route === "/phone-devices/revoke") removed = true;
+      return { devices: removed ? [] : [{ id: "synthetic-device", name: "Phone 1", createdAt: 1 }] } as T;
+    };
+    const previous = Object.getOwnPropertyDescriptor(globalThis, "confirm");
+    Object.defineProperty(globalThis, "confirm", { configurable: true, value: () => true });
+    try {
+      await render(<PhoneAccessSettings api={api} onCopied={() => {}} />);
+      const remove = [...document.querySelectorAll("button")].find((node) => node.textContent === "Remove Phone 1");
+      assert.ok(remove, `Remove must remain available while ${state}`);
+      assert.equal(remove.disabled, false);
+      const connect = [...document.querySelectorAll("button")].find((node) => node.textContent === "Connect phone");
+      assert.ok(connect); assert.equal(connect.disabled, true);
+      await act(async () => remove.click());
+      assert.equal(removed, true);
+      assert.match(document.body.textContent!, /No phones paired/);
+    } finally { if (previous) Object.defineProperty(globalThis, "confirm", previous); else Reflect.deleteProperty(globalThis, "confirm"); }
   });
 });

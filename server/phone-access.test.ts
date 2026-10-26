@@ -122,7 +122,7 @@ test("startup verification serializes Settings mutations and close prevents late
 test("management requires authenticated exact localhost Host and Origin plus explicit confirmation", async () => {
   const f = fixture();
   const local = "http://127.0.0.1:3002";
-  const app = express(); app.use(f.gate); app.use(express.json()); mountPhoneAccess(app, f.service, f.gate);
+  const app = express(); f.gate.authRouter.post("/auth/synthetic-session", (req, res) => { f.gate.issueSession(req, res, "synthetic-credential"); res.sendStatus(200); }); app.use(f.gate); app.use(express.json()); mountPhoneAccess(app, f.service, f.gate);
   const server = app.listen(0, "127.0.0.1"); await once(server, "listening");
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const call = (path: string, method = "GET", headers: Record<string, string> = {}, body = "") => new Promise<{ status: number; cookie?: string; body: string }>((resolve, reject) => {
@@ -141,8 +141,8 @@ test("management requires authenticated exact localhost Host and Origin plus exp
     assert.equal((await change(cookie, local, "localhost:3002")).status, 403);
     assert.equal((await change(cookie, local, undefined, "{}")).status, 400);
     assert.equal((await change(cookie, local)).status, 200);
-    const remote = await call("/auth/login", "POST", { Host: new URL(origin).host, Origin: origin, "Content-Type": "application/x-www-form-urlencoded" }, "password=synthetic-browser-password-only");
-    assert.equal(remote.status, 303);
+    const remote = await call("/auth/synthetic-session", "POST", { Host: new URL(origin).host, Origin: origin, "Content-Type": "application/x-www-form-urlencoded" }, "password=synthetic-browser-password-only");
+    assert.equal(remote.status, 200);
     assert.equal((await change(remote.cookie!, origin, new URL(origin).host)).status, 403);
     const status = await call("/api/phone-access", "GET", { Host: new URL(origin).host, Cookie: remote.cookie! });
     assert.equal(status.status, 200); assert.equal(JSON.parse(status.body).canManage, false);

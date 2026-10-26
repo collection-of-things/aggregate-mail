@@ -106,9 +106,12 @@ per-launch token. Never commit secrets. Other environment variables
 - Follow the live-browser-testing restriction in PRODUCT.md.
 
 For phone-access changes, run `server/phone-access.test.ts`,
+`server/phone-passkeys.test.ts`, `server/browser-keyring.test.ts`,
+`src/phone-pairing.test.tsx`, `scripts/phone-auth.test.mjs`,
 `server/browser-access.test.ts` and `src/phone-access.test.tsx` serially through
 the bounded wrapper below, then the strict build. Use injected CLI/probes and
-synthetic DNS names. Do not mutate shared host routes as a unit test. Separate
+synthetic DNS names and temporary profiles. OS-key tests inject fake credential
+entries and must not inspect saved host credentials. Do not mutate shared host routes as a unit test. Separate
 live TLS route proof from phone-device and provider OAuth acceptance.
 
 ### Bounded local verification

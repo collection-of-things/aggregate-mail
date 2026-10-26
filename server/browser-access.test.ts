@@ -63,7 +63,7 @@ test("browser gate protects reads, writes and assets, with origin checks, rotati
   const address = server.address();
   assert.ok(address && typeof address !== "string");
   const call = (target: string, method = "GET", headers: Record<string, string> = {}, body = "") => new Promise<{ status: number; headers: import("node:http").IncomingHttpHeaders; body: string }>((resolve, reject) => {
-    const req = request({ hostname: "127.0.0.1", port: address.port, path: target, method, headers }, (res) => {
+    const req = request({ hostname: "127.0.0.1", port: address.port, path: target, method, headers: { Host: new URL(origin).host, ...headers } }, (res) => {
       let result = "";
       res.setEncoding("utf8");
       res.on("data", (chunk) => { result += chunk; });
@@ -154,7 +154,7 @@ test("tailnet sessions use Secure host cookies, bind origins and cannot revive a
   const local = "http://127.0.0.1:3002";
   const gate = browserAccess(password, local, () => time);
   gate.setTailnetOrigin(remote, time + 60_000);
-  const app = express(); app.use(gate); app.get("/api/synthetic", (_req, res) => res.json({ ok: true }));
+  const app = express(); gate.authRouter.post("/auth/synthetic-session", (req, res) => { gate.issueSession(req, res, "synthetic-credential"); res.sendStatus(200); }); app.use(gate); app.get("/api/synthetic", (_req, res) => res.json({ ok: true }));
   const server = app.listen(0, "127.0.0.1"); await once(server, "listening");
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const call = (path: string, method: string, host: string, cookie = "", origin?: string) => new Promise<{status: number; cookie?: string}>((resolve, reject) => {
@@ -163,8 +163,9 @@ test("tailnet sessions use Secure host cookies, bind origins and cannot revive a
     }); req.on("error", reject); req.end(method === "POST" ? `password=${password}` : "");
   });
   try {
-    const login = await call("/auth/login", "POST", new URL(remote).host, "", remote);
-    assert.equal(login.status, 303);
+    assert.equal((await call("/auth/login", "POST", new URL(remote).host, "", remote)).status, 403);
+    const login = await call("/auth/synthetic-session", "POST", new URL(remote).host, "", remote);
+    assert.equal(login.status, 200);
     assert.match(login.cookie!, /^__Host-emc2_browser_session=/);
     assert.match(login.cookie!, /; Secure/); assert.match(login.cookie!, /HttpOnly/); assert.match(login.cookie!, /SameSite=Strict/);
     const cookie = login.cookie!.split(";")[0];

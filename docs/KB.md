@@ -1,5 +1,44 @@
 # Repository knowledge
 
+## Phone pairing, passkeys and browser key bootstrap
+
+`server/phone-passkeys.ts` mounts only the public `/auth/pair`, bundled client
+and named pairing/WebAuthn POST routes before session authentication. Gate
+Host/Origin checks apply first; remote POSTs require the exact verified origin.
+Host management uses the normal authenticated API and CSRF guard plus exact
+localhost Host/Origin checks.
+
+Two-minute invitations, claims and challenges stay in bounded memory. Invite
+tokens occur only in QR URL fragments; `src/phone-auth.ts` clears the fragment
+before requests. A Secure HttpOnly claim cookie binds host-approved registration.
+SimpleWebAuthn verifies exact origin, RP ID, challenge, user presence and user
+verification. Public credentials are encrypted `phoneCredential` records.
+Cookie-bound login challenges are one-use and expire after a minute. Counter
+updates and session issuance recheck credential existence after verification.
+Revocation and cancellation win against in-flight verification. Route lifetime
+changes invalidate invitations, ceremonies and remote sessions even if the same
+origin is restored. Passkeys may sync across physical devices; removal revokes
+the credential rather than identifying one piece of hardware.
+
+The gate keeps a bounded session map. Password login rotates password sessions;
+a passkey rotates its own prior session and preserves the host session. Recovery
+passwords are localhost-only. Lock removes the requesting session, removal locks
+all sessions using that passkey, and restart clears all sessions.
+
+`npm run build:web` builds the frontend and its public WebAuthn client without
+Electron packaging. `scripts/start-browser.mjs` optionally provisions the data
+key using a 15-second child process and private stdout pipe. The child uses
+`@napi-rs/keyring`, pins Linux to persistent Secret Service, serializes bootstrap
+under a profile lock, checks existing markers/database, and verifies OS-store
+readback before returning the key. No plaintext or volatile fallback is allowed.
+`browser-keyring.json` contains identity metadata only. Existing external-key
+profiles are not migrated. Desktop key protection is unchanged.
+
+Synthetic proof lives in `server/phone-passkeys.test.ts` (real signed WebAuthn
+fixtures), `server/browser-keyring.test.ts`, `src/phone-pairing.test.tsx`, and the
+browser gate/session tests. Native passkey and OS credential-store acceptance
+need independent runtime proof. See [ADR 0082](adr/0082-phone-pairing-passkeys.md).
+
 ## Private phone access
 
 `server/phone-access.ts` runs the host Tailscale CLI with bounded execFile,
@@ -36,10 +75,10 @@ OAuth and phone interaction require separate proof.
 Browser startup imports `server/browser-preflight.ts` before storage. It requires
 `MAIL_WEB_PASSWORD`, externally provisioned `MAIL_DATA_KEY` and isolated
 `MAIL_DATA_DIR`, with canonical path checks and desktop/legacy marker refusal.
-`server/browser-access.ts` protects APIs and assets with one in-memory session,
+`server/browser-access.ts` protects APIs and assets with bounded in-memory sessions,
 HttpOnly Strict cookie, exact host/origin checks and five attempts per minute.
 Sessions expire after 30 minutes of request inactivity or eight hours total.
-New login, explicit Lock at `/auth`, and restart revoke the session. Background
+Password login rotates password sessions; passkey login rotates that credential's session. Explicit Lock at `/auth` ends the requesting session; restart ends all sessions. Background
 polling counts as activity. Existing CSRF and MCP authorization remain in place;
 only the Google return callback bypasses the browser session and still validates
 its single-use consent state and separate cookie.

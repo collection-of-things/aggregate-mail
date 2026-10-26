@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import type { PhoneAccessStatus } from "../../shared/phone-access";
 import type { Api } from "../api";
+import { PhonePairingSettings } from "./PhonePairingSettings";
 import { PrivacyContext } from "../ui/Privacy";
 
 export function PhoneAccessSettings({ api, onCopied }: { api: Api; onCopied: (message: string) => void }) {
@@ -18,7 +19,7 @@ export function PhoneAccessSettings({ api, onCopied }: { api: Api; onCopied: (me
   const update = async (action?: "enable" | "disable") => {
     if (busy) return;
     if (action && !confirm(action === "enable"
-      ? "Create a private Tailscale HTTPS route on this host? Your phone needs Tailscale and your Emc² browser password."
+      ? "Create a private Tailscale HTTPS route on this host? Your phone needs Tailscale. Connect it from Settings and save a passkey."
       : "Disable this host's Emc² phone route and lock its phone session?")) return;
     setBusy(true);
     setError("");
@@ -32,7 +33,7 @@ export function PhoneAccessSettings({ api, onCopied }: { api: Api; onCopied: (me
   };
   return <section aria-busy={busy}>
     <h2>Private browser access</h2>
-    <p className="note">Keep Emc² running on this host. Connect your phone to the same Tailscale network, open the verified address and enter your browser password. A new login locks the previous browser session.</p>
+    <p className="note">Keep Emc² running on this host. Connect your phone to the same Tailscale network, choose Connect phone and scan the QR code. Approve the matching code here, then save a passkey on your phone.</p>
     <p role="status">{busy ? "Checking phone access…" : status?.message}</p>
     {error && <p role="alert">{error}</p>}
     {status?.url && status.state === "ready" && !busy && <div className="settings-group">
@@ -50,6 +51,7 @@ export function PhoneAccessSettings({ api, onCopied }: { api: Api; onCopied: (me
         {status.hasRoute ? "Disable phone access" : "Enable phone access"}
       </button>}
     </div>
+    {status?.supported && status.canManage && <PhonePairingSettings api={api} canPair={status.state === "ready"} />}
     {status?.supported && !status.canManage && !busy && <p className="note">Manage this route from the signed-in localhost browser on the host.</p>}
   </section>;
 }
