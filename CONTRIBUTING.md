@@ -105,6 +105,12 @@ per-launch token. Never commit secrets. Other environment variables
   downloaded-app acceptance separately from automated results.
 - Follow the live-browser-testing restriction in PRODUCT.md.
 
+For phone-access changes, run `server/phone-access.test.ts`,
+`server/browser-access.test.ts` and `src/phone-access.test.tsx` serially through
+the bounded wrapper below, then the strict build. Use injected CLI/probes and
+synthetic DNS names. Do not mutate shared host routes as a unit test. Separate
+live TLS route proof from phone-device and provider OAuth acceptance.
+
 ### Bounded local verification
 
 On shared Linux hosts, the following wrapper is required for tests and builds.

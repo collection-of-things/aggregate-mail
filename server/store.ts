@@ -46,6 +46,7 @@ function decrypt(value: string): unknown {
   );
 }
 type Records = {
+  phoneAccess: import("../shared/phone-access.js").PhoneAccessRecord;
   availability: import("../shared/availability.js").AvailabilitySettings;
   calendarOffer: import("../shared/offers.js").CalendarOffer;
   calendarOperation: { id: string; accountId: string; eventId: string; revision: number; kind: string; draftId?: string; state: "complete" | "unknown"; remoteId?: string; result?: import("../shared/calendar.js").CalendarEvent; input?: string; requestId?: string; response?: import("../shared/calendar.js").CalendarResponse; sourceMailId?: string; sourceFingerprint?: string };

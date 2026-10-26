@@ -1,5 +1,36 @@
 # Repository knowledge
 
+## Private phone access
+
+`server/phone-access.ts` runs the host Tailscale CLI with bounded execFile,
+no shell and an environment excluding mail secrets. It stores pending/ready
+ownership in the encrypted `phoneAccess` record. Settings management requires
+the authenticated loopback-origin session, exact Host and Origin, CSRF and
+explicit confirmation. Desktop reports unsupported; phone browsers may read
+status but cannot mutate the route.
+
+Setup selects unused HTTPS ports 8444 through 8454, checks exact target and
+route preservation, rejects Funnel, and probes TLS with the browser-gate
+response marker before admission. Renewal runs every 30 seconds, with a
+60-second lease and TLS recheck. Failed checks revoke admission. Expired proof
+invalidates retained remote sessions before any renewal. Startup verifies saved
+routes before admission. Disable revokes first and removes only matching owned
+configuration. Partial cleanup retains pending ownership and a visible error.
+Concurrent external Serve writers are outside the adapter's lock; avoid manual
+route changes during setup or removal. The adapter checks before/after snapshots
+and refuses cleanup when ownership is no longer exact.
+
+`MAIL_WEB_PORT` selects the loopback backend port independently of the frontend
+`APP_URL`. OAuth stores the trusted initiating origin in single-use consent
+state and binds callback exchange and redirects to it. Phone cookies use Secure,
+HttpOnly, Strict and the `__Host-` prefix. MCP retains its own loopback boundary.
+
+Focused synthetic checks: `server/phone-access.test.ts`,
+`server/browser-access.test.ts`, `src/phone-access.test.tsx`.
+See [ADR 0081](adr/0081-private-phone-access.md) and
+[phone setup](../README.md#phone-access-over-tailscale). Live Tailscale, provider
+OAuth and phone interaction require separate proof.
+
 ## Local browser access gate
 
 Browser startup imports `server/browser-preflight.ts` before storage. It requires

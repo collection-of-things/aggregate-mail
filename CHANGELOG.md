@@ -33,6 +33,10 @@
 - Add local contacts and recipient suggestions. To and Cc suggest saved contacts and addresses you sent to from Emc², per account, with keyboard and screen-reader support and privacy-mode redaction. Manage contacts and recent recipients in Settings. Nothing is inserted until you pick it.
 - Search older mail beyond the cache for one selected account on explicit request, importing up to 100 provider matches into the encrypted cache through Gmail search or read-only IMAP Archive, All Mail and Sent searches. The search line reports what the provider actually covered, cached results stay labelled as cached, and account: and is:pinned still apply only on this device.
 
+- Add Settings → Phone access for private Tailscale HTTPS browser access, with
+  host-local confirmed setup, verified route ownership, Secure sessions,
+  expiring route verification and safe removal. Preserve existing Serve routes.
+
 - List pull requests directly under What's Changed in generated release notes, without an "Other changes" group.
 
 - Replace the installed macOS app and request a restart after a verified download, retaining the previous app and normal macOS trust checks. No manual dragging or developer tools are required by the new update route.

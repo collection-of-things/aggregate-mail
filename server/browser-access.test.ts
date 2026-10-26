@@ -147,3 +147,34 @@ test("browser gate protects reads, writes and assets, with origin checks, rotati
     assert.doesNotMatch(oversized.body, /xxx/);
   } finally { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
 });
+
+test("tailnet sessions use Secure host cookies, bind origins and cannot revive after proof expiry", async () => {
+  let time = 1000;
+  const remote = "https://mail.synthetic-tailnet.ts.net:8444";
+  const local = "http://127.0.0.1:3002";
+  const gate = browserAccess(password, local, () => time);
+  gate.setTailnetOrigin(remote, time + 60_000);
+  const app = express(); app.use(gate); app.get("/api/synthetic", (_req, res) => res.json({ ok: true }));
+  const server = app.listen(0, "127.0.0.1"); await once(server, "listening");
+  const address = server.address(); assert.ok(address && typeof address !== "string");
+  const call = (path: string, method: string, host: string, cookie = "", origin?: string) => new Promise<{status: number; cookie?: string}>((resolve, reject) => {
+    const req = request({ hostname: "127.0.0.1", port: address.port, path, method, headers: { Host: host, Cookie: cookie, ...(origin ? { Origin: origin } : {}), "Content-Type": "application/x-www-form-urlencoded" } }, (res) => {
+      res.resume(); res.on("end", () => resolve({ status: res.statusCode!, cookie: res.headers["set-cookie"]?.[0] }));
+    }); req.on("error", reject); req.end(method === "POST" ? `password=${password}` : "");
+  });
+  try {
+    const login = await call("/auth/login", "POST", new URL(remote).host, "", remote);
+    assert.equal(login.status, 303);
+    assert.match(login.cookie!, /^__Host-emc2_browser_session=/);
+    assert.match(login.cookie!, /; Secure/); assert.match(login.cookie!, /HttpOnly/); assert.match(login.cookie!, /SameSite=Strict/);
+    const cookie = login.cookie!.split(";")[0];
+    assert.equal((await call("/api/synthetic", "GET", new URL(remote).host, cookie)).status, 200);
+    assert.equal((await call("/api/synthetic", "GET", new URL(local).host, cookie)).status, 401);
+    time += 60_001;
+    // Renew without an intervening request: expiry must still destroy the session.
+    gate.setTailnetOrigin(remote, time + 60_000);
+    assert.equal((await call("/api/synthetic", "GET", new URL(remote).host, cookie)).status, 401);
+    gate.setTailnetOrigin(undefined);
+    assert.equal((await call("/auth", "GET", new URL(remote).host)).status, 403);
+  } finally { await new Promise<void>((resolve) => server.close(() => resolve())); }
+});

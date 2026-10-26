@@ -26,26 +26,48 @@ export function browserConfiguration(env: NodeJS.ProcessEnv, root = process.cwd(
   }
   if (["key", "key.protected", "key.local", ".renamed-to-emc2"].some((name) => existsSync(path.join(data, name))))
     throw new Error("Browser mode needs a separate profile without desktop or legacy key files.");
-  const url = new URL(env.APP_URL || "http://127.0.0.1:3001");
+  const port = Number(env.MAIL_WEB_PORT || "3001");
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("MAIL_WEB_PORT must be an integer between 1024 and 65535.");
+  const url = new URL(env.APP_URL || `http://127.0.0.1:${port}`);
   if (url.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(url.hostname) || url.username || url.password || url.pathname !== "/" || url.search || url.hash)
     throw new Error("Browser APP_URL must be a plain loopback HTTP origin.");
-  return { password, origin: url.origin };
+  return { password, origin: url.origin, port };
 }
 
-const cookieName = "emc2_browser_session";
-const cookieOptions = { httpOnly: true, sameSite: "strict" as const, path: "/" };
+export function tailnetOrigin(value: string) {
+  const url = new URL(value);
+  if (url.protocol !== "https:" || !/^[a-z0-9-]+\.[a-z0-9-]+\.ts\.net$/.test(url.hostname) || url.username || url.password || url.pathname !== "/" || url.search || url.hash)
+    throw new Error("Phone access requires an exact Tailscale HTTPS origin.");
+  return url.origin;
+}
 const idleLifetime = 30 * 60_000;
 const totalLifetime = 8 * 60 * 60_000;
 
 export function browserAccess(password: string, origin: string, now = Date.now) {
   const router = express.Router();
+  let remoteOrigin: string | undefined;
+  let remoteProofUntil = 0;
+  const expireRemoteSession = () => {
+    if (session?.origin === remoteOrigin && now() >= remoteProofUntil) session = undefined;
+  };
+  const originFor = (req: express.Request) => {
+    expireRemoteSession();
+    if (remoteOrigin && now() < remoteProofUntil && req.headers.host === new URL(remoteOrigin).host) return remoteOrigin;
+    const hosts = [`127.0.0.1:${req.socket.localPort}`, `localhost:${req.socket.localPort}`, new URL(origin).host];
+    return hosts.includes(req.headers.host || "") ? origin : undefined;
+  };
+  const cookie = (req: express.Request) => {
+    const secure = originFor(req)?.startsWith("https:") === true;
+    return { name: secure ? "__Host-emc2_browser_session" : "emc2_browser_session", options: { httpOnly: true, sameSite: "strict" as const, path: "/", secure } };
+  };
   const salt = randomBytes(32);
   const passwordHash = scryptSync(password, salt, 32);
-  let session: { token: string; created: number; touched: number } | undefined;
+  let session: { token: string; origin: string; created: number; touched: number } | undefined;
   let attempts = 0;
   let windowStart = now();
   const authenticated = (req: express.Request, touch = true) => {
-    if (!session) return false;
+    if (!session || session.origin !== originFor(req)) return false;
+    const cookieName = cookie(req).name;
     const time = now();
     if (time - session.created >= totalLifetime || time - session.touched >= idleLifetime) {
       session = undefined;
@@ -75,9 +97,9 @@ ${unlocked ? '<p><a href="/">Open inbox</a></p>' : '<label for="password">Passwo
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'none'; script-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
     });
-    const host = req.headers.host;
-    const validHosts = [`127.0.0.1:${req.socket.localPort}`, `localhost:${req.socket.localPort}`, new URL(origin).host];
-    if (!host || !validHosts.includes(host) || (req.headers.origin && req.headers.origin !== origin))
+    const requestOrigin = originFor(req);
+    res.set("X-Emc2-Browser", "1");
+    if (!requestOrigin || (req.headers.origin && req.headers.origin !== requestOrigin))
       return res.status(403).type("text").send("Local origin required.");
     next();
   });
@@ -87,7 +109,7 @@ ${unlocked ? '<p><a href="/">Open inbox</a></p>' : '<label for="password">Passwo
   ));
   router.get("/auth", (req, res) => page(res, authenticated(req)));
   router.post(["/auth/login", "/auth/lock"], (req, res, next) => {
-    if (req.headers.origin !== origin) return res.status(403).type("text").send("Local origin required.");
+    if (req.headers.origin !== originFor(req)) return res.status(403).type("text").send("Local origin required.");
     next();
   });
   router.post("/auth/login", express.urlencoded({ extended: false, limit: "2kb" }), (req, res) => {
@@ -105,14 +127,16 @@ ${unlocked ? '<p><a href="/">Open inbox</a></p>' : '<label for="password">Passwo
     }
     // A new login replaces the single session; no credentials persist to disk.
     const time = now();
-    session = { token: randomBytes(32).toString("hex"), created: time, touched: time };
-    res.cookie(cookieName, session.token, { ...cookieOptions, maxAge: totalLifetime });
-    res.redirect(303, origin);
+    session = { token: randomBytes(32).toString("hex"), origin: originFor(req)!, created: time, touched: time };
+    const { name, options } = cookie(req);
+    res.cookie(name, session.token, { ...options, maxAge: totalLifetime });
+    res.redirect(303, session.origin);
   });
   router.post("/auth/lock", (req, res) => {
     if (!authenticated(req)) return res.status(401).type("text").send("Unlock the inbox first.");
     session = undefined;
-    res.clearCookie(cookieName, cookieOptions);
+    const { name, options } = cookie(req);
+    res.clearCookie(name, options);
     res.redirect(303, "/auth");
   });
   router.use((req, res, next) => {
@@ -128,5 +152,15 @@ ${unlocked ? '<p><a href="/">Open inbox</a></p>' : '<label for="password">Passwo
     // Parser errors must never echo a submitted password or request body.
     res.status(400).type("text").send("Unable to process browser access request.");
   });
-  return router;
+  return Object.assign(router, {
+    originFor,
+    localOrigin: origin,
+    setTailnetOrigin(value: string | undefined, validUntil = now() + 60_000) {
+      expireRemoteSession();
+      const next = value ? tailnetOrigin(value) : undefined;
+      if (session?.origin === remoteOrigin && next !== remoteOrigin) session = undefined;
+      remoteOrigin = next;
+      remoteProofUntil = validUntil;
+    },
+  });
 }

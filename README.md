@@ -19,7 +19,8 @@ URLs, source files or shared launch scripts:
 | `MAIL_WEB_PASSWORD` | A unique password of 16 to 256 characters |
 | `MAIL_DATA_KEY` | A securely provisioned 32-byte key encoded as base64; preserve this exact key across restarts |
 | `MAIL_DATA_DIR` | An absolute, separate browser-profile directory outside the source and built frontend folders |
-| `APP_URL` | `http://127.0.0.1:3001` for normal use |
+| `MAIL_WEB_PORT` | Optional loopback backend port, 1024 to 65535; default 3001 |
+| `APP_URL` | Loopback frontend origin; defaults to `http://127.0.0.1:<MAIL_WEB_PORT>` |
 
 Missing or unsafe configuration stops startup before opening storage. Browser
 mode refuses existing desktop or legacy key files. Do not point it at a desktop
@@ -40,10 +41,37 @@ The development server proxies access and API routes to the loopback service.
 Use built assets for normal use. Google OAuth callback registration must match
 `APP_URL` plus `/api/oauth/google/callback`.
 
-This is a single-user loopback service. Do not expose it through a public proxy
-or bind it to a network interface. The gate does not protect a compromised OS
-account or hostile local processes. Browser and desktop profiles stay separate;
-MCP still requires its own opt-in and bearer permissions. Interactive browser,
+### Phone access over Tailscale
+
+Install and connect Tailscale on the host and phone. Start the built browser
+app, unlock it locally, then open **Settings → Phone access → Enable phone
+access**. Confirm to let Emc² create one private HTTPS Serve route on an unused
+port from 8444 to 8454. The host user must have permission to manage Serve.
+Emc² does not sign in to Tailscale or change its permissions.
+
+Settings shows the URL only after checking the live host, private route, TLS
+certificate and Emc² gate. Open that URL on the phone and unlock with the browser
+password. Copy URL is hidden while Privacy is on. Manage Enable and Disable
+from the signed-in localhost browser on the host; the desktop target does not
+configure browser hosting. Keep both Emc² and Tailscale running on the host.
+
+The backend stays on loopback. Existing Serve routes are preserved and public
+Funnel is refused for the Emc² endpoint. Checks renew every 30 seconds with a
+60-second admission lease. Failed verification suspends phone access; an expired
+lease invalidates its browser session. Refresh checks the route again. Disable
+revokes admission first and removes only the matching owned route. Changed or
+unverifiable routes remain untouched, with an error in Settings. Avoid changing
+Serve configuration concurrently with setup or removal.
+
+For Google OAuth, register the verified HTTPS origin plus
+`/api/oauth/google/callback` with your Google client as well as the localhost
+callback. Google may impose its own authorized-domain restrictions; phone OAuth
+requires separate provider verification. Existing IMAP setup stays available.
+
+Do not expose the service through a public proxy or bind it to a network
+interface. The gate cannot protect a compromised host account or hostile local
+processes. Browser and desktop profiles stay separate; MCP still requires its
+own loopback-only opt-in and bearer permissions. Interactive browser, phone,
 installed-app and real-provider acceptance remain separate checks.
 
 ## Contents
