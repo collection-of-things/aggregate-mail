@@ -83,7 +83,7 @@ fixtures separate from saved accounts. A read-only fixture cannot prove writes.
 | agent-journey | Connect synthetic MCP client → cached read → denied reader-only tracking → explicit tracking grant → create → Today | Correct denial, then exactly one local item and inline source; no mail mutation or send; see `src/agent-journey.test.tsx` |
 | notifications | Settings → Notifications → choose switches/details → Preview; repeat with both delivery switches off and privacy on | Summary matches enabled choices; disabled delivery produces no notice; privacy removes details; sample opens no real mail |
 | navigation | Page Down/Up in mail; type in reply; Ctrl/Cmd +, −, 0; Back/Forward; Mac trackpad gesture | Mail changes in list order; editors retain ownership; text scales and resets; menu history restores view without extra header rows |
-| update | Open update details → close; test error/drain/restart in disposable platform fixture only | Supported state is accurate; closing does not install; pending draft is protected; macOS has no automatic-install claim |
+| update | Open update details → close; test error/drain/restart in disposable platform fixture only | Supported state is accurate; closing does not install; pending draft is protected; macOS replaces a writable disposable app, retains backup/quarantine and records dispatch separately from startup |
 
 For responsiveness, record five Inbox → Drafts → Today → Settings cycles after
 initial load. Measure each click to the expected visible heading/control and

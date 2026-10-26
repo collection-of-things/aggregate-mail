@@ -110,15 +110,15 @@ test("details can be dismissed with Escape and expose progress and failure statu
   } finally { await ui.close(); }
 });
 
-test("macOS installer action explains manual replacement and platform trust checks", async () => {
+test("macOS installer action explains automatic replacement and platform trust checks", async () => {
   const ui = await mount({ phase: "available", version: "0.1.12", method: "mac-installer" }, async () => ({ phase: "error", reason: "download", method: "mac-installer" }));
   try {
     await ui.open();
-    assert.match(ui.container.textContent!, /drag Emc² to Applications and confirm Replace/);
-    assert.match(ui.container.textContent!, /Keep a backup of your current app before replacing it/);
+    assert.match(ui.container.textContent!, /replace the app and request a restart/);
+    assert.match(ui.container.textContent!, /previous app is kept until a later successful startup/);
     assert.match(ui.container.textContent!, /not notarized/);
     assert.doesNotMatch(ui.container.textContent!, /Git|Node|npm|Xcode|builds on/);
-    assert.equal(ui.commandButton().textContent?.trim(), "Download and open installer");
+    assert.equal(ui.commandButton().textContent?.trim(), "Download, install and restart");
     await ui.emit({ phase: "downloading", version: "0.1.12", method: "mac-installer" });
     assert.match(ui.button().getAttribute("aria-label")!, /Downloading/);
     assert.doesNotMatch(ui.button().getAttribute("aria-label")!, /%/);

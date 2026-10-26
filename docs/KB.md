@@ -640,7 +640,7 @@ separate checks.
 ### App updates
 
 Packaged macOS builds use `desktop/mac-installer-update.ts`, following
-[ADR 0078](adr/0078-macos-release-installer-updates.md). The ordinary action reads
+[ADR 0080](adr/0080-macos-automatic-replacement.md). The ordinary action reads
 only the canonical repository's latest stable release, selects exactly one DMG
 for the running process architecture (including x64 under Rosetta), and requires
 its exact filename, positive bounded size and one SHA256 entry in the same
@@ -649,25 +649,37 @@ closed. Windows/Linux keep their separate manifest/SHA512 route and fallback.
 
 The binary adapter creates a private directory under Downloads, downloads with
 `/usr/bin/curl` using HTTPS-only redirects, a size ceiling and deadline, verifies
-the regular nonsymlink file's size and SHA256, and writes macOS quarantine
-metadata with `/usr/bin/xattr`. Built-in curl 8.4 or newer is required for its
-streaming size ceiling, including responses without Content-Length. No Git,
-Node installation, npm or Xcode is invoked. An older downloader fails closed.
-The bundled Electron runtime orchestrates the commands. Before `/usr/bin/open`
-opens the DMG, bytes and quarantine metadata are checked again. The existing
-mail and renderer drain, native close confirmation, cancellation and error
-restoration remain. The app quits only after successful installer dispatch.
-The downloaded installer is retained after handoff; failed or abandoned
-pre-handoff downloads are removed on disposal.
+the regular nonsymlink file's exact size/SHA256 and applies quarantine. It mounts
+the image read-only without Finder, copies its sole expected app into a private
+sibling workspace beside the writable installed app, transfers image quarantine
+explicitly and verifies bundle identity/version, the thin Mach-O architecture,
+strict deep signature and complete bundle digest. It uses no lipo or developer
+tools. Installed and workspace directories must be canonical; bundle symlinks
+must resolve inside the bundle.
+The owned mount is detached with an independent cleanup signal even after
+cancellation. A still-mounted image is never recursively removed.
 
-The user keeps a backup of the current app before replacement, drags the new
-app into Applications, confirms replacement, then opens it. No replacement app
-is launched automatically. Stop if macOS blocks it. Ad-hoc signing and checksum integrity cannot establish notarized
-publisher trust. No quarantine attribute is removed and no Gatekeeper setting
-is changed. The updater never mounts an image itself, replaces an app, opens
-profiles or touches Keychain. The source-build adapter and replacement helper
-remain available as maintainer tooling under historical
-[ADR 0042](adr/0042-macos-source-updates.md); ordinary updates do not invoke them.
+After existing mail/send drain and normal draft/unknown-send close confirmation,
+the adapter rechecks the image and stage and arms a bundled helper using the
+running Electron executable with `ELECTRON_RUN_AS_NODE=1`. No external Node is
+needed. The helper validates its private IPC request and stage, waits for the
+original process to exit, renames the old app to `previous.app`, atomically
+promotes the stage, rechecks bytes/quarantine and uses normal LaunchServices
+`open -n`. It never removes quarantine, changes Gatekeeper or touches Keychain.
+Downloaded-app trust prompts and rejection remain macOS decisions. A successful
+`open` dispatch is not app-startup or installed-update proof.
+
+Known failures before launch dispatch restore the original app when needed and
+show it in Finder with a bounded native recovery notice. Failed or uncertain
+dispatch keeps both copies, reveals recovery files and never downgrades data that
+may already have been opened. The private workspace includes a local result
+receipt. On a later update, an already-started app may remove exactly its prior
+successful workspace only when canonical installed path, version, architecture,
+complete bundle digest and explicit-profile binding match that receipt. Failed,
+uncertain, malformed or unmatched recovery workspaces remain untouched and block
+another staging attempt. Downloads are removed after handoff; previous-app
+backups remain until this verified later cleanup. Source-building and its helper
+remain unchanged maintainer tooling under historical [ADR 0042](adr/0042-macos-source-updates.md).
 Source-builder fixtures inject only the free-space probe so CI host capacity
 does not select a failure path accidentally. Boundary checks cover the 8 GiB
 build and 1 GiB replacement limits; production uses the real filesystem probe.
@@ -682,7 +694,7 @@ unavailable state; no updater is created.
 
 `electron-updater` is pinned to 6.8.11. Its provider uses the validated candidate; the renderer cannot supply a URL, path or executable arguments. IPC accepts only the current window's main frame at the application origin. Automatic download, install on ordinary quit, prereleases, downgrades, web installers and differential downloads are disabled. Packaged updater configuration supplies the library cache location and any configured Windows publisher check. The app preserves that signature check; SHA512 verification establishes file integrity against the selected release metadata, not an independent publisher identity.
 
-The update icon at the top right of the window opens dismissible details without issuing a command. Its no-drag region follows the draggable pane headers in DOM order so native title-bar hit testing delivers clicks to the icon. It stays outside the inert mail frame and remains usable during installation. Capture-phase Escape closes details and restores icon focus without closing Search or the reader. Right-side window controls retain their corner placement. The details panel's Download, install and restart action downloads, verifies the cached regular nonsymlink file, pauses admission of mail work, drains queued sync/mutations and active renderer/MCP sends, and waits for renderer send results and draft saves. Native close still honors draft and unknown-send protection. Keep editing resumes mail without invoking the installer. Accepted close is followed by another file hash check and the platform library handoff. Failures before handoff resume mail and reopen a closed window. The macOS binary route opens only the verified disk image and quits; replacement and restart remain explicit Finder actions. A normal quit never installs a downloaded update.
+The update icon at the top right of the window opens dismissible details without issuing a command. Its no-drag region follows the draggable pane headers in DOM order so native title-bar hit testing delivers clicks to the icon. It stays outside the inert mail frame and remains usable during installation. Capture-phase Escape closes details and restores icon focus without closing Search or the reader. Right-side window controls retain their corner placement. The details panel's Download, install and restart action downloads, verifies the cached regular nonsymlink file, pauses admission of mail work, drains queued sync/mutations and active renderer/MCP sends, and waits for renderer send results and draft saves. Native close still honors draft and unknown-send protection. Keep editing resumes mail without invoking the installer. Accepted close is followed by another file hash check and the platform library handoff. Failures before handoff resume mail and reopen a closed window. The macOS binary route stages and replaces the verified app, retains the old copy and requests normal LaunchServices restart. A normal quit never installs a downloaded update.
 
 The download stream checks the candidate's byte limit before hashing or file output, even without Content-Length. An oversized chunk stops the stream and aborts the request; cancellation also aborts a request still waiting for headers. SHA512 and configured Windows publisher checks remain active.
 
@@ -690,7 +702,7 @@ Cache validation uses the candidate's canonical filename and ignores filenames i
 
 Before the library replaces an AppImage, the app copies the installed image and any existing destination into a temporary directory beside the installed image. A replacement or launch failure restores their names, bytes and permissions before restoring the window and resuming mail. Failed handoffs do not quit or retry automatically. Successful handoff or rollback removes the backup directory; failed rollback retains any remaining backup copies for recovery. This protects handled failures, not power loss or a process crash during replacement.
 
-Release v0.1.9 lacks compatible updater manifests and carries CI-suffixed installers. New release builds use the checked-out stable tag, GitHub-safe `Emc2-` installer filenames and the Linux builder's `x86_64` suffix for x64 processes. CI generates `latest.yml` and `latest-linux.yml`, then runs `node --import tsx scripts/check-release-assets.ts windows-x64` or `linux-x64` to validate manifest identity, size and SHA512 against the installer with the updater's own helpers. Both release workflows publish these manifests and include them in `SHA256SUMS.txt`. Explicit GitHub publisher configuration generates metadata even with `--publish never`; CI packaging does not publish. See [ADR 0039](adr/0039-release-update-assets.md). macOS updates use the verified DMG handoff described above, preserving ad-hoc signing. Published output and native two-version updates require separate verification. See [ADR 0019](adr/0019-app-update-prompt.md).
+Release v0.1.9 lacks compatible updater manifests and carries CI-suffixed installers. New release builds use the checked-out stable tag, GitHub-safe `Emc2-` installer filenames and the Linux builder's `x86_64` suffix for x64 processes. CI generates `latest.yml` and `latest-linux.yml`, then runs `node --import tsx scripts/check-release-assets.ts windows-x64` or `linux-x64` to validate manifest identity, size and SHA512 against the installer with the updater's own helpers. Both release workflows publish these manifests and include them in `SHA256SUMS.txt`. Explicit GitHub publisher configuration generates metadata even with `--publish never`; CI packaging does not publish. See [ADR 0039](adr/0039-release-update-assets.md). macOS updates use the verified DMG replacement described above, preserving ad-hoc signing. Published output and native two-version updates require separate verification. See [ADR 0019](adr/0019-app-update-prompt.md).
 
 Synthetic tests exercise candidate rejection, pinned-library options and Windows launch arguments, checksum changes, duplicate commands, download bounds, authenticated IPC, actual service drain/resume, mounted notice behavior and the renderer's unknown-send unload guard. Tests of the pinned AppImage library use temporary files and synthetic process adapters to check replacement/launch failure, filename preservation and destination collisions. The Electron download adapter receives synthetic streams to check headerless overflow, exact size, checksum failures and preheader cancellation. Actual library download tests cover unsafe cache files, cache growth, valid reuse, changed hashes, untrusted metadata paths, and stalled-read timeout, cancellation and stop. The Windows publisher callback test is synthetic. Startup checks disable update traffic and cannot prove download/install/restart. Native installation requires separate disposable two-version fixtures on each supported platform. The macOS source adapter and helper have their own focused tests; native download, installation, renderer/data continuity and cleanup must be recorded separately. An update into a release predating the adapter proves only one cycle.
 

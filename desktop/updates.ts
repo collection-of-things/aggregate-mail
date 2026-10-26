@@ -353,7 +353,7 @@ export class Updates {
       else if (command === "download" && this.state.phase === "available") await this.download();
       else if (command === "install" && this.state.phase === "ready") await this.install();
     } catch (error) {
-      const reason = error instanceof UpdateFailure ? error.reason : command === "check" ? "network" : command === "download" ? "download" : "installer";
+      const reason = error instanceof UpdateFailure ? error.reason : error instanceof MacInstallerFailure && error.reason ? error.reason : command === "check" ? "network" : command === "download" ? "download" : "installer";
       this.set({ phase: reason === "metadata" || reason === "candidate" ? "unavailable" : "error", version: this.macInstaller?.candidate.version ?? this.candidate?.version, reason });
     } finally { this.running = false; }
     return this.snapshot();

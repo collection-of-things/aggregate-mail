@@ -20,14 +20,15 @@ One inbox across accounts, split into Primary, Social, Promotions, Newsletters, 
 
 macOS updates can download the published architecture-matching DMG and verify
 its size and SHA256 against the same release. The app drains pending mail and
-drafts, opens the installer through macOS and quits. Users replace the app in
-Finder and reopen it. This route needs no developer tools or Apple Developer
-account; the built-in downloader must support bounded transfers. Local source
+drafts, replaces the app in its writable installed location, retains the previous
+app and requests a restart through macOS. Manual dragging is not required by this
+update route. Failed or uncertain launches retain recovery copies. This route
+needs no developer tools or Apple Developer account; the built-in downloader must support bounded transfers. Local source
 installation remains available for maintainers. The app uses explicit ad-hoc
 signing, without a developer certificate or notarization. Downloaded-app trust
 acceptance remains a macOS decision; the updater does not bypass it. Native menus,
 Command editing shortcuts and Keychain-backed database-key protection remain.
-See [the installer-update decision](docs/adr/0078-macos-release-installer-updates.md)
+See [the installer-update decision](docs/adr/0080-macos-automatic-replacement.md)
 and [the source-installation decision](docs/adr/0011-macos-source-installation.md).
 
 This is a maintainer-led open-source project. Public contributions must exclude

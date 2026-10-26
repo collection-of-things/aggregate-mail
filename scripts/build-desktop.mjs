@@ -26,3 +26,12 @@ await build({
   format: "cjs",
   target: "node24",
 });
+
+await build({
+  entryPoints: ["desktop/mac-binary-helper.ts"],
+  outfile: ".desktop/mac-binary-replacement.cjs",
+  bundle: true,
+  platform: "node",
+  format: "cjs",
+  target: "node24",
+});

@@ -28,17 +28,22 @@ To build it yourself instead, run `npm run package` and open the installer it wr
 ### macOS
 
 Published releases include `Emc2-<version>-mac-arm64.dmg` for Apple silicon and
-`Emc2-<version>-mac-x64.dmg` for Intel. In an installer-update-capable build,
-select **Download and open installer** in the update panel. Emc² verifies the
-matching DMG against that release's `SHA256SUMS.txt`, finishes pending mail and
-saved drafts, opens the disk image through macOS and quits. Keep a backup of
-your current app before replacing it. Drag Emc² into Applications, confirm
-Replace, then open it from Applications. Stop if macOS blocks the replacement. Downloaded releases are ad-hoc signed and
-not notarized; checksum verification does not establish publisher trust. Never
-remove quarantine or disable Gatekeeper. This flow needs no Git, Node, npm,
-Xcode or Apple Developer account. It requires the built-in curl 8.4 or newer to
-bound downloads even without Content-Length. Older builds retain their existing
-update behavior until replaced. See [ADR 0078](docs/adr/0078-macos-release-installer-updates.md).
+`Emc2-<version>-mac-x64.dmg` for Intel. For a first installation, drag Emc² into
+Applications and open it there. In an automatic-update-capable build,
+select **Download, install and restart**. Emc² verifies the architecture-matching
+DMG against its release's `SHA256SUMS.txt`, prepares the app, finishes pending
+mail and saved drafts, replaces the running app and asks macOS to reopen it.
+Run the app from a writable Applications folder, not a mounted disk image.
+Your mail and settings stay outside the app. The previous app is retained until
+a later update confirms the exact replacement started successfully with the same
+profile. If replacement cannot finish, Finder shows the existing app or retained
+recovery files. Keep both copies and stop if macOS blocks the replacement.
+Downloaded releases are ad-hoc signed and not notarized; macOS can still show
+trust prompts or block opening. Checksums do not establish publisher trust.
+No quarantine attribute is removed and Gatekeeper remains enabled. This flow
+needs no Git, Node, npm, Xcode or Apple Developer account. It requires built-in
+curl 8.4 or newer for bounded transfers. Older builds retain their existing
+update behavior until replaced. See [ADR 0080](docs/adr/0080-macos-automatic-replacement.md).
 
 For a local source installation, build Emc² on the Mac that will run it. This route requires no Apple Developer account or signing certificate. Install [Node.js](https://nodejs.org/en/download) 24 or newer with npm, then install Apple's Command Line Tools if needed:
 
@@ -312,7 +317,7 @@ node scripts/release.mjs --patch
 
 That bumps the version, packages, prints the installer's SHA-256, and uploads it to the GitHub release when a GitHub remote exists. Delete the superseded installers in `release/`, which is ignored by git, so nothing there reaches either host.
 
-The installer is unsigned, so Windows SmartScreen can warn on first run. Compatible Windows and Linux AppImage builds offer updates through the update icon when a newer stable release supplies verified metadata. Installation requires an explicit action and waits for mail operations and draft saves. On macOS, the update action downloads the matching published DMG, verifies SHA256 and size, drains mail and drafts, and opens the installer through macOS before quitting. The user replaces and reopens the app through Finder. No source build or developer tools are involved. See [the macOS installer-update decision](docs/adr/0078-macos-release-installer-updates.md). Installing a newer version over an older one keeps your mail and settings. Native update/restart acceptance requires separate testing.
+The installer is unsigned, so Windows SmartScreen can warn on first run. Compatible Windows and Linux AppImage builds offer updates through the update icon when a newer stable release supplies verified metadata. Installation requires an explicit action and waits for mail operations and draft saves. On macOS, the update action verifies the matching published DMG and staged app, drains mail and drafts, then replaces the app after normal quit and requests a restart through macOS. It preserves quarantine and retains the previous app for recovery. No source build or developer tools are involved. See [the macOS replacement decision](docs/adr/0080-macos-automatic-replacement.md). Installing a newer version over an older one keeps your mail and settings. Native update/restart acceptance requires separate testing.
 
 ## Verification
 

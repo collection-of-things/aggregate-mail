@@ -804,11 +804,11 @@ test("macOS binary download finishes before mail drain and preserves cancellatio
     const installer = { candidate: { version: "0.1.7" },
       download: async () => { calls.push("download"); if (mode === "download-failure") throw Error("download failed"); },
       verify: async () => { calls.push("verify"); if (mode === "verify-failure") throw Error("tamper"); },
-      install: async () => { calls.push("open-dmg"); if (mode === "open-failure") throw Error("open failed"); calls.push("quit"); },
+      install: async () => { calls.push("replace-restart"); if (mode === "open-failure") throw Error("open failed"); calls.push("quit"); },
       stop: () => calls.push("stop"), dispose: async () => { calls.push("dispose"); },
     } as unknown as import("./mac-installer-update.js").MacInstallerUpdate;
     const flow = fixture({ target: { ...target, platform: "darwin" },
-      mac: { downloads: "/synthetic/Downloads", home: "/synthetic/home", quit() {} }, read: macRead,
+      mac: { downloads: "/synthetic/Downloads", home: "/synthetic/home", installed: "/synthetic/Emc².app", runtime: "/synthetic/Emc².app/Contents/MacOS/Emc²", helper: "/synthetic/helper.cjs", version: "0.1.5", quit() {} }, read: macRead,
       installer: () => installer,
       create: async () => { throw Error("Mac must never use the Windows/Linux driver"); },
       quiesce: async () => { calls.push("quiesce"); }, drainRenderer: async () => { calls.push("drain"); },
@@ -824,7 +824,7 @@ test("macOS binary download finishes before mail drain and preserves cancellatio
     const state = await flow.updates.command("install");
     if (mode === "success") {
       assert.equal(state.phase, "installing");
-      assert.deepEqual(calls, ["download", "quiesce", "drain", "close", "verify", "open-dmg", "quit"]);
+      assert.deepEqual(calls, ["download", "quiesce", "drain", "close", "verify", "replace-restart", "quit"]);
     } else if (mode === "cancel") {
       assert.equal(state.reason, "cancelled");
       assert.deepEqual(calls, ["download", "quiesce", "drain", "close", "resume"]);
@@ -872,7 +872,7 @@ test("update IPC authenticates the main renderer frame and accepts only a comman
 test("macOS selects the published DMG and checksums without requesting source tags", async () => {
   const urls: string[] = [];
   const f = fixture({ target: { ...target, platform: "darwin" },
-    mac: { downloads: "/synthetic/Downloads", home: "/synthetic/home", quit() {} },
+    mac: { downloads: "/synthetic/Downloads", home: "/synthetic/home", installed: "/synthetic/Emc².app", runtime: "/synthetic/Emc².app/Contents/MacOS/Emc²", helper: "/synthetic/helper.cjs", version: "0.1.5", quit() {} },
     read: async url => {
       urls.push(url);
       return macRead(url);

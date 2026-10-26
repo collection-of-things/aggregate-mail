@@ -35,6 +35,7 @@ import type { Updates } from "./updates.js";
 import { canonicalKey, readCurrentRecord, migrateLegacyKey, MIGRATION_ERROR, type CurrentRecord } from "./keychain.js";
 import { isOpenCodeCredential, openCodeConfig } from "../shared/opencode.js";
 import { setupOpenCode } from "./opencode.js";
+import { explicitUpdateProfile } from "./mac-source-update.js";
 
 app.setName("Emc²");
 app.setAppUserModelId("dev.screen.aggregate-mail");
@@ -556,7 +557,9 @@ else {
       if (!checking) {
         const { Updates, registerUpdateIpc } = await import("./updates.js");
         const mac = isMac && app.isPackaged ? {
-          downloads: app.getPath("downloads"), home: app.getPath("home"), quit: () => app.quit(),
+          downloads: app.getPath("downloads"), home: app.getPath("home"), installed: path.dirname(path.dirname(path.dirname(process.execPath))),
+          runtime: process.execPath, helper: path.join(__dirname, "mac-binary-replacement.cjs"), version: app.getVersion(),
+          profile: explicitUpdateProfile(process.argv, dataPath), quit: () => app.quit(),
         } : undefined;
         updates = new Updates({
           mac,

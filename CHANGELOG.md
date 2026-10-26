@@ -4,6 +4,8 @@
 
 - List pull requests directly under What's Changed in generated release notes, without an "Other changes" group.
 
+- Replace the installed macOS app and request a restart after a verified download, retaining the previous app and normal macOS trust checks. No manual dragging or developer tools are required by the new update route.
+
 - Keep Appearance theme tiles compact in floating Settings so empty space does not push the theme actions below their previews and labels.
 
 - Replace ordinary macOS source-build updates with a verified release DMG handoff. Download the running architecture, check SHA256 and size, preserve macOS quarantine, drain mail and drafts, then open the installer for manual replacement and restart. No developer tools are needed.

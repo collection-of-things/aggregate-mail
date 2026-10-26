@@ -14,7 +14,7 @@ const explanations: Record<UpdateReason, string> = {
   "mail-busy": "Mail work did not finish in time. The app remains open. Try again after it finishes.",
   cancelled: "Installation cancelled. Your draft is still open.",
   installer: "The update installer could not start. Check for updates to try again.",
-  "installer-target": "The installer download location is unavailable. Check Downloads access and free disk space.",
+  "installer-target": "The app cannot be replaced here, or a previous update needs recovery. Open Emc² from a writable Applications folder and check the recovery files shown in Finder.",
 };
 
 export function UpdateNotice({ bridge, onInstalling }: { bridge?: UpdateBridge; onInstalling?: (installing: boolean) => void }) {
@@ -68,7 +68,7 @@ export function UpdateNotice({ bridge, onInstalling }: { bridge?: UpdateBridge; 
     : state.phase === "available" ? `Emc² ${state.version} is available.`
     : state.phase === "downloading" ? `Downloading Emc² ${state.version}…`
     : state.phase === "installing" ? "Finishing mail work before installation…"
-    : state.phase === "ready" ? `Emc² ${state.version} is ${installer ? "verified and ready to open" : "downloaded"}.`
+    : state.phase === "ready" ? `Emc² ${state.version} is ${installer ? "verified and ready to install" : "downloaded"}.`
     : state.phase === "idle" ? "App updates"
     : "Automatic update unavailable";
   const phaseLabel = state.phase === "downloading" && !installer ? `${text} ${state.percent ?? 0}%` : text;
@@ -83,13 +83,13 @@ export function UpdateNotice({ bridge, onInstalling }: { bridge?: UpdateBridge; 
       <button type="button" className="update-notice-close" aria-label="Close update details" onClick={() => { setOpen(false); trigger.current?.focus(); }}>×</button>
       <div role="status" aria-live="polite">
         <span>{text}</span>
-        {installer && ["available", "ready"].includes(state.phase) && <p>Download the verified installer and quit Emc². Keep a backup of your current app before replacing it. In the opened disk image, drag Emc² to Applications and confirm Replace, then open Emc² from Applications. Your mail and settings stay saved. If macOS blocks the app, stop. This release is not notarized.</p>}
+        {installer && ["available", "ready"].includes(state.phase) && <p>Emc² will download and verify the update, finish mail work, replace the app and request a restart. Your mail and settings stay saved, and the previous app is kept until a later successful startup. macOS may ask you to approve opening the app. If it blocks the app, stop. This release is not notarized.</p>}
         {state.reason && <p>{explanations[state.reason]}</p>}
         {state.phase === "downloading" && <progress aria-label="Update download" max={100} value={installer ? undefined : state.percent} />}
       </div>
       {state.phase !== "unsupported" && <button type="button" className="action" data-update-command disabled={busy}
         onClick={() => void command(state.phase === "available" ? "download" : state.phase === "ready" ? "install" : "check")}>
-        {state.phase === "available" ? installer ? "Download and open installer" : "Download, install and restart" : state.phase === "ready" ? installer ? "Open installer and quit" : "Install and restart" : "Check for updates"}
+        {state.phase === "available" ? "Download, install and restart" : state.phase === "ready" ? "Install and restart" : "Check for updates"}
       </button>}
     </div>}
   </aside>;
