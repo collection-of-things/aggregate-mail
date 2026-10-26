@@ -2,7 +2,7 @@ import { useContext, useState } from "react";
 import type { RendererState as State } from "../../shared/types";
 import type { CalendarEvents } from "./events";
 import { monthRange } from "./events";
-import type { Api } from "../api";
+import { startGoogleSignIn, type Api } from "../api";
 import { accountLabel } from "../mail-ui";
 import { PrivacyContext, Redact } from "../ui/Privacy";
 
@@ -29,10 +29,9 @@ export function GoogleCalendar({ state, calendar, api, months, accountFilter }: 
       const value = calendar.google.find((item) => item.accountId === account.id);
       const status = value?.status || "not-connected";
       const selectedIds = value?.selectedIds || value?.calendars.filter((item) => item.selected).map((item) => item.id) || [];
-      const url = `${window.desktop?.oauthUrl || "/api/oauth/google"}?calendar=1&accountId=${encodeURIComponent(account.id)}`;
       return <section key={account.id} aria-label={`Google Calendar account ${state.accounts.indexOf(account) + 1}`}>
         <div className="work-toolbar"><strong><Redact text={accountLabel(account, state.accounts.indexOf(account), privacy)} /></strong><span role="status">{states[status]}</span>
-          {state.googleConfigured && <a href={url}>{status === "not-connected" ? "Connect Google Calendar" : "Reconnect Google Calendar"}</a>}
+          {state.googleConfigured && <button type="button" onClick={() => { setError(""); void startGoogleSignIn(api, { calendar: true, accountId: account.id }).catch(() => setError("Google sign-in could not start. Refresh and try again.")); }}>{status === "not-connected" ? "Connect Google Calendar" : "Reconnect Google Calendar"}</button>}
         </div>
         {!state.googleConfigured && <p className="work-meta">Save your Google client ID and secret in Settings, Google and connections.</p>}
         {status === "api-disabled" && <p role="alert">Enable Google Calendar API in your Google Cloud project, then reconnect Google Calendar.</p>}

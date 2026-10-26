@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Start Google sign-in only from the app. Continue with Google and Connect Google Calendar now ask the desktop-authenticated service for a single-use, two-minute link, so other local programs can no longer connect their own Gmail account or flood pending sign-ins. Pending launches and OAuth states are capped at eight each.
 - Require a per-launch session link in the browser target (`npm run dev:web`, `npm run start:web`). The mail server prints the link at startup; opening it sets an HttpOnly, SameSite=Strict cookie, and `/api` requests without it or the desktop token are refused, so other local users and programs can no longer read mail or act through the browser target.
 - Find pinned mail from Filters or Commands, in the current view or in All cached, so pins that were archived or snoozed stay easy to reach. The selected account is kept, and a short note explains how Pin differs from Snooze and Track.
 - Add a searchable template picker to the composer: type to filter by name and content, arrows to move, Enter to insert the highlighted template and Escape to close only the picker. Insertion still appends before an unchanged signature and fills only an empty subject.

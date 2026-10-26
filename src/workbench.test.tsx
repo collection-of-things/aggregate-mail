@@ -194,6 +194,7 @@ async function mount(mode: "actions"|"calendar"|"projects"|"agents"|"assistants"
       if(holdReads)return new Promise<T>((resolve,reject)=>heldReads.push({release:()=>resolve(snapshot as T),fail:()=>reject(new Error("Synthetic held read failure"))}));
       result=snapshot;
     }
+    else if(url==="/oauth/google/start"&&method==="POST")result={url:"#google-consent"};
     else if(url==="/agent/grants"&&method==="POST") { const input=body as Pick<AgentGrant,"name"|"accountIds"|"tools">;const grant:AgentGrant={...input,id:"created-agent",token:"synthetic-only",createdAt:1};grants.push(grant);result=grant; }
     else if(url==="/agent/grants")result=structuredClone(grants);
     else if(url.endsWith("/provider")&&method==="GET")result=configuredProvider?{provider:"openai",baseURL:"https://api.openai.com/v1",model:"gpt-4.1-mini",hasKey:true,revision:"provider-revision"}:null;
@@ -986,9 +987,11 @@ test("Google Calendar stays opt-in, syncs explicitly, displays read-only remote 
   ui.state.googleConfigured=true;await ui.render();
   const connection=()=>ui.container.querySelector<HTMLElement>('[aria-label="Google Calendar account 2"]')!;
   assert.ok(connection().textContent?.includes("Not connected"));
-  const connect=connection().querySelector<HTMLAnchorElement>("a")!;
-  assert.equal(connect.getAttribute("href"),"/api/oauth/google?calendar=1&accountId=b");
+  const connect=[...connection().querySelectorAll("button")].find(button=>button.textContent==="Connect Google Calendar")!;
   assert.equal(ui.requests.some(request=>request.method!=="GET"),false,"opening Calendar never starts consent or provider sync");
+  await ui.click(connect);
+  assert.deepEqual(ui.requests.filter(request=>request.url==="/oauth/google/start").map(request=>[request.method,request.body]),[["POST",{calendar:true,accountId:"b"}]]);
+  assert.equal(location.hash,"#google-consent");
   const day=`${eventMonth()}-15`;
   const remote:CalendarEvent={id:"google:remote",source:"google",title:"Private Reader review",accountId:"b",calendarId:"primary",calendarName:"Private Reader calendar",start:day,end:`${eventMonth()}-16`,allDay:true,attendees:[{email:"guest@example.test"}],meetLink:"https://meet.example.test/reader@example.com",revision:1,updatedAt:1};
   ui.google.push({accountId:"b",status:"connected",calendars:[{id:"primary",name:"Private Reader calendar",selected:true}],selectedIds:["primary"],stale:true,syncedAt:0});
@@ -1008,7 +1011,7 @@ test("Google Calendar stays opt-in, syncs explicitly, displays read-only remote 
   const status=ui.google[0];status.stale=true;status.error="sync-failed";await ui.click(ui.button("Refresh workspace"));
   assert.match(connection().textContent!,/Cached Google events are stale/);assert.match(connection().textContent!,/Sync failed/);
   status.status="api-disabled";status.error="api-disabled";await ui.click(ui.button("Refresh workspace"));assert.match(connection().textContent!,/Enable Google Calendar API.*then reconnect/);
-  assert.equal(connection().querySelector("button"),null);assert.match(connection().querySelector("a")!.textContent!,/Reconnect/);
+  assert.deepEqual([...connection().querySelectorAll("button")].map(button=>button.textContent),["Reconnect Google Calendar"]);
   status.status="needs-consent";status.error="needs-consent";await ui.click(ui.button("Refresh workspace"));assert.match(connection().textContent!,/grant both calendar permissions/);
   assert.equal(ui.requests.filter(request=>request.url.endsWith("/sync")).length,1);
   status.status="connected";delete status.error;await ui.click(ui.button("Refresh workspace"));

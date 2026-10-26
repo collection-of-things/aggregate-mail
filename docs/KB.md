@@ -669,7 +669,8 @@ Without `MAIL_DESKTOP_TOKEN` (`npm run dev:web`, `npm run start:web`), `/api`
 requires the `emc2_browser_session` cookie. The server prints
 `APP_URL/api/session?token=…` at startup; opening it sets the HttpOnly,
 SameSite=Strict, `Path=/api` cookie and redirects to `/`. The secret changes on
-every launch. Google OAuth routes keep their existing exemption. Covered by
+every launch. Only the Google OAuth launch entry and callback bypass the session
+check; starting consent requires an authenticated session and CSRF token. Covered by
 `server/browser-session.test.ts`; see [ADR 0085](adr/0085-browser-target-session.md).
 
 ## Desktop targets
@@ -1307,7 +1308,7 @@ The existing mailparser dependency converts HTML-only email links to text contai
 
 Address privacy mode masks URLs containing literal or percent-encoded email addresses and omits their anchors. Turn address privacy off to open these links. Personal-information hiding also covers known connected-recipient names and suppresses private destinations.
 
-The desktop navigation policy allows HTTP and HTTPS destinations outside the mail service origin. On the mail service origin, only the Google OAuth entry route may open externally. Local API routes and other URL schemes stay blocked.
+The desktop navigation policy allows HTTP and HTTPS destinations outside the mail service origin. On the mail service origin, only the Google OAuth entry route may open externally. The renderer gets that route's single-use `launch` link from the authenticated `POST /api/oauth/google/start`; the entry route refuses requests without a pending launch, and the service keeps at most eight pending launches (two minutes) and eight pending states (ten minutes). Local API routes and other URL schemes stay blocked.
 
 Verification for source revision `dbe8b870e3ec1140c1385d49118fcbf8f5b917a9`: seven renderer tests and the production build passed. Earlier navigation and server test results apply because their inputs are unchanged. T3 Code browser checks used synthetic mail and covered mouse/keyboard link activation, address privacy, escaped HTML and the exact destination of a URL surrounded by curly quotes. This does not prove native Windows browser handoff, real mailbox operations or release readiness.
 
@@ -1733,8 +1734,9 @@ theme rendering or installed behavior. See [ADR 0076](adr/0076-local-work-sessio
 
 ### Optional Google Calendar read sync
 
-Gmail OAuth accounts can explicitly open
-`/api/oauth/google?calendar=1&accountId=<id>`. Consent requests only
+Gmail OAuth accounts can explicitly start consent with
+`POST /api/oauth/google/start` and `{ "calendar": true, "accountId": "<id>" }`,
+which returns the single-use launch link to open. Consent requests only
 `calendar.events`, `calendar.calendarlist.readonly` and, for Phase 4,
 `calendar.freebusy` in addition to Gmail, with `include_granted_scopes`. The server binds the
 chosen account to OAuth state and rejects a different signed-in identity. Every

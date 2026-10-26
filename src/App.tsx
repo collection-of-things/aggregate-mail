@@ -1418,7 +1418,7 @@ export function App() {
         {connecting === "choose" ? (
           <Dialog title="Connect account" onClose={() => setConnecting(null)}>
             <p className="dialog-copy">Choose your email provider.</p>
-            <ProviderChoices googleConfigured={state.googleConfigured} busy={busy} onChoose={setConnecting} />
+            <ProviderChoices api={api} googleConfigured={state.googleConfigured} busy={busy} onChoose={setConnecting} />
           </Dialog>
         ) : connecting && (
           <ConnectDialog
