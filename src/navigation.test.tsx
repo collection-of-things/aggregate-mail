@@ -2245,6 +2245,81 @@ test("global search Gmail label choices use distinct friendly account names with
 });
 
 
+test("F6 cycles the visible regions and Shift+F6 reverses", async () => {
+  const app = await mount();
+  try {
+    const doc = app.window.document;
+    const search = app.container.querySelector<HTMLInputElement>(".search input")!;
+    await app.key("F6");
+    const sidebarFocus = doc.activeElement as HTMLElement;
+    assert.equal(sidebarFocus.closest("#sidebar"), app.container.querySelector("#sidebar"));
+    assert.equal(sidebarFocus.getAttribute("aria-current"), "page", "the sidebar cycle lands on the current view");
+    await app.key("F6");
+    assert.equal(doc.activeElement, search);
+    await app.key("F6");
+    assert.ok(doc.activeElement?.classList.contains("row") && doc.activeElement.getAttribute("aria-current") === "true",
+      "entering the list focuses the selected row");
+    await app.key("F6");
+    assert.equal(doc.activeElement, sidebarFocus, "a closed reader is skipped and the cycle wraps");
+    await app.key("F6", { shiftKey: true });
+    assert.ok(doc.activeElement?.classList.contains("row"), "Shift+F6 cycles backwards");
+    await app.open("a:1");
+    assert.ok(app.container.querySelector(".reader-pane .message"), "the reader opens beside the list");
+    await app.key("F6");
+    assert.ok(doc.activeElement?.classList.contains("message"), "the next region is the reader");
+    await app.key("F6");
+    assert.equal(doc.activeElement, sidebarFocus, "the cycle wraps back to the sidebar");
+    await app.key("F6", { shiftKey: true });
+    assert.ok(doc.activeElement?.classList.contains("message"), "Shift+F6 returns to the reader");
+  } finally { await app.close(); }
+});
+
+test("F6 skips a closed sidebar and a full-width reader", async () => {
+  const app = await mount(false, (_state, storage) => {
+    storage.setItem("emc2.appearance.v1", JSON.stringify({ reading: "full" }));
+  });
+  try {
+    const doc = app.window.document;
+    await app.click(app.button("Hide sidebar"));
+    await app.open("a:1");
+    assert.equal(app.container.querySelector(".reader-pane"), null, "full-width opens in place of the list");
+    const message = app.container.querySelector<HTMLElement>(".list .message")!;
+    assert.ok(message, "the opened email renders inside the list pane");
+    await app.key("F6");
+    assert.equal(doc.activeElement, app.container.querySelector(".search input"), "the cycle starts at search without the sidebar");
+    await app.key("F6");
+    assert.equal(doc.activeElement, message, "the list region lands on the opened email");
+    await app.key("F6");
+    assert.equal(doc.activeElement, app.container.querySelector(".search input"), "the cycle wraps past the hidden sidebar and reader");
+    await app.key("F6", { shiftKey: true });
+    assert.equal(doc.activeElement, message);
+  } finally { await app.close(); }
+});
+
+test("F6 keeps dialog and composer focus scope", async () => {
+  const app = await mount();
+  try {
+    const doc = app.window.document;
+    await app.key("?");
+    const dialog = app.container.querySelector('[role="dialog"]')!;
+    assert.ok(dialog, "the shortcuts dialog is open");
+    const inDialog = doc.activeElement as HTMLElement;
+    assert.ok(dialog.contains(inDialog));
+    await app.key("F6");
+    assert.equal(doc.activeElement, inDialog, "F6 does not leave the dialog");
+    await app.click(app.button("Close dialog"));
+    await app.click(app.button("New message"));
+    const composer = app.container.querySelector(".compose-dialog")!;
+    const inComposer = doc.activeElement as HTMLElement;
+    assert.ok(composer.contains(inComposer), "the composer opens with field focus");
+    await app.key("F6");
+    assert.equal(doc.activeElement, inComposer, "F6 does not leave the composer");
+    await app.key("F6", { shiftKey: true });
+    assert.equal(doc.activeElement, inComposer);
+  } finally { await app.close(); }
+});
+
+
 test("global search draft deletion reports a failed count refresh without retrying deletion", async () => {
   const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: "client@example.test", subject: "Alpha draft", body: "Saved body", sendUnknown: false };
   const drafts = [draft];

@@ -42,6 +42,7 @@ import { QuickTrack } from "./work/QuickTrack";
 import { MeetingDialog } from "./work/EventPanel";
 import { useWorkspace } from "./work/useWorkspace";
 import { openCommitment } from "../shared/commitment-dates";
+import { nextRegion, regionOf, regionOrder, type Region } from "./region-focus";
 import { Reader, ReaderEmpty } from "./mail/Reader";
 import { sidebarViews, tabName, viewNames, viewOrder, type View } from "./mail/format";
 import { accountLabel, customLabels, textSizeShortcut, filterMail, matchesLabel, markMailRead } from "./mail-ui";
@@ -756,6 +757,29 @@ export function App() {
       showMailMenu(event, mail);
     }
   };
+  // Where F6 lands in each window region; null skips a hidden region or one
+  // with nothing safe to focus.
+  const usable = (element: HTMLElement | null | undefined) =>
+    element && !element.closest("[inert]") ? element : null;
+  const regionTarget = (region: Region): HTMLElement | null => {
+    if (region === "sidebar")
+      return usable(document.querySelector<HTMLElement>('#sidebar:not([inert]) button[aria-current="page"]')) ??
+        usable(document.querySelector<HTMLElement>('#sidebar:not([inert]) button:not(:disabled), #sidebar:not([inert]) a[href]'));
+    if (region === "search")
+      return usable(searchRef.current && !searchRef.current.disabled ? searchRef.current : null);
+    if (region === "list") {
+      const list = usable(listRef.current);
+      if (!list) return null;
+      return usable(selected ? document.getElementById(`mail-${selected.id}`) : null) ??
+        usable(list.querySelector<HTMLElement>(".message")) ??
+        usable(list.querySelector<HTMLElement>(".row:not(:disabled)")) ??
+        list;
+    }
+    const pane = usable(document.querySelector<HTMLElement>(".reader-pane"));
+    return pane
+      ? usable(pane.querySelector<HTMLElement>(".message")) ?? usable(pane.querySelector<HTMLElement>(".reader-scroll")) ?? pane
+      : null;
+  };
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (settingsModal || workModal || quickSource || meetingMail || updateInstalling || contextMenu || event.defaultPrevented || event.isComposing ||
@@ -767,6 +791,20 @@ export function App() {
         return;
       }
       if (palette) return;
+      // F6/Shift+F6 cycles the visible window regions; dialogs, the composer
+      // and fields other than the search box keep their own key scope.
+      if (event.key === "F6" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (navigationBlocked || (target instanceof HTMLElement && (target.closest('[role="dialog"]') ||
+          (target !== searchRef.current && target.closest('input, textarea, select, [role="combobox"], [contenteditable]:not([contenteditable="false"])'))))) return;
+        const next = nextRegion(regionOrder.filter((region) => regionTarget(region) !== null),
+          regionOf(document.activeElement), event.shiftKey ? -1 : 1);
+        if (!next) return;
+        event.preventDefault();
+        const element = regionTarget(next)!;
+        element.focus({ preventScroll: true });
+        if (element.matches(".row, .message")) element.scrollIntoView?.({ block: "nearest" });
+        return;
+      }
       if (settings && target instanceof HTMLElement && target.closest("[data-interaction-settings]") &&
         event.key === "Escape" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey &&
         !compose && !teach && !snooze && !trashMail && !shortcuts && !labelMail && !connecting) {
@@ -1216,6 +1254,7 @@ export function App() {
                 ref={listRef}
                 className={`list ${density}`}
                 aria-label={`${viewNames[view]} mail`}
+                tabIndex={-1}
               >
               <div key={paneKey} className={`pane ${pane.current.motion}`}>
                 {reader && !split ? reader : filtered.length ? (
@@ -1263,7 +1302,7 @@ export function App() {
                 <PaneHeader className="reader-head" corner={null} maximized={maximized}>
                   {opened && actions}
                 </PaneHeader>
-                <div ref={readerRef} className="reader-scroll">
+                <div ref={readerRef} className="reader-scroll" tabIndex={-1}>
                   <div key={selected && opened ? selected.id : "empty"} className="pane open">
                     {reader || <ReaderEmpty selected={!!selected} openKey={shortcut("open")} />}
                   </div>
