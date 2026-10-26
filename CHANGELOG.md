@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- List pull requests directly under What's Changed in generated release notes, without an "Other changes" group.
+
 - Keep Appearance theme tiles compact in floating Settings so empty space does not push the theme actions below their previews and labels.
 
 - Replace ordinary macOS source-build updates with a verified release DMG handoff. Download the running architecture, check SHA256 and size, preserve macOS quarantine, drain mail and drafts, then open the installer for manual replacement and restart. No developer tools are needed.

@@ -1215,10 +1215,9 @@ release, publication recovery or downloaded installer behavior.
 There is no automatic PR or merge-queue commit-email job. Keep the local
 `scripts/check-commit-emails.mjs origin/main..HEAD` gate for authors, committers
 and co-author trailers, and mask any rejected address. Review dependency
-advisories, licenses and upgrades manually. `.github/release.yml` configures
-generated release notes without category groups so pull requests appear
-directly under What's Changed, and leaves out Dependabot pull requests; it
-is release-note configuration, not an executable workflow.
+advisories, licenses and upgrades manually. `.github/release.yml` lists pull
+requests directly under What's Changed, without category groups, and leaves
+out Dependabot. It configures release notes and is not a workflow.
 
 Actions enablement, required checks, merge queues and tag protections are
 repository settings, outside these files. This source deletion changes none of

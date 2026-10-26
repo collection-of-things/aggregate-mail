@@ -1,5 +1,5 @@
-# Configures the notes GitHub generates for each release.
-# Omit category groupings so pull requests appear directly under "What's Changed".
+# Generated release notes. No categories, so pull requests are listed
+# directly under "What's Changed".
 changelog:
   exclude:
     authors:
