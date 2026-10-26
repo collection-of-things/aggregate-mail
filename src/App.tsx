@@ -999,6 +999,8 @@ export function App() {
       onChanged={reload}
       onReplyAll={() => startCompose(selected, true)}
       onLabels={() => setLabelMail(selected)}
+      onUnsnooze={() => void changeMessage(selected, "unsnooze")}
+      onChangeTime={(event) => showSnooze(selected, event)}
       onMenu={showMailMenu}
       onMenuKey={mailMenuKey}
     />
