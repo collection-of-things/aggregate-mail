@@ -485,3 +485,25 @@ mail and drafts. Hidden tabs conceal content and recheck access on return.
 The access page broadcasts explicit locking to other tabs on the same origin.
 Checks of session status do not renew request-idle expiry. Browser-session loss
 can discard unsaved edits; it never sends mail or retries an uncertain send.
+## Encrypted workspace backups
+
+In the desktop app, open **Settings → About and storage → Encrypted workspace
+backup**. Enter and confirm a passphrase of at least 12 characters, then choose
+**Export encrypted backup** and a destination. Keep the passphrase separately;
+it cannot be recovered. The file works independently of the original computer's
+protected storage key. Files are limited to 32 MiB.
+
+Backups contain local commitments, projects, decisions, Teach rules, pins,
+snoozes, drafts, templates, signatures and agent history. They exclude account
+credentials, OAuth tokens, agent/MCP secrets and cached provider mail bodies.
+Drafts and history can contain private text. This does not back up your mailbox
+or calendar and does not replace your provider's own recovery options.
+
+To restore, connect the same accounts first. Enter the backup passphrase,
+choose **Open backup and preview**, inspect the counts, then choose **Merge into
+current profile**. Exactly one connected account must match each required email
+address and provider. Existing record IDs, templates, signatures and active
+pin/snooze flags win; nothing is deleted. Pending/interrupted agent actions
+return as inactive, unknown history. Import does not send mail or change your
+provider mailbox. Reload afterward to refresh all views. Missing source mail
+can stay unavailable after resync, especially if provider message IDs changed.

@@ -4,6 +4,7 @@ import { LocalMailUndoConflict } from "./local-mail-undo.js";
 import { phonePasskeys } from "./phone-passkeys.js";
 import { phoneAccess, mountPhoneAccess } from "./phone-access.js";
 import { Outbox, outboxStatuses } from "./outbox.js";
+import { mountWorkspaceBackup } from "./workspace-backup.js";
 import { notificationMail, type MailArrival, type NotificationMail } from "../shared/notifications.js";
 import { isDeepStrictEqual } from "node:util";
 import { EventEmitter } from "node:events";
@@ -95,7 +96,7 @@ const assertNotSyncing = () => {
     throw new Error("Wait for the current sync to finish, then try again.");
 };
 app.use("/mcp", authorizeMcp);
-app.use(express.json({ limit: "2mb" }));
+app.use((req, res, next) => req.path.startsWith("/api/workspace-backup/") ? next() : express.json({ limit: "2mb" })(req, res, next));
 app.use("/mcp", (_req, res, next) => {
   if (mailIsQuiesced())
     return res.status(503).json({ error: "Mail is paused for an application update. Try again shortly." });
@@ -155,6 +156,11 @@ mountPhoneAccess(app, phoneService, browserGate);
 if (browserGate) phonePasskeys({ gate: browserGate, list: () => all("phoneCredential"),
   save: (value) => put("phoneCredential", value.id, value), remove: (id) => remove("phoneCredential", id),
 }).mount(app);
+app.use("/api/workspace-backup", express.json({ limit: "34mb" }));
+app.use("/api/workspace-backup", (_error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  res.status(400).json({ error: "Invalid backup request or file exceeds the size limit." });
+});
+mountWorkspaceBackup(app, () => desktopEvents.emit("mail-changed"), assertNotSyncing);
 mountDrafts(app, () => desktopEvents.emit("mail-changed"));
 mountWorkspace(app);
 mountCalendar(app);

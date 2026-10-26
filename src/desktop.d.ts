@@ -4,6 +4,7 @@ declare global {
   interface Window {
     desktop?: {
       platform: string;
+      workspaceBackup?: import("../shared/workspace-backup").WorkspaceBackupBridge;
       notifications?: import("../shared/notifications").NotificationBridge;
       materials: boolean;
       setMaterial?: (material: "none" | "mica" | "acrylic") => void;

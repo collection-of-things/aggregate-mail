@@ -164,3 +164,18 @@ test("notification preload correlates ready clicks and cleans replacement, stopp
   assert.equal(audio[2].src, ""); assert.equal(timers.size, 0);
   unsubscribe(); assert.equal(ipcRenderer.listenerCount("notification-open"), 0);
 });
+
+test("preload backup bridge exposes only encrypted save and dialog open", async () => {
+  const ipcRenderer = new EventEmitter() as EventEmitter & { invoke: (...args: unknown[]) => Promise<unknown> };
+  const calls: unknown[][] = [];
+  ipcRenderer.invoke = async (...args) => { calls.push(args); return args[0] === "workspace-backup-save" ? true : "encrypted file"; };
+  let bridge!: NonNullable<Window["desktop"]>;
+  const code = transformSync(readFileSync(new URL("./preload.ts", import.meta.url), "utf8"), { loader: "ts", format: "cjs" }).code;
+  runInNewContext(code, { exports: {}, module: { exports: {} }, process: { platform: "linux" },
+    require: () => ({ ipcRenderer, contextBridge: { exposeInMainWorld: (_name: string, value: typeof bridge) => { bridge = value; } } }),
+  });
+  assert.equal(await bridge.workspaceBackup!.save("encrypted bytes"), true);
+  assert.equal(await bridge.workspaceBackup!.open(), "encrypted file");
+  assert.deepEqual(calls, [["workspace-backup-save", "encrypted bytes"], ["workspace-backup-open"]]);
+  assert.deepEqual(Object.keys(bridge.workspaceBackup!).sort(), ["open", "save"]);
+});

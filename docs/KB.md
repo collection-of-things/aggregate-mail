@@ -2938,3 +2938,30 @@ cookies. No new host pairing is needed. See [ADR 0097](adr/0097-persistent-paire
 
 Regression checks include `server/browser-trust.test.ts`,
 `server/phone-passkeys.test.ts` and `src/browser-session.test.tsx`.
+## Encrypted workspace backup
+
+Settings, About and storage mounts `WorkspaceBackup`. The desktop bridge has
+only `workspace-backup-open` and `workspace-backup-save`, with native dialogs,
+main-frame sender validation and a 32 MiB file cap. Paths stay in Electron.
+`server/workspace-backup.ts` mounts POST export, preview and import routes under
+`/api/workspace-backup` after the existing API authorization middleware. Request
+parsing errors are sanitized; the larger body allowance applies only here.
+KDF operations are serialized and tracked by the update drain. Sync/update
+availability is checked again after decryption before merging.
+
+The format, exclusions and merge rules are recorded in
+[ADR 0085](adr/0100-encrypted-workspace-backup.md). Import validates the manifest,
+requires a single-use preview receipt and writes through `store.transaction`.
+Templates/signatures merge within the existing compose record. Uncached flags
+use encrypted `workspaceMailState` records and apply once when the exact mail
+ID is first cached. Account identity hints map typed references to a uniquely
+matching connected email/provider. Pending/executing proposals become unknown
+history; no grants or credentials are imported. Calendar and provider cache
+recovery are outside this format. Reload after import for all views to refresh.
+
+Focused synthetic coverage is in `server/workspace-backup.test.ts`,
+`desktop/workspace-backup.test.ts` and `src/workspace-backup.test.tsx`.
+Run these files serially through the bounded wrapper, plus the strict build,
+preload regression and the isolated desktop startup recipe above. These checks
+do not establish installed dialog behavior, native portability or live-provider
+continuity.
