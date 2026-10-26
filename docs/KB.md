@@ -82,6 +82,28 @@ See [ADR 0077](adr/0077-floating-settings.md). Mounted source tests cover focus,
 history, guards and retained edits. They do not prove installed native layout
 or input.
 
+## Region focus cycle
+
+F6 and Shift+F6 move keyboard focus through the visible window regions in a
+fixed order: sidebar, search toolbar, mail list and the reader beside it. The
+order lives in `src/region-focus.ts`, where `nextRegion` picks the next
+available region and `regionOf` classifies the focused element. `src/App.tsx`
+resolves each region's focus target: the current view in the sidebar, the
+search input, the selected row in the list and the opened email in the reader.
+A closed sidebar and a closed or full-width reader are skipped; in full-width
+reading the `.message` article inside the list pane is the list target. The
+`.list` and `.reader-scroll` containers carry `tabIndex={-1}` so an empty
+region still lands somewhere visible.
+
+Dialogs, the composer and the command palette are outside the cycle, and F6
+does nothing while focus is inside them or inside any field other than the
+search box. No desktop change was needed: the macOS menu uses stock roles, the
+native context menus pass accelerators as display-only text
+(`registerAccelerator: false`), and the only `before-input-event` handling is
+the Linux Ctrl+Q quit, so no native accelerator captures F6. Mounted coverage
+is in `src/navigation.test.tsx`; it does not prove native input on Windows,
+macOS or Linux builds.
+
 ## Shared application styling
 
 The working layout uses a 208px main rail and names each view once in the
