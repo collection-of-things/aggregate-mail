@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a searchable template picker to the composer: type to filter by name and content, arrows to move, Enter to insert the highlighted template and Escape to close only the picker. Insertion still appends before an unchanged signature and fills only an empty subject.
+
 - Add a threat model to SECURITY.md covering trust boundaries, components, attackers, assets and lower-priority areas.
 - Add local contacts and recipient suggestions. To and Cc suggest saved contacts and addresses you sent to from Emc², per account, with keyboard and screen-reader support and privacy-mode redaction. Manage contacts and recent recipients in Settings. Nothing is inserted until you pick it.
 - Search older mail beyond the cache for one selected account on explicit request, importing up to 100 provider matches into the encrypted cache through Gmail search or read-only IMAP Archive, All Mail and Sent searches. The search line reports what the provider actually covered, cached results stay labelled as cached, and account: and is:pinned still apply only on this device.

@@ -2233,6 +2233,8 @@ link entry. Selected text, plain alternatives and safe URL rules are retained.
 
 The composer From selector uses the shared themed dropdown: a 30px trigger, compact account rows, arrow/Home/End selection, Enter to confirm and Escape or Tab to dismiss. Private mode omits account addresses. Account switching retains the existing signature and saved-copy behavior.
 
+The composer template picker is a combobox inside the draft. Typing filters templates by name, subject and body; arrows move the highlighted option, Enter or Insert template applies the existing insertion and Escape closes only the picker, returning focus to the message body. Clicking an option also inserts it, and a click outside closes the list. Insertion still appends before an unchanged signature and fills only an empty subject. Privacy mode keeps generic numbered labels and blurs the unfocused field like other compose inputs.
+
 
 ## Formatted original messages in replies
 
