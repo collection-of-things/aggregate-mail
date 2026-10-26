@@ -627,7 +627,12 @@ There is no new store kind, provider action or automatic approval path. See
 [ADR 0047](adr/0047-agent-local-work-creation.md).
 
 Outgoing attachments allow ten files, at most 512 KiB each and 1 MiB total.
-Received files beyond those limits retain unavailable metadata. Stored bytes
+Received files beyond those limits retain unavailable metadata. Only successfully
+cached parts consume the import byte/file budget, so an oversized part does not
+exclude later small files. Large skipped files say "Large attachment not
+downloaded"; this is distinct from a message parse failure. The composer shows
+selected file counts and exact decoded bytes before selection/send, accounting
+for base64 padding when validating an additional selection. Stored bytes
 and compose drafts are encrypted. Downloads require an explicit user action;
 files never open automatically. The reader offers explicit Download controls for
 all available file types, including spreadsheets and archives. Preview is limited
@@ -640,7 +645,8 @@ the renderer keeps its existing script execution policy. Enabling privacy clears
 pending results; a new explicit preview may expose personal information in
 pixels. Image preview URLs are revoked on hide, privacy changes and unmount.
 Unavailable or oversized imports keep their existing metadata and explanation.
-Synthetic coverage is in `src/attachments.test.tsx` and
+Synthetic coverage is in `src/attachments.test.tsx`,
+`src/attachment-selection.test.tsx`, `server/attachment-import.test.ts` and
 `server/workspace.test.ts`; installed file-saving and PDF appearance require
 separate acceptance. Disconnect removes cached mail, attachment
 bytes, scoped rules and agent access. Confirmed commitments and project notes
@@ -2970,3 +2976,11 @@ continuity.
 Workspace backups reject retained work without connected account identity hints.
 Preview and import each check deduplicated destination draft and template quotas
 inside the transaction; overflow imports leave existing work unchanged.
+
+The practical attachment envelope remains incomplete. Outgoing limits are still
+10 files, 512 KiB each and 1 MiB total, with inline base64 in encrypted drafts
+and JSON send payloads. Large received parts have no on-demand provider fetch.
+Raw MIME remains bounded to 8 MiB. Binary uploads/references, practical provider
+envelopes, Gmail attachment retrieval, IMAP part retrieval and provider-download
+cancellation require a separate implementation. See the proposed
+[ADR 0082](adr/0082-practical-attachment-envelope.md).

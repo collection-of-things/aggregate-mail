@@ -16,6 +16,9 @@ import type { Compose, DraftProgress } from "./draft-session";
 import { Paperclip, Trash } from "../ui/icons";
 import { RecipientInput } from "./RecipientInput";
 
+// Recovered and FileReader attachments use canonical base64.
+const attachmentBytes = (content: string) => content.length / 4 * 3 - (content.endsWith("==") ? 2 : content.endsWith("=") ? 1 : 0);
+
 export type { Compose } from "./draft-session";
 export const unknownSendNotice =
   "Send status unknown. This message may already have been sent. Sending again may send a duplicate.";
@@ -149,10 +152,11 @@ export function ComposePanel({
   const [dragging, setDragging] = useState(false);
   const [showBcc, setShowBcc] = useState(false);
   const [showCc, setShowCc] = useState(false);
+  const selectedBytes = (draft.attachments || []).reduce((sum, file) => sum + attachmentBytes(file.content), 0);
   const ccVisible = showCc || Boolean(draft.cc?.some((address) => address.trim()));
   const addFiles = async (files: File[]) => {
     if (!files.length || busy || filesBusy.current) return;
-    if (files.some((file) => file.size > 524288 || !file.name || file.name.length > 255 || /[\u0000-\u001f\u007f/\\:]/.test(file.name) || file.name === "." || file.name === "..") || files.reduce((sum, file) => sum + file.size, 0) + (draft.attachments || []).reduce((sum, file) => sum + file.content.length * 3 / 4, 0) > 1048576 || files.length + (draft.attachments?.length || 0) > 10) {
+    if (files.some((file) => file.size > 524288 || !file.name || file.name.length > 255 || /[\u0000-\u001f\u007f/\\:]/.test(file.name) || file.name === "." || file.name === "..") || files.reduce((sum, file) => sum + file.size, 0) + selectedBytes > 1048576 || files.length + (draft.attachments?.length || 0) > 10) {
       setAttachmentError("Choose up to 10 files with safe filenames, at most 512 KiB each and 1 MiB total."); return;
     }
     filesBusy.current = true; setLoadingFiles(true); setAttachmentError("");
@@ -258,10 +262,11 @@ export function ComposePanel({
             }} />
           </label>
           <span id="compose-attachment-limits" className="compose-attachment-limits">Up to 10 files · 512 KiB each · 1 MiB total</span>
+          <span className="compose-attachment-limits compose-attachment-size" role="status">{draft.attachments?.length || 0} {draft.attachments?.length === 1 ? "file" : "files"} · {selectedBytes} bytes selected</span>
         </div>
         <RichBody draft={draft} disabled={busy || loadingFiles} onChange={setDraft} />
         <div className="compose-extras">
-          {(draft.attachments || []).map((file, index) => <p className="compose-attachment" key={index}><Redact text={file.filename} /> <button type="button" disabled={busy || loadingFiles} aria-label={`Remove attachment ${index + 1}`} onClick={() => setDraft({ ...draft, attachments: draft.attachments?.filter((_, i) => i !== index) })}>Remove</button></p>)}
+          {(draft.attachments || []).map((file, index) => <p className="compose-attachment" key={index}><Redact text={file.filename} /> ({attachmentBytes(file.content)} bytes) <button type="button" disabled={busy || loadingFiles} aria-label={`Remove attachment ${index + 1}`} onClick={() => setDraft({ ...draft, attachments: draft.attachments?.filter((_, i) => i !== index) })}>Remove</button></p>)}
           {attachmentError && <p role="alert">{attachmentError}</p>}
           {loadingFiles && <p role="status">Reading attachments…</p>}
           <ComposePreferenceControls draft={draft} preferences={preferences} busy={busy || loadingFiles} onChange={setDraft} />

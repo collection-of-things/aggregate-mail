@@ -88,7 +88,7 @@ function Attachment({ mailId, file, index }: { mailId: string; file: MailAttachm
   };
   return <li aria-busy={busy}>
     <div className="attachment-row"><span className="attachment-name"><Redact text={file.filename || `Attachment ${index + 1}`} /> <span className="attachment-size">({Math.ceil(file.size / 1024)} KB)</span></span>
-      {file.unavailable ? <span>Unavailable within the import limit</span> : <div className="attachment-actions">
+      {file.unavailable ? <span>{file.size > 524288 ? "Large attachment not downloaded" : "Attachment not downloaded within the import limits"}</span> : <div className="attachment-actions">
         {canPreview && <button className="button" type="button" disabled={busy} aria-label={`${preview ? "Hide preview" : "Preview attachment"} ${index + 1}`} aria-expanded={Boolean(preview)} onClick={() => { if (preview) { setPreview(undefined); setUrl(undefined); } else void load(true); }}>{preview ? "Hide preview" : "Preview"}</button>}
         <button className="button" type="button" disabled={busy} aria-label={`Download attachment ${index + 1}`} onClick={() => void load(false)}>Download</button>
       </div>}

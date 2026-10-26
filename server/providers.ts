@@ -212,20 +212,23 @@ async function parseMessage(
   const from = m.from?.value[0];
   const body = m.text || "";
   let total = 0;
+  let imported = 0;
   const attachments: MailAttachment[] = [];
   for (const [index, attachment] of m.attachments.entries()) {
     const filename = attachment.filename || "attachment";
     const contentType = attachment.contentType || "application/octet-stream";
     const id = createHash("sha256").update(`${a.id}:${remoteId}:${index}:`).update(attachment.content).digest("hex");
-    total += attachment.content.length;
-    const eligible = index < 10 && attachment.content.length <= 524288 && total <= 1048576;
+    const eligible = imported < 10 && attachment.content.length <= 524288 && total + attachment.content.length <= 1048576;
     let valid = eligible && attachmentMetadataSchema.safeParse({ filename, contentType }).success;
     const content = valid ? attachment.content.toString("base64") : "";
     if (valid) {
       const { get, put } = await import("./store.js");
       const current = get("account", a.id);
       valid = Boolean(current && current.id === a.id && current.provider === a.provider && current.email === a.email && isDeepStrictEqual(current.credentials, a.credentials));
-      if (valid) put("attachment", `${a.id}:${remoteId}:${id}`, { accountId: a.id, content });
+      if (valid) {
+        put("attachment", `${a.id}:${remoteId}:${id}`, { accountId: a.id, content });
+        total += attachment.content.length; imported++;
+      }
     }
     const contentId = attachment.contentId?.replace(/^<|>$/g, "").trim();
     attachments.push({ id, contentId: contentId && contentId.length <= 500 ? contentId : null, filename: filename.replace(/[\u0000-\u001f\u007f/\\]/g, "_").slice(0, 255), contentType: /^[\w!#$&^.+-]+\/[\w!#$&^.+-]+$/.test(contentType) ? contentType : "application/octet-stream", size: attachment.size, ...(!valid ? { unavailable: true } : {}) });

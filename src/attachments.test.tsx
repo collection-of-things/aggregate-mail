@@ -35,6 +35,7 @@ test("attachments download every format, preview only on demand, and clear previ
   try {
     await render();
     assert.equal(calls.length, 0);
+    assert.match(dom.window.document.body.textContent!, /Large attachment not downloaded/);
     assert.equal(dom.window.document.querySelectorAll("button").length, 8);
     assert.equal(dom.window.document.querySelector("img"), null);
     for (let index = 1; index <= 6; index++) await click(`Download attachment ${index}`);
