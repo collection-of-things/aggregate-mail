@@ -1076,6 +1076,38 @@ export async function calendarMime(account: StoredAccount, input: SendInput) {
   return { method: invitation.method, filename: "invitation.ics", content: generateICalendar(invitation, { stamp: new Date().toISOString().replace(/\.\d{3}Z$/, ".000Z"), replyingAttendee: invitation.method === "REPLY" ? account.email : undefined }) };
 }
 
+// Saves an accepted SMTP message to Sent. Failure after delivery is a warning, never a resend.
+async function saveSentCopy(a: StoredAccount, raw: Buffer) {
+  let client: ImapFlow | undefined;
+  const warnings: string[] = [];
+  try {
+    client = imap(a);
+    await client.connect();
+    const folders = await client.list();
+    const sent =
+      folders.find((f) => f.specialUse === "\\Sent")?.path || "Sent";
+    if (!folders.some((f) => f.path === sent))
+      await client.mailboxCreate(sent);
+    if (!(await client.append(sent, raw, ["\\Seen"])))
+      throw new Error("Sent copy was not saved.");
+  } catch {
+    warnings.push("saving a Sent copy failed");
+  } finally {
+    try {
+      if (client?.usable) {
+        if (Object.is(await client.logout(), false))
+          warnings.push("closing the Sent-copy connection failed");
+      } else client?.close();
+    } catch {
+      warnings.push("closing the Sent-copy connection failed");
+    }
+  }
+  if (warnings.length)
+    throw new SentCopyError(
+      `Email was sent, but ${warnings.join(" and ")}. Do not resend.`,
+    );
+}
+
 // Referenced envelopes are spooled as encrypted chunks, measured, then replayed.
 // The SMTP transport passes envelope.size to its connection, which rejects an
 // advertised SIZE overflow before MAIL FROM on that same connection.
@@ -1118,9 +1150,14 @@ async function sendReferenced(a: StoredAccount, input: SendInput) {
           await transport.sendMail({ envelope: { from: a.email, to: [...input.to, ...(input.cc || []), ...(input.bcc || [])], size: spool.size }, raw });
           accepted = true;
         } finally { raw.destroy(); transport.close(); }
-        // ImapFlow APPEND only accepts a complete Buffer. Do not defeat the
-        // streaming memory bound to make an optional Sent copy.
-        if (a.provider !== "gmail-imap") throw new SentCopyError("Email was sent. This server's streamed attachment message was not copied to Sent. Do not resend.");
+        // ImapFlow APPEND needs one Buffer. The spool is already bounded by
+        // MIME_BYTES, so read it once for the Sent copy before it is erased.
+        if (a.provider !== "gmail-imap") {
+          let copy: Buffer | undefined;
+          try { const chunks: Buffer[] = []; for await (const chunk of uploadBytes(spool.id)) chunks.push(chunk); copy = Buffer.concat(chunks); }
+          catch { throw new SentCopyError("Email was sent, but saving a Sent copy failed. Do not resend."); }
+          await saveSentCopy(a, copy);
+        }
       }
     } catch (error) {
       if (accepted && !(error instanceof SentCopyError)) throw new SentCopyError("Email was sent, but closing its attachment stream failed. Do not resend.");

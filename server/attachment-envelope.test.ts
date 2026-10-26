@@ -161,6 +161,26 @@ test("practical encrypted attachment envelope", { timeout: 110000 }, async t => 
       store.cleanupUploads(Date.now() + 3600001);
       assert.ok(store.get("upload", uncertain.id), "unknown send retains its durable hold");
     });
+    await t.test("referenced IMAP-account send saves the exact streamed message to Sent", async t => {
+      let sent: Buffer | undefined;
+      t.mock.method(nodemailer, "createTransport", () => ({
+        close() {}, async sendMail(value: { raw: Readable }) {
+          const chunks: Buffer[] = []; for await (const chunk of value.raw) chunks.push(Buffer.from(chunk));
+          sent = Buffer.concat(chunks); return { accepted: [content.to[0]] };
+        },
+      }));
+      const appended: { folder: string; raw: Buffer }[] = [];
+      t.mock.method(ImapFlow.prototype, "connect", async () => {});
+      t.mock.method(ImapFlow.prototype, "list", async () => [{ path: "Sent", specialUse: "\\Sent", flags: new Set(["\\Sent"]) }]);
+      t.mock.method(ImapFlow.prototype, "append", async (folder: string, raw: Buffer) => { appended.push({ folder, raw }); return { destination: folder }; });
+      t.mock.method(ImapFlow.prototype, "logout", async () => {});
+      const file = await upload(1048576, "copy.bin");
+      const result = await actions.sendMail({ accountId: a.id, ...content, bcc: ["hidden@example.test"], attachments: [file] });
+      assert.equal(result.ok, true); assert.equal(result.warning, undefined, "a saved Sent copy produces no warning");
+      assert.equal(appended.length, 1); assert.equal(appended[0].folder, "Sent");
+      assert.ok(sent && appended[0].raw.equals(sent), "Sent copy is the exact submitted message");
+      assert.ok(!appended[0].raw.toString("latin1").includes("hidden@example.test"), "Sent copy carries no Bcc header");
+    });
     await t.test("Gmail streams base64url JSON without collecting the message", async () => {
       const payload: Buffer[] = [];
       for await (const chunk of bytes.gmailJson(Readable.from([Buffer.from("a"), Buffer.from("bcde"), Buffer.from("fg")]), "thread")) payload.push(Buffer.from(chunk));

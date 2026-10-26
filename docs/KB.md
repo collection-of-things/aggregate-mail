@@ -3058,11 +3058,12 @@ plan-specific provider acceptance limits. Without SIZE the provider's actual
 limit is unknown until submission; the local cap still applies. Typical 25 MB
 SMTP budgets permit less than 25 MiB of files after MIME encoding.
 
-For streamed SMTP messages, Gmail SMTP saves its own Sent copy. Other SMTP
-providers return a successful-send warning explaining that Emc² did not append a
-Sent copy. ImapFlow's APPEND API requires a complete Buffer, which would exceed
-the streaming memory bound. Legacy small sends retain existing Sent-copy logic.
-Never resend because copying or cleanup failed.
+For streamed SMTP messages, Gmail SMTP saves its own Sent copy. Other IMAP
+accounts append the exact submitted message to Sent after SMTP acceptance,
+through the same `saveSentCopy` helper as legacy sends. ImapFlow's APPEND needs
+one Buffer, so the encrypted spool (bounded by `MIME_BYTES`, 35 MiB) is read once
+after acceptance and before it is erased. The copy carries no Bcc header. A copy
+or cleanup failure is a successful-send warning; never resend because of it.
 
 Automatic import stays at 10 files, 512 KiB each and 1 MiB total. The 8 MiB raw
 parse bound remains. Oversized Gmail sources recover bounded metadata using

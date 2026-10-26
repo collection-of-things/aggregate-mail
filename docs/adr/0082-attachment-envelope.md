@@ -38,9 +38,10 @@ fetching and again before caching. IMAP uses UID plus UIDVALIDITY and PEEK;
 retrieval never sets Seen or changes mailbox state.
 
 For streamed SMTP messages, retain provider-managed Gmail Sent copies. Other
-SMTP providers receive a successful-delivery warning because ImapFlow APPEND
-requires a complete Buffer. Do not buffer the whole envelope or retry delivery
-to make an optional Sent copy. Small legacy sends retain existing copy behavior.
+IMAP accounts keep their Sent copy: after SMTP acceptance, the bounded encrypted
+spool is read once into the Buffer that ImapFlow APPEND requires. Submission
+itself stays streamed. Never retry delivery to make a Sent copy; a copy failure
+is a successful-delivery warning.
 
 ## Verification boundary
 
