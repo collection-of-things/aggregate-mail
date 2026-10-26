@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add a searchable template picker to the composer: type to filter by name and content, arrows to move, Enter to insert the highlighted template and Escape to close only the picker. Insertion still appends before an unchanged signature and fills only an empty subject.
+- Reschedule a snooze from the reader: the snoozed return-time line gains Return to inbox and Change time actions. The snooze menu's custom field opens on the current return time and each preset shows its full local date and time.
 
 - Add a threat model to SECURITY.md covering trust boundaries, components, attackers, assets and lower-priority areas.
 - Add local contacts and recipient suggestions. To and Cc suggest saved contacts and addresses you sent to from Emc², per account, with keyboard and screen-reader support and privacy-mode redaction. Manage contacts and recent recipients in Settings. Nothing is inserted until you pick it.

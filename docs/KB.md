@@ -1525,8 +1525,12 @@ session. Save failures retain those edits; a successful save clears only the
 submitted draft. Closing the application still discards unsaved Settings edits.
 
 Snooze uses an anchored menu that re-clamps when its size changes, including when
-the custom-time form opens. Only opening the menu focuses its first action;
-re-clamping preserves input focus. Oversized menus scroll within the viewport.
+the custom-time form opens. Only opening the menu focuses its first action, except
+for an already-snoozed email, whose form opens on the current return time and
+takes focus instead. Presets carry their full local date and time. Re-clamping
+preserves input focus. Oversized menus scroll within the viewport. An opened
+snoozed email's return line offers Return to inbox and Change time beside the
+local time, reusing the same handlers and Escape focus restoration.
 Calendar combines confirmed deadlines and follow-ups
 with active cached-email snoozes in local time. No duplicate event is persisted.
 Cleared, expired, sent and archived snoozes are excluded.
