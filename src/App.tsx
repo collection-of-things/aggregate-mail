@@ -36,6 +36,7 @@ import { ListEmpty } from "./mail/ListEmpty";
 import { MailActions } from "./mail/MailActions";
 import { MailFilters } from "./mail/MailFilters";
 import { MailList } from "./mail/MailList";
+import { ProviderSearch } from "./mail/ProviderSearch";
 import { Workbench } from "./work/Workbench";
 import { QuickTrack } from "./work/QuickTrack";
 import { MeetingDialog } from "./work/EventPanel";
@@ -525,6 +526,7 @@ export function App() {
     [state.messages, state.rules]);
   const tabOf = (mail: Mail) => "inboxTab" in mail ? mail.inboxTab : tabs.get(mail.id) ?? inboxTab(mail, state.rules);
   const search = useMailSearch(query, state.accounts, state.messages, api, state.draftToken);
+  const searchAccount = accountFilter === "all" ? undefined : state.accounts.find((a) => a.id === accountFilter);
   const showSearchDrafts = !!query.trim() && (view === "all" || view === "drafts") &&
     readFilter === "all" && relevanceFilter === "all" && labelFilter === "all";
   const hasSearchDrafts = showSearchDrafts && search.drafts.some(draft => accountFilter === "all" || draft.accountId === accountFilter);
@@ -1123,7 +1125,8 @@ export function App() {
             </PaneHeader>
             <div hidden={!searching || settings || workView} className="search-help">
               <span id="mail-search-help" role={search.error ? "alert" : search.pending ? "status" : undefined}>{search.error || (search.pending ? "Searching cached mail and saved drafts…" : `Cached ${viewNames[view]} · ${accountFilter === "all" ? "All accounts" : !state.accounts.some(a => a.id === accountFilter) ? "Unavailable account" : accountLabel(state.accounts.find(a => a.id === accountFilter)!, state.accounts.findIndex(a => a.id === accountFilter), privacy, state.accounts)}${showSearchDrafts ? " · Includes saved drafts" : " · Mail only"}${readFilter !== "all" || relevanceFilter !== "all" || labelFilter !== "all" ? " · Filtered" : ""}`)}</span>
-              <details><summary>Search help</summary><p>Use from:, to:, subject:, body:, account:, is:unread, is:pinned, before:YYYY-MM-DD or after:YYYY-MM-DD. Unquoted words allow one typo. Searches imported mail and saved drafts on this device, including Sent, Archive and Snoozed. Provider history may be incomplete.</p></details>
+              <ProviderSearch api={api} query={query} account={searchAccount} accountName={searchAccount ? accountLabel(searchAccount, state.accounts.indexOf(searchAccount), privacy, state.accounts) : ""} blocked={toolbarBlocked || busy} visible={!settings && !workView && view !== "drafts" && !search.error && !search.pending} reload={reload} />
+              <details><summary>Search help</summary><p>Use from:, to:, subject:, body:, account:, is:unread, is:pinned, before:YYYY-MM-DD or after:YYYY-MM-DD. Unquoted words allow one typo. Searches imported mail and saved drafts on this device, including Sent, Archive and Snoozed. Provider history may be incomplete. With one account selected, searching older mail asks the provider for up to 100 more matches: Gmail uses Gmail search, IMAP searches Archive (or All Mail) and Sent, and account: and is:pinned apply only on this device.</p></details>
             </div>
         {view === "drafts" ? (
           <main className="drafts-pane" inert={!!compose}>
