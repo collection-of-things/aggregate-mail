@@ -177,6 +177,21 @@ export type MailSearchResult = {
   matches: MailSearchMatch[];
   error?: string;
 };
+// One explicit provider search for one account imports at most this many matches.
+export const providerSearchLimit = 100;
+// Coverage of one provider search. Matches already in the cache count toward
+// `examined` but not `imported`. `narrowed` names operators the provider could
+// not apply exactly; the cached search applies them to the imported mail.
+export type ProviderSearchResult = {
+  accountId: string;
+  source: "gmail" | "imap";
+  limit: number;
+  examined: number;
+  imported: number;
+  complete: boolean;
+  mailboxes?: ("archive" | "all" | "sent")[];
+  narrowed: ("account:" | "is:pinned" | "body:")[];
+};
 export type Rule = {
   createdAt?: number;
   excludedMailIds?: string[];

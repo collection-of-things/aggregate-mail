@@ -3,7 +3,7 @@ import { parseICalendar, generateICalendar } from "./ical.js";
 import { google } from "./google-api.js";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { ImapFlow } from "imapflow";
+import { ImapFlow, type SearchObject } from "imapflow";
 import { simpleParser } from "mailparser";
 import { workLimit } from "./resource-limits.js";
 import { canonicalBase64Size, checkMimeSource, decodeGmailSource, gmailResponseLimit, imapSourceQuery, parseMailSource, rawMailLimit } from "./mime-limits.js";
@@ -13,7 +13,8 @@ import { boundedMailHtml, previewText } from "../shared/mail-content.js";
 import nodemailer from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer/index.js";
 import { z } from "zod";
-import type { GmailLabel, Mail, MailImage, MailAttachment, Provider, SyncFailure } from "../shared/types.js";
+import type { GmailLabel, Mail, MailImage, MailAttachment, Provider, ProviderSearchResult, SyncFailure } from "../shared/types.js";
+import type { ProviderSearchPlan } from "../shared/mail-search.js";
 import type { StoredAccount } from "./store.js";
 
 export class SyncError extends Error {
@@ -282,12 +283,57 @@ export async function validateImap(a: StoredAccount) {
 }
 export class SentCopyError extends Error {}
 type CachedMail = Pick<ReadonlyMap<string, Mail>, "size" | "get" | "has">;
+// `known` receives a cache ID and Message-ID so cached matches are not downloaded again.
+export type ProviderSearchOptions = { limit: number; signal: AbortSignal; known: (id: string, messageId?: string) => boolean };
+type ProviderSearchFetch = Pick<ProviderSearchResult, "examined" | "complete" | "narrowed" | "mailboxes"> & { messages: Incoming[] };
+
+// Gmail has no body-only operator, so body: searches the whole message and an
+// excluded body: term is left to the cached search. Values are quoted so text
+// such as OR or label:x stays text instead of becoming a Gmail operator.
+export function gmailSearchQuery(plan: ProviderSearchPlan) {
+  const narrowed: ProviderSearchResult["narrowed"] = [...plan.deviceOnly];
+  const parts = plan.terms.flatMap((term) => {
+    if (term.kind === "read") return [term.read ? "is:read" : "is:unread"];
+    // Epoch seconds avoid Gmail's own day boundaries; after: widens by one second.
+    if (term.kind === "date") return [term.edge === "after" ? `after:${term.at / 1000 - 1}` : `before:${term.at / 1000}`];
+    const value = `"${term.value}"`;
+    if (term.field === "body") {
+      if (!narrowed.includes("body:")) narrowed.push("body:");
+      return term.exclude ? [] : [value];
+    }
+    if (term.field === "to") return term.exclude ? [`-to:${value}`, `-cc:${value}`] : [`{to:${value} cc:${value}}`];
+    return [`${term.exclude ? "-" : ""}${term.field === "any" ? "" : `${term.field}:`}${value}`];
+  });
+  return { q: parts.join(" "), narrowed };
+}
+
+// ImapFlow cannot repeat a key in one query, so terms are packed into groups of
+// distinct keys and the caller intersects one UID SEARCH per group. IMAP dates
+// use the server's day, so each bound widens by one day for the cached search.
+export function imapSearchGroups(plan: ProviderSearchPlan) {
+  const day = 86400000;
+  const groups: SearchObject[] = [];
+  for (const term of plan.terms) {
+    let key: SearchObject;
+    if (term.kind === "read") key = { seen: term.read };
+    else if (term.kind === "date") key = term.edge === "after" ? { since: new Date(term.at - day) } : { before: new Date(term.at + day) };
+    else {
+      const match: SearchObject = term.field === "any" ? { text: term.value } : term.field === "to" ? { or: [{ to: term.value }, { cc: term.value }] } : { [term.field]: term.value };
+      key = term.exclude ? { not: match } : match;
+    }
+    const group = groups.find((current) => Object.keys(key).every((name) => !(name in current)));
+    if (group) Object.assign(group, key);
+    else groups.push(key);
+  }
+  return { groups, narrowed: [...plan.deviceOnly] };
+}
 
 // All providers expose the same read, update and send operations to the client.
 export const providers: Record<
   Provider,
   {
     sent: (a: StoredAccount, bound: number) => Promise<{ messages: Incoming[]; truncated: boolean }>;
+    search: (a: StoredAccount, plan: ProviderSearchPlan, options: ProviderSearchOptions) => Promise<ProviderSearchFetch>;
     thread?: (a: StoredAccount, threadId: string) => Promise<Incoming[]>;
     list: (a: StoredAccount, cached: CachedMail, onBatch?: (batch: Incoming[]) => void, onWarning?: (warning: SyncFailure) => void, labels?: GmailLabel[], retain?: boolean) => Promise<Incoming[]>;
     images: (a: StoredAccount, m: Mail) => Promise<MailImage[]>;
@@ -322,6 +368,40 @@ export const providers: Record<
         pageToken = page.data.nextPageToken || undefined;
       } while (pageToken && messages.length < bound);
       return { messages, truncated: !!pageToken };
+    },
+    async search(a, plan, { limit, signal, known }) {
+      const { q, narrowed } = gmailSearchQuery(plan);
+      const api = gmail(a);
+      const options = { timeout: 30000, retry: false, signal };
+      const ids: string[] = [];
+      const pages = new Set<string | undefined>();
+      let pageToken: string | undefined;
+      do {
+        if (pages.has(pageToken) || pages.size >= limit) throw new Error("Gmail search exceeded its retrieval bound.");
+        pages.add(pageToken);
+        signal.throwIfAborted();
+        const page = await syncOperation(a.provider, "list", () => api.users.messages.list({ userId: "me", q, maxResults: limit - ids.length, pageToken }, options));
+        const items = page.data.messages || [];
+        if (items.length > limit - ids.length) throw new Error("Gmail search exceeded its retrieval bound.");
+        for (const item of items) {
+          if (!item.id || ids.includes(item.id)) throw new Error("Gmail search returned an unavailable email identity.");
+          ids.push(item.id);
+        }
+        pageToken = page.data.nextPageToken || undefined;
+      } while (pageToken && ids.length < limit);
+      const missing = ids.filter((id) => !known(`${a.id}:${id}`));
+      const messages: Incoming[] = [];
+      // Read two at a time, as sync does, checking cancellation before each request.
+      for (let offset = 0; offset < missing.length; offset += 2)
+        messages.push(...await Promise.all(missing.slice(offset, offset + 2).map(async (id) => {
+          signal.throwIfAborted();
+          const result = await syncOperation(a.provider, "read", () => api.users.messages.get({ userId: "me", id, format: "raw" }, { ...options, maxContentLength: gmailResponseLimit }));
+          if (result.data.id && result.data.id !== id) throw new Error("Gmail search returned an unavailable email identity.");
+          const labelIds = result.data.labelIds || [];
+          const parsed = await syncOperation(a.provider, "parse", () => parse(a, id, decodeGmailSource(result.data.raw), labelIds.includes("UNREAD"), Number(result.data.internalDate)));
+          return { ...parsed, threadId: result.data.threadId || undefined, labelIds, direction: labelIds.includes("SENT") && !labelIds.includes("INBOX") ? "sent" as const : "received" as const };
+        })));
+      return { messages, examined: ids.length, complete: !pageToken, narrowed };
     },
     async thread(a, threadId) {
       z.string().min(1).max(100).regex(/^[\w-]+$/).parse(threadId);
@@ -528,6 +608,76 @@ function imapProvider() {
         } finally { lock.release(); }
       } finally {
         if (client.usable) await imapOperation(client, () => client.logout());
+        else client.close();
+      }
+    },
+    // INBOX is already cached completely, so search the declared archive folder
+    // (All Mail on Gmail IMAP) and Sent. EXAMINE, SEARCH, ENVELOPE and BODY.PEEK
+    // leave flags unchanged. Cancelling closes the connection.
+    async search(a: StoredAccount, plan: ProviderSearchPlan, { limit, signal, known }: ProviderSearchOptions): Promise<ProviderSearchFetch> {
+      const { groups, narrowed } = imapSearchGroups(plan);
+      signal.throwIfAborted();
+      const client = imap(a);
+      const cancel = () => client.close();
+      signal.addEventListener("abort", cancel, { once: true });
+      try {
+        await imapOperation(client, () => client.connect());
+        const folders = await imapOperation(client, () => client.list());
+        const declared = (flag: string) => {
+          const matches = folders.filter((folder) => [...folder.flags].some((value) => value.toLowerCase() === flag));
+          return matches.length === 1 && matches[0].path && matches[0].path.toUpperCase() !== "INBOX" ? matches[0].path : undefined;
+        };
+        const roles = a.provider === "gmail-imap" ? [["all", "\\all"] as const] : [["archive", "\\archive"] as const, ["sent", "\\sent"] as const];
+        const boxes = roles.flatMap(([role, flag]) => { const path = declared(flag); return path ? [{ role, path }] : []; });
+        if (!boxes.length) throw new Error("This account declares no archive or Sent folder to search.");
+        const messages: Incoming[] = [];
+        const seen = new Set<string>();
+        const searched: NonNullable<ProviderSearchResult["mailboxes"]> = [];
+        let examined = 0;
+        let complete = true;
+        for (const box of boxes) {
+          if (examined >= limit) { complete = false; break; }
+          const lock = await imapOperation(client, () => client.getMailboxLock(box.path, { readOnly: true }));
+          try {
+            if (!client.mailbox || client.mailbox.path !== box.path) throw new Error("Search mailbox identity is unavailable.");
+            searched.push(box.role);
+            const validity = String(client.mailbox.uidValidity);
+            // Each group holds distinct search keys; a match must satisfy every group.
+            let uids: Set<number> | undefined;
+            for (const group of groups) {
+              signal.throwIfAborted();
+              const found = await imapOperation(client, () => client.search(group, { uid: true }));
+              if (!found) throw new Error("The IMAP server rejected this search.");
+              uids = new Set(uids ? found.filter((uid) => uids!.has(uid)) : found);
+            }
+            const newest = [...uids!].filter((uid) => Number.isSafeInteger(uid) && uid > 0).sort((x, y) => y - x);
+            const chosen = newest.slice(0, limit - examined);
+            if (chosen.length < newest.length) complete = false;
+            examined += chosen.length;
+            // Sent shares the Sent import's identity so both paths keep one record.
+            const remoteId = (uid: number) => `${box.role === "sent" ? "sent" : "mailbox"}:${Buffer.from(box.path).toString("base64url")}:${validity}:${uid}`;
+            const wanted: number[] = [];
+            signal.throwIfAborted();
+            if (chosen.length) for await (const item of imapFetch(client, chosen.join(","), { uid: true, envelope: true }, { uid: true })) {
+              const messageId = item.envelope?.messageId;
+              if (!chosen.includes(item.uid) || known(`${a.id}:${remoteId(item.uid)}`, messageId) || (messageId && seen.has(messageId))) continue;
+              if (messageId) seen.add(messageId);
+              wanted.push(item.uid);
+            }
+            for (let offset = 0; offset < wanted.length; offset += 10) {
+              signal.throwIfAborted();
+              for await (const item of imapFetch(client, wanted.slice(offset, offset + 10).join(","), { uid: true, source: imapSourceQuery, flags: true }, { uid: true })) {
+                if (!item.source || !item.flags || !wanted.includes(item.uid)) throw new Error("Email source or identity is unavailable.");
+                const parsed = await syncOperation(a.provider, "parse", () => parse(a, remoteId(item.uid), item.source!, !item.flags!.has("\\Seen")));
+                messages.push({ ...parsed, ...(box.role === "sent" ? { direction: "sent" as const } : {}), mailbox: { path: box.path, uidValidity: validity, uid: item.uid } });
+              }
+            }
+          } finally { lock.release(); }
+        }
+        return { messages, examined, complete, narrowed, mailboxes: searched };
+      } finally {
+        signal.removeEventListener("abort", cancel);
+        if (client.usable && !signal.aborted) await imapOperation(client, () => client.logout());
         else client.close();
       }
     },
