@@ -238,8 +238,9 @@ test("mounted drafts use encrypted HTTP persistence, recover edits and guard unc
     await click(button("New message"));
     assert.equal(container.querySelector<HTMLTextAreaElement>("textarea")!.value, "\n\n-- \nSignature A");
     await fill("textarea", "SYNTHETIC account-switch draft\n\n-- \nSignature A");
-    await fill(".compose-preference-controls select", "synthetic-template");
-    await click(button("Insert template"));
+    const templateSearch = container.querySelector<HTMLElement>('.compose-template-picker input')!;
+    await act(async () => templateSearch.focus());
+    await click(container.querySelector<HTMLElement>('[role="option"]')!);
     const templateBody = "SYNTHETIC account-switch draft\n\nSYNTHETIC template body";
     await settle(() => /Draft saved/.test(container.textContent!));
     assert.equal(store.all("draft")[0].body, `${templateBody}\n\n-- \nSignature A`);

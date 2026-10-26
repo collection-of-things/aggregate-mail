@@ -326,6 +326,57 @@ test("the snooze menu accepts a custom future time, rejects a past one and close
   } finally { await app.close(); }
 });
 
+test("the reader's Change time reschedules a snooze and restores focus on Escape", async () => {
+  const app = await mount();
+  try {
+    const localValue = (date: Date) =>
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}` +
+      `T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+    const menu = () => app.container.querySelector<HTMLElement>('[role="menu"][aria-label="Snooze email"]');
+    const returnLine = () => app.container.querySelector<HTMLElement>(".message-return")!;
+    const submit = async (form: HTMLFormElement) => {
+      await act(async () => form.dispatchEvent(new app.container.ownerDocument.defaultView!.Event("submit", { bubbles: true, cancelable: true })));
+    };
+    await app.click(app.row());
+    await app.key("s");
+    await app.click(app.button("In one hour", menu()!));
+    const until = app.state.messages.find((mail) => mail.id === "a:1:5")!.snoozedUntil!;
+    await app.click(app.button("Snoozed1"));
+    await app.open();
+    assert.ok(returnLine());
+    assert.ok(app.button("Return to inbox", returnLine()));
+    const changeTime = app.button("Change time", returnLine());
+    await app.click(changeTime);
+    const input = menu()!.querySelector<HTMLInputElement>('input[type="datetime-local"]')!;
+    assert.equal(input.value, localValue(new Date(until)), "the custom field opens on the current snooze time");
+    assert.equal(app.container.ownerDocument.activeElement, input);
+    for (const label of ["In one hour", "Tomorrow morning", "In one week"]) {
+      const item = [...menu()!.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent?.startsWith(label))!;
+      assert.match(item.querySelector("kbd")!.textContent!, /\d{4}.*\d{1,2}:\d{2}/, `${label} shows a full local date and time`);
+    }
+    input.value = localValue(new Date(Date.now() - 3600000));
+    await submit(input.closest("form")!);
+    assert.equal(menu()!.querySelector('[role="alert"]')!.textContent, "Choose a time in the future.");
+    await app.key("Escape", input);
+    assert.equal(menu(), null);
+    assert.equal(app.container.ownerDocument.activeElement, changeTime, "Escape returns focus to Change time");
+    await app.click(changeTime);
+    const retry = menu()!.querySelector<HTMLInputElement>('input[type="datetime-local"]')!;
+    assert.equal(retry.value, localValue(new Date(until)));
+    const future = new Date(Date.now() + 72 * 3600000); future.setMinutes(0, 0, 0);
+    retry.value = localValue(future);
+    await submit(retry.closest("form")!);
+    assert.deepEqual(app.mutations.at(-1), { id: "a:1:5", action: "snooze" });
+    assert.equal(app.state.messages.find((mail) => mail.id === "a:1:5")!.snoozedUntil, future.getTime());
+    assert.ok([...app.container.querySelectorAll(".toast-success")].some((toast) =>
+      toast.textContent?.includes(`Email snoozed until ${new Date(future.getTime()).toLocaleString()}.`)), "confirmation follows the saved time");
+    await app.open();
+    await app.click(app.button("Return to inbox", returnLine()));
+    assert.deepEqual(app.mutations.at(-1), { id: "a:1:5", action: "unsnooze" });
+    assert.equal(app.container.querySelector(".message-return"), null);
+  } finally { await app.close(); }
+});
+
 test("Trash confirmation is private, cancelable and keyboard accessible; success removes only the confirmed mail", async () => {
   const app = await mount();
   try {
@@ -498,9 +549,9 @@ test("saved Compose settings reach new drafts, templates and account signatures 
     const dialog = app.dialog();
     const body = dialog.querySelector<HTMLTextAreaElement>("textarea")!;
     assert.equal(body.value, "\n\n-- \nWork signature");
-    const template = dialog.querySelector<HTMLSelectElement>(".compose-preference-controls select")!;
-    await act(async () => { template.value = "followup"; template.dispatchEvent(new app.container.ownerDocument.defaultView!.Event("change", { bubbles: true })); });
-    await app.click(app.button("Insert template", dialog));
+    const templateSearch = dialog.querySelector<HTMLElement>(".compose-template-picker input")!;
+    await act(async () => templateSearch.focus());
+    await app.click([...dialog.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent === "Follow up")!);
     assert.equal(body.value, "Template body\n\n-- \nWork signature");
     const from = dialog.querySelector<HTMLButtonElement>('[role="combobox"][aria-label="From"]')!;
     await app.click(from);

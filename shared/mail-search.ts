@@ -1,4 +1,4 @@
-import type { Account, Draft, Mail, MailSummary } from "./types.js";
+import type { Account, Draft, Mail, MailSummary, ProviderSearchResult } from "./types.js";
 
 type SearchDocument = { canonical: string[]; folded: string[] };
 type CachedDocument = SearchDocument & { raw: string[]; bytes: number };
@@ -198,4 +198,41 @@ export function compileMailSearch(query: string, accounts: Account[] = []): { ma
     const document = needsDocument ? indexMail(mail, false) : emptyDocument;
     return terms.every(term => term(mail, document));
   } };
+}
+
+export type ProviderSearchTerm =
+  | { kind: "text"; field: "any" | "from" | "to" | "subject" | "body"; value: string; exclude: boolean }
+  | { kind: "read"; read: boolean }
+  | { kind: "date"; edge: "before" | "after"; at: number };
+export type ProviderSearchPlan = { terms: ProviderSearchTerm[]; deviceOnly: Extract<ProviderSearchResult["narrowed"][number], "account:" | "is:pinned">[] };
+
+// Translate a valid cached-search query into provider-neutral terms. Imported
+// results are shown through compileMailSearch, so a provider may widen a term;
+// account: and is:pinned only exist on this device and are named, not sent.
+export function providerSearchPlan(query: string): ProviderSearchPlan | { error: string } {
+  const tokens = tokenize(query);
+  if (!tokens || compileMailSearch(query).error) return { error };
+  const terms: ProviderSearchTerm[] = [];
+  const deviceOnly = new Set<ProviderSearchPlan["deviceOnly"][number]>();
+  for (const { text } of tokens) {
+    const exclude = text.startsWith("-");
+    const token = exclude ? text.slice(1) : text;
+    const colon = token.indexOf(":");
+    const prefix = colon < 0 ? "" : token.slice(0, colon).toLowerCase();
+    const value = fields.has(prefix) ? token.slice(colon + 1) : token;
+    if (prefix === "account") deviceOnly.add("account:");
+    else if (prefix === "is") {
+      const state = value.toLowerCase();
+      if (state === "pinned") deviceOnly.add("is:pinned");
+      else terms.push({ kind: "read", read: (state === "read") !== exclude });
+    } else if (prefix === "before" || prefix === "after") {
+      // Excluding one side of a UTC day boundary is the other side.
+      terms.push({ kind: "date", edge: (prefix === "after") !== exclude ? "after" : "before", at: dateValue(value)! });
+    } else {
+      const field = prefix === "from" || prefix === "to" || prefix === "subject" || prefix === "body" ? prefix : "any";
+      terms.push({ kind: "text", field, value, exclude });
+    }
+  }
+  if (!terms.length) return { error: "Add a search term the provider can match." };
+  return { terms, deviceOnly: [...deviceOnly] };
 }

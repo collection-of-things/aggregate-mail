@@ -11,6 +11,7 @@ import { all, get, syncMailCache, mailSummaryChanges, mailSummary, searchMail, d
 import { matchesRule } from "../shared/rules.js";
 import { mountWorkspace } from "./workspace.js";
 import { mountAgentProvider } from "./agent-provider.js";
+import { mountProviderSearch } from "./provider-search.js";
 import { mountDrafts } from "./drafts.js";
 import { mountContacts, removeAccountContacts } from "./contacts.js";
 import { calendarScopes, removeGoogleCalendar, saveCalendarAccess } from "./google-calendar.js";
@@ -129,6 +130,7 @@ mountOffers(app);
 mountInvitations(app);
 mountAgentProvider(app);
 mountContacts(app);
+mountProviderSearch(app, () => desktopEvents.emit("mail-changed"));
 app.get("/api/state", async (req, res) => {
   if (res.destroyed) return;
   const controller = new AbortController();

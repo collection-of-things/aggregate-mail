@@ -1,5 +1,5 @@
 import { changeComposeText } from "../../shared/compose-content";
-import { useContext, useState } from "react";
+import { useContext, useEffect, useId, useRef, useState } from "react";
 import type { ComposePreferences, ComposeTemplate } from "../../shared/mail-features";
 import { PrivacyContext } from "../ui/Privacy";
 import type { Compose } from "./ComposePanel";
@@ -40,25 +40,82 @@ export function ComposePreferenceControls({ draft, preferences, busy, onChange }
   onChange: (draft: Compose) => void;
 }) {
   const { on: privacy } = useContext(PrivacyContext);
+  const id = useId();
+  const root = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const [selected, setSelected] = useState("");
   const [error, setError] = useState("");
-  const template = preferences.templates.find((item) => item.id === selected);
+  useEffect(() => { if (busy) setOpen(false); }, [busy]);
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: MouseEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
+    window.addEventListener("mousedown", away);
+    return () => window.removeEventListener("mousedown", away);
+  }, [open]);
   if (!preferences.templates.length) return null;
-  return <div className="compose-preference-controls">
-    <label>Template
-      <select value={template ? selected : ""} disabled={busy} onChange={(event) => setSelected(event.target.value)}>
-        <option value="">Choose template</option>
-        {preferences.templates.map((item, index) => <option key={item.id} value={item.id}>
-          {privacy ? `Template ${index + 1}` : item.name}
-        </option>)}
-      </select>
-    </label>
-    <button className="button" type="button" disabled={busy || !template}
-      onClick={() => {
-        if (!template) return;
-        try { onChange(insertComposeTemplate(draft, template, preferences)); setError(""); }
-        catch { setError("Unable to insert this template without changing your message. Your current text is unchanged."); }
-      }}>Insert template</button>
+  const needle = query.trim().toLocaleLowerCase();
+  const matches = preferences.templates.filter((item) => !needle
+    || `${item.name}\n${item.subject}\n${item.body}`.toLocaleLowerCase().includes(needle));
+  const active = matches.find((item) => item.id === selected) ?? matches[0];
+  const optionId = (item: ComposeTemplate) => `${id}-${preferences.templates.indexOf(item)}`;
+  // The message body is the editing target; Escape and insertion return focus
+  // there so the user can keep typing.
+  const editor = () => root.current?.closest('[role="dialog"]')?.querySelector<HTMLElement>('[aria-label="Message body"]');
+  const insert = (template: ComposeTemplate | undefined) => {
+    if (!template) return;
+    try {
+      onChange(insertComposeTemplate(draft, template, preferences));
+      setError(""); setOpen(false); setQuery(""); setSelected("");
+      editor()?.focus();
+    } catch { setError("Unable to insert this template without changing your message. Your current text is unchanged."); }
+  };
+  return <div className="compose-preference-controls" ref={root} data-escape-owner={open || undefined}
+    onKeyDown={(event) => {
+      if (event.key !== "Escape" || !open || event.nativeEvent.isComposing) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+      editor()?.focus();
+    }}>
+    <div className="compose-template-picker">
+      <label>Template
+        <input role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded={open}
+          aria-controls={open ? `${id}-list` : undefined}
+          aria-activedescendant={open && active ? optionId(active) : undefined}
+          placeholder="Search templates…" value={query} disabled={busy}
+          onFocus={() => setOpen(true)}
+          onChange={(event) => { setQuery(event.target.value); setSelected(""); setOpen(true); }}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
+            if (event.key === "Tab") { setOpen(false); return; }
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              setOpen(true);
+              if (!matches.length) return;
+              const index = active ? matches.indexOf(active) : 0;
+              const next = matches[(index + (event.key === "ArrowDown" ? 1 : -1) + matches.length) % matches.length];
+              setSelected(next.id);
+              document.getElementById(optionId(next))?.scrollIntoView?.({ block: "nearest" });
+            } else if (event.key === "Enter") {
+              event.preventDefault();
+              if (open) insert(active);
+            }
+          }} />
+      </label>
+      {open && <div className="compose-template-menu">
+        <ul id={`${id}-list`} role="listbox" aria-label="Templates">
+          {matches.map((item) => <li key={item.id} id={optionId(item)} role="option" aria-selected={active?.id === item.id}
+            onMouseDown={(event) => event.preventDefault()} onMouseMove={() => setSelected(item.id)}
+            onClick={() => insert(item)}>
+            {privacy ? `Template ${preferences.templates.indexOf(item) + 1}` : item.name}
+          </li>)}
+        </ul>
+        {!matches.length && <p role="status">No matching templates</p>}
+      </div>}
+    </div>
+    <button className="button" type="button" disabled={busy || !active}
+      onClick={() => insert(active)}>Insert template</button>
     <p className="note">Adds text to your message. The subject is filled only when empty.</p>
     {error && <p role="alert">{error}</p>}
   </div>;

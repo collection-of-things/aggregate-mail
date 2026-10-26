@@ -15,7 +15,9 @@ export function SnoozeMenu({ mail, x, y, anchor, busy, onSnooze, onUnsnooze, onC
   const now = Date.now();
   const nextWeek = new Date(now);
   nextWeek.setDate(nextWeek.getDate() + 7);
-  const [custom, setCustom] = useState(false);
+  // An active snooze opens the custom field on its return time; a new snooze keeps tomorrow at 9:00.
+  const snoozedUntil = mail.snoozedUntil !== null && mail.snoozedUntil > now ? mail.snoozedUntil : null;
+  const [custom, setCustom] = useState(snoozedUntil !== null);
   const [error, setError] = useState("");
   const input = useRef<HTMLInputElement>(null);
   useLayoutEffect(() => { if (custom) input.current?.focus(); }, [custom]);
@@ -24,9 +26,11 @@ export function SnoozeMenu({ mail, x, y, anchor, busy, onSnooze, onUnsnooze, onC
     { id: "tomorrow", label: "Tomorrow morning", until: followUpPreset("tomorrow", now)! },
     { id: "week", label: "In one week", until: nextWeek.getTime() },
   ];
-  const defaultTime = new Date(now);
-  defaultTime.setDate(defaultTime.getDate() + 1);
-  defaultTime.setHours(9, 0, 0, 0);
+  const defaultTime = new Date(snoozedUntil ?? now);
+  if (snoozedUntil === null) {
+    defaultTime.setDate(defaultTime.getDate() + 1);
+    defaultTime.setHours(9, 0, 0, 0);
+  }
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const until = input.current ? new Date(input.current.value).getTime() : NaN;
@@ -39,7 +43,7 @@ export function SnoozeMenu({ mail, x, y, anchor, busy, onSnooze, onUnsnooze, onC
   return <ContextMenu x={x} y={y} anchor={anchor} label="Snooze email" onClose={onClose}
     actions={[
       ...choices.map(({ id, label, until }) => ({ id, label, disabled: busy,
-        key: new Date(until).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }),
+        key: new Date(until).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }),
         run: () => onSnooze(until) })),
       ...(mail.snoozedUntil ? [{ id: "return", label: "Return to inbox now", disabled: busy, run: onUnsnooze }] : []),
       { id: "custom", label: "Pick date and time…", disabled: busy, keepOpen: true, run: () => setCustom(true) },

@@ -5,6 +5,7 @@ import { JSDOM } from "jsdom";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ComposePreferences } from "../shared/mail-features";
 import { changeComposeAccount, ComposePreferenceControls, initialCompose, insertComposeTemplate } from "./compose/ComposePreferences";
+import { ComposePanel, type Compose } from "./compose/ComposePanel";
 import { ComposeSettings } from "./settings/ComposeSettings";
 import { PrivacyContext } from "./ui/Privacy";
 
@@ -14,6 +15,14 @@ const accounts = [
 ];
 const preferences: ComposePreferences = {
   templates: [{ id: "greeting", name: "Synthetic greeting", subject: "Template subject", body: "Template body" }],
+  signatures: { first: "First signature", second: "Second signature" },
+};
+const pickerPreferences: ComposePreferences = {
+  templates: [
+    { id: "greeting", name: "Synthetic greeting", subject: "Template subject", body: "Template body" },
+    { id: "followup", name: "Follow-up note", subject: "Checking in", body: "Circling back on this" },
+    { id: "thanks", name: "Thank you", subject: "Gratitude", body: "Thanks for your help" },
+  ],
   signatures: { first: "First signature", second: "Second signature" },
 };
 
@@ -137,27 +146,117 @@ test("mounted settings retain edits after save failure, block duplicate saves an
   });
 });
 
-test("mounted template insertion is explicit and disabled during sending", async () => {
+test("mounted template picker filters by name and content and inserts the highlighted match", async () => {
   await withDOM(async ({ document, render }) => {
-    const draft = initialCompose("first", preferences, { body: "Existing message", subject: "Existing subject", sendUnknown: true });
+    const draft = initialCompose("first", pickerPreferences, { body: "Existing message", subject: "Existing subject", sendUnknown: true });
     const changes: typeof draft[] = [];
-    const controls = (busy: boolean) => <ComposePreferenceControls preferences={preferences} draft={draft} busy={busy} onChange={(value) => changes.push(value)} />;
+    const controls = (busy: boolean) => <ComposePreferenceControls preferences={pickerPreferences} draft={draft} busy={busy} onChange={(value) => changes.push(value)} />;
     await render(controls(false));
-    const select = document.querySelector("select")!;
-    const button = document.querySelector("button")!;
-    assert.equal(button.disabled, true);
-    await act(async () => { select.value = "greeting"; select.dispatchEvent(new window.Event("change", { bubbles: true })); });
-    assert.equal(changes.length, 0);
-    await act(async () => button.click());
+    const input = document.querySelector<HTMLInputElement>('input[role="combobox"]')!;
+    const button = () => [...document.querySelectorAll("button")].find((item) => item.textContent === "Insert template")!;
+    const options = () => [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+    const type = async (value: string) => {
+      const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
+      await act(async () => { setValue.call(input, value); input.dispatchEvent(new window.Event("input", { bubbles: true })); });
+    };
+    assert.equal(document.querySelector('[role="listbox"]'), null);
+    await act(async () => input.focus());
+    assert.equal(input.getAttribute("aria-expanded"), "true");
+    assert.deepEqual(options().map((item) => item.textContent), ["Synthetic greeting", "Follow-up note", "Thank you"]);
+    // Filtering matches template bodies, not only names.
+    await type("circling");
+    assert.deepEqual(options().map((item) => item.textContent), ["Follow-up note"]);
+    assert.equal(input.getAttribute("aria-activedescendant"), options()[0].id);
+    // Enter inserts the highlighted template before an unchanged signature.
+    await act(async () => input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
     assert.equal(changes.length, 1);
-    assert.equal(changes[0].body, "Existing message\n\nTemplate body\n\n-- \nFirst signature");
+    assert.equal(changes[0].body, "Existing message\n\nCircling back on this\n\n-- \nFirst signature");
     assert.equal(changes[0].subject, "Existing subject");
     assert.equal(changes[0].sendUnknown, true);
+    assert.equal(document.querySelector('[role="listbox"]'), null);
+    // The explicit insert action stays available and applies the same insertion.
+    await type("");
+    await act(async () => button().click());
+    assert.equal(changes.length, 2);
+    assert.equal(changes[1].body, "Existing message\n\nTemplate body\n\n-- \nFirst signature");
+    // An unmatched query leaves nothing to insert.
+    await type("zzz");
+    assert.equal(options().length, 0);
+    assert.match(document.querySelector('[role="status"]')!.textContent!, /No matching templates/);
+    assert.equal(button().disabled, true);
+    // Busy state closes the picker and disables the controls.
     await render(controls(true));
-    assert.equal(select.disabled, true);
-    assert.equal(button.disabled, true);
-    await act(async () => button.click());
-    assert.equal(changes.length, 1);
+    assert.equal(document.querySelector<HTMLInputElement>('input[role="combobox"]')!.disabled, true);
+    assert.equal(document.querySelector('[role="listbox"]'), null);
+    assert.equal(button().disabled, true);
+    await act(async () => button().click());
+    assert.equal(changes.length, 2);
+  });
+});
+
+test("composer template picker moves with arrows, inserts with Enter and closes on Escape without closing the draft", async () => {
+  const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost" });
+  const globals = { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true };
+  const previous = new Map(Object.keys(globals).map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, value });
+  const { createRoot } = await import("react-dom/client");
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  const document = dom.window.document;
+  let changed: Compose | undefined, closed = 0;
+  const key = (name: string) => new dom.window.KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true });
+  try {
+    await act(async () => root.render(<ComposePanel
+      draft={{ accountId: "test", to: "", subject: "", body: "" }} setDraft={(value) => { changed = value; }}
+      accounts={[{ id: "test", email: "from@example.test", provider: "imap" }]} busy={false}
+      onClose={() => closed++} onDiscard={() => {}} onRetry={() => {}} onSaveCopy={() => {}}
+      progress={{ phase: "saved", message: "Draft saved." }} onSend={() => {}}
+      preferences={pickerPreferences} />));
+    const input = document.querySelector<HTMLInputElement>('.compose-template-picker input')!;
+    const options = () => [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+    await act(async () => input.focus());
+    assert.deepEqual(options().map((item) => item.textContent), ["Synthetic greeting", "Follow-up note", "Thank you"]);
+    // Arrows move the highlight and announce it through aria-activedescendant.
+    await act(async () => input.dispatchEvent(key("ArrowDown")));
+    assert.equal(input.getAttribute("aria-activedescendant"), options()[1].id);
+    assert.equal(options()[1].getAttribute("aria-selected"), "true");
+    await act(async () => input.dispatchEvent(key("ArrowUp")));
+    assert.equal(options()[0].getAttribute("aria-selected"), "true");
+    await act(async () => input.dispatchEvent(key("ArrowUp")));
+    assert.equal(options()[2].getAttribute("aria-selected"), "true", "arrow up wraps to the last template");
+    // Enter inserts the highlighted template and returns focus to the editor.
+    await act(async () => input.dispatchEvent(key("Enter")));
+    const editor = document.querySelector<HTMLElement>('[aria-label="Message body"]')!;
+    assert.equal(changed?.body, "Thanks for your help");
+    assert.equal(changed?.subject, "Gratitude", "an empty subject is filled by the template");
+    assert.equal(document.activeElement, editor);
+    // Escape closes only the picker, not the composer.
+    await act(async () => input.focus());
+    assert.ok(document.querySelector('[role="listbox"]'));
+    await act(async () => input.dispatchEvent(key("Escape")));
+    assert.equal(document.querySelector('[role="listbox"]'), null);
+    assert.equal(document.querySelectorAll('[role="dialog"]').length, 1, "the composer stays open");
+    assert.equal(closed, 0);
+    assert.equal(document.activeElement, editor, "focus returns to the message body");
+  } finally {
+    await act(async () => root.unmount());
+    dom.window.close();
+    for (const [key, descriptor] of previous) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);
+    }
+  }
+});
+
+test("mounted template picker keeps generic labels in privacy mode", async () => {
+  await withDOM(async ({ document, render }) => {
+    await render(<PrivacyContext.Provider value={{ on: true, revealed: new Set(), toggle() {} }}>
+      <ComposePreferenceControls preferences={pickerPreferences} draft={initialCompose("first", pickerPreferences)} busy={false} onChange={() => {}} />
+    </PrivacyContext.Provider>);
+    await act(async () => document.querySelector<HTMLInputElement>('input[role="combobox"]')!.focus());
+    assert.deepEqual([...document.querySelectorAll<HTMLElement>('[role="option"]')].map((item) => item.textContent),
+      ["Template 1", "Template 2", "Template 3"]);
+    for (const text of ["Synthetic greeting", "Follow-up note", "Thank you", "Checking in", "Circling back", "Template body"]) {
+      assert.ok(!document.documentElement.innerHTML.includes(text), text);
+    }
   });
 });
 

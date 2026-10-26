@@ -36,11 +36,13 @@ import { ListEmpty } from "./mail/ListEmpty";
 import { MailActions } from "./mail/MailActions";
 import { MailFilters } from "./mail/MailFilters";
 import { MailList } from "./mail/MailList";
+import { ProviderSearch } from "./mail/ProviderSearch";
 import { Workbench } from "./work/Workbench";
 import { QuickTrack } from "./work/QuickTrack";
 import { MeetingDialog } from "./work/EventPanel";
 import { useWorkspace } from "./work/useWorkspace";
 import { openCommitment } from "../shared/commitment-dates";
+import { nextRegion, regionOf, regionOrder, type Region } from "./region-focus";
 import { Reader, ReaderEmpty } from "./mail/Reader";
 import { sidebarViews, tabName, viewNames, viewOrder, type View } from "./mail/format";
 import { accountLabel, customLabels, textSizeShortcut, filterMail, matchesLabel, markMailRead } from "./mail-ui";
@@ -525,6 +527,7 @@ export function App() {
     [state.messages, state.rules]);
   const tabOf = (mail: Mail) => "inboxTab" in mail ? mail.inboxTab : tabs.get(mail.id) ?? inboxTab(mail, state.rules);
   const search = useMailSearch(query, state.accounts, state.messages, api, state.draftToken);
+  const searchAccount = accountFilter === "all" ? undefined : state.accounts.find((a) => a.id === accountFilter);
   const showSearchDrafts = !!query.trim() && (view === "all" || view === "drafts") &&
     readFilter === "all" && relevanceFilter === "all" && labelFilter === "all";
   const hasSearchDrafts = showSearchDrafts && search.drafts.some(draft => accountFilter === "all" || draft.accountId === accountFilter);
@@ -717,20 +720,26 @@ export function App() {
   const neighbourIndex = neighbours.findIndex((mail) => mail.id === selected?.id);
   const previousMail = neighbours[neighbourIndex - 1];
   const nextMail = neighbours[neighbourIndex + 1];
+  type MailMenuId = "open" | "read" | "pin" | "reply" | "reply-all" | "archive" | "snooze" | "unsnooze" | "trash" | "track" | "meeting" | "teach";
+  const busyReason = busy ? "Another action is in progress" : syncing ? "Mail is syncing" : undefined;
+  // Why a mailbox-state action is unavailable; undefined while it can run.
+  const mailActionReason = (mail: Mail) =>
+    mail.archived ? "Already archived" : mail.direction === "sent" ? "Not available for sent mail" : busyReason;
   // One list of actions feeds the native menu on the desktop and the drawn menu elsewhere.
-  const mailMenuActions = (mail: Mail): MenuAction[] => [
+  const mailMenuActions = (mail: Mail): (MenuAction & { id: MailMenuId })[] => [
     { id: "open", label: "Open", key: shortcut("open"), run: () => openMail(mail) },
-    { id: "read", label: reading.has(mail.id) ? "Marking as read…" : "Mark as read", disabled: mail.direction === "sent" || !mail.unread || reading.has(mail.id), run: () => markRead(mail) },
-    { id: "pin", label: mail.pinned ? "Unpin email" : "Pin email", disabled: busy, run: () => void changeMessage(mail, mail.pinned ? "unpin" : "pin") },
-    { id: "reply", label: "Reply", key: shortcut("reply"), disabled: busy, separator: true, run: () => startCompose(mail) },
-    { id: "reply-all", label: "Reply all", disabled: busy, run: () => startCompose(mail, true) },
-    { id: "archive", label: "Archive", key: shortcut("done"), disabled: busy || syncing || mail.archived || mail.direction === "sent", separator: true, run: () => archive(mail) },
-    { id: "snooze", label: "Snooze", key: shortcut("snooze"), disabled: busy || syncing || mail.archived || mail.direction === "sent", run: () => showSnooze(mail) },
-    ...(isSnoozed(mail) ? [{ id: "unsnooze", label: "Return to inbox", disabled: busy || syncing, run: () => void changeMessage(mail, "unsnooze") }] : []),
-    { id: "trash", label: "Move to Trash", disabled: busy || syncing || !!trashUnavailable(mail), description: trashUnavailable(mail), run: () => setTrashMail(mail) },
-    { id: "track", label: "Track work", disabled: busy || navigationBlocked, run: () => openTracking(mail) },
-    { id: "meeting", label: "Schedule meeting", disabled: busy || navigationBlocked, run: () => openMeeting(mail) },
-    { id: "teach", label: "Teach sorting", key: shortcut("teach"), disabled: busy || syncing, separator: true, run: () => setTeach(mail) },
+    { id: "read", label: reading.has(mail.id) ? "Marking as read…" : "Mark as read", disabled: mail.direction === "sent" || !mail.unread || reading.has(mail.id),
+      description: mail.direction === "sent" ? "Sent mail is already read" : reading.has(mail.id) ? "Update in progress" : !mail.unread ? "Already read" : undefined, run: () => markRead(mail) },
+    { id: "pin", label: mail.pinned ? "Unpin email" : "Pin email", disabled: busy, description: busy ? "Another action is in progress" : undefined, run: () => void changeMessage(mail, mail.pinned ? "unpin" : "pin") },
+    { id: "reply", label: "Reply", key: shortcut("reply"), disabled: busy, description: busy ? "Another action is in progress" : undefined, separator: true, run: () => startCompose(mail) },
+    { id: "reply-all", label: "Reply all", disabled: busy, description: busy ? "Another action is in progress" : undefined, run: () => startCompose(mail, true) },
+    { id: "archive", label: "Archive", key: shortcut("done"), disabled: busy || syncing || mail.archived || mail.direction === "sent", description: mailActionReason(mail), separator: true, run: () => archive(mail) },
+    { id: "snooze", label: "Snooze", key: shortcut("snooze"), disabled: busy || syncing || mail.archived || mail.direction === "sent", description: mailActionReason(mail), run: () => showSnooze(mail) },
+    ...(isSnoozed(mail) ? [{ id: "unsnooze" as const, label: "Return to inbox", disabled: busy || syncing, description: busyReason, run: () => void changeMessage(mail, "unsnooze") }] : []),
+    { id: "trash", label: "Move to Trash", disabled: busy || syncing || !!trashUnavailable(mail), description: trashUnavailable(mail) ?? busyReason, run: () => setTrashMail(mail) },
+    { id: "track", label: "Track work", disabled: busy || navigationBlocked, description: busy ? "Another action is in progress" : navigationBlocked ? "Not available right now" : undefined, run: () => openTracking(mail) },
+    { id: "meeting", label: "Schedule meeting", disabled: busy || navigationBlocked, description: busy ? "Another action is in progress" : navigationBlocked ? "Not available right now" : undefined, run: () => openMeeting(mail) },
+    { id: "teach", label: "Teach sorting", key: shortcut("teach"), disabled: busy || syncing, description: busyReason, separator: true, run: () => setTeach(mail) },
   ];
   const showMailMenu = (event: ReactMouseEvent<HTMLElement> | ReactKeyboardEvent<HTMLElement>, mail: Mail) => {
     setSelectedId(mail.id);
@@ -748,6 +757,29 @@ export function App() {
       showMailMenu(event, mail);
     }
   };
+  // Where F6 lands in each window region; null skips a hidden region or one
+  // with nothing safe to focus.
+  const usable = (element: HTMLElement | null | undefined) =>
+    element && !element.closest("[inert]") ? element : null;
+  const regionTarget = (region: Region): HTMLElement | null => {
+    if (region === "sidebar")
+      return usable(document.querySelector<HTMLElement>('#sidebar:not([inert]) button[aria-current="page"]')) ??
+        usable(document.querySelector<HTMLElement>('#sidebar:not([inert]) button:not(:disabled), #sidebar:not([inert]) a[href]'));
+    if (region === "search")
+      return usable(searchRef.current && !searchRef.current.disabled ? searchRef.current : null);
+    if (region === "list") {
+      const list = usable(listRef.current);
+      if (!list) return null;
+      return usable(selected ? document.getElementById(`mail-${selected.id}`) : null) ??
+        usable(list.querySelector<HTMLElement>(".message")) ??
+        usable(list.querySelector<HTMLElement>(".row:not(:disabled)")) ??
+        list;
+    }
+    const pane = usable(document.querySelector<HTMLElement>(".reader-pane"));
+    return pane
+      ? usable(pane.querySelector<HTMLElement>(".message")) ?? usable(pane.querySelector<HTMLElement>(".reader-scroll")) ?? pane
+      : null;
+  };
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (settingsModal || workModal || quickSource || meetingMail || updateInstalling || contextMenu || event.defaultPrevented || event.isComposing ||
@@ -759,6 +791,20 @@ export function App() {
         return;
       }
       if (palette) return;
+      // F6/Shift+F6 cycles the visible window regions; dialogs, the composer
+      // and fields other than the search box keep their own key scope.
+      if (event.key === "F6" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (navigationBlocked || (target instanceof HTMLElement && (target.closest('[role="dialog"]') ||
+          (target !== searchRef.current && target.closest('input, textarea, select, [role="combobox"], [contenteditable]:not([contenteditable="false"])'))))) return;
+        const next = nextRegion(regionOrder.filter((region) => regionTarget(region) !== null),
+          regionOf(document.activeElement), event.shiftKey ? -1 : 1);
+        if (!next) return;
+        event.preventDefault();
+        const element = regionTarget(next)!;
+        element.focus({ preventScroll: true });
+        if (element.matches(".row, .message")) element.scrollIntoView?.({ block: "nearest" });
+        return;
+      }
       if (settings && target instanceof HTMLElement && target.closest("[data-interaction-settings]") &&
         event.key === "Escape" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey &&
         !compose && !teach && !snooze && !trashMail && !shortcuts && !labelMail && !connecting) {
@@ -997,6 +1043,8 @@ export function App() {
       onChanged={reload}
       onReplyAll={() => startCompose(selected, true)}
       onLabels={() => setLabelMail(selected)}
+      onUnsnooze={() => void changeMessage(selected, "unsnooze")}
+      onChangeTime={(event) => showSnooze(selected, event)}
       onMenu={showMailMenu}
       onMenuKey={mailMenuKey}
     />
@@ -1024,21 +1072,70 @@ export function App() {
     settings: () => setSettings(true), privacy: togglePrivacy, help: () => setShortcuts(true),
     density: () => setDensity((value) => value === "comfortable" ? "compact" : "comfortable"),
   };
+  const paletteViews = ["actions", "calendar", "projects", "agents", "sent", "all"] as const;
+  type PaletteId =
+    | keyof typeof paletteActions
+    | `view-${(typeof paletteViews)[number]}`
+    | "row-sizing" | "drafts" | "archive-view" | "snoozed-view" | "pinned-view" | "sync"
+    | `mail-${MailMenuId}`;
+  // Extra search words keyed by command id, so an alias on a missing id fails to compile.
+  const commandAliases: Partial<Record<PaletteId, string[]>> = {
+    search: ["find"],
+    compose: ["new", "write"],
+    settings: ["preferences"],
+    privacy: ["redact", "hide"],
+    help: ["keys"],
+    sync: ["refresh"],
+    "archive-view": ["archived"],
+    "snoozed-view": ["later"],
+    "mail-archive": ["done"],
+    "mail-snooze": ["later"],
+    "mail-trash": ["delete"],
+    "mail-reply": ["answer"],
+    "mail-teach": ["learn"],
+  };
+  // Actions on the selected email stay listed, disabled, when nothing is selected.
+  const placeholderMailCommands: { id: Exclude<MailMenuId, "unsnooze">; label: string; key?: string }[] = [
+    { id: "open", label: "Open", key: shortcut("open") },
+    { id: "read", label: "Mark as read" },
+    { id: "pin", label: "Pin email" },
+    { id: "reply", label: "Reply", key: shortcut("reply") },
+    { id: "reply-all", label: "Reply all" },
+    { id: "archive", label: "Archive", key: shortcut("done") },
+    { id: "snooze", label: "Snooze", key: shortcut("snooze") },
+    { id: "trash", label: "Move to Trash" },
+    { id: "track", label: "Track work" },
+    { id: "meeting", label: "Schedule meeting" },
+    { id: "teach", label: "Teach sorting", key: shortcut("teach") },
+  ];
+  const mailCommands = selected
+    ? mailMenuActions(selected).map(({ id, label, key, disabled, description, run }) => ({
+        id: `mail-${id}`, label, group: "mail" as const, shortcut: key, disabled,
+        disabledReason: description, aliases: commandAliases[`mail-${id}`], run }))
+    : placeholderMailCommands.map(({ id, label, key }) => ({
+        id: `mail-${id}`, label, group: "mail" as const, shortcut: key, disabled: true,
+        disabledReason: "Select an email first", aliases: commandAliases[`mail-${id}`], run: () => undefined }));
   const commands: PaletteCommand[] = [
-    ...interactionActions.flatMap(({ id, label }) => id in paletteActions ? [{ id, label, shortcut: shortcut(id),
+    ...interactionActions.flatMap(({ id, label }) => id in paletteActions ? [{ id, label, group: "navigation" as const,
+      shortcut: shortcut(id), aliases: commandAliases[id as keyof typeof paletteActions],
       run: paletteActions[id as keyof typeof paletteActions] }] : []),
-    { id: "row-sizing", label: "Size rows by importance on / off", run: () => updateAppearance({ ...appearance, sizeByImportance: !appearance.sizeByImportance }) },
-    ...(["actions", "calendar", "projects", "agents", "sent", "all"] as const).map((next) => ({ id: `view-${next}`, label: `Open ${viewNames[next]}`, run: () => navigate({ page: "mail", view: next, opened: false }) })),
-    { id: "drafts", label: "Open Drafts", disabled: !state.accounts.length, run: () => switchView("drafts") },
-    { id: "archive-view", label: "Show Archive", run: () => switchView("archive") },
-    { id: "snoozed-view", label: "Show Snoozed", run: () => switchView("snoozed") },
-    { id: "pinned-view", label: "Show pinned emails in this view", run: () => {
+    { id: "row-sizing", label: "Size rows by importance on / off", group: "navigation",
+      run: () => updateAppearance({ ...appearance, sizeByImportance: !appearance.sizeByImportance }) },
+    ...paletteViews.map((next) => ({ id: `view-${next}`, label: `Open ${viewNames[next]}`, group: "navigation" as const,
+      aliases: commandAliases[`view-${next}`], run: () => navigate({ page: "mail", view: next, opened: false }) })),
+    { id: "drafts", label: "Open Drafts", group: "navigation", disabled: !state.accounts.length,
+      disabledReason: !state.accounts.length ? "Add an account first" : undefined, run: () => switchView("drafts") },
+    { id: "archive-view", label: "Show Archive", group: "navigation", aliases: commandAliases["archive-view"], run: () => switchView("archive") },
+    { id: "snoozed-view", label: "Show Snoozed", group: "navigation", aliases: commandAliases["snoozed-view"], run: () => switchView("snoozed") },
+    { id: "pinned-view", label: "Show pinned emails in this view", group: "navigation", run: () => {
       navigate({ page: "mail", query: "is:pinned", selectedId: null, opened: false });
       setSearching(true);
     } },
-    { id: "sync", label: "Sync mail", disabled: syncing || !state.accounts.length, run: () => void sync() },
-    ...(!settings && selected ? mailMenuActions(selected).map(({ id, label, key, disabled, run }) =>
-      ({ id: `mail-${id}`, label, shortcut: key, disabled, run })) : []),
+    { id: "sync", label: "Sync mail", group: "navigation", aliases: commandAliases.sync,
+      disabled: syncing || !state.accounts.length,
+      disabledReason: !state.accounts.length ? "Add an account first" : syncing ? "Already syncing" : undefined,
+      run: () => void sync() },
+    ...(!settings ? mailCommands : []),
   ];
   return (
     <MailSearchApiContext.Provider value={api}><PrivacyContext.Provider
@@ -1123,7 +1220,8 @@ export function App() {
             </PaneHeader>
             <div hidden={!searching || settings || workView} className="search-help">
               <span id="mail-search-help" role={search.error ? "alert" : search.pending ? "status" : undefined}>{search.error || (search.pending ? "Searching cached mail and saved drafts…" : `Cached ${viewNames[view]} · ${accountFilter === "all" ? "All accounts" : !state.accounts.some(a => a.id === accountFilter) ? "Unavailable account" : accountLabel(state.accounts.find(a => a.id === accountFilter)!, state.accounts.findIndex(a => a.id === accountFilter), privacy, state.accounts)}${showSearchDrafts ? " · Includes saved drafts" : " · Mail only"}${readFilter !== "all" || relevanceFilter !== "all" || labelFilter !== "all" ? " · Filtered" : ""}`)}</span>
-              <details><summary>Search help</summary><p>Use from:, to:, subject:, body:, account:, is:unread, is:pinned, before:YYYY-MM-DD or after:YYYY-MM-DD. Unquoted words allow one typo. Searches imported mail and saved drafts on this device, including Sent, Archive and Snoozed. Provider history may be incomplete.</p></details>
+              <ProviderSearch api={api} query={query} account={searchAccount} accountName={searchAccount ? accountLabel(searchAccount, state.accounts.indexOf(searchAccount), privacy, state.accounts) : ""} blocked={toolbarBlocked || busy} visible={!settings && !workView && view !== "drafts" && !search.error && !search.pending} reload={reload} />
+              <details><summary>Search help</summary><p>Use from:, to:, subject:, body:, account:, is:unread, is:pinned, before:YYYY-MM-DD or after:YYYY-MM-DD. Unquoted words allow one typo. Searches imported mail and saved drafts on this device, including Sent, Archive and Snoozed. Provider history may be incomplete. With one account selected, searching older mail asks the provider for up to 100 more matches: Gmail uses Gmail search, IMAP searches Archive (or All Mail) and Sent, and account: and is:pinned apply only on this device.</p></details>
             </div>
         {view === "drafts" ? (
           <main className="drafts-pane" inert={!!compose}>
@@ -1156,6 +1254,7 @@ export function App() {
                 ref={listRef}
                 className={`list ${density}`}
                 aria-label={`${viewNames[view]} mail`}
+                tabIndex={-1}
               >
               <div key={paneKey} className={`pane ${pane.current.motion}`}>
                 {reader && !split ? reader : filtered.length ? (
@@ -1203,7 +1302,7 @@ export function App() {
                 <PaneHeader className="reader-head" corner={null} maximized={maximized}>
                   {opened && actions}
                 </PaneHeader>
-                <div ref={readerRef} className="reader-scroll">
+                <div ref={readerRef} className="reader-scroll" tabIndex={-1}>
                   <div key={selected && opened ? selected.id : "empty"} className="pane open">
                     {reader || <ReaderEmpty selected={!!selected} openKey={shortcut("open")} />}
                   </div>

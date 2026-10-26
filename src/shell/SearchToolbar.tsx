@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { commandsChord } from "../interaction";
 import { Close, Search } from "../ui/icons";
 
 export function SearchToolbar({ inputRef, query, label, invalid, disabled, commandsDisabled = disabled, shortcut, onFocus, onChange, onClear, onCommands, scopeKey = "" }: {
@@ -42,6 +43,6 @@ export function SearchToolbar({ inputRef, query, label, invalid, disabled, comma
       </button> : <kbd aria-hidden="true">{shortcut}</kbd>}
     </div>
     <button data-compose-access type="button" className="commands-button" disabled={commandsDisabled} onClick={onCommands}
-      aria-haspopup="dialog" title="Commands (Cmd/Ctrl+K)">Commands <kbd>⌘/Ctrl K</kbd></button>
+      aria-haspopup="dialog" title={`Commands (${commandsChord()})`}>Commands <kbd>{commandsChord()}</kbd></button>
   </div>;
 }

@@ -26,7 +26,7 @@ function readerDate(date: number) {
  * An opened email: subject, then one sender line with the recipient beneath
  * and the date at the right, Gmail labels, and the body with its image consent.
  */
-export function Reader({ mail, provider, labels, busy, api, onLabels, onMenu, onMenuKey, onOpen, onChanged, onReplyAll, onOpenDraft, state }: {
+export function Reader({ mail, provider, labels, busy, api, onLabels, onMenu, onMenuKey, onOpen, onChanged, onReplyAll, onOpenDraft, onUnsnooze, onChangeTime, state }: {
   mail: Mail;
   state?: State;
   provider?: Provider;
@@ -38,6 +38,8 @@ export function Reader({ mail, provider, labels, busy, api, onLabels, onMenu, on
   onChanged?: () => Promise<unknown>;
   onReplyAll?: () => void;
   onOpenDraft?: (draft: Draft) => void;
+  onUnsnooze?: () => void;
+  onChangeTime?: (event: MouseEvent<HTMLElement>) => void;
   onMenu: (event: MouseEvent<HTMLElement>, mail: Mail) => void;
   onMenuKey: (event: KeyboardEvent<HTMLElement>, mail: Mail) => void;
 }) {
@@ -61,7 +63,11 @@ export function Reader({ mail, provider, labels, busy, api, onLabels, onMenu, on
             {readerDate(mail.date)}
           </time>
         </div>
-        {mail.snoozedUntil !== null && mail.snoozedUntil > Date.now() && <p className="message-return">Returns to Inbox <time dateTime={new Date(mail.snoozedUntil).toISOString()}>{new Date(mail.snoozedUntil).toLocaleString()}</time> (local time)</p>}
+        {mail.snoozedUntil !== null && mail.snoozedUntil > Date.now() && <p className="message-return">
+          Returns to Inbox <time dateTime={new Date(mail.snoozedUntil).toISOString()}>{new Date(mail.snoozedUntil).toLocaleString()}</time> (local time)
+          {onUnsnooze && <> · <button type="button" className="link" disabled={busy} onClick={onUnsnooze}>Return to inbox</button></>}
+          {onChangeTime && <> · <button type="button" className="link" disabled={busy} onClick={onChangeTime}>Change time</button></>}
+        </p>}
         {hydrated && <InvitationPanel key={`invitation:${mailBodyKey(mail)}`} mail={hydrated} api={api} onOpenDraft={onOpenDraft} onChanged={onChanged} />}
         {!hydrated && <p role="status">{content.error || "Loading cached email…"}{content.error && <> <button type="button" className="link" onClick={content.retry}>Try again</button></>}</p>}
         {hydrated && <ReaderContent key={`content:${mailBodyKey(mail)}`} mail={hydrated}

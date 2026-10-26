@@ -386,5 +386,6 @@
 .row-pin { display: inline-flex; flex-shrink: 0; color: var(--accent); }
 .search-help { margin: 0; padding: 8px 18px; color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
 .search-help[role="alert"] { color: var(--danger); }
+.search-help button { height: 22px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: var(--radius-control); color: var(--text); font-size: inherit; }
 
 .list-pane { container-type: inline-size; }
