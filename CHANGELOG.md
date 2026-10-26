@@ -8,6 +8,7 @@
 - Add aliases, quiet groups and disabled reasons to Commands. Exact label matches rank above alias and substring matches; selected-email actions stay listed with a reason such as Select an email first when they cannot run. The Commands button and entries show the platform's real modifier.
 - Move keyboard focus between the main window regions with F6 and Shift+F6: sidebar, search, mail list and the opened reader, forwards and backwards. Entering the list focuses the selected row; a closed sidebar, closed or full-width reader is skipped. Dialogs, the composer and editors keep their own keys.
 
+- Stop a recipient display name made of `+` words from freezing privacy-mode redaction. Name words are now split on spaces and `+`, so matching stays linear.
 - Add a threat model to SECURITY.md covering trust boundaries, components, attackers, assets and lower-priority areas.
 - Add local contacts and recipient suggestions. To and Cc suggest saved contacts and addresses you sent to from Emc², per account, with keyboard and screen-reader support and privacy-mode redaction. Manage contacts and recent recipients in Settings. Nothing is inserted until you pick it.
 - Search older mail beyond the cache for one selected account on explicit request, importing up to 100 provider matches into the encrypted cache through Gmail search or read-only IMAP Archive, All Mail and Sent searches. The search line reports what the provider actually covered, cached results stay labelled as cached, and account: and is:pinned still apply only on this device.

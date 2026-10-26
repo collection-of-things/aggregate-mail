@@ -129,6 +129,16 @@ test("long ordinary words do not trigger quadratic address matching", () => {
   assert.ok(performance.now() - start < 1000, "scan non-address tokens once");
 });
 
+test("plus-sign words in a recipient name do not cause catastrophic backtracking", () => {
+  const text = `Bob${"+".repeat(80)}!`;
+  const start = performance.now();
+  assert.equal(redactPrivateText(text, ["Bob + + + + + + + + + + + + Lee"]), text);
+  assert.ok(performance.now() - start < 1000, "separator and words never share a character");
+  assert.equal(redactPrivateText("Hi Nora+Lane and Bob + Lee", ["Nora Lane", "Bob + Lee"]),
+    "Hi •••••••• and ••••••••");
+  assert.equal(redactPrivateText("a + b", ["+ +"]), "a + b");
+});
+
 test("ordinary text scans without allocating per-character offset pairs", () => {
   const text = `${"Public newsletter text. ".repeat(2000)}😀 Nora Lane <nora@example.com>`;
   const push = Array.prototype.push;
