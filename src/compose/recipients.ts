@@ -15,3 +15,16 @@ export function replyRecipients(mail: Pick<Mail, "address" | "to" | "cc" | "repl
   }) : [];
   return { to, cc };
 }
+
+// The picker completes the address after the last comma, so the same helpers
+// serve a single-address field and a comma-separated list.
+export function activeRecipient(value: string) {
+  return value.slice(value.lastIndexOf(",") + 1).trim();
+}
+export function replaceActiveRecipient(value: string, address: string) {
+  const head = value.slice(0, value.lastIndexOf(",") + 1);
+  return head ? `${head} ${address}` : address;
+}
+export function listedRecipients(value: string) {
+  return new Set(value.split(",").slice(0, -1).map((address) => address.trim().toLowerCase()).filter(Boolean));
+}

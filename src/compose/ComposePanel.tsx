@@ -12,6 +12,7 @@ import { mailBodyKey } from "../mail-body";
 import { changeComposeAccount, ComposePreferenceControls } from "./ComposePreferences";
 import type { Compose, DraftProgress } from "./draft-session";
 import { Paperclip, Trash } from "../ui/icons";
+import { RecipientInput } from "./RecipientInput";
 
 export type { Compose } from "./draft-session";
 export const unknownSendNotice =
@@ -203,25 +204,15 @@ export function ComposePanel({
 
           </div>
           <div className="compose-to-row">
-            <label>
-              <span>To</span>
-              <input
-                type="email"
-                required
-                disabled={!!draft.invitation || busy || loadingFiles}
-                maxLength={10000}
-                value={draft.to}
-                onChange={(e) => setDraft({ ...draft, to: e.target.value })}
-              />
-            </label>
+            <RecipientInput label="To" required value={draft.to} accountId={draft.accountId} accounts={accounts} api={api}
+              disabled={!!draft.invitation || busy || loadingFiles}
+              onChange={(to) => setDraft({ ...draft, to })} />
             {!ccVisible && <button className="compose-cc-toggle" type="button" disabled={busy || loadingFiles}
               aria-label="Add Cc recipients" aria-expanded={false} onClick={() => setShowCc(true)}>Cc</button>}
           </div>
-          {ccVisible && <label><span>Cc</span>
-            <input type="email" multiple autoFocus={showCc} disabled={!!draft.invitation || busy || loadingFiles} maxLength={10000}
-              value={(draft.cc || []).join(", ")}
-              onChange={(e) => setDraft({ ...draft, cc: e.target.value.split(",") })} />
-          </label>}
+          {ccVisible && <RecipientInput label="Cc" multiple autoFocus={showCc} value={(draft.cc || []).join(", ")}
+            accountId={draft.accountId} accounts={accounts} api={api} disabled={!!draft.invitation || busy || loadingFiles}
+            onChange={(cc) => setDraft({ ...draft, cc: cc.split(",") })} />}
           <label className="compose-subject">
             <span>Subject</span>
             <input

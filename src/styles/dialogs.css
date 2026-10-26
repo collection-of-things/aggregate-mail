@@ -101,6 +101,12 @@
 }
 .compose-to-row { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
 .compose-to-row label { flex: 1; border-bottom: 0; }
+.recipient-field { position: relative; flex: 1; min-width: 0; }
+.recipient-suggestions { max-height: 240px; overflow-y: auto; animation: none; }
+.recipient-suggestions li { min-height: 32px; padding: 6px 8px; }
+.recipient-suggestion-person { display: flex; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.recipient-suggestion-person strong { font-weight: 600; color: var(--text); }
+.recipient-suggestion-account { flex-shrink: 0; color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
 .compose-cc-toggle { padding: 8px; color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
 .compose-subject input { font-weight: 600; }
 .compose-form textarea {
