@@ -67,10 +67,12 @@ npm ci
 npm run dev      # Electron with React/CSS hot reload; restart after desktop or server changes
 ```
 
-`npm run dev:web` (optional browser target) reads `.env` copied from
-[.env.example](.env.example); never commit it. Open the session link the mail
-server prints at startup (it changes on every launch); `/api` refuses requests
-without it. Other environment variables
+`npm run dev:web` is the optional browser target. Follow the required password,
+external encryption-key and isolated-profile setup in
+[Local browser access](README.md#local-browser-access). Export these startup
+variables before launching; `.env` is not the browser security configuration.
+The browser gate authenticates browser requests; desktop requests retain their
+per-launch token. Never commit secrets. Other environment variables
 (Jev/`TYPESAFE_*`, `MAIL_*`) are described in [README.md](README.md) and
 [docs/KB.md](docs/KB.md).
 

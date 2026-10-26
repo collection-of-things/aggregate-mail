@@ -2,6 +2,50 @@
 
 An installable desktop email client for Windows, with a macOS build target, based on Ryan Vogel's video. Electron with React and TypeScript, a bundled mail service, and encrypted SQLite storage. The installed app needs no browser, terminal, or separate Node installation.
 
+## Local browser access
+
+The optional browser target uses the same mail interface without Electron.
+It requires Node 24.x and installed dependencies. Build once with
+`npx tsc --noEmit && npx vite build`, then run `npm run start:web` and open
+`http://127.0.0.1:3001`. This build does not package or compile Electron.
+The local service must remain running.
+
+Before starting, supply these environment variables through your local secret
+manager or protected launch environment. Do not put secrets in shell history,
+URLs, source files or shared launch scripts:
+
+| Variable | Requirement |
+| --- | --- |
+| `MAIL_WEB_PASSWORD` | A unique password of 16 to 256 characters |
+| `MAIL_DATA_KEY` | A securely provisioned 32-byte key encoded as base64; preserve this exact key across restarts |
+| `MAIL_DATA_DIR` | An absolute, separate browser-profile directory outside the source and built frontend folders |
+| `APP_URL` | `http://127.0.0.1:3001` for normal use |
+
+Missing or unsafe configuration stops startup before opening storage. Browser
+mode refuses existing desktop or legacy key files. Do not point it at a desktop
+profile or copy desktop key files. Losing the encryption key prevents recovery
+of saved mail and credentials. External key provisioning is required; this
+mode does not create a replacement key or provide OS-backed key management.
+
+Open `/auth` to unlock or lock the inbox. The password stays out of URLs and
+browser storage. A new login replaces the previous session. Restart and Lock
+invalidate it. Sessions expire after 30 minutes without a request or eight hours
+total; background polling counts as activity. Closing a tab does not lock other
+tabs. Use Lock when finished. Five login attempts in a minute temporarily block
+further attempts, including correct passwords.
+
+For development, export `APP_URL=http://127.0.0.1:5173` with the same required
+variables and run `npm run dev:web`. Open `http://127.0.0.1:5173/auth` first.
+The development server proxies access and API routes to the loopback service.
+Use built assets for normal use. Google OAuth callback registration must match
+`APP_URL` plus `/api/oauth/google/callback`.
+
+This is a single-user loopback service. Do not expose it through a public proxy
+or bind it to a network interface. The gate does not protect a compromised OS
+account or hostile local processes. Browser and desktop profiles stay separate;
+MCP still requires its own opt-in and bearer permissions. Interactive browser,
+installed-app and real-provider acceptance remain separate checks.
+
 ## Contents
 
 - [Install](#install)
@@ -342,3 +386,10 @@ Video frames at 25s, 65s, 104s, 140s and 178s were inspected and measured at nat
 Use the [Emc² CLI](docs/cli.md) from a Node 24 source checkout. Run
 `npm run cli -- help`. It connects to the running app through scoped MCP
 grants; the desktop installer does not add a command to your PATH.
+
+Browser rendering also checks access before mounting private content and every
+10 seconds afterward. A revoked session or failed access check removes mounted
+mail and drafts. Hidden tabs conceal content and recheck access on return.
+The access page broadcasts explicit locking to other tabs on the same origin.
+Checks of session status do not renew request-idle expiry. Browser-session loss
+can discard unsaved edits; it never sends mail or retries an uncertain send.

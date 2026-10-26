@@ -1,3 +1,4 @@
+import { browserGate } from "./browser-preflight.js";
 import { notificationMail, type MailArrival, type NotificationMail } from "../shared/notifications.js";
 import { isDeepStrictEqual } from "node:util";
 import { EventEmitter } from "node:events";
@@ -46,7 +47,8 @@ import { loadConfiguration, saveConfiguration } from "./config.js";
 loadConfiguration();
 const desktopEvents = new EventEmitter();
 const app = express();
-const appUrl = process.env.APP_URL || "http://127.0.0.1:5173";
+if (browserGate) app.use(browserGate);
+const appUrl = process.env.APP_URL || (browserGate ? "http://127.0.0.1:3001" : "http://127.0.0.1:5173");
 const allowedOrigins = new Set([
   new URL(appUrl).origin,
   "http://127.0.0.1:3001",

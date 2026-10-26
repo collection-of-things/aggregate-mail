@@ -320,6 +320,7 @@ export function App() {
         },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
+      if (res.status === 401 && !window.desktop) window.dispatchEvent(new Event("emc2-browser-locked"));
       const data = (await res.json()) as T & { error?: string };
       if (!res.ok) throw new ApiError(res.status, data.error || "Request failed. Try again.");
       return data;
