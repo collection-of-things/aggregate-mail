@@ -128,7 +128,10 @@ export function privateRanges(text: string, names: readonly string[] = []): Priv
     add(match.index, match.index + length, "address", match[0].slice(0, length));
   }
   for (const name of new Set(names.map(cleanName).filter(Boolean))) {
-    const pattern = name.split(/\s+/u)
+    // Words never contain a separator character, so matching stays linear.
+    const words = name.split(/[\s+]+/u).filter(Boolean);
+    if (!words.length) continue;
+    const pattern = words
       .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[\\s+]+");
     for (const match of decoded.matchAll(new RegExp(pattern, "giu"))) {
       const start = match.index;
