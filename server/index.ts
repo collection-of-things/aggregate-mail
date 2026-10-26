@@ -92,7 +92,8 @@ app.use("/api", (req, res, next) => {
     return res.status(403).json({ error: "Origin not allowed." });
   if (
     process.env.MAIL_DESKTOP_TOKEN &&
-    !req.path.startsWith("/oauth/google") &&
+    req.path !== "/oauth/google" &&
+    req.path !== "/oauth/google/callback" &&
     req.headers["x-desktop-token"] !== process.env.MAIL_DESKTOP_TOKEN
   )
     return res
@@ -116,7 +117,7 @@ app.use("/api", (req, res, next) => {
     req.path !== "/storage/compact" &&
     !(req.method === "PATCH" && /^\/accounts\/[^/]+$/.test(req.path)) &&
     !(req.method === "PATCH" && /^\/messages\/[^/]+$/.test(req.path) && ["read", "pin", "unpin"].includes(req.body?.action)) &&
-    !(req.method === "POST" && (["/accounts/imap", "/sync"].includes(req.path) || /^\/accounts\/[^/]+\/reconnect$/.test(req.path)))
+    !(req.method === "POST" && (["/accounts/imap", "/sync", "/oauth/google/start"].includes(req.path) || /^\/accounts\/[^/]+\/reconnect$/.test(req.path)))
   )
     return res
       .status(409)
@@ -307,7 +308,29 @@ app.post("/api/logos/sync", mailRequest(async (_req, res) => {
     scanningLogos = false;
   }
 }));
-const oauthStates = new Map<string, { expiry: number; calendar: boolean; accountId?: string }>();
+type PendingOAuth = { expiry: number; calendar: boolean; accountId?: string };
+// Single-use launch values from the authenticated start route, and the states
+// they become. Both are capped and expire, so neither can grow without bound.
+const oauthLaunches = new Map<string, PendingOAuth>();
+const oauthStates = new Map<string, PendingOAuth>();
+const oauthPendingLimit = 8;
+function rememberOAuth(pending: Map<string, PendingOAuth>, value: Omit<PendingOAuth, "expiry">, ttl: number) {
+  const now = Date.now();
+  // Entries share a lifetime, so insertion order is expiry order.
+  for (const [key, entry] of pending) {
+    if (entry.expiry >= now && pending.size < oauthPendingLimit) break;
+    pending.delete(key);
+  }
+  const key = randomBytes(32).toString("hex");
+  pending.set(key, { ...value, expiry: now + ttl });
+  return key;
+}
+function takeOAuth(pending: Map<string, PendingOAuth>, key: unknown) {
+  if (typeof key !== "string") return undefined;
+  const entry = pending.get(key);
+  pending.delete(key);
+  return entry && entry.expiry >= Date.now() ? entry : undefined;
+}
 class AccountConnectionError extends Error {}
 function existingAccount(email: string, provider: Provider) {
   const matches = all("account").filter((a) => a.email.toLowerCase() === email.toLowerCase());
@@ -315,26 +338,30 @@ function existingAccount(email: string, provider: Provider) {
     throw new AccountConnectionError("This email is already connected using another connection method. Keep that connection, or disconnect it before switching. Disconnecting removes its local mail cache.");
   return matches[0];
 }
-app.get("/api/oauth/google", (req, res) => {
-  const calendar = req.query.calendar === "1";
-  const accountId = typeof req.query.accountId === "string" ? req.query.accountId : undefined;
+const googleUnconfigured = "Save your Google client ID and secret in Emc² Settings, then try again.";
+app.post("/api/oauth/google/start", (req, res) => {
+  const { calendar = false, accountId } = z.object({
+    calendar: z.boolean().optional(),
+    accountId: z.string().max(200).optional(),
+  }).strict().parse(req.body ?? {});
   const target = accountId ? get("account", accountId) : undefined;
-  if (accountId && (!target || target.provider !== "gmail")) return res.status(400).type("text").send("Choose a connected Gmail account.");
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-    if (process.env.MAIL_DESKTOP_TOKEN)
-      return res
-        .type("text")
-        .send(
-          "Save your Google client ID and secret in Emc² Settings, then try again.",
-        );
-    return res.redirect(
-      `${appUrl}/?error=${encodeURIComponent("Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env and restart the server.")}`,
-    );
-  }
-  const state = randomBytes(32).toString("hex");
-  for (const [s, value] of oauthStates)
-    if (value.expiry < Date.now()) oauthStates.delete(s);
-  oauthStates.set(state, { expiry: Date.now() + 600000, calendar, accountId });
+  if (accountId && (!target || target.provider !== "gmail")) return res.status(400).json({ error: "Choose a connected Gmail account." });
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) return res.status(400).json({ error: googleUnconfigured });
+  const launch = rememberOAuth(oauthLaunches, { calendar, accountId }, 120000);
+  res.json({ url: `/api/oauth/google?${new URLSearchParams({ launch })}` });
+});
+app.get("/api/oauth/google", (req, res) => {
+  const refuse = (message: string) => process.env.MAIL_DESKTOP_TOKEN
+    ? res.status(400).type("text").send(message)
+    : res.redirect(`${appUrl}/?error=${encodeURIComponent(message)}`);
+  const consent = takeOAuth(oauthLaunches, req.query.launch);
+  if (!consent) return refuse("This sign-in link has expired or was already used. Start Google sign-in again from Emc².");
+  const { calendar, accountId } = consent;
+  const target = accountId ? get("account", accountId) : undefined;
+  if (accountId && (!target || target.provider !== "gmail")) return refuse("Choose a connected Gmail account.");
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET)
+    return refuse(process.env.MAIL_DESKTOP_TOKEN ? googleUnconfigured : "Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env and restart the server.");
+  const state = rememberOAuth(oauthStates, { calendar, accountId }, 600000);
   res.cookie("oauth_state", state, {
     httpOnly: true,
     sameSite: "lax",
@@ -359,10 +386,9 @@ app.get("/api/oauth/google/callback", mailRequest(async (req, res) => {
     .map((x) => x.trim())
     .find((x) => x.startsWith("oauth_state="))
     ?.slice(12);
-  const consent = oauthStates.get(state);
-  oauthStates.delete(state);
+  const consent = takeOAuth(oauthStates, state);
   res.clearCookie("oauth_state", { path: "/api/oauth/google/callback" });
-  if (!consent || consent.expiry < Date.now() || state !== cookie)
+  if (!consent || state !== cookie)
     return res
       .status(400)
       .send("Invalid or expired sign-in. Return to the app and try again.");

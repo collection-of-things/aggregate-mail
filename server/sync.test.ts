@@ -147,7 +147,8 @@ if (!process.env.EMC2_SYNC_TEST_CHILD) {
         let profileEmail = a.email;
         const gmailMock = mock.method(google, "gmail", () => ({ users: { getProfile: async () => ({ data: { emailAddress: profileEmail } }), labels: { list: async () => ({ data: { labels: [] } }) } } }), {});
         const connectGoogle = async () => {
-          const entry = await networkFetch(`${origin}/api/oauth/google`, { redirect: "manual" });
+          const { url: launch } = await (await request("/oauth/google/start")).json() as { url: string };
+          const entry = await networkFetch(`${origin}${launch}`, { redirect: "manual" });
           const location = entry.headers.get("location")!;
           const oauthState = new URL(location).searchParams.get("state")!;
           const cookie = entry.headers.get("set-cookie")!.split(";")[0];

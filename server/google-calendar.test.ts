@@ -64,7 +64,8 @@ test("optional Google Calendar OAuth, bounded provider reads and isolated encryp
   const feed = async (value = range) => await (await request(`/calendar/events?${new URLSearchParams(value)}`)).json() as CalendarFeed;
   const sync = (id = "a", value = range) => request(`/calendar/google/${id}/sync`, "POST", value);
   const connect = async (calendar: boolean, target = "a") => {
-    const response = await fetch(`${origin}/api/oauth/google${calendar ? `?calendar=1&accountId=${target}` : ""}`, { redirect: "manual" });
+    const { url: launch } = await (await request("/oauth/google/start", "POST", calendar ? { calendar: true, accountId: target } : {})).json() as { url: string };
+    const response = await fetch(`${origin}${launch}`, { redirect: "manual" });
     const url = new URL(response.headers.get("location")!);
     const cookie = response.headers.get("set-cookie")!.split(";")[0];
     assert.equal(url.searchParams.get("include_granted_scopes"), "true");

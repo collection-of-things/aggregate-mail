@@ -17,12 +17,10 @@ test("connected event access retains per-account re-consent for missing free/bus
       refresh: async () => true, mutate: async (task) => ({ ok: true, value: await task() }) };
     const dom = new JSDOM(renderToStaticMarkup(<GoogleCalendar state={state} calendar={calendar} api={async () => { throw new Error("Rendering must not contact a provider"); }} months={["2026-10"]} accountFilter="all" />));
     try {
-      const links = [...dom.window.document.querySelectorAll<HTMLAnchorElement>("a")];
-      assert.deepEqual(links.map(link => [link.textContent, link.getAttribute("href")]), [
-        ["Reconnect Google Calendar", "/api/oauth/google?calendar=1&accountId=a"],
-        ["Reconnect Google Calendar", "/api/oauth/google?calendar=1&accountId=b"],
-      ]);
-      assert.equal(dom.window.document.querySelectorAll("button").length, 2, "Existing sync remains available");
+      assert.equal(dom.window.document.querySelectorAll("a").length, 0);
+      const buttons = [...dom.window.document.querySelectorAll("button")].map(button => button.textContent);
+      assert.equal(buttons.filter(text => text === "Reconnect Google Calendar").length, 2);
+      assert.equal(buttons.filter(text => text === "Sync").length, 2, "Existing sync remains available");
     } finally { dom.window.close(); }
   } finally {
     if (prior) Object.defineProperty(globalThis, "window", prior); else Reflect.deleteProperty(globalThis, "window");

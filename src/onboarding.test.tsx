@@ -43,12 +43,14 @@ const form = (provider: Exclude<Provider, "gmail">, busy = false) => renderToSta
 
 test("unconfigured Google sign-in is not offered and account onboarding stays separate from developer setup", () => {
   const html = settings(false);
-  assert.ok(!html.includes('href="/api/oauth/google"'));
+  assert.doesNotMatch(html, /<button class="action">Continue with Google/);
   assert.match(html, /Connect account/);
   assert.match(html, /<details[^>]*><summary>Google setup and sorting keys<\/summary>/);
 });
 test("configured Google sign-in is offered", () => {
-  assert.match(settings(true), /href="\/api\/oauth\/google"/);
+  const html = settings(true);
+  assert.match(html, /<button class="action">Continue with Google/);
+  assert.ok(!html.includes('href="/api/oauth/google'), "sign-in starts through the authenticated start route");
 });
 test("Gmail app password form explains Workspace and policy limits without server fields", () => {
   const html = form("gmail-imap");
@@ -213,7 +215,7 @@ test("Google callback dismisses the normal provider chooser", async () => withDO
   await render(<App />);
   await act(async () => { const inbox = [...container.querySelectorAll<HTMLButtonElement>(".sidebar button")].find((button) => button.textContent?.trim().startsWith("Inbox")); inbox?.click(); });
   await openChooser(container);
-  assert.ok(container.querySelector('a[href="/api/oauth/google"]'));
+  assert.ok([...container.querySelectorAll("button")].some((button) => button.textContent?.includes("Continue with Google")));
   await api.googleConnected();
   assert.equal(container.querySelector('[role="dialog"]'), null);
 }));
