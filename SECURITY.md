@@ -56,6 +56,8 @@ findings. It supplements the scope above and does not widen it.
 2. **Local software and web pages → loopback mail service.** The bundled service
    listens on `127.0.0.1` only. `/api/*` checks the Host header, an Origin
    allowlist, the per-launch desktop token and, for mutations, a CSRF token. The
+   browser development target has no desktop token; it instead requires a
+   per-launch session cookie set by the link the server prints at startup. The
    Google OAuth routes skip the desktop token and instead rely on OAuth `state`
    bound to a cookie.
 3. **Local AI clients → MCP endpoint.** Off by default, behind timing-safe bearer

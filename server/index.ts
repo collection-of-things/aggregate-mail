@@ -2,7 +2,7 @@ import { notificationMail, type MailArrival, type NotificationMail } from "../sh
 import { isDeepStrictEqual } from "node:util";
 import { EventEmitter } from "node:events";
 import type { Server } from "node:http";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import path from "node:path";
 import express from "express";
 import { google } from "./google-api.js";
@@ -55,6 +55,21 @@ const allowedOrigins = new Set([
     : []),
 ]);
 const csrf = randomBytes(32).toString("hex");
+// Without the desktop token (browser target), a per-launch secret printed to the terminal guards /api.
+const browserSession = randomBytes(32).toString("hex");
+const browserSessionCookie = "emc2_browser_session";
+const sameSecret = (value: unknown, secret: string) => {
+  if (typeof value !== "string") return false;
+  const given = Buffer.from(value), expected = Buffer.from(secret);
+  return given.length === expected.length && timingSafeEqual(given, expected);
+};
+const requestCookie = (req: express.Request, name: string) =>
+  req.headers.cookie?.split(";").map((x) => x.trim()).find((x) => x.startsWith(`${name}=`))?.slice(name.length + 1);
+const authenticatedSession = (req: express.Request) =>
+  process.env.MAIL_DESKTOP_TOKEN
+    ? sameSecret(req.headers["x-desktop-token"], process.env.MAIL_DESKTOP_TOKEN)
+    : sameSecret(requestCookie(req, browserSessionCookie), browserSession);
+const browserSessionUrl = () => new URL(`/api/session?token=${browserSession}`, appUrl).href;
 let syncing = false;
 let unreadArrivals = 0;
 let mailArrivals: MailArrival[] = [];
@@ -90,14 +105,20 @@ app.use("/api", (req, res, next) => {
       .json({ error: "This app only accepts local requests." });
   if (req.headers.origin && !allowedOrigins.has(req.headers.origin))
     return res.status(403).json({ error: "Origin not allowed." });
+  if (!process.env.MAIL_DESKTOP_TOKEN && req.path === "/session" && req.method === "GET") {
+    res.set("Referrer-Policy", "no-referrer");
+    if (!sameSecret(req.query.token, browserSession))
+      return res.status(403).type("text").send("Open the browser link printed by the mail server.");
+    res.cookie(browserSessionCookie, browserSession, { httpOnly: true, sameSite: "strict", path: "/api" });
+    return res.redirect("/");
+  }
   if (
-    process.env.MAIL_DESKTOP_TOKEN &&
     !req.path.startsWith("/oauth/google") &&
-    req.headers["x-desktop-token"] !== process.env.MAIL_DESKTOP_TOKEN
+    !authenticatedSession(req)
   )
     return res
       .status(403)
-      .json({ error: "Open this inbox in Emc²." });
+      .json({ error: process.env.MAIL_DESKTOP_TOKEN ? "Open this inbox in Emc²." : "Open the browser link printed by the mail server." });
   if (
     !["GET", "HEAD"].includes(req.method) &&
     req.headers["x-csrf-token"] !== csrf
@@ -839,7 +860,7 @@ export function resumeMail() {
 }
 if (!process.env.MAIL_DESKTOP_TOKEN)
   void startServer(3001)
-    .then(() => console.log("Mail server listening at http://127.0.0.1:3001"))
+    .then(() => console.log(`Mail server listening at http://127.0.0.1:3001\nOpen ${browserSessionUrl()} to use the browser target.`))
     .catch((error) => {
       console.error(error.message);
       process.exit(1);

@@ -663,6 +663,15 @@ resend, accepted-send cleanup, Keep and Discard. These use a simulated DOM and
 fake sync/send boundaries. Full-suite and isolated desktop verification remain
 separate checks.
 
+## Browser target session
+
+Without `MAIL_DESKTOP_TOKEN` (`npm run dev:web`, `npm run start:web`), `/api`
+requires the `emc2_browser_session` cookie. The server prints
+`APP_URL/api/session?token=…` at startup; opening it sets the HttpOnly,
+SameSite=Strict, `Path=/api` cookie and redirects to `/`. The secret changes on
+every launch. Google OAuth routes keep their existing exemption. Covered by
+`server/browser-session.test.ts`; see [ADR 0085](adr/0085-browser-target-session.md).
+
 ## Desktop targets
 
 ### App updates

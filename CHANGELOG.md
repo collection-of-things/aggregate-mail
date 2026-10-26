@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Require a per-launch session link in the browser target (`npm run dev:web`, `npm run start:web`). The mail server prints the link at startup; opening it sets an HttpOnly, SameSite=Strict cookie, and `/api` requests without it or the desktop token are refused, so other local users and programs can no longer read mail or act through the browser target.
 - Add a searchable template picker to the composer: type to filter by name and content, arrows to move, Enter to insert the highlighted template and Escape to close only the picker. Insertion still appends before an unchanged signature and fills only an empty subject.
 - Reschedule a snooze from the reader: the snoozed return-time line gains Return to inbox and Change time actions. The snooze menu's custom field opens on the current return time and each preset shows its full local date and time.
 - Add aliases, quiet groups and disabled reasons to Commands. Exact label matches rank above alias and substring matches; selected-email actions stay listed with a reason such as Select an email first when they cannot run. The Commands button and entries show the platform's real modifier.
