@@ -1073,8 +1073,27 @@ process-local LRU of searchable strings, bounded to 256 entries and 4 MiB of
 accounted strings. Empty and flag/date-only queries skip body search strings.
 Plain unquoted words of four to 32 letters tolerate one insertion, deletion,
 substitution or adjacent transposition. Phrases, addresses, field terms and
-exclusions remain exact. There is no persisted plaintext index or remote
-mailbox search.
+exclusions remain exact. There is no persisted plaintext index.
+
+### Provider search beyond the cache
+
+`POST /api/accounts/:id/search` in `server/provider-search.ts` runs one
+explicit older-mail search for a single account; it is never automatic.
+`providerSearchPlan` in `shared/mail-search.ts` maps the cached-search syntax
+to provider terms, `providers.*.search` in `server/providers.ts` runs Gmail
+paging or read-only IMAP UID searches, `src/provider-search.ts` formats the
+coverage line and `src/mail/ProviderSearch.tsx` owns the button, cancel and
+status. Each run examines at most 100 matches (`providerSearchLimit`). Gmail
+pages `users.messages.list` then reads uncached ids as `raw`; IMAP searches
+the declared archive mailbox and Sent, or All Mail for Gmail IMAP, under a
+read-only lock with UID SEARCH, ENVELOPE and BODY.PEEK, keeping the newest 100
+UIDs in mailbox order. INBOX is skipped because sync caches it completely.
+Cached matches count toward `examined` without a download. Imports use the
+same encrypted record shape as sync and never overwrite existing records or
+change mailbox flags. Cancelling aborts requests and the connection and
+imports nothing. The coverage line names the searched scope and remainder,
+and `account:`, `is:pinned` and excluded `body:` terms are applied locally
+after import. See [ADR 0081](adr/0081-provider-search-beyond-cache.md).
 
 `src/dialogs/CommandPalette.tsx` consumes existing action callbacks from App. The modal uses the shared Dialog focus trap; the underlying frame is inert. The updater closes the palette before installation. The fixed Command/Control+K binding and list Up/Down behavior leave saved j/k preferences intact.
 
@@ -2250,7 +2269,9 @@ mail matches use the same encrypted WAL snapshot and query compiler.
 
 New searches include every connected account's imported mail, including Sent,
 Archive and Snoozed, plus saved local drafts. Coverage remains the local cache,
-not complete provider history. Clear and Escape remove the query while retaining
+not complete provider history; an explicit older-mail search for one selected
+account extends it ([ADR 0081](adr/0081-provider-search-beyond-cache.md)).
+Clear and Escape remove the query while retaining
 the current view and filters; the next nonempty query starts globally again.
 Back/Forward restores scope and query together. See
 [ADR 0077](adr/0077-global-cached-mail-search.md).
