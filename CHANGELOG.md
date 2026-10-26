@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep Appearance theme tiles compact in floating Settings so empty space does not push the theme actions below their previews and labels.
+
 - Replace ordinary macOS source-build updates with a verified release DMG handoff. Download the running architecture, check SHA256 and size, preserve macOS quarantine, drain mail and drafts, then open the installer for manual replacement and restart. No developer tools are needed.
 
 - Add explicit downloads for received attachments of any file type and on-demand PDF and raster-image previews, with privacy reset and load errors. Existing import limits still apply.

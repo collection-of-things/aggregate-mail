@@ -56,6 +56,9 @@ Settings uses the shared `Dialog` above the mounted mail, Drafts or work pane.
 The background frame and update control are inert. Settings retains its ten
 sections, with separately scrolling rail and content; the rail moves above the
 content in narrow panes. Its fixed header contains Back, Forward and Close.
+Stacked Settings rows remain single-column flex containers. Only horizontal
+rows wrap their controls; wrapping a stacked row can inflate the theme grid
+and leave excessive empty space below each preview and label.
 Opening Settings focuses Close so hidden private fields remain hidden.
 The Linux local-key warning mounts only in the active Settings or mail surface,
 reading its session collapse preference when moving between them.
