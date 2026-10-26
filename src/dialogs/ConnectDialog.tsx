@@ -5,14 +5,25 @@ import { ProviderIcon } from "../mail/Avatar";
 import { Dialog } from "../ui/Dialog";
 import { Redact } from "../ui/Privacy";
 import { ArrowRight } from "../ui/icons";
+import { startGoogleSignIn, type Api } from "../api";
 
 export type ImapProvider = Exclude<Provider, "gmail">;
 
-export function ProviderChoices({ googleConfigured, busy, onChoose }: {
+export function ProviderChoices({ api, googleConfigured, busy, onChoose }: {
+  api: Api;
   googleConfigured: boolean;
   busy: boolean;
   onChoose: (provider: ImapProvider) => void;
 }) {
+  const [googleError, setGoogleError] = useState("");
+  const [starting, setStarting] = useState(false);
+  const google = async () => {
+    setGoogleError("");
+    setStarting(true);
+    try { await startGoogleSignIn(api); }
+    catch (error) { setGoogleError(error instanceof Error ? error.message : "Google sign-in could not start. Try again."); }
+    finally { setStarting(false); }
+  };
   return (
     <>
       {googleConfigured && (
@@ -21,12 +32,13 @@ export function ProviderChoices({ googleConfigured, busy, onChoose }: {
           <strong>Gmail</strong>
           <span>Gmail and Workspace</span>
           {busy ? <span>Wait for the current action</span> : (
-            <a className="action" href={window.desktop?.oauthUrl || "/api/oauth/google"}>
+            <button className="action" disabled={starting} onClick={() => void google()}>
               Continue with Google <ArrowRight color="currentColor" size={11} />
-            </a>
+            </button>
           )}
         </div>
       )}
+      {googleConfigured && googleError && <p role="alert">{googleError}</p>}
       {(["gmail-imap", "icloud", "fastmail", "yahoo", "imap"] as const).map((provider) => (
         <div key={provider} className="provider-row">
           <ProviderIcon provider={provider} />

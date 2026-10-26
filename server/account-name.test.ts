@@ -86,7 +86,9 @@ test("account names stay local and survive reconnect, sync and restart", { timeo
       password: "synthetic-replacement", imapHost: "imap.example.com", smtpHost: "smtp.example.com", username: "synthetic-user" }),
   });
   const oauthCallback = async () => {
-    const initial = await fetch(`${base}/api/oauth/google`, { redirect: "manual" });
+    const started = await fetch(`${base}/api/oauth/google/start`, { method: "POST", headers, body: "{}" });
+    const { url } = (await started.json()) as { url: string };
+    const initial = await fetch(`${base}${url}`, { redirect: "manual" });
     const location = new URL(initial.headers.get("location")!);
     const cookie = initial.headers.get("set-cookie")!.split(";")[0];
     return fetch(`${base}/api/oauth/google/callback?code=synthetic&state=${location.searchParams.get("state")}`, {

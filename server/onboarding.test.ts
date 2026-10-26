@@ -101,8 +101,51 @@ test("account onboarding keeps transport identities and Gmail mailbox semantics"
       assert.equal(all("account")[0].id, before.id);
       assert.equal(all("mail")[0].id, mail.id);
     });
+    await t.test("Google sign-in starts only from the desktop session with capped single-use values", async () => {
+      const accounts = all("account").length;
+      const start = (h: HeadersInit = mutationHeaders) => fetch(`${base}/api/oauth/google/start`, { method: "POST", headers: h, body: "{}" });
+      const launch = async () => ((await (await start()).json()) as { url: string }).url;
+      const open = (url: string) => fetch(`${base}${url}`, { redirect: "manual" });
+      const begin = async () => {
+        const response = await open(await launch());
+        assert.equal(response.status, 302);
+        return { state: new URL(response.headers.get("location")!).searchParams.get("state")!, cookie: response.headers.get("set-cookie")!.split(";")[0] };
+      };
+      const finish = ({ state, cookie }: { state: string; cookie: string }) =>
+        fetch(`${base}/api/oauth/google/callback?code=synthetic&state=${state}`, { headers: { Cookie: cookie }, redirect: "manual" });
+      for (const url of ["/api/oauth/google", "/api/oauth/google?calendar=1", `/api/oauth/google?launch=${"0".repeat(64)}`]) {
+        const plain = await open(url);
+        assert.equal(plain.status, 400);
+        assert.equal(plain.headers.get("location"), null);
+        assert.equal(plain.headers.get("set-cookie"), null);
+      }
+      const forged = await fetch(`${base}/api/oauth/google/callback?code=synthetic&state=forged`, { headers: { Cookie: "oauth_state=forged" }, redirect: "manual" });
+      assert.equal(forged.status, 400);
+      assert.equal((await start({ "Content-Type": "application/json" })).status, 403);
+      assert.equal((await start(headers)).status, 403);
+      assert.equal((await start({ ...mutationHeaders, Origin: "https://example.invalid" })).status, 403);
+      const once = await launch();
+      assert.match(once, /^\/api\/oauth\/google\?launch=[a-f0-9]{64}$/);
+      assert.equal((await open(once)).status, 302);
+      assert.equal((await open(once)).status, 400);
+      const launches = [];
+      for (let i = 0; i < 9; i++) launches.push(await launch());
+      assert.equal((await open(launches[0])).status, 400);
+      assert.equal((await open(launches[8])).status, 302);
+      const now = Date.now();
+      const expiring = await launch();
+      const clock = t.mock.method(Date, "now", () => now + 121000);
+      try { assert.equal((await open(expiring)).status, 400); } finally { clock.mock.restore(); }
+      const states = [];
+      for (let i = 0; i < 9; i++) states.push(await begin());
+      const evicted = await finish(states[0]);
+      assert.equal(evicted.status, 400);
+      assert.match(await evicted.text(), /Invalid or expired/);
+      assert.equal(all("account").length, accounts);
+    });
     await t.test("OAuth cannot replace or duplicate an IMAP identity", async () => {
-      const initial = await fetch(`${base}/api/oauth/google`, { redirect: "manual" });
+      const launch = await (await fetch(`${base}/api/oauth/google/start`, { method: "POST", headers: mutationHeaders, body: "{}" })).json() as { url: string };
+      const initial = await fetch(`${base}${launch.url}`, { redirect: "manual" });
       const location = new URL(initial.headers.get("location")!);
       const cookie = initial.headers.get("set-cookie")!.split(";")[0];
       const response = await fetch(`${base}/api/oauth/google/callback?code=synthetic&state=${location.searchParams.get("state")}`, {

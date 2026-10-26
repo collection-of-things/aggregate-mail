@@ -174,7 +174,7 @@ export function SettingsPage({
           )}
           <h2>Connect account</h2>
           <div className="settings-group">
-            <ProviderChoices googleConfigured={state.googleConfigured} busy={busy} onChoose={onConnectAccount} />
+            <ProviderChoices api={api} googleConfigured={state.googleConfigured} busy={busy} onChoose={onConnectAccount} />
           </div>
         </section>}
         {section === "compose" && onComposePreferences && <section>

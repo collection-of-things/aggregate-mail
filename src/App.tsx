@@ -34,7 +34,7 @@ import { interactionActions, matches, read as readInteraction, save as saveInter
 import { InboxTabs } from "./mail/InboxTabs";
 import { ListEmpty } from "./mail/ListEmpty";
 import { MailActions } from "./mail/MailActions";
-import { MailFilters } from "./mail/MailFilters";
+import { MailFilters, type PinnedScope } from "./mail/MailFilters";
 import { MailList } from "./mail/MailList";
 import { ProviderSearch } from "./mail/ProviderSearch";
 import { Workbench } from "./work/Workbench";
@@ -1072,11 +1072,16 @@ export function App() {
     settings: () => setSettings(true), privacy: togglePrivacy, help: () => setShortcuts(true),
     density: () => setDensity((value) => value === "comfortable" ? "compact" : "comfortable"),
   };
+  const findPinned = (scope: PinnedScope) => {
+    navigate({ page: "mail", ...(scope === "all" ? { view: "all" as const } : {}), query: "is:pinned", selectedId: null, opened: false });
+    setSearching(true);
+    setFiltersOpen(false);
+  };
   const paletteViews = ["actions", "calendar", "projects", "agents", "sent", "all"] as const;
   type PaletteId =
     | keyof typeof paletteActions
     | `view-${(typeof paletteViews)[number]}`
-    | "row-sizing" | "drafts" | "archive-view" | "snoozed-view" | "pinned-view" | "sync"
+    | "row-sizing" | "drafts" | "archive-view" | "snoozed-view" | "pinned-view" | "pinned-all" | "sync"
     | `mail-${MailMenuId}`;
   // Extra search words keyed by command id, so an alias on a missing id fails to compile.
   const commandAliases: Partial<Record<PaletteId, string[]>> = {
@@ -1127,10 +1132,8 @@ export function App() {
       disabledReason: !state.accounts.length ? "Add an account first" : undefined, run: () => switchView("drafts") },
     { id: "archive-view", label: "Show Archive", group: "navigation", aliases: commandAliases["archive-view"], run: () => switchView("archive") },
     { id: "snoozed-view", label: "Show Snoozed", group: "navigation", aliases: commandAliases["snoozed-view"], run: () => switchView("snoozed") },
-    { id: "pinned-view", label: "Show pinned emails in this view", group: "navigation", run: () => {
-      navigate({ page: "mail", query: "is:pinned", selectedId: null, opened: false });
-      setSearching(true);
-    } },
+    { id: "pinned-view", label: "Find pinned mail in this view", group: "navigation", run: () => findPinned("view") },
+    { id: "pinned-all", label: "Find pinned mail in All cached", group: "navigation", run: () => findPinned("all") },
     { id: "sync", label: "Sync mail", group: "navigation", aliases: commandAliases.sync,
       disabled: syncing || !state.accounts.length,
       disabledReason: !state.accounts.length ? "Add an account first" : syncing ? "Already syncing" : undefined,
@@ -1212,6 +1215,7 @@ export function App() {
                   labelName={(name) => privacy ? redactPrivateText(name, collectPrivateNames(state.accounts, opened ? selected || {} : {})) : name}
                   onOpen={(open) => open && compose ? leaveCompose({ type: "filters" }) : setFiltersOpen(open)}
                   onChange={(patch) => navigate({ ...patch, selectedId: null, opened: false })}
+                  onFindPinned={findPinned}
                   onReset={resetListControls}
                 />}
                 {privacyButton}
@@ -1414,7 +1418,7 @@ export function App() {
         {connecting === "choose" ? (
           <Dialog title="Connect account" onClose={() => setConnecting(null)}>
             <p className="dialog-copy">Choose your email provider.</p>
-            <ProviderChoices googleConfigured={state.googleConfigured} busy={busy} onChoose={setConnecting} />
+            <ProviderChoices api={api} googleConfigured={state.googleConfigured} busy={busy} onChoose={setConnecting} />
           </Dialog>
         ) : connecting && (
           <ConnectDialog

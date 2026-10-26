@@ -2138,6 +2138,37 @@ test("global search enters all accounts once, preserves narrowing and restores s
   } finally { await app.close(); }
 });
 
+test("Find pinned mail searches this view or All cached and keeps the selected account", async () => {
+  const app = await mount(false, state => {
+    state.messages[0].pinned = true;
+    state.messages[2].pinned = true;
+    state.messages.push({ ...state.messages[0], id: "a:archived", remoteId: "a:archived", subject: "Archived pin", preview: "Archived pin", body: "Archived pin", archived: true });
+  });
+  const subjects = () => [...app.container.querySelectorAll(".row")].map(row => row.textContent).map(text =>
+    ["Alpha", "Gamma", "Archived pin"].find(subject => text?.includes(subject))).sort();
+  try {
+    await app.click(app.account("first@example.com"));
+    await app.openFilters();
+    assert.match(app.container.querySelector(".pinned-help")?.textContent || "", /Pin keeps mail for reference/);
+    await app.click(app.button("Find pinned mail in this view"));
+    assert.equal(app.container.querySelector('[aria-label="Mail filters and sort"]'), null, "the popover closes");
+    assert.equal(app.container.querySelector<HTMLInputElement>(".search input")!.value, "is:pinned");
+    assert.equal(app.container.querySelector(".pane-title")?.textContent, "Inbox");
+    assert.deepEqual(subjects(), ["Alpha"]);
+
+    await app.openFilters();
+    await app.click(app.button("Find pinned mail in All cached"));
+    assert.equal(app.container.querySelector(".pane-title")?.textContent, "All cached");
+    assert.equal(app.activeAccount(), "first@example.com");
+    assert.deepEqual(subjects(), ["Alpha", "Archived pin"], "an archived pin is found without the other account's pin");
+
+    await app.click(app.button("Commands"));
+    const options = [...app.container.querySelectorAll(".command-option")].map(option => option.textContent);
+    assert.ok(options.includes("Find pinned mail in this view"));
+    assert.ok(options.includes("Find pinned mail in All cached"));
+    assert.equal(app.mutations.length, 0, "finding pins never changes mail");
+  } finally { await app.close(); }
+});
 
 test("mixed global search draft focus isolates mail shortcuts and traversal", async (t) => {
   const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: "client@example.test", subject: "Needle draft", body: "Saved draft body", sendUnknown: false };

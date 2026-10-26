@@ -76,7 +76,7 @@ export function MailActions({
         <Tool label={readLabel} text="Read" Icon={Check} disabled={mail.direction === "sent" || !mail.unread || reading} busy={reading} onClick={onRead} />
         {onTrack && <Tool label="Track work" text="Track" Icon={Calendar} disabled={busy} onClick={onTrack} />}
         {onSchedule && <Tool label="Schedule meeting" text="Meeting" Icon={CalendarPlus} disabled={busy} onClick={onSchedule} />}
-        {onPin && <Tool label={mail.pinned ? "Unpin email" : "Pin email"} text={mail.pinned ? "Unpin" : "Pin"} title={`${mail.pinned ? "Unpin" : "Pin"} email (local to this app)`} Icon={Pin}
+        {onPin && <Tool label={mail.pinned ? "Unpin email" : "Pin email"} text={mail.pinned ? "Unpin" : "Pin"} title={mail.pinned ? "Unpin email (local to this app)" : "Pin email for reference (local to this app)"} Icon={Pin}
           disabled={busy} onClick={onPin} />}
       </div>
       <span role="status">{reading ? "Read update pending." : busy ? "Updating email…" : ""}</span>

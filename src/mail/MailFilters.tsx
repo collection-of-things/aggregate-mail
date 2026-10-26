@@ -6,13 +6,16 @@ import { accountLabel } from "../mail-ui";
 import { PrivacyContext } from "../ui/Privacy";
 import { Filter } from "../ui/icons";
 
+export type PinnedScope = "view" | "all";
+
 /**
- * The Filters button and its popover: read status, relevance, sort and Gmail
- * label for the cached mail list. The popover stays open while choices change
- * and closes on Escape or a click elsewhere. The button stays lit while any
- * choice differs from its default, so a filtered list is never a surprise.
+ * The Filters button and its popover: read status, relevance, sort, Gmail
+ * label and a shortcut to pinned mail for the cached mail list. The popover
+ * stays open while choices change and closes on Escape or a click elsewhere.
+ * The button stays lit while any choice differs from its default, so a
+ * filtered list is never a surprise.
  */
-export function MailFilters({ open, active, location, labels, accounts, blocked, showReset, labelName, onOpen, onChange, onReset }: {
+export function MailFilters({ open, active, location, labels, accounts, blocked, showReset, labelName, onOpen, onChange, onFindPinned, onReset }: {
   open: boolean;
   active: boolean;
   location: Pick<MailLocation, "readFilter" | "relevanceFilter" | "sort" | "labelFilter" | "accountFilter">;
@@ -23,6 +26,7 @@ export function MailFilters({ open, active, location, labels, accounts, blocked,
   labelName: (name: string) => string;
   onOpen: (open: boolean) => void;
   onChange: (patch: Partial<MailLocation>) => void;
+  onFindPinned: (scope: PinnedScope) => void;
   onReset: () => void;
 }) {
   const { on: privacy } = useContext(PrivacyContext);
@@ -98,6 +102,14 @@ export function MailFilters({ open, active, location, labels, accounts, blocked,
               </div>
             </>
           )}
+          <span>Pinned</span>
+          <div className="pinned-filter">
+            <button type="button" className="link" disabled={blocked} aria-label="Find pinned mail in this view"
+              onClick={() => onFindPinned("view")}>In this view</button>
+            <button type="button" className="link" disabled={blocked} aria-label="Find pinned mail in All cached"
+              onClick={() => onFindPinned("all")}>All cached</button>
+          </div>
+          <p className="pinned-help">Pin keeps mail for reference. Snooze brings it back later. Track records work.</p>
           {showReset && <button type="button" className="link filter-reset" disabled={blocked}
             onClick={onReset}>Reset filters and sort</button>}
         </div>

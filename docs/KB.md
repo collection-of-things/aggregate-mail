@@ -663,6 +663,16 @@ resend, accepted-send cleanup, Keep and Discard. These use a simulated DOM and
 fake sync/send boundaries. Full-suite and isolated desktop verification remain
 separate checks.
 
+## Browser target session
+
+Without `MAIL_DESKTOP_TOKEN` (`npm run dev:web`, `npm run start:web`), `/api`
+requires the `emc2_browser_session` cookie. The server prints
+`APP_URL/api/session?token=…` at startup; opening it sets the HttpOnly,
+SameSite=Strict, `Path=/api` cookie and redirects to `/`. The secret changes on
+every launch. Only the Google OAuth launch entry and callback bypass the session
+check; starting consent requires an authenticated session and CSRF token. Covered by
+`server/browser-session.test.ts`; see [ADR 0085](adr/0085-browser-target-session.md).
+
 ## Desktop targets
 
 ### App updates
@@ -1125,6 +1135,8 @@ App owns the compose-preference save lock and pending state. Leaving or reopenin
 
 `pin` and `unpin` message actions run through the existing mail queue and never call a provider mutation. Pins live in the encrypted mail record, survive provider refresh, and clear with the cached mail. They do not reorder results or change Inbox categories.
 
+Find pinned mail is a cached `is:pinned` search, not a separate state. The Filters popover and Commands both call App's `findPinned`, which either keeps the current view or switches to All cached. Both keep the selected account, unlike typing a new search, which widens to all accounts. All cached is the only scope that reaches pins after Archive, Done or Snooze move them out of Inbox. A mounted synthetic test in `src/navigation.test.tsx` covers both scopes, account retention, the help text and the Commands entries.
+
 The service increments an in-memory `unreadArrivals` count only for arrivals already accepted by its existing sync notification rules. App suppresses its initial snapshot and reports newly accepted arrival sequences on later reloads. The service retains a bounded in-memory journal of exact IDs and sanitized details, pruning removed mail while preserving surviving sequence numbers and the cumulative count. Legacy count-only snapshots use generic notices. Repeated state reads do not repeat a notice; the service counter resets on restart. Each observed arrival batch gets a distinct event ID so equal-sized batches keep separate notices. `src/ui/Toasts.tsx` retains queued outcomes, renders four at a time, masks text with Redact and pauses informational expiry during hover/focus. Errors and delivery warnings remain until dismissed. This supplements native notifications; it does not introduce another sync loop.
 
 Settings, Notifications customizes floating in-app arrivals and action confirmations independently. Position can be Bottom right, Bottom center or Top right; duration can be 3, 6 or 10 seconds or Until dismissed. Defaults enable both categories at Bottom right for six seconds. Preview works with both categories disabled, and reset restores defaults. Validated display preferences use the `emc2.notifications.v1` localStorage key. Duration changes apply to future notices; queued and visible notices retain their original duration. Storage failure keeps the current selection in memory and reports the save failure. Errors and uncertain-send warnings cannot be disabled or timed out by these choices. Independent desktop delivery, optional sender/subject/preview details, exact-email opening and system/off/custom audio extend these preferences. All details default off and remain generic in privacy mode. A native chooser imports regular WAV/MP3/Ogg files up to 2 MiB, storing bytes without the source path or name. Playback stops after 30 seconds. Reset removes imported audio. See [ADR 0040](adr/0040-customizable-in-app-notifications.md) and [ADR 0050](adr/0050-notification-details-and-local-audio.md).
@@ -1296,7 +1308,7 @@ The existing mailparser dependency converts HTML-only email links to text contai
 
 Address privacy mode masks URLs containing literal or percent-encoded email addresses and omits their anchors. Turn address privacy off to open these links. Personal-information hiding also covers known connected-recipient names and suppresses private destinations.
 
-The desktop navigation policy allows HTTP and HTTPS destinations outside the mail service origin. On the mail service origin, only the Google OAuth entry route may open externally. Local API routes and other URL schemes stay blocked.
+The desktop navigation policy allows HTTP and HTTPS destinations outside the mail service origin. On the mail service origin, only the Google OAuth entry route may open externally. The renderer gets that route's single-use `launch` link from the authenticated `POST /api/oauth/google/start`; the entry route refuses requests without a pending launch, and the service keeps at most eight pending launches (two minutes) and eight pending states (ten minutes). Local API routes and other URL schemes stay blocked.
 
 Verification for source revision `dbe8b870e3ec1140c1385d49118fcbf8f5b917a9`: seven renderer tests and the production build passed. Earlier navigation and server test results apply because their inputs are unchanged. T3 Code browser checks used synthetic mail and covered mouse/keyboard link activation, address privacy, escaped HTML and the exact destination of a URL surrounded by curly quotes. This does not prove native Windows browser handoff, real mailbox operations or release readiness.
 
@@ -1722,8 +1734,9 @@ theme rendering or installed behavior. See [ADR 0076](adr/0076-local-work-sessio
 
 ### Optional Google Calendar read sync
 
-Gmail OAuth accounts can explicitly open
-`/api/oauth/google?calendar=1&accountId=<id>`. Consent requests only
+Gmail OAuth accounts can explicitly start consent with
+`POST /api/oauth/google/start` and `{ "calendar": true, "accountId": "<id>" }`,
+which returns the single-use launch link to open. Consent requests only
 `calendar.events`, `calendar.calendarlist.readonly` and, for Phase 4,
 `calendar.freebusy` in addition to Gmail, with `include_granted_scopes`. The server binds the
 chosen account to OAuth state and rejects a different signed-in identity. Every

@@ -55,9 +55,13 @@ findings. It supplements the scope above and does not widen it.
    activation for each opening ([ADR 0020](docs/adr/0020-explicit-images-with-hidden-text.md)).
 2. **Local software and web pages → loopback mail service.** The bundled service
    listens on `127.0.0.1` only. `/api/*` checks the Host header, an Origin
-   allowlist, the per-launch desktop token and, for mutations, a CSRF token. The
-   Google OAuth routes skip the desktop token and instead rely on OAuth `state`
-   bound to a cookie.
+   allowlist, the per-launch desktop token and, for mutations, a CSRF token.
+   The browser target instead requires a per-launch session cookie set by the
+   link the server prints at startup.
+   Google sign-in starts with an authenticated `POST /api/oauth/google/start`
+   that returns a single-use, two-minute launch link. Only that link and the
+   callback skip the session check; the callback also needs OAuth `state` bound
+   to a cookie. Pending launches and states are capped at eight each.
 3. **Local AI clients → MCP endpoint.** Off by default, behind timing-safe bearer
    tokens or per-agent grants. Sending needs its own opt-in. Read and archive
    tools change mailbox state even with sending off. Agent replies open as

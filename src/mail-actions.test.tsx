@@ -512,7 +512,7 @@ test("commands pin cached mail, structured search finds it and arrival notices a
     assert.deepEqual(app.mutations, [{ id: "a:1:5", action: "pin" }]);
     assert.match(app.row().getAttribute("aria-label")!, /^Pinned:/);
     await app.key("k", app.row(), { ctrlKey: true });
-    await app.click([...app.dialog().querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent === "Show pinned emails in this view")!);
+    await app.click([...app.dialog().querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent === "Find pinned mail in this view")!);
     assert.equal(app.container.querySelectorAll(".row").length, 1);
     assert.ok(app.row());
     await app.key("k", app.row(), { ctrlKey: true });
@@ -744,7 +744,7 @@ test("accepted arrival IDs drive private-safe toasts and exact reader navigation
   const app = await mount({ ...notificationDefaults, sender: true, subject: true, preview: true }, true, true);
   try {
     await app.key("k", app.row(), { ctrlKey: true });
-    await app.click([...app.dialog().querySelectorAll<HTMLElement>('[role="option"]')].find((item) => item.textContent === "Show pinned emails in this view")!);
+    await app.click([...app.dialog().querySelectorAll<HTMLElement>('[role="option"]')].find((item) => item.textContent === "Find pinned mail in this view")!);
     const target = app.state.messages[2];
     app.state.unreadArrivals = 2;
     app.state.mailArrivals = [
