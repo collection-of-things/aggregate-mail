@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a threat model to SECURITY.md covering trust boundaries, components, attackers, assets and lower-priority areas.
+
 - List pull requests directly under What's Changed in generated release notes, without an "Other changes" group.
 
 - Replace the installed macOS app and request a restart after a verified download, retaining the previous app and normal macOS trust checks. No manual dragging or developer tools are required by the new update route.
