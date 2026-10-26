@@ -84,7 +84,7 @@ Start a search to find cached mail and saved local drafts across all accounts, i
 
 Select Commands beside search, or press Command+K on macOS and Control+K elsewhere, to search app actions. Up/Down move through the command choices; Enter runs one. In the closed mail list, Up/Down select an email without opening or reading it. j/k remain available.
 
-Settings, Writing manages reusable plain-text templates and per-account signatures. Save preferences before composing. A new message or reply gets its account's signature. Changing From replaces an unchanged signature; edited text stays intact. Insert template appends text and only fills the subject if it is empty. These preferences use the encrypted local store.
+Settings, Writing manages reusable plain-text templates and per-account signatures. Save preferences before composing. A new message or reply gets its account's signature. Changing From replaces an unchanged signature; edited text stays intact. In the composer, type in the Template field to filter templates by name and text, move with the arrows and insert with Enter or Insert template. Inserting appends text and only fills the subject if it is empty. These preferences use the encrypted local store.
 
 Pin email in the toolbar or context menu marks a cached message locally. Search `is:pinned`, or choose Show pinned emails in this view in Commands, to find it. Pins do not change the provider mailbox or mail sorting.
 

@@ -5,7 +5,39 @@
   gap: 8px 12px;
   margin-bottom: 14px;
 }
-.compose-preference-controls label { flex: 1; }
+.compose-template-picker { position: relative; flex: 1; min-width: 0; }
+.compose-template-picker label { display: block; }
+.compose-template-picker input { width: 100%; }
+.compose-template-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  padding: 4px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--raised);
+  box-shadow: var(--edge), var(--shadow);
+}
+.compose-template-menu ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.compose-template-menu li {
+  padding: 7px 10px;
+  border-radius: var(--radius-control);
+  color: var(--text-2);
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.compose-template-menu li[aria-selected="true"] { background: var(--selected); color: var(--text); }
+.compose-template-menu [role="status"] { padding: 7px 10px; color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
 .compose-preference-controls .note { flex-basis: 100%; font-size: calc(12px * var(--text-scale, 1)); }
 .private .compose-form :is(input, textarea):not(:focus) { filter: blur(5px); }
 .compose-settings :is(input, textarea, select) { min-width: 0; max-width: 100%; }
@@ -16,4 +48,4 @@
 .compose-settings-save [role="alert"] { color: var(--danger); }
 .compose-settings-save [role="status"] { color: var(--text-3); }
 .compose-settings :is(input, textarea, select):focus-visible,
-.compose-preference-controls select:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+.compose-preference-controls input:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }

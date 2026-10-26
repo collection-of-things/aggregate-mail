@@ -82,6 +82,28 @@ See [ADR 0077](adr/0077-floating-settings.md). Mounted source tests cover focus,
 history, guards and retained edits. They do not prove installed native layout
 or input.
 
+## Region focus cycle
+
+F6 and Shift+F6 move keyboard focus through the visible window regions in a
+fixed order: sidebar, search toolbar, mail list and the reader beside it. The
+order lives in `src/region-focus.ts`, where `nextRegion` picks the next
+available region and `regionOf` classifies the focused element. `src/App.tsx`
+resolves each region's focus target: the current view in the sidebar, the
+search input, the selected row in the list and the opened email in the reader.
+A closed sidebar and a closed or full-width reader are skipped; in full-width
+reading the `.message` article inside the list pane is the list target. The
+`.list` and `.reader-scroll` containers carry `tabIndex={-1}` so an empty
+region still lands somewhere visible.
+
+Dialogs, the composer and the command palette are outside the cycle, and F6
+does nothing while focus is inside them or inside any field other than the
+search box. No desktop change was needed: the macOS menu uses stock roles, the
+native context menus pass accelerators as display-only text
+(`registerAccelerator: false`), and the only `before-input-event` handling is
+the Linux Ctrl+Q quit, so no native accelerator captures F6. Mounted coverage
+is in `src/navigation.test.tsx`; it does not prove native input on Windows,
+macOS or Linux builds.
+
 ## Shared application styling
 
 The working layout uses a 208px main rail and names each view once in the
@@ -1095,7 +1117,7 @@ imports nothing. The coverage line names the searched scope and remainder,
 and `account:`, `is:pinned` and excluded `body:` terms are applied locally
 after import. See [ADR 0081](adr/0081-provider-search-beyond-cache.md).
 
-`src/dialogs/CommandPalette.tsx` consumes existing action callbacks from App. The modal uses the shared Dialog focus trap; the underlying frame is inert. The updater closes the palette before installation. The fixed Command/Control+K binding and list Up/Down behavior leave saved j/k preferences intact.
+`src/dialogs/CommandPalette.tsx` consumes existing action callbacks from App. The modal uses the shared Dialog focus trap; the underlying frame is inert. The updater closes the palette before installation. The fixed Command/Control+K binding and list Up/Down behavior leave saved j/k preferences intact. Commands carry a typed id, a group (selected-email actions or navigation) and optional aliases; exact label matches rank first, then alias matches, then substrings. Disabled commands show their reason beside the label and announce it through `aria-description`; selected-email actions stay listed, disabled, with Select an email first when no mail is selected. The Commands button and entry shortcuts show the platform's real modifier through `commandModifier()`/`commandsChord()` in `src/interaction.ts`.
 
 `shared/mail-features.ts` defines compose preferences. Authenticated `GET/PUT /api/compose-preferences` reads/writes one encrypted `compose` record. PUT validates bounded templates, unique IDs and signatures for connected account IDs. `GET /api/state` includes the preferences; unchanged values keep renderer identity stable. Account deletion removes its saved signature. A successful account reload also removes disconnected-account signatures from retained Settings edits, preserving templates and connected-account signatures. This adds a record kind without changing the mail key, database schema or encryption format.
 
@@ -1525,8 +1547,12 @@ session. Save failures retain those edits; a successful save clears only the
 submitted draft. Closing the application still discards unsaved Settings edits.
 
 Snooze uses an anchored menu that re-clamps when its size changes, including when
-the custom-time form opens. Only opening the menu focuses its first action;
-re-clamping preserves input focus. Oversized menus scroll within the viewport.
+the custom-time form opens. Only opening the menu focuses its first action, except
+for an already-snoozed email, whose form opens on the current return time and
+takes focus instead. Presets carry their full local date and time. Re-clamping
+preserves input focus. Oversized menus scroll within the viewport. An opened
+snoozed email's return line offers Return to inbox and Change time beside the
+local time, reusing the same handlers and Escape focus restoration.
 Calendar combines confirmed deadlines and follow-ups
 with active cached-email snoozes in local time. No duplicate event is persisted.
 Cleared, expired, sent and archived snoozes are excluded.
@@ -2232,6 +2258,8 @@ Enter applies the validated link without submitting email; Escape cancels only
 link entry. Selected text, plain alternatives and safe URL rules are retained.
 
 The composer From selector uses the shared themed dropdown: a 30px trigger, compact account rows, arrow/Home/End selection, Enter to confirm and Escape or Tab to dismiss. Private mode omits account addresses. Account switching retains the existing signature and saved-copy behavior.
+
+The composer template picker is a combobox inside the draft. Typing filters templates by name, subject and body; arrows move the highlighted option, Enter or Insert template applies the existing insertion and Escape closes only the picker, returning focus to the message body. Clicking an option also inserts it, and a click outside closes the list. Insertion still appends before an unchanged signature and fills only an empty subject. Privacy mode keeps generic numbered labels and blurs the unfocused field like other compose inputs.
 
 
 ## Formatted original messages in replies
