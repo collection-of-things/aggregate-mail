@@ -1022,7 +1022,7 @@ test("Settings keeps mail navigation, uses a section rail and shows one section 
     assert.equal(settings.getAttribute("aria-label"), "Settings");
     await app.click(settings);
     assert.ok(app.container.querySelector('[aria-label="Mail views"]'), "mail navigation remains visible");
-    assert.equal(app.container.querySelectorAll(".settings-navigation button").length, 10);
+    assert.equal(app.container.querySelectorAll(".settings-navigation button").length, 11);
     assert.equal(app.container.querySelector(".settings select"), null);
     assert.ok(app.container.querySelector("[data-interaction-settings]"));
     await app.click(app.button("Appearance"));
