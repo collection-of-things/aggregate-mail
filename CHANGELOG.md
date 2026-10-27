@@ -6,7 +6,9 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
-No changes recorded yet.
+### Fixed
+
+- Keep draft dates clear of the Delete draft button and show the inbox's account labels and colour dots, including privacy-safe names when personal text is hidden. [#115](https://github.com/collection-of-things/aggregate-mail/issues/115)
 
 ## 0.2.16 - 2026-10-27
 

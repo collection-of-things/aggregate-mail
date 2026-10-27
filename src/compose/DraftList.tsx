@@ -2,8 +2,7 @@ import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react"
 import type { Account, Draft, DraftSummary } from "../../shared/types";
 import type { Api } from "../api";
 import { accountLabel } from "../mail-ui";
-import { ProviderIcon } from "../mail/Avatar";
-import { PrivacyContext, Redact } from "../ui/Privacy";
+import { PrivacyContext } from "../ui/Privacy";
 import { Trash } from "../ui/icons";
 import { useMailSearch } from "../use-mail-search";
 import { relative } from "../mail/format";
@@ -137,11 +136,12 @@ export function DraftList({ accounts, api, accountFilter, query, refreshKey, act
     <ul>{visible.map((draft, index) => {
       const accountIndex = accounts.findIndex((account) => account.id === draft.accountId);
       const account = accounts[accountIndex];
+      const accountName = accountLabel(account, accountIndex, privateText, accounts);
       return <li key={`${draft.accountId}:${draft.id}`}>
         <button type="button" className="draft-row" disabled={opening || !active} onClick={() => void open(draft)}>
           <span className="draft-row-identity">
             <span className="draft-row-recipient">{privateText ? "Hidden recipients" : draft.to || "No recipient"}</span>
-            <span className="draft-row-account"><ProviderIcon provider={account.provider} /><Redact text={accountLabel(account, accountIndex, privateText, accounts)} /></span>
+            <span className="draft-row-account row-account" title={accountName}><i className="account-dot" data-tone={accountIndex % 4} aria-hidden="true" /><span>{accountName}</span></span>
           </span>
           <span className="draft-row-content">
             <strong>{privateText ? `Draft ${index + 1}` : draft.subject || "No subject"}</strong>
