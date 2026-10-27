@@ -4,6 +4,9 @@
 
 - Require a reason when closing an issue or PR, links to existing fixes or ongoing work, and comments on linked issues or PRs.
 
+- Correct contributor guidance for automatic patch releases and the `[skip release]` merge control.
+
+- Show separate receiving-account and sorting-status labels in All accounts, including compact rows. Match account dots to the sidebar, keep existing status meanings and remove provider overlays from sender icons. Narrow rows put account and status below the sender; privacy-safe labels also appear in screen-reader names.
 - Require the person merging to rebase onto the latest target branch and confirm current checks and approvals before merging.
 
 - Add a short agent task guide. Require duplicate searches and existing templates before filing issues or PRs, and current task State when using git.cafe. Clarify that personal context, tooling configuration and reference uploads stay out of the repository.

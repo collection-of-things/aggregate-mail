@@ -2404,3 +2404,4 @@ Synthetic results, native interaction, installed-app acceptance and provider
 coverage are separate evidence.
 
 Automatic browser sync starts only after the full cached-mail snapshot loads. Bootstrap status alone does not start it; a failed initial read keeps it paused until a successful retry. Regression coverage: `src/bootstrap.test.tsx`.
+Release authorization: the active release workflow publishes eligible main pushes automatically. Use `[skip release]` in a PR title to suppress publication from its squash merge when release approval is held. Skipped CI is not passing verification.
