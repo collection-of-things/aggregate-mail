@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { boundedMailHtml, MAIL_HTML_LIMIT, MAIL_NODE_LIMIT, MAIL_DEPTH_LIMIT,
-  parseMailContent, mailStyle, mailLink, privateMailLink, type MailContentNode } from "../shared/mail-content.js";
+  needsEmbeddedContentRecovery, parseMailContent, mailStyle, mailLink, privateMailLink, type MailContentNode } from "../shared/mail-content.js";
 
 test("bounded source preserves exact decoded HTML and treats absent or oversized HTML as null", () => {
   const html = "  <p>Original &amp; source</p>\r\n";
@@ -92,4 +92,16 @@ test("inline style grammar reads Gmail quote insets, any-order borders and cente
     borderLeft: "1px solid rgb(204, 204, 204)", margin: "0 auto",
   });
   assert.deepEqual(mailStyle("border:solid #ccc;padding:0 auto;border-top:1px solid url(x)"), { border: "1px solid #ccc" });
+});
+
+test("only older image metadata needs embedded content recovery", () => {
+  const image = { id: "one", filename: "image.png", contentType: "image/png", size: 4 };
+  assert.equal(needsEmbeddedContentRecovery({ html: '<img src="cid:piece">' }), true);
+  for (const html of [null, '<img src="cid:piece">', '<img src="data:image/png;base64,AQID">']) {
+    assert.equal(needsEmbeddedContentRecovery({ html, attachments: [image] }), true);
+    assert.equal(needsEmbeddedContentRecovery({ html, attachments: [{ ...image, contentId: "piece" }] }), false);
+    assert.equal(needsEmbeddedContentRecovery({ html, attachments: [{ ...image, contentId: null }] }), false);
+  }
+  assert.equal(needsEmbeddedContentRecovery({ html: "<p>Text</p>", attachments: [image] }), false);
+  assert.deepEqual(mailStyle("min-width:60px;min-width:99999px"), { minWidth: "60px" });
 });

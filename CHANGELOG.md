@@ -13,6 +13,8 @@ unversioned history without treating it as a release record.
 
 ### Fixed
 
+- Keep formatted email tables readable and show supported embedded images in their original position after Show images, including recovery of older cached imports ([#133](https://github.com/collection-of-things/aggregate-mail/issues/133)).
+
 - Keep midnight labels clear of the shaded outside-day notice in Calendar weeks that cross daylight-saving changes. [#130](https://github.com/collection-of-things/aggregate-mail/issues/130)
 - Keep a newer composer open when delayed Forward preparation completes, and prevent duplicate Forward requests ([#51](https://github.com/collection-of-things/aggregate-mail/issues/51)).
 - Keep draft dates clear of the Delete draft button and show the inbox's account labels and colour dots, including privacy-safe names when personal text is hidden. [#115](https://github.com/collection-of-things/aggregate-mail/issues/115)

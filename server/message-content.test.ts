@@ -127,6 +127,20 @@ test("content API authenticates, caches encrypted content and preserves concurre
     put("mail", mail.id, { ...mail, html: null, images: [], attachments: [] });
     assert.deepEqual(await (await request()).json(), { html: null, images: [], attachments: [] });
     assert.equal(calls, 1);
+    await t.test("old embedded image imports recover HTML and CID metadata once without changing mail state", async (t) => {
+      const attachment = { id: "piece", filename: "piece.png", size: 4, contentType: "image/png" };
+      const recovered = { html: '<p>Delivery</p><img src="cid:piece">', images: [], attachments: [{ ...attachment, contentId: "piece" }] };
+      let recoveries = 0;
+      t.mock.method(providers.gmail, "content", async () => { recoveries++; return recovered; });
+      for (const attachments of [[attachment], undefined]) {
+        put("mail", mail.id, { ...mail, html: '<img src="data:image/png;base64,AQIDBA==">', images: [], attachments, unread: false });
+        assert.deepEqual(await (await request()).json(), recovered);
+        assert.deepEqual(await (await request()).json(), recovered);
+      }
+      assert.equal(recoveries, 2);
+      assert.equal(stored().unread, false);
+      assert.equal(stored().body, mail.body);
+    });
     const rawStore = Buffer.concat([readFileSync(path.join(directory, "mail.sqlite")), readFileSync(path.join(directory, "mail.sqlite-wal"))]);
     assert.equal(rawStore.includes(Buffer.from(html)), false);
 

@@ -226,7 +226,8 @@ async function parseMessage(
       valid = Boolean(current && current.id === a.id && current.provider === a.provider && current.email === a.email && isDeepStrictEqual(current.credentials, a.credentials));
       if (valid) put("attachment", `${a.id}:${remoteId}:${id}`, { accountId: a.id, content });
     }
-    attachments.push({ id, filename: filename.replace(/[\u0000-\u001f\u007f/\\]/g, "_").slice(0, 255), contentType: /^[\w!#$&^.+-]+\/[\w!#$&^.+-]+$/.test(contentType) ? contentType : "application/octet-stream", size: attachment.size, ...(!valid ? { unavailable: true } : {}) });
+    const contentId = attachment.contentId?.replace(/^<|>$/g, "").trim();
+    attachments.push({ id, contentId: contentId && contentId.length <= 500 ? contentId : null, filename: filename.replace(/[\u0000-\u001f\u007f/\\]/g, "_").slice(0, 255), contentType: /^[\w!#$&^.+-]+\/[\w!#$&^.+-]+$/.test(contentType) ? contentType : "application/octet-stream", size: attachment.size, ...(!valid ? { unavailable: true } : {}) });
   }
   const calendars = m.attachments.filter((part) => part.contentType.toLowerCase() === "text/calendar");
   const invitation = calendars.length > 1 ? { status: "unsupported" as const, reason: "multiple-calendars" } : calendars.length ? calendars[0].content.length > 131072 ? { status: "invalid" as const, reason: "limit" } : parseICalendar(calendars[0].content.toString("utf8")) : undefined;

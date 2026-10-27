@@ -142,7 +142,7 @@ test("mounted reader blocks images until activation, reports loading/failure, an
     assert.equal(container.querySelectorAll("img").length, 1);
     await render("empty", []);
     await click();
-    assert.ok(container.textContent?.includes("Embedded images are not shown"));
+    assert.ok(container.textContent?.includes("Embedded images require a matching supported attachment"));
     assert.deepEqual(calls, []);
   } finally {
     await act(async () => root.unmount());

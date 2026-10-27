@@ -1,4 +1,14 @@
 import { Parser } from "htmlparser2";
+import type { Mail } from "./types";
+
+export const embeddedImageTypes = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "image/avif"]);
+
+// Older imports lack CID metadata and may contain parser-expanded data URLs.
+export function needsEmbeddedContentRecovery(mail: Pick<Mail, "html" | "attachments">): boolean {
+  const embedded = !!mail.html && /<img\b[^>]*\bsrc\s*=\s*["']?(?:cid:|data:image\/)/i.test(mail.html);
+  return embedded && mail.attachments === undefined || (!mail.html || embedded) &&
+    !!mail.attachments?.some((file) => file.contentId === undefined && embeddedImageTypes.has(file.contentType.toLowerCase()));
+}
 
 export const MAIL_HTML_LIMIT = 256_000;
 // Plain-text conversion leaves image sources as [url]; previews drop them, including one cut off by the stored preview length.
@@ -92,7 +102,7 @@ export function mailStyle(value: string): Record<string, string | number> {
       if (/^\d+(?:\.\d+)?$/.test(input) && Number(input) >= 1 && Number(input) <= 3) output = input;
       else output = length(input, 96);
     }
-    if (/^(width|max-width|height|max-height)$/.test(name)) {
+    if (/^(width|min-width|max-width|height|max-height)$/.test(name)) {
       output = length(input, 1200, name.includes("width"));
       // Zero boxes hide text (preview lines) and would wrap it one letter per line.
       if (output !== null && parseFloat(output) === 0) output = null;

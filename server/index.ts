@@ -1,3 +1,4 @@
+import { needsEmbeddedContentRecovery } from "../shared/mail-content.js";
 import { browserGate, browserPort } from "./browser-preflight.js";
 import { phonePasskeys } from "./phone-passkeys.js";
 import { phoneAccess, mountPhoneAccess } from "./phone-access.js";
@@ -767,7 +768,7 @@ app.post("/api/messages/:id/images", mailRequest(async (req, res) => {
 }));
 app.post("/api/messages/:id/content", mailRequest(async (req, res) => {
   const mail = findMail(z.string().parse(req.params.id));
-  if (mail.html !== undefined && mail.attachments !== undefined) return res.json({ html: mail.html, images: mail.images, attachments: mail.attachments });
+  if (mail.html !== undefined && mail.attachments !== undefined && !needsEmbeddedContentRecovery(mail)) return res.json({ html: mail.html, images: mail.images, attachments: mail.attachments });
   const a = account(mail.accountId);
   const content = await providers[a.provider].content(a, mail);
   assertNotSyncing();
@@ -775,9 +776,10 @@ app.post("/api/messages/:id/content", mailRequest(async (req, res) => {
   if (current.accountId !== mail.accountId || current.remoteId !== mail.remoteId || current.messageId !== mail.messageId)
     throw new Error("Email identity changed. Content was not cached.");
   // Preserve image recovery and mail actions completed during the source fetch.
-  const updated = { ...current, html: current.html === undefined ? content.html : current.html,
+  const recoverEmbedded = needsEmbeddedContentRecovery(current);
+  const updated = { ...current, html: current.html === undefined || recoverEmbedded ? content.html : current.html,
     invitation: current.invitation ?? content.invitation,
-    images: current.images ?? content.images, attachments: current.attachments ?? content.attachments ?? [] };
+    images: current.images ?? content.images, attachments: recoverEmbedded ? content.attachments ?? [] : current.attachments ?? content.attachments ?? [] };
   put("mail", mail.id, updated);
   res.json({ html: updated.html, images: updated.images, attachments: updated.attachments });
 }));
