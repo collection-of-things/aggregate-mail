@@ -17,6 +17,20 @@ const render = (html: string | null | undefined, privacy = false, showImages = f
 );
 const documentOf = (markup: string) => new JSDOM(markup).window.document;
 
+test("formatted tables retain whole-word intrinsic widths instead of shrinking to individual letters", () => {
+  const document = documentOf(render('<table><tr><td>Email</td><td>Facebook</td></tr></table>'));
+  assert.equal(document.querySelector<HTMLElement>(".formatted-mail")!.style.overflowWrap, "break-word");
+});
+
+test("embedded image-only mail keeps its position without bypassing consent", () => {
+  const document = documentOf(renderToStaticMarkup(<FormattedMail html='<img src="cid:piece">' mailId="a:one"
+    attachments={[{ id: "one", contentId: "piece", filename: "piece.png", contentType: "image/png", size: 4 }]}
+    showImages={false} privacy={false} renderText={(text) => text} redactText={(text) => text} fallbackText="Fallback" />));
+  assert.equal(document.querySelector(".formatted-mail-fallback"), null);
+  assert.equal(document.querySelector("img"), null);
+  assert.ok(document.querySelector(".formatted-mail-image-placeholder"));
+});
+
 test("formatted renderer keeps headings, nested formatting, tables and validated inline presentation", () => {
   const document = documentOf(render('<table width="600" bgcolor="#ffffff" cellpadding="4"><tbody><tr><td colspan="2" style="color:#123456;font-size:18pt;text-align:center"><h2>Heading</h2><p>Hello <strong>team</strong><br>Next line</p><font color="red" size="4">Legacy</font></td></tr></tbody></table>'));
   assert.equal(document.querySelector("h2")?.textContent, "Heading");

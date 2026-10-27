@@ -32,7 +32,7 @@ export type Account = {
   syncStatus?: "queued" | "running";
 };
 export type Category = "important" | "other";
-export type MailAttachment = { id: string; filename: string; contentType: string; size: number; unavailable?: boolean };
+export type MailAttachment = { id: string; filename: string; contentType: string; size: number; unavailable?: boolean; contentId?: string | null };
 export type DraftAttachment = { filename: string; contentType: string; content: string };
 export type RuleCondition = { field: "subject" | "body" | "recipient"; contains: string } | { field: "hasAttachment" | "directQuestion" };
 export type DraftContent = {

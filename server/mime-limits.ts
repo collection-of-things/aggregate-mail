@@ -29,6 +29,7 @@ export function decodeGmailSource(raw: unknown): Buffer {
 // MailParser forwards these bounds to its installed mailsplit parser. Using
 // its MIME grammar keeps folded headers and nested delimiters consistent.
 export const mimeParserOptions = {
+  keepCidLinks: true,
   skipImageLinks: true,
   maxHtmlLengthToParse: 2 * 1024 * 1024,
   maxHeadSize: 65536,

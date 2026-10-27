@@ -1,9 +1,11 @@
-import { Fragment, createElement, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { imageSource } from "../../shared/types";
-import { mailLink, mailStyle, parseMailContent, privateMailLink, type MailContentNode } from "../../shared/mail-content";
+import { Fragment, createElement, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { imageSource, type MailAttachment } from "../../shared/types";
+import { embeddedImageTypes, mailLink, mailStyle, parseMailContent, privateMailLink, type MailContentNode } from "../../shared/mail-content";
 import { segmentPrivateParts, type PrivacySegment } from "../privacy";
 
 type Props = {
+  mailId?: string;
+  attachments?: readonly MailAttachment[];
   html: string | null | undefined;
   showImages: boolean;
   renderText: (text: string, segments?: readonly PrivacySegment[]) => ReactNode;
@@ -16,10 +18,22 @@ type Props = {
 
 // Parent owns opening-specific consent and text redaction. Hooks: formatted-mail,
 // formatted-mail-fallback, formatted-mail-image and formatted-mail-image-placeholder.
-export function FormattedMail({ html, showImages, renderText, redactText, privacy, privateNames = [], fallbackText = "", fallback }: Props) {
+export function FormattedMail({ mailId, attachments = [], html, showImages, renderText, redactText, privacy, privateNames = [], fallbackText = "", fallback }: Props) {
   const nodes = useMemo(() => typeof html === "string" ? parseMailContent(html) : null, [html]);
   const textParts = nodes ? contentParts(nodes) : [];
   const privateParts = privacy ? segmentPrivateParts(textParts, privateNames) : undefined;
+  const embeddedFiles = new Map<string, MailAttachment>();
+  const visitImages = (items: readonly MailContentNode[]) => {
+    for (const node of items) if (typeof node !== "string") {
+      if (node.tag === "img" && (!privacy || !privateMailLink(node.attributes.src || "", redactText))) {
+        const file = embeddedAttachment(node.attributes.src || "", attachments);
+        if (file) embeddedFiles.set(file.id, file);
+      }
+      visitImages(node.children);
+    }
+  };
+  if (nodes && showImages) visitImages(nodes);
+  const embeddedSources = useEmbeddedImages(mailId, [...embeddedFiles.values()]);
   let textIndex = 0;
   const render = (node: MailContentNode, key: number): ReactNode => {
     if (typeof node === "string") return <Fragment key={key}>{renderText(node, privateParts?.[textIndex++])}</Fragment>;
@@ -55,6 +69,15 @@ export function FormattedMail({ html, showImages, renderText, redactText, privac
       // An empty box at the image's size keeps the sender layout; small icon
       // cells would otherwise wrap the reason one letter per line.
       if (!showImages) return <ImagePlaceholder key={key} style={style} reason="Image blocked. Use Show images to load it." />;
+      const cid = /^cid:(.+)$/i.exec(a.src || "")?.[1];
+      const embedded = embeddedAttachment(a.src || "", attachments);
+      if (cid && privacy && privateMailLink(a.src, redactText))
+        return <ImagePlaceholder key={key} style={style} reason="Image unavailable while personal information is hidden." />;
+      if (embedded && mailId) {
+        const source = embeddedSources[embedded.id];
+        return source?.src ? <FormattedImage key={`${key}:${source.src}`} src={source.src} alt={redactText(a.alt || "").slice(0, 500)} style={style} /> :
+          <ImagePlaceholder key={key} style={style} reason={source?.failed ? "Embedded image could not be loaded." : "Loading embedded image…"} />;
+      }
       const src = imageSource(a.src || "");
       if (privacy && (privateMailLink(a.src || "", redactText) || (src && privateMailLink(src, redactText))))
         return <ImagePlaceholder key={key} style={style} reason="Image unavailable while personal information is hidden." />;
@@ -92,9 +115,9 @@ export function FormattedMail({ html, showImages, renderText, redactText, privac
     if (["br", "hr", "col"].includes(tag)) return createElement(element, props);
     return createElement(element, props, content);
   };
-  const formatted = !!nodes && !!(textParts.join("").trim() || hasImage(nodes));
+  const formatted = !!nodes && !!(textParts.join("").trim() || hasImage(nodes, attachments));
   return <div className={formatted ? "formatted-mail" : "formatted-mail formatted-mail-fallback"}
-    style={{ maxWidth: "100%", minWidth: 0, overflow: "auto", overflowWrap: "anywhere", contain: "layout paint", isolation: "isolate", whiteSpace: formatted ? "normal" : "pre-wrap" }}>
+    style={{ maxWidth: "100%", minWidth: 0, overflow: "auto", overflowWrap: formatted ? "break-word" : "anywhere", contain: "layout paint", isolation: "isolate", whiteSpace: formatted ? "normal" : "pre-wrap" }}>
     {formatted ? nodes.map(render) : fallback ?? renderText(fallbackText)}
   </div>;
 }
@@ -104,6 +127,42 @@ export function FormattedMail({ html, showImages, renderText, redactText, privac
 function ImagePlaceholder({ style, reason }: { style: CSSProperties; reason: string }) {
   return <span className="formatted-mail-image-placeholder" role="img" aria-label={reason} title={reason}
     style={{ width: style.width ?? 24, height: style.height ?? 24, maxHeight: style.maxHeight }} />;
+}
+
+// CID URLs encode Content-ID characters; ambiguous IDs never resolve.
+function embeddedAttachment(source: string, attachments: readonly MailAttachment[]): MailAttachment | undefined {
+  const cid = /^cid:(.+)$/i.exec(source)?.[1];
+  if (!cid) return;
+  let decoded: string;
+  try { decoded = decodeURIComponent(cid); } catch { return; }
+  const matches = attachments.filter((file) => file.contentId === decoded);
+  return matches.length === 1 && !matches[0].unavailable && embeddedImageTypes.has(matches[0].contentType.toLowerCase()) ? matches[0] : undefined;
+}
+
+type EmbeddedSource = { src?: string; failed?: boolean };
+// One fetch/blob per unique referenced attachment, shared by all image occurrences.
+function useEmbeddedImages(mailId: string | undefined, files: readonly MailAttachment[]) {
+  const [sources, setSources] = useState<Record<string, EmbeddedSource>>({});
+  // The value key avoids re-fetches when parent renders recreate the same metadata.
+  const fileKey = JSON.stringify(files.map(({ id, size, contentType }) => ({ id, size, contentType })));
+  useEffect(() => {
+    let active = true;
+    const urls: string[] = [];
+    const controller = new AbortController();
+    setSources({});
+    if (mailId) for (const file of files) void (async () => {
+      const response = await fetch(`/api/messages/${encodeURIComponent(mailId)}/attachments/${encodeURIComponent(file.id)}`, { signal: controller.signal });
+      if (!response.ok) throw new Error("Embedded image unavailable");
+      const bytes = await response.arrayBuffer();
+      if (bytes.byteLength !== file.size || bytes.byteLength > 524288) throw new Error("Embedded image limit");
+      if (!active) return;
+      const src = URL.createObjectURL(new Blob([bytes], { type: file.contentType.toLowerCase() }));
+      urls.push(src);
+      setSources((current) => ({ ...current, [file.id]: { src } }));
+    })().catch(() => { if (active) setSources((current) => ({ ...current, [file.id]: { failed: true } })); });
+    return () => { active = false; controller.abort(); urls.forEach((url) => URL.revokeObjectURL(url)); };
+  }, [mailId, fileKey]);
+  return sources;
 }
 
 function FormattedImage({ src, alt, style }: { src: string; alt: string; style: CSSProperties }) {
@@ -143,6 +202,10 @@ function hasText(nodes: readonly MailContentNode[]): boolean {
   return nodes.some((node) => typeof node === "string" ? !!node.trim() : hasText(node.children));
 }
 
-function hasImage(nodes: MailContentNode[]): boolean {
-  return nodes.some((node) => typeof node !== "string" && ((node.tag === "img" && !!imageSource(node.attributes.src || "")) || hasImage(node.children)));
+function hasImage(nodes: MailContentNode[], attachments: readonly MailAttachment[] = []): boolean {
+  return nodes.some((node) => {
+    if (typeof node === "string") return false;
+    const embedded = !!embeddedAttachment(node.attributes.src || "", attachments);
+    return node.tag === "img" && (!!imageSource(node.attributes.src || "") || embedded) || hasImage(node.children, attachments);
+  });
 }
