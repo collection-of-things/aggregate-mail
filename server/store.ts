@@ -46,6 +46,7 @@ function decrypt(value: string): unknown {
   );
 }
 type Records = {
+  savedView: import("../shared/saved-views.js").SavedView;
   phoneCredential: import("../shared/phone-access.js").PhoneCredential;
   phoneAccess: import("../shared/phone-access.js").PhoneAccessRecord;
   availability: import("../shared/availability.js").AvailabilitySettings;
@@ -472,7 +473,7 @@ export function compactStore(options: { cleanupOrphans?: boolean; vacuum?: boole
   let removedAttachments = 0;
   let cleanupSkipped: "unknown-record-kind" | "incomplete-mail-metadata" | "incomplete-attachment-metadata" | undefined;
   if (options.cleanupOrphans) transaction(() => {
-    const knownKinds: (keyof Records)[] = ["outbox", "availability", "calendarOffer", "calendarOperation", "commitment", "googleCalendar", "googleCalendarWindow", "calendarEvent", "project", "decision", "coverage", "proposal", "agent", "agentProvider", "attachment", "config", "maintenance", "compose", "account", "mail", "mailSummary", "label", "rule", "meta", "mcp", "draft", "contact", "recentRecipient"];
+    const knownKinds: (keyof Records)[] = ["savedView", "outbox", "availability", "calendarOffer", "calendarOperation", "commitment", "googleCalendar", "googleCalendarWindow", "calendarEvent", "project", "decision", "coverage", "proposal", "agent", "agentProvider", "attachment", "config", "maintenance", "compose", "account", "mail", "mailSummary", "label", "rule", "meta", "mcp", "draft", "contact", "recentRecipient"];
     if (db.prepare("SELECT DISTINCT kind FROM records").all().some(row => !knownKinds.includes(String(row.kind) as keyof Records))) {
       cleanupSkipped = "unknown-record-kind";
       return;

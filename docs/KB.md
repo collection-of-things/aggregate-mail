@@ -1,5 +1,30 @@
 # Repository knowledge
 
+## Saved search views
+
+Save view appears in the mail search toolbar when a query or list filter is
+active. It asks only for a name. Commands offers Save current view and separate
+Open, Rename and Delete actions for each saved view, using the existing keyboard
+selection and focus behavior. Definitions preserve mailbox, Inbox tab, query,
+account, Gmail label, read/relevance filters and sort. Opening a view clears
+reader selection and restores the definition in one navigation visit. A removed
+account or label disables opening rather than silently broadening the search.
+
+`shared/saved-views.ts` owns bounded schemas. `server/saved-views.ts` mounts
+session/CSRF-protected CRUD under `/api/saved-views`; `savedView` records use the
+existing AES-256-GCM encrypted store. At most 100 views are retained. Names are
+1 to 80 single-line characters. Revision checks reject stale renames/deletes.
+Definitions stay local and search only existing cached mail and local drafts.
+They never fetch history, change categories or mutate provider mail.
+
+Privacy replaces command names with numbered Saved view labels and hides
+unfocused search text. The shared private name field reveals its value only
+while editing. No saved-view definition is written to localStorage.
+`server/saved-views.test.ts` checks encryption, restart, exact definitions and
+guarded CRUD. Saved-view cases in `src/navigation.test.tsx` exercise Commands,
+filter restoration, rename/delete and privacy. Native and installed acceptance
+are separate from these synthetic checks.
+
 ## Phone pairing, passkeys and browser key bootstrap
 
 `server/phone-passkeys.ts` mounts only the public `/auth/pair`, bundled client

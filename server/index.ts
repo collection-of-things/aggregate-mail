@@ -20,6 +20,7 @@ import { mountAgentProvider } from "./agent-provider.js";
 import { mountProviderSearch } from "./provider-search.js";
 import { mountDrafts } from "./drafts.js";
 import { mountContacts, removeAccountContacts } from "./contacts.js";
+import { mountSavedViews } from "./saved-views.js";
 import { calendarScopes, removeGoogleCalendar, saveCalendarAccess } from "./google-calendar.js";
 import { mountInvitations } from "./invitations.js";
 import { mountOffers } from "./offers.js";
@@ -160,6 +161,7 @@ mountOffers(app);
 mountInvitations(app);
 mountAgentProvider(app);
 mountContacts(app);
+mountSavedViews(app);
 mountProviderSearch(app, () => desktopEvents.emit("mail-changed"));
 function stateStatus(includeArrivals = true): BootstrapResponse & Partial<Pick<StateResponse, "unreadArrivals" | "mailArrivals">> {
   return {

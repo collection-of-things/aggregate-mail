@@ -2,6 +2,7 @@ import { OutboxNotices } from "./compose/OutboxNotices";
 import type { LocalMailUndo, LocalMailActionResponse } from "../shared/local-mail-undo";
 import { mailSearchScope, widenMailSearch } from "./mail-search-scope";
 import { SearchToolbar } from "./shell/SearchToolbar";
+import { useSavedViews, type SavedViewEdit } from "./saved-views";
 import { mailNotice } from "../shared/notifications";
 import { readNotifications, saveNotifications } from "./notifications";
 import {
@@ -182,7 +183,8 @@ export function App() {
   const [eventDirty, setEventDirty] = useState(false);
   useEffect(() => { if (updateInstalling) setPalette(false); }, [updateInstalling]);
   const [bulkBlocking, setBulkBlocking] = useState(false);
-  const toolbarBlocked = !!(bulkBlocking || scheduledOpen || teach || snooze || trashMail || shortcuts || labelMail || connecting || updateInstalling || settingsModal || workModal || quickSource || meetingMail);
+  const [savedViewEdit, setSavedViewEdit] = useState<SavedViewEdit | null>(null);
+  const toolbarBlocked = !!(savedViewEdit || bulkBlocking || scheduledOpen || teach || snooze || trashMail || shortcuts || labelMail || connecting || updateInstalling || settingsModal || workModal || quickSource || meetingMail);
   const navigationBlocked = settings || !!compose || toolbarBlocked;
   const navigate = (patch: Partial<MailLocation>, search = false) => {
     if (toolbarBlocked) return false;
@@ -1339,7 +1341,15 @@ export function App() {
     : placeholderMailCommands.map(({ id, label, key }) => ({
         id: `mail-${id}`, label, group: "mail" as const, shortcut: key, disabled: true,
         disabledReason: "Select an email first", aliases: commandAliases[`mail-${id}`], run: () => undefined }));
+  const savedViews = useSavedViews({ api, active: ready && palette, location: navigation.location, privacy, edit: savedViewEdit, setEdit: setSavedViewEdit,
+    available: definition => (definition.accountFilter === "all" || state.accounts.some(account => account.id === definition.accountFilter)) &&
+      (definition.labelFilter === "all" || state.labels.some(label => `${label.accountId}:${label.id}` === definition.labelFilter &&
+        (definition.accountFilter === "all" || definition.accountFilter === label.accountId))),
+    onOpen: definition => { setSearching(!!definition.query); navigate({ ...definition, page: "mail", selectedId: null, opened: false }); },
+    onError: setNotice,
+  });
   const commands: PaletteCommand[] = [
+    ...savedViews.commands,
     { id: "undo-local", label: "Undo last action", group: "navigation", disabled: !lastUndo || busy || syncing || toolbarBlocked,
       disabledReason: !lastUndo ? "No local action to undo" : busy || syncing || toolbarBlocked ? "Another action is in progress" : undefined,
       run: () => { if (lastUndo) void undoLocalAction(lastUndo); } },
@@ -1386,7 +1396,8 @@ export function App() {
           onReload={() => { rememberBrowserUpdateLocation(navigation.location); window.location.reload(); }}
         />
         {palette && !updateInstalling && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
-        <div className="frame" inert={settings || updateInstalling || palette || scheduledOpen}>
+        {savedViews.dialog}
+        <div className="frame" inert={settings || updateInstalling || palette || scheduledOpen || savedViews.editing}>
           {!roomy && mobileSidebarOpen && <button type="button" className="mobile-sidebar-backdrop" aria-label="Close navigation" onClick={() => { setMobileSidebarOpen(false); requestAnimationFrame(() => document.getElementById("sidebar-toggle")?.focus()); }} />}
           <Sidebar
             open={sidebarShown}
@@ -1434,6 +1445,7 @@ export function App() {
               </div>
               {!settings && historyControls}
               <SearchToolbar inputRef={searchRef} scopeKey={JSON.stringify([page, view, accountFilter, labelFilter, readFilter, relevanceFilter, opened])} query={settings || nonMailView ? "" : query}
+                onSaveView={!settings && !nonMailView && !compose && savedViews.canSave ? savedViews.startSave : undefined}
                 label="Search cached mail and saved drafts"
                 invalid={!settings && !nonMailView && !!search.error} disabled={toolbarBlocked} commandsDisabled={toolbarBlocked || (!!compose && busy)} shortcut={shortcut("search")} onFocus={() => setSearching(true)}
                 onChange={(value) => {

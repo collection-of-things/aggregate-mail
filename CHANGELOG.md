@@ -8,6 +8,8 @@ unversioned history without treating it as a release record.
 
 ### Added
 
+- Save cached-mail searches and filters as encrypted named views. Open, rename or delete them from Commands; reopening restores the account, mailbox, query, filters and sort. Names and unfocused search text stay hidden in privacy mode ([#57](https://git.cafe/collection-of-devs/aggregate-mail/issues/57)).
+
 - Open Contacts from the sidebar, find saved people or recent recipients, and import Google, Yahoo, Outlook-compatible CSV or UTF-8 vCard exports. Preview before saving; existing contacts stay intact and imported addresses appear in recipient suggestions. No developer account or paid service is required ([#138](https://github.com/collection-of-things/aggregate-mail/issues/138)).
 
 ### Changed
