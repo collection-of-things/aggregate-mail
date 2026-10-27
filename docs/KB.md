@@ -2549,6 +2549,10 @@ and locally available attachments within send limits. Every omitted attachment
 is listed in the body. Sender HTML, remote resources, original threading and
 Bcc are not copied. Forward uses a new `Fwd:` subject and empty To. The reader,
 Commands menu and F shortcut expose the action. No provider fetch or send occurs.
+Forward admits one preparation request at a time. Its completion can open only
+in the originating compose generation while the source and account remain
+available and installation has not started. A newer composer stays open; the
+prepared encrypted draft remains available in Drafts without repeating the POST.
 
 `POST /api/send` requires `accountId`, `to` (1..100 email addresses), `subject`
 and nonempty `body`. Optional `cc` and `bcc` each allow 0..100 addresses.

@@ -140,7 +140,7 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
         to: [], subject: `Fwd: ${mail.subject}`, body: "Synthetic forwarded text", sendUnknown: false }) } as Response;
     }
     if (url.includes("/drafts/") && (!options?.method || options.method === "GET")) return { ok: true, json: async () => fixtureDrafts.find(draft => url.endsWith(`/drafts/${draft.id}`)) } as Response;
-    if (url.endsWith("/drafts") && !options?.method) return { ok: true, json: async () => fixtureDrafts.filter(draft => url.includes(`/accounts/${draft.accountId}/`)).map(({ body, attachments, ...draft }) => ({ ...draft, preview: body.slice(0, 200), attachmentCount: attachments?.length || 0 })) } as Response;
+    if (url.endsWith("/drafts") && (!options?.method || options.method === "GET")) return { ok: true, json: async () => fixtureDrafts.filter(draft => url.includes(`/accounts/${draft.accountId}/`)).map(({ body, attachments, ...draft }) => ({ ...draft, preview: body.slice(0, 200), attachmentCount: attachments?.length || 0 })) } as Response;
     if (url.includes("/drafts") && ["POST", "PUT"].includes(options?.method || "")) {
       if (draftSaveFails) return { ok: false, json: async () => ({ error: "Synthetic draft save failure" }) } as Response;
       savedDraft = { ...JSON.parse(String(options?.body)), id: "synthetic-draft", accountId: url.split("/")[3],
@@ -2643,4 +2643,69 @@ test("Commands lists Forward with its configured shortcut", async () => {
     assert.ok(app.container.querySelector(".compose-dialog"));
     assert.equal(app.requests.filter(url => url.endsWith("/forward")).length, 1);
   } finally { await app.close(); }
+});
+
+
+for (const replacement of ["keyboard", "sidebar", "saved draft", "source removed", "account removed", "update"] as const) {
+  test(`delayed Forward preserves context: ${replacement}`, async () => {
+    let updateState: ((state: import("../shared/updates").UpdateState) => void) | undefined;
+    const saved: Draft = { id: "saved", accountId: "a", revision: 3, updatedAt: 1, to: [], subject: "Keep this draft", body: "Synthetic text", sendUnknown: false };
+    const app = await mount(false, state => { state.draftCount = 1; }, { updates: {
+      state: async () => ({ phase: "current" }), command: async () => { throw new Error("No installer allowed"); },
+      onState: callback => { updateState = callback; return () => {}; }, onDrain: () => () => {},
+    } }, [saved]);
+    const originalFetch = globalThis.fetch;
+    let release!: () => void;
+    const wait = new Promise<void>(resolve => { release = resolve; });
+    globalThis.fetch = async (input, options) => {
+      const response = await originalFetch(input, options);
+      if (String(input).endsWith("/forward")) await wait;
+      return response;
+    };
+    try {
+      await app.key("f");
+      if (replacement === "keyboard") await app.key("c");
+      else if (replacement === "sidebar") await app.click(app.button("New message"));
+      else if (replacement === "saved draft") {
+        // Drafts sidebar is disabled while busy; global search remains available.
+        await app.input(app.container.querySelector<HTMLInputElement>(".search input")!, "subject:Keep");
+        await act(async () => { await new Promise(resolve => setTimeout(resolve, 145)); });
+        const row = app.container.querySelector<HTMLElement>(".draft-row");
+        assert.ok(row, "saved draft is exposed through global search while Forward waits");
+        await app.click(row);
+      } else if (replacement === "update") {
+        await act(async () => { updateState!({ phase: "installing", version: "0.1.7" }); });
+      } else {
+        if (replacement === "source removed") app.state.messages = app.state.messages.filter(mail => mail.id !== "a:1");
+        else app.state.accounts = app.state.accounts.filter(account => account.id !== "a");
+        const before = app.requests.filter(url => url.startsWith("/api/state")).length;
+        await app.refresh();
+        assert.ok(app.requests.filter(url => url.startsWith("/api/state")).length > before, "removal is published to App before resolving Forward");
+      }
+      await act(async () => { release(); await wait; });
+      assert.equal(app.container.querySelector<HTMLInputElement>('.compose-subject input')?.value,
+        replacement === "keyboard" || replacement === "sidebar" ? "" : replacement === "saved draft" ? saved.subject : undefined);
+      assert.equal(app.requests.filter(url => url.endsWith("/forward")).length, 1);
+      assert.equal(app.requests.filter(url => url === "/api/send").length, 0);
+    } finally { release(); globalThis.fetch = originalFetch; await app.close(); }
+  });
+}
+
+test("Forward admits only one request before React renders", async () => {
+  const app = await mount();
+  const originalFetch = globalThis.fetch;
+  let release!: () => void;
+  const wait = new Promise<void>(resolve => { release = resolve; });
+  globalThis.fetch = async (input, options) => {
+    const response = await originalFetch(input, options);
+    if (String(input).endsWith("/forward")) await wait;
+    return response;
+  };
+  try {
+    await act(async () => {
+      for (let i = 0; i < 2; i++) app.window.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "f", bubbles: true }));
+    });
+    assert.equal(app.requests.filter(url => url.endsWith("/forward")).length, 1);
+    await act(async () => { release(); await wait; });
+  } finally { release(); globalThis.fetch = originalFetch; await app.close(); }
 });

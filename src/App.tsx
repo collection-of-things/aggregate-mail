@@ -132,11 +132,20 @@ export function App() {
 
   const [draftProgress, setDraftProgress] = useState<DraftProgress>({ phase: "idle", message: "Draft saves on this device as you type." });
   const draftSession = useRef<DraftSession | null>(null);
+  const composeGeneration = useRef(0);
+  const forwardRequest = useRef<{ source: Mail; generation: number; valid: boolean } | null>(null);
   const draftLock = useRef(false);
   const draftAdmissionLock = useRef(false);
   const attachmentTask = useRef<Promise<void> | undefined>(undefined);
   const draftTask = useRef<Promise<void> | undefined>(undefined);
   const [updateInstalling, setUpdateInstalling] = useState(false);
+  useLayoutEffect(() => {
+    const request = forwardRequest.current;
+    if (request && (updateInstalling ||
+      !state.accounts.some(account => account.id === request.source.accountId) ||
+      !state.messages.some(mail => mail.id === request.source.id && mail.accountId === request.source.accountId && mail.remoteId === request.source.remoteId))) request.valid = false;
+  });
+  useEffect(() => () => { if (forwardRequest.current) forwardRequest.current.valid = false; }, []);
   const sendTask = useRef<Promise<void> | undefined>(undefined);
   const [quickSource, setQuickSource] = useState<string | null>(null);
   const [meetingMail, setMeetingMail] = useState<Mail | null>(null);
@@ -347,6 +356,7 @@ export function App() {
   const dueCount = ready && work.loaded && !work.stale && !work.refreshing ? work.workspace.commitments.filter((item) =>
     (accountFilter === "all" || item.accountId === accountFilter) && openCommitment(item) && item.followUpAt !== undefined && item.followUpAt <= work.now).length : undefined;
   const openCompose = (value: Compose | Draft, source?: Mail) => {
+    composeGeneration.current++;
     setReplyContext(source);
     const session = new DraftSession(api, value, (progress) => {
       if (draftSession.current === session) {
@@ -751,11 +761,20 @@ export function App() {
   };
   const closeReader = () => { listFocusPending.current = true; setOpened(false); };
   const forwardMail = async (mail: Mail) => {
-    if (compose || busy || updateInstalling) return;
+    if (forwardRequest.current || draftSession.current || compose || busy || updateInstalling) return;
+    const request = { source: mail, generation: composeGeneration.current, valid: true };
+    forwardRequest.current = request;
     setBusy(true);
-    try { openCompose(await api<Draft>(`/messages/${encodeURIComponent(mail.id)}/forward`, "POST", {})); }
+    try {
+      const draft = await api<Draft>(`/messages/${encodeURIComponent(mail.id)}/forward`, "POST", {});
+      if (request.valid && request.generation === composeGeneration.current && !draftSession.current) openCompose(draft);
+      else {
+        setNotice("Forward finished in the background. Check Drafts for recovery. No mail was sent.");
+        void reload().catch(() => {});
+      }
+    }
     catch { setNotice("Forward could not be prepared. No mail was sent."); }
-    finally { setBusy(false); }
+    finally { forwardRequest.current = null; setBusy(false); }
   };
   const startCompose = (reply?: Mail, all = false) => {
     if (!state.accounts.length) {
