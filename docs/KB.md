@@ -1763,6 +1763,10 @@ stays separate from timed spans. Follow-ups and snoozes are zero-duration points
 full textual buttons keep short events and point markers reachable. Navigation
 changes no event or commitment and invokes no provider operation.
 
+The Day/Week timeline keeps its midnight tick above the outside-day shading.
+The outside-day notice reserves a separate text line below that tick when
+daylight-saving changes produce days of different elapsed lengths.
+
 Cross-month reads preserve full source/account/calendar/event identity. Local
 copies prefer revision, then `updatedAt`; Google copies prefer `updatedAt` because
 imported revisions remain 1. Equal-version conflicts choose a canonical field
