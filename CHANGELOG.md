@@ -6,6 +6,8 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+## 0.2.17 - 2026-10-27
+
 ### Added
 
 - Schedule sends for tomorrow morning, Monday morning or a custom local time. Review, edit, cancel or reschedule them in Scheduled; missed or uncertain sends are never retried automatically ([#60](https://github.com/collection-of-things/aggregate-mail/issues/60)).
