@@ -36,7 +36,7 @@ test("window opacity applies immediately, persists and disables with transparenc
   } finally { await restarted.close(); }
 });
 
-async function mount(native = false, setup?: (state: State, storage: Storage) => void, bridge: Partial<NonNullable<Window["desktop"]>> | boolean = {}, fixtureDrafts: Draft[] = []) {
+async function mount(native = false, setup?: (state: State, storage: Storage) => void, bridge: Partial<NonNullable<Window["desktop"]>> | boolean = {}, fixtureDrafts: Draft[] = [], viewportWidth?: number) {
   const dom = new JSDOM("<!doctype html><div id='root'></div>", { url: "http://localhost/" });
   dom.window.HTMLElement.prototype.scrollTo = function (options?: ScrollToOptions | number, y?: number) {
     this.scrollTop = typeof options === "number" ? y || 0 : options?.top ?? this.scrollTop;
@@ -90,6 +90,10 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
     onState: () => () => {}, onDrain: () => () => {},
   };
   (dom.window as unknown as Window).desktop = desktop;
+  if (viewportWidth !== undefined) {
+    delete (dom.window as unknown as Window).desktop;
+    dom.window.matchMedia = ((query: string) => ({ matches: /min-width: (\d+)px/.test(query) ? viewportWidth >= Number(query.match(/min-width: (\d+)px/)![1]) : false, media: query, onchange: null, addListener() {}, removeListener() {}, dispatchEvent() { return true; }, addEventListener() {}, removeEventListener() {} })) as typeof dom.window.matchMedia;
+  }
   const previousFetch = globalThis.fetch;
   const mutations: string[] = [];
   const requests: string[] = [];
@@ -1023,13 +1027,13 @@ test("Settings keeps mail navigation, uses a section rail and shows one section 
     assert.equal(settings.getAttribute("aria-label"), "Settings");
     await app.click(settings);
     assert.ok(app.container.querySelector('[aria-label="Mail views"]'), "mail navigation remains visible");
-    assert.equal(app.container.querySelectorAll(".settings-navigation button").length, 11);
+    assert.equal(app.container.querySelectorAll(".settings-navigation button").length, 12);
     const rail = app.container.querySelector('.settings-navigation')!;
     assert.deepEqual([...rail.querySelectorAll('[role="group"]')].map(group => group.getAttribute('aria-label')),
       ["Connections", "Mail", "Preferences", "Advanced"]);
-    assert.equal(new Set([...rail.querySelectorAll('button')].map(button => button.textContent)).size, 11,
+    assert.equal(new Set([...rail.querySelectorAll('button')].map(button => button.textContent)).size, 12,
       "each existing section remains reachable once");
-    assert.equal(app.container.querySelector(".settings select"), null);
+    assert.equal(app.container.querySelector(".settings-column select"), null);
     assert.ok(app.container.querySelector("[data-interaction-settings]"));
     await app.click(app.button("Appearance"));
     assert.equal(app.container.querySelector("[data-interaction-settings]"), null);
@@ -1044,7 +1048,7 @@ test("Settings keeps mail navigation, uses a section rail and shows one section 
 test("side by side keeps the list beside the opened email; full width opens it in place", async () => {
   const split = await mount();
   try {
-    assert.equal(!!split.container.querySelector(".reader-pane"), false, "the closed list uses the available width");
+    assert.ok(split.container.querySelector(".workspace.split .reader-pane"), "side by side reserves the reader before opening mail");
     await split.open("a:1");
     assert.equal(split.title(), "Alpha");
     assert.ok(split.container.querySelector(".reader-pane .message"));
@@ -1052,7 +1056,7 @@ test("side by side keeps the list beside the opened email; full width opens it i
     assert.equal(split.container.querySelector(".reader-pane .mail-actions")?.getAttribute("aria-label"), "Opened email actions");
     await split.click(split.button("Close email"));
     assert.equal(split.title(), undefined);
-    assert.equal(!!split.container.querySelector(".reader-pane"), false, "closing restores the full list");
+    assert.ok(split.container.querySelector(".workspace.split .reader-pane"), "closing keeps the saved side-by-side layout");
   } finally { await split.close(); }
   const full = await mount(false, (_state, storage) =>
     storage.setItem("emc2.appearance.v1", JSON.stringify({ reading: "full" })));
@@ -1062,6 +1066,19 @@ test("side by side keeps the list beside the opened email; full width opens it i
     assert.equal(full.title(), "Alpha");
     assert.equal(full.container.querySelector("[id='mail-a:2']"), null, "the email replaces the list");
   } finally { await full.close(); }
+});
+
+test("side by side uses one column on narrow screens", async () => {
+  const app = await mount(false, undefined, {}, [], 760);
+  try {
+    assert.equal(app.container.querySelector(".reader-pane"), null);
+    await app.open("a:1");
+    assert.equal(app.title(), "Alpha");
+    assert.equal(app.container.querySelector(".reader-pane"), null);
+    assert.equal(app.container.querySelector("[id='mail-a:2']"), null, "narrow reading replaces the list");
+    await app.click(app.button("Close email"));
+    assert.ok(app.container.querySelector("[id='mail-a:2']"));
+  } finally { await app.close(); }
 });
 
 test("compose preferences survive Settings navigation, close and failed save", async () => {
@@ -2289,15 +2306,15 @@ test("F6 cycles the visible regions and Shift+F6 reverses", async () => {
     const search = app.container.querySelector<HTMLInputElement>(".search input")!;
     await app.key("F6");
     const sidebarFocus = doc.activeElement as HTMLElement;
-    assert.equal(sidebarFocus.closest("#sidebar"), app.container.querySelector("#sidebar"));
+    assert.ok(sidebarFocus.closest("#sidebar") === app.container.querySelector("#sidebar"), "F6 starts in the sidebar");
     assert.equal(sidebarFocus.getAttribute("aria-current"), "page", "the sidebar cycle lands on the current view");
     await app.key("F6");
-    assert.equal(doc.activeElement, search);
+    assert.ok(doc.activeElement === search, "F6 next reaches search");
     await app.key("F6");
     assert.ok(doc.activeElement?.classList.contains("row") && doc.activeElement.getAttribute("aria-current") === "true",
       "entering the list focuses the selected row");
     await app.key("F6");
-    assert.equal(doc.activeElement, sidebarFocus, "a closed reader is skipped and the cycle wraps");
+    assert.ok(doc.activeElement === sidebarFocus, "a closed reader is skipped and the cycle wraps");
     await app.key("F6", { shiftKey: true });
     assert.ok(doc.activeElement?.classList.contains("row"), "Shift+F6 cycles backwards");
     await app.open("a:1");
@@ -2305,7 +2322,7 @@ test("F6 cycles the visible regions and Shift+F6 reverses", async () => {
     await app.key("F6");
     assert.ok(doc.activeElement?.classList.contains("message"), "the next region is the reader");
     await app.key("F6");
-    assert.equal(doc.activeElement, sidebarFocus, "the cycle wraps back to the sidebar");
+    assert.ok(doc.activeElement === sidebarFocus, "the cycle wraps back to the sidebar");
     await app.key("F6", { shiftKey: true });
     assert.ok(doc.activeElement?.classList.contains("message"), "Shift+F6 returns to the reader");
   } finally { await app.close(); }
@@ -2496,5 +2513,98 @@ test("pending sequences preserve Escape, Tab and system shortcuts", async () => 
     await app.key(",");
     await app.key("z"); await app.key("Escape");
     assert.equal(app.container.querySelector(".settings"), null);
+  } finally { await app.close(); }
+});
+
+test("phone navigation can leave Today, close the drawer and reopen it for Settings", async () => {
+  const app = await mount(false, undefined, {}, [], 390);
+  try {
+    const toggle = app.button("Show sidebar");
+    assert.equal(toggle.closest(".app-toolbar")?.firstElementChild, toggle);
+    assert.ok(app.container.querySelector(".sidebar.closed[inert]"));
+    await app.click(toggle);
+    assert.ok(app.container.querySelector(".mobile-sidebar-backdrop"));
+    assert.equal(app.container.querySelector(".sidebar[inert]"), null);
+    await app.click(app.button("Today"));
+    assert.equal(app.container.querySelector(".app")?.getAttribute("data-view"), "actions");
+    assert.ok(app.container.querySelector(".sidebar.closed[inert]"));
+    await app.click(app.button("Show sidebar"));
+    await app.click(app.button("Inbox"));
+    assert.equal(app.container.querySelector(".app")?.getAttribute("data-view"), "inbox");
+    assert.ok(app.container.querySelector(".sidebar.closed[inert]"));
+    await app.click(app.button("Show sidebar"));
+    await app.click(app.button("Settings"));
+    assert.ok(app.container.querySelector(".settings-dialog"));
+    await app.click(app.button("Close settings"));
+    await app.click(app.button("Show sidebar"));
+    await app.click(app.button("Close navigation"));
+    assert.ok(app.container.querySelector(".sidebar.closed[inert]"));
+    assert.equal(app.storage.getItem("sidebar"), null, "phone drawer does not overwrite desktop preference");
+  } finally { await app.close(); }
+});
+
+
+test("phone users can create, customize and retain a theme without changing mail", async () => {
+  const app = await mount(false, undefined, {}, [], 390);
+  let saved = "";
+  try {
+    await app.click(app.button("Show sidebar"));
+    await app.click(app.button("Settings"));
+    await app.click(app.button("Appearance"));
+    await app.click(themeButton(app, "Create theme"));
+    const document = app.window.document;
+    await app.input(document.querySelector<HTMLInputElement>('.theme-name input')!, "Phone palette");
+    await app.input(document.querySelector<HTMLInputElement>('[aria-label="Background hex"]')!, "#202530");
+    await app.input(document.querySelector<HTMLInputElement>('[aria-label="Accent hex"]')!, "#9c8aff");
+    await app.click(themeButton(app, "Save theme"));
+    saved = app.storage.getItem("emc2.appearance.v1")!;
+    const value = JSON.parse(saved);
+    assert.equal(value.customThemes[0].name, "Phone palette");
+    assert.equal(value.customThemes[0].palettes.dark.canvas, "#202530");
+    assert.equal(value.customThemes[0].palettes.dark.accent, "#9c8aff");
+    assert.equal(app.mutations.length, 0);
+  } finally { await app.close(); }
+  const restarted = await mount(false, (_state, storage) => storage.setItem("emc2.appearance.v1", saved), {}, [], 390);
+  try { assert.equal(restarted.window.document.documentElement.style.getPropertyValue("--bg"), "#202530"); }
+  finally { await restarted.close(); }
+});
+
+
+test("an empty browser page refreshes imported accounts when the phone tab returns", async () => {
+  let accounts: State["accounts"] = [], messages: State["messages"] = [];
+  const app = await mount(false, (state) => { accounts = state.accounts; messages = state.messages; state.accounts = []; state.messages = []; }, {}, [], 390);
+  try {
+    assert.equal(app.container.querySelectorAll('[aria-label="Filter accounts"] button[aria-pressed]').length, 0);
+    app.state.accounts = accounts; app.state.messages = messages;
+    const before = app.requests.filter(url => url.startsWith("/api/state")).length;
+    await act(async () => { app.window.dispatchEvent(new app.window.Event("focus")); });
+    assert.ok(app.requests.filter(url => url.startsWith("/api/state")).length > before, "returning to the browser reloads server state");
+    assert.equal(app.container.querySelectorAll('[aria-label="Filter accounts"] button[aria-pressed]').length, 3);
+    assert.equal(app.mutations.length, 0, "refreshing does not change mailbox state");
+  } finally { await app.close(); }
+});
+
+
+test("phone Settings section picker switches panels without changing saved mail", async () => {
+  const app = await mount(false, undefined, {}, [], 320);
+  try {
+    await app.click(app.button("Show sidebar"));
+    await app.click(app.button("Settings"));
+    const picker = app.container.querySelector<HTMLSelectElement>('select[aria-label="Settings section"]')!;
+    assert.ok(picker);
+    assert.equal(picker.options.length, 12);
+    assert.ok(Array.from(picker.options).some(option => option.value === "phone-access"));
+    const change = async (section: string) => {
+      await act(async () => { picker.value = section; picker.dispatchEvent(new app.window.Event("change", { bubbles: true })); });
+    };
+    await change("appearance");
+    assert.equal(app.container.querySelector(".settings-section-heading h1")?.textContent, "Appearance");
+    assert.equal(app.container.querySelector("[data-interaction-settings]"), null);
+    await change("interaction");
+    assert.ok(app.container.querySelector("[data-interaction-settings]"));
+    assert.equal(picker.value, "interaction");
+    assert.equal(app.mutations.length, 0);
+    await app.click(app.button("Close settings"));
+    assert.ok(app.button("Show sidebar"));
   } finally { await app.close(); }
 });

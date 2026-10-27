@@ -1,3 +1,6 @@
+import { browserGate, browserPort } from "./browser-preflight.js";
+import { phonePasskeys } from "./phone-passkeys.js";
+import { phoneAccess, mountPhoneAccess } from "./phone-access.js";
 import { notificationMail, type MailArrival, type NotificationMail } from "../shared/notifications.js";
 import { isDeepStrictEqual } from "node:util";
 import { EventEmitter } from "node:events";
@@ -46,7 +49,8 @@ import { loadConfiguration, saveConfiguration } from "./config.js";
 loadConfiguration();
 const desktopEvents = new EventEmitter();
 const app = express();
-const appUrl = process.env.APP_URL || "http://127.0.0.1:5173";
+if (browserGate) app.use(browserGate);
+const appUrl = process.env.APP_URL || (browserGate ? browserGate.localOrigin : "http://127.0.0.1:5173");
 const allowedOrigins = new Set([
   new URL(appUrl).origin,
   "http://127.0.0.1:3001",
@@ -55,21 +59,15 @@ const allowedOrigins = new Set([
     : []),
 ]);
 const csrf = randomBytes(32).toString("hex");
-// Without the desktop token (browser target), a per-launch secret printed to the terminal guards /api.
-const browserSession = randomBytes(32).toString("hex");
-const browserSessionCookie = "emc2_browser_session";
 const sameSecret = (value: unknown, secret: string) => {
   if (typeof value !== "string") return false;
   const given = Buffer.from(value), expected = Buffer.from(secret);
   return given.length === expected.length && timingSafeEqual(given, expected);
 };
-const requestCookie = (req: express.Request, name: string) =>
-  req.headers.cookie?.split(";").map((x) => x.trim()).find((x) => x.startsWith(`${name}=`))?.slice(name.length + 1);
 const authenticatedSession = (req: express.Request) =>
   process.env.MAIL_DESKTOP_TOKEN
     ? sameSecret(req.headers["x-desktop-token"], process.env.MAIL_DESKTOP_TOKEN)
-    : sameSecret(requestCookie(req, browserSessionCookie), browserSession);
-const browserSessionUrl = () => new URL(`/api/session?token=${browserSession}`, appUrl).href;
+    : !!browserGate?.authenticated(req);
 let syncing = false;
 let unreadArrivals = 0;
 let mailArrivals: MailArrival[] = [];
@@ -99,19 +97,12 @@ const mailRequest = (handler: (req: express.Request, res: express.Response) => P
 app.use("/api", (req, res, next) => {
   res.set("Cache-Control", "no-store");
   const host = req.hostname;
-  if (host !== "127.0.0.1" && host !== "localhost")
+  if (host !== "127.0.0.1" && host !== "localhost" && !(browserGate && browserGate.originFor(req)))
     return res
       .status(403)
       .json({ error: "This app only accepts local requests." });
-  if (req.headers.origin && !allowedOrigins.has(req.headers.origin))
+  if (req.headers.origin && !(browserGate ? req.headers.origin === browserGate.originFor(req) : allowedOrigins.has(req.headers.origin)))
     return res.status(403).json({ error: "Origin not allowed." });
-  if (!process.env.MAIL_DESKTOP_TOKEN && req.path === "/session" && req.method === "GET") {
-    res.set("Referrer-Policy", "no-referrer");
-    if (!sameSecret(req.query.token, browserSession))
-      return res.status(403).type("text").send("Open the browser link printed by the mail server.");
-    res.cookie(browserSessionCookie, browserSession, { httpOnly: true, sameSite: "strict", path: "/api" });
-    return res.redirect("/");
-  }
   if (
     req.path !== "/oauth/google" &&
     req.path !== "/oauth/google/callback" &&
@@ -145,6 +136,15 @@ app.use("/api", (req, res, next) => {
       .json({ error: "Wait for the current sync to finish, then try again." });
   next();
 });
+let activeBrowserPort = browserPort;
+const phoneService = browserGate ? phoneAccess({ gate: browserGate, port: () => activeBrowserPort,
+  load: () => get("phoneAccess", "host"),
+  save: (value) => value ? put("phoneAccess", "host", value) : remove("phoneAccess", "host"),
+}) : undefined;
+mountPhoneAccess(app, phoneService, browserGate);
+if (browserGate) phonePasskeys({ gate: browserGate, list: () => all("phoneCredential"),
+  save: (value) => put("phoneCredential", value.id, value), remove: (id) => remove("phoneCredential", id),
+}).mount(app);
 mountDrafts(app, () => desktopEvents.emit("mail-changed"));
 mountWorkspace(app);
 mountCalendar(app);
@@ -333,7 +333,7 @@ app.post("/api/logos/sync", mailRequest(async (_req, res) => {
     scanningLogos = false;
   }
 }));
-type PendingOAuth = { expiry: number; calendar: boolean; accountId?: string };
+type PendingOAuth = { expiry: number; calendar: boolean; accountId?: string; origin: string };
 // Single-use launch values from the authenticated start route, and the states
 // they become. Both are capped and expire, so neither can grow without bound.
 const oauthLaunches = new Map<string, PendingOAuth>();
@@ -372,29 +372,31 @@ app.post("/api/oauth/google/start", (req, res) => {
   const target = accountId ? get("account", accountId) : undefined;
   if (accountId && (!target || target.provider !== "gmail")) return res.status(400).json({ error: "Choose a connected Gmail account." });
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) return res.status(400).json({ error: googleUnconfigured });
-  const launch = rememberOAuth(oauthLaunches, { calendar, accountId }, 120000);
+  const launch = rememberOAuth(oauthLaunches, { calendar, accountId, origin: (browserGate && browserGate.originFor(req)) || appUrl }, 120000);
   res.json({ url: `/api/oauth/google?${new URLSearchParams({ launch })}` });
 });
 app.get("/api/oauth/google", (req, res) => {
+  const returnOrigin = (browserGate && browserGate.originFor(req)) || appUrl;
   const refuse = (message: string) => process.env.MAIL_DESKTOP_TOKEN
     ? res.status(400).type("text").send(message)
-    : res.redirect(`${appUrl}/?error=${encodeURIComponent(message)}`);
+    : res.redirect(`${returnOrigin}/?error=${encodeURIComponent(message)}`);
   const consent = takeOAuth(oauthLaunches, req.query.launch);
-  if (!consent) return refuse("This sign-in link has expired or was already used. Start Google sign-in again from Emc².");
+  if (!consent || consent.origin !== returnOrigin) return refuse("This sign-in link has expired or was already used. Start Google sign-in again from Emc².");
   const { calendar, accountId } = consent;
   const target = accountId ? get("account", accountId) : undefined;
   if (accountId && (!target || target.provider !== "gmail")) return refuse("Choose a connected Gmail account.");
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET)
     return refuse(process.env.MAIL_DESKTOP_TOKEN ? googleUnconfigured : "Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env and restart the server.");
-  const state = rememberOAuth(oauthStates, { calendar, accountId }, 600000);
+  const state = rememberOAuth(oauthStates, { calendar, accountId, origin: returnOrigin }, 600000);
   res.cookie("oauth_state", state, {
     httpOnly: true,
     sameSite: "lax",
+    secure: returnOrigin.startsWith("https:"),
     maxAge: 600000,
     path: "/api/oauth/google/callback",
   });
   res.redirect(
-    oauth().generateAuthUrl({
+    oauth(returnOrigin).generateAuthUrl({
       access_type: "offline",
       prompt: "consent",
       state,
@@ -412,8 +414,8 @@ app.get("/api/oauth/google/callback", mailRequest(async (req, res) => {
     .find((x) => x.startsWith("oauth_state="))
     ?.slice(12);
   const consent = takeOAuth(oauthStates, state);
-  res.clearCookie("oauth_state", { path: "/api/oauth/google/callback" });
-  if (!consent || state !== cookie)
+  res.clearCookie("oauth_state", { path: "/api/oauth/google/callback", httpOnly: true, sameSite: "lax", secure: consent?.origin.startsWith("https:") === true });
+  if (!consent || state !== cookie || (browserGate && consent.origin !== browserGate.originFor(req)))
     return res
       .status(400)
       .send("Invalid or expired sign-in. Return to the app and try again.");
@@ -422,7 +424,7 @@ app.get("/api/oauth/google/callback", mailRequest(async (req, res) => {
   try {
     if (req.query.error) refuse("Google sign-in was cancelled.");
     const code = z.string().parse(req.query.code);
-    const auth = oauth();
+    const auth = oauth(consent.origin);
     const { tokens } = await auth.getToken(code);
     auth.setCredentials(tokens);
     const { data } = await google
@@ -453,7 +455,7 @@ app.get("/api/oauth/google/callback", mailRequest(async (req, res) => {
         .send(
           "Account connected. You can close this tab and return to Emc².",
         );
-    } else res.redirect(`${appUrl}/?connected=1`);
+    } else res.redirect(`${consent.origin}/?connected=1`);
   } catch (error) {
     if (error instanceof AccountConnectionError) safeError = error.message;
     if (process.env.MAIL_DESKTOP_TOKEN) {
@@ -466,7 +468,7 @@ app.get("/api/oauth/google/callback", mailRequest(async (req, res) => {
       return;
     }
     res.redirect(
-      `${appUrl}/?error=${encodeURIComponent(safeError)}`,
+      `${consent.origin}/?error=${encodeURIComponent(safeError)}`,
     );
   }
 }));
@@ -853,12 +855,16 @@ export function startServer(
         maintain: maintainStorage,
         report: (code) => console.warn("Automatic storage maintenance:", code),
       });
-      resolve(server);
+      const bound = server.address();
+      if (bound && typeof bound !== "string") activeBrowserPort = bound.port;
+      if (phoneService) void phoneService.start().then(() => resolve(server), reject);
+      else resolve(server);
     });
     server.once("error", reject);
     // A restarted server, such as the macOS keychain relaunch, must not leave
     // the previous window's listeners subscribed.
     server.once("close", () => {
+      phoneService?.close();
       mailServerStopping = true;
       automaticMaintenance?.close();
       imapWatch?.close();
@@ -889,8 +895,8 @@ export function resumeMail() {
   gmailWatch?.reconcile(all("account"));
 }
 if (!process.env.MAIL_DESKTOP_TOKEN)
-  void startServer(3001)
-    .then(() => console.log(`Mail server listening at http://127.0.0.1:3001\nOpen ${browserSessionUrl()} to use the browser target.`))
+  void startServer(browserPort)
+    .then(() => console.log(`Mail server listening at http://127.0.0.1:${browserPort}`))
     .catch((error) => {
       console.error(error.message);
       process.exit(1);

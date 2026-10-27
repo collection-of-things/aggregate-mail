@@ -67,10 +67,12 @@ npm ci
 npm run dev      # Electron with React/CSS hot reload; restart after desktop or server changes
 ```
 
-`npm run dev:web` (optional browser target) reads `.env` copied from
-[.env.example](.env.example); never commit it. Open the session link the mail
-server prints at startup (it changes on every launch); `/api` refuses requests
-without it. Other environment variables
+`npm run dev:web` is the optional browser target. Follow the required password,
+external encryption-key and isolated-profile setup in
+[Local browser access](README.md#local-browser-access). Export these startup
+variables before launching; `.env` is not the browser security configuration.
+The browser gate authenticates browser requests; desktop requests retain their
+per-launch token. Never commit secrets. Other environment variables
 (Jev/`TYPESAFE_*`, `MAIL_*`) are described in [README.md](README.md) and
 [docs/KB.md](docs/KB.md).
 
@@ -102,6 +104,15 @@ without it. Other environment variables
 - Report live sign-in, mailbox changes, sending, interactive UI and
   downloaded-app acceptance separately from automated results.
 - Follow the live-browser-testing restriction in PRODUCT.md.
+
+For phone-access changes, run `server/phone-access.test.ts`,
+`server/phone-passkeys.test.ts`, `server/browser-keyring.test.ts`,
+`src/phone-pairing.test.tsx`, `scripts/phone-auth.test.mjs`,
+`server/browser-access.test.ts` and `src/phone-access.test.tsx` serially through
+the bounded wrapper below, then the strict build. Use injected CLI/probes and
+synthetic DNS names and temporary profiles. OS-key tests inject fake credential
+entries and must not inspect saved host credentials. Do not mutate shared host routes as a unit test. Separate
+live TLS route proof from phone-device and provider OAuth acceptance.
 
 ### Bounded local verification
 
@@ -188,6 +199,24 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
 - `npm run release` builds and publishes the Windows installer locally. It and
   manual workflow dispatch require explicit release authorization.
 - Never commit generated output or local app data.
+
+## Changelog and release notes
+
+- Every user-visible change adds a short entry under `Unreleased` in
+  [CHANGELOG.md](CHANGELOG.md). Explain the resulting behavior and user benefit;
+  link the issue or PR. Do not use commit subjects as the whole explanation.
+- Group entries under Added, Changed, Fixed, Security or Documentation as needed.
+  Combine duplicate entries. Preserve meaningful limits and compatibility notes.
+- Before a release, compare with the previous published tag. Move only new
+  changes into a dated version section, newest first, and leave `Unreleased`
+  available for the next change. Do not carry already-released changes forward.
+- The release owner uses that version section for the published release body
+  and reads it back after publication. For an automatically published release,
+  replace the generated PR-title list with the approved version notes using
+  `gh release edit <tag> --notes-file <file>`. Verify the saved text and links
+  before reporting the release complete.
+- Keep test receipts and internal implementation notes in the PR or relevant
+  repository docs. They do not replace user-facing release notes.
 
 ## Pull requests
 

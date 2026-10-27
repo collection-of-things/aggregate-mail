@@ -1,5 +1,94 @@
 # Repository knowledge
 
+## Phone pairing, passkeys and browser key bootstrap
+
+`server/phone-passkeys.ts` mounts only the public `/auth/pair`, bundled client
+and named pairing/WebAuthn POST routes before session authentication. Gate
+Host/Origin checks apply first; remote POSTs require the exact verified origin.
+Host management uses the normal authenticated API and CSRF guard plus exact
+localhost Host/Origin checks.
+
+Two-minute invitations, claims and challenges stay in bounded memory. Invite
+tokens occur only in QR URL fragments; `src/phone-auth.ts` clears the fragment
+before requests. A Secure HttpOnly claim cookie binds host-approved registration.
+SimpleWebAuthn verifies exact origin, RP ID, challenge, user presence and user
+verification. Public credentials are encrypted `phoneCredential` records.
+Cookie-bound login challenges are one-use and expire after a minute. Counter
+updates and session issuance recheck credential existence after verification.
+Revocation and cancellation win against in-flight verification. Route lifetime
+changes invalidate invitations, ceremonies and remote sessions even if the same
+origin is restored. Passkeys may sync across physical devices; removal revokes
+the credential rather than identifying one piece of hardware.
+
+The gate keeps a bounded session map. Password login rotates password sessions;
+a passkey rotates its own prior session and preserves the host session. Recovery
+passwords are localhost-only. Lock removes the requesting session, removal locks
+all sessions using that passkey, and restart clears all sessions.
+
+`npm run build:web` builds the frontend and its public WebAuthn client without
+Electron packaging. `scripts/start-browser.mjs` optionally provisions the data
+key using a 15-second child process and private stdout pipe. The child uses
+`@napi-rs/keyring`, pins Linux to persistent Secret Service, serializes bootstrap
+under a profile lock, checks existing markers/database, and verifies OS-store
+readback before returning the key. No plaintext or volatile fallback is allowed.
+`browser-keyring.json` contains identity metadata only. Existing external-key
+profiles are not migrated. Desktop key protection is unchanged.
+
+Synthetic proof lives in `server/phone-passkeys.test.ts` (real signed WebAuthn
+fixtures), `server/browser-keyring.test.ts`, `src/phone-pairing.test.tsx`, and the
+browser gate/session tests. Native passkey and OS credential-store acceptance
+need independent runtime proof. See [ADR 0082](adr/0082-phone-pairing-passkeys.md).
+
+## Private phone access
+
+`server/phone-access.ts` runs the host Tailscale CLI with bounded execFile,
+no shell and an environment excluding mail secrets. It stores pending/ready
+ownership in the encrypted `phoneAccess` record. Settings management requires
+the authenticated loopback-origin session, exact Host and Origin, CSRF and
+explicit confirmation. Desktop reports unsupported; phone browsers may read
+status but cannot mutate the route.
+
+Setup selects unused HTTPS ports 8444 through 8454, checks exact target and
+route preservation, rejects Funnel, and probes TLS with the browser-gate
+response marker before admission. Renewal runs every 30 seconds, with a
+60-second lease and TLS recheck. Failed checks revoke admission. Expired proof
+invalidates retained remote sessions before any renewal. Startup verifies saved
+routes before admission. Disable revokes first and removes only matching owned
+configuration. Partial cleanup retains pending ownership and a visible error.
+Concurrent external Serve writers are outside the adapter's lock; avoid manual
+route changes during setup or removal. The adapter checks before/after snapshots
+and refuses cleanup when ownership is no longer exact.
+
+`MAIL_WEB_PORT` selects the loopback backend port independently of the frontend
+`APP_URL`. OAuth stores the trusted initiating origin in single-use consent
+state and binds callback exchange and redirects to it. Phone cookies use Secure,
+HttpOnly, Strict and the `__Host-` prefix. MCP retains its own loopback boundary.
+
+Focused synthetic checks: `server/phone-access.test.ts`,
+`server/browser-access.test.ts`, `src/phone-access.test.tsx`.
+See [ADR 0081](adr/0081-private-phone-access.md) and
+[phone setup](../README.md#phone-access-over-tailscale). Live Tailscale, provider
+OAuth and phone interaction require separate proof.
+
+## Local browser access gate
+
+Browser startup imports `server/browser-preflight.ts` before storage. It requires
+`MAIL_WEB_PASSWORD`, externally provisioned `MAIL_DATA_KEY` and isolated
+`MAIL_DATA_DIR`, with canonical path checks and desktop/legacy marker refusal.
+`server/browser-access.ts` protects APIs and assets with bounded in-memory sessions,
+HttpOnly Strict cookie, exact host/origin checks and five attempts per minute.
+Sessions expire after 30 minutes of request inactivity or eight hours total.
+Password login rotates password sessions; passkey login rotates that credential's session. Explicit Lock at `/auth` ends the requesting session; restart ends all sessions. Background
+polling counts as activity. Existing CSRF and MCP authorization remain in place;
+only the Google return callback bypasses the browser session and still validates
+its single-use consent state and separate cookie.
+
+See [browser setup](../README.md#local-browser-access) and
+[ADR 0080](adr/0080-local-browser-access-gate.md). Focused synthetic proof:
+`server/browser-access.test.ts`. Vite proxies `/auth` and denies private files.
+The development endpoint is not a packaged browser distribution. Native,
+interactive browser, real-provider and installed acceptance are separate.
+
 ## Standalone Android client
 
 `android/` is an independent Java/Android IMAP and SMTP client. It does not run
@@ -1430,7 +1519,7 @@ Replies use the safe formatted reader for the original message. Reopened drafts 
 
 [Privacy matching](../src/privacy.ts) learns names from optional account display names and the current To/Cc display names tied to connected account addresses. It covers full names, first names and surnames, including one-letter Unicode components, with Unicode-aware boundaries, case/whitespace variation and URL encoding. The opened message's dictionary also protects Gmail label filter options and the label editor. A sender avatar uses a neutral dot when its displayed initial matches a known private name component; ordinary company initials stay visible. Sender-markup splits cannot expose a known name. Hidden bars have no private children, title or accessibility text. Explicit reveal applies to the clicked token; re-enabling privacy clears it. Unknown names that appear only in a body cannot be identified. A name that is also an ordinary word can hide that word while privacy is on. Editable compose fields retain their focus-to-reveal behavior.
 
-[Inbox tabs](../shared/inbox-tabs.ts) are derived on the client from Teach rules, personal-mail patterns, Gmail `CATEGORY_*` labels, the sorter's reason and sender/subject patterns; nothing new is stored, and the server's `important`/`other` category still drives MCP, relevance and Teach. The selected tab is part of the in-memory navigation location. The sidebar open state is stored as `sidebar` (`open` or `closed`) in localStorage, beside `window-controls`. The removed sender panel left an unused `sender-panel` key, which is ignored. A persistent toolbar contains search and Commands above the pane headers, plus the Filters and privacy buttons while the mail list shows; each pane's secondary controls share its header's title line. A closed sidebar stays mounted with `inert` so it can animate. [App](../src/App.tsx) decides which panes are on screen with [`useMedia`](../src/ui/useMedia.ts) (the sidebar needs 760px, the reader beside the list 980px) and gives the window controls to the header in each corner through [`PaneHeader`](../src/shell/PaneHeader.tsx); without `matchMedia` (the renderer tests) every pane counts as present. [Appearance](../src/appearance.ts) stores mode (`system`, `light` or `dark`; dark by default), theme, accent, transparency (`off`, `subtle` or `glass`; an earlier boolean `glass` is migrated), reading layout (`split` or `full`) and `sizeByImportance` (on by
+[Inbox tabs](../shared/inbox-tabs.ts) are derived on the client from Teach rules, personal-mail patterns, Gmail `CATEGORY_*` labels, the sorter's reason and sender/subject patterns; nothing new is stored, and the server's `important`/`other` category still drives MCP, relevance and Teach. The selected tab is part of the in-memory navigation location. The sidebar open state is stored as `sidebar` (`open` or `closed`) in localStorage, beside `window-controls`. The removed sender panel left an unused `sender-panel` key, which is ignored. A persistent toolbar contains search and Commands above the pane headers, plus the Filters and privacy buttons while the mail list shows; each pane's secondary controls share its header's title line. A closed sidebar stays mounted with `inert` so it can animate. [App](../src/App.tsx) decides which panes are on screen with [`useMedia`](../src/ui/useMedia.ts) (the sidebar needs 760px, the reader beside the list 980px). With Side by side selected, the mail list keeps its column even before opening an email and after closing it; the adjacent reader shows opening guidance until mail is opened. F6 skips this empty reader until an email is open. Full width and windows below 980px use one column. The renderer gives the window controls to the header in each corner through [`PaneHeader`](../src/shell/PaneHeader.tsx); without `matchMedia` (the renderer tests) every pane counts as present. [Appearance](../src/appearance.ts) stores mode (`system`, `light` or `dark`; dark by default), theme, accent, transparency (`off`, `subtle` or `glass`; an earlier boolean `glass` is migrated), reading layout (`split` or `full`) and `sizeByImportance` (on by
 default; off gives every row the medium layout) under `emc2.appearance.v1`. It applies them as `data-scheme`, `data-theme`, `--accent` (a deeper shade in light mode) and `data-glass` on the document root; System follows `prefers-color-scheme`. The preload exposes `desktop.materials`, true on macOS and on Windows build 22621 or later; `desktop.setMaterial`, which sends `window-material` (`none`, `mica` or `acrylic`), accepted only from the app window and only on Windows; and `desktop.setScheme`, which sends `window-scheme` and sets `nativeTheme.themeSource` so materials, native menus and System follow the mode. The main process starts dark until the renderer reports its mode. [ADR 0022](adr/0022-window-materials-and-themes.md) records the window material decision and [ADR 0025](adr/0025-light-mode-and-reading-pane.md) the modes and reading layout.
 
 Window chrome outside macOS ([ADR 0026](adr/0026-native-window-chrome.md)): the main process reads `window.json` (`{"controls":"mac"|"windows"}`) from the app data folder when it creates the window; anything unreadable means the drawn lights. Windows style creates the window with `titleBarOverlay` and passes `--emc2-window-controls=windows` to the preload, which exposes `desktop.windowControls`. `window-controls` (from the current window main frame at the app origin only) saves the choice and, if it changed, closes through the native draft guard and, only after accepted closure, opens a new window at the old bounds; the renderer refuses while a draft is open or sending. `window-overlay` sets the caption colors (validated `#rrggbb`) from the renderer's `--surface` and `--text`. Mail rows call `desktop.mailMenu`, which sends `mail-menu` to `ipcMain.handle`; [window-chrome](../desktop/window-chrome.ts) checks item ids, labels, enabled flags, display-only accelerators and position, and the main process pops a native menu and returns the chosen id (or null after the menu closes). Without the bridge the drawn menu is used. Folded sidebar sections are stored as `sidebar-folded` in localStorage.
@@ -2405,3 +2494,29 @@ coverage are separate evidence.
 
 Automatic browser sync starts only after the full cached-mail snapshot loads. Bootstrap status alone does not start it; a failed initial read keeps it paused until a successful retry. Regression coverage: `src/bootstrap.test.tsx`.
 Release authorization: the active release workflow publishes eligible main pushes automatically. Use `[skip release]` in a PR title to suppress publication from its squash merge when release approval is held. Skipped CI is not passing verification.
+Browser rendering also checks access before mounting private content and every
+10 seconds afterward. A revoked session or failed access check removes mounted
+mail and drafts. Hidden tabs conceal content and recheck access on return.
+The access page broadcasts explicit locking to other tabs on the same origin.
+Checks of session status do not renew request-idle expiry. Browser-session loss
+can discard unsaved edits; it never sends mail or retries an uncertain send.
+
+### Phone browser navigation
+
+Below 760px, the sidebar opens as a drawer above the working pane. The toolbar keeps its toggle visible and puts search on a second row. Choosing a view, account, compose action or Settings closes the drawer. The backdrop and Escape dismiss it; phone drawer state does not replace the saved desktop sidebar preference. Custom themes remain available under Settings > Appearance, with phone-sized color controls and wrapping editor rows. `src/navigation.test.tsx` covers phone navigation and custom-theme persistence.
+
+Browser pages refresh local state on focus, when becoming visible and every 15 seconds while visible, even with no connected accounts. This reads the existing state endpoint; it does not trigger mailbox writes. Desktop windows retain their event subscriptions.
+
+### Startup summary copying and compaction
+
+Summary reads copy their envelopes and mutable metadata children; an unchanged valid cursor avoids scanning the metadata map. Default explicit compaction skips vacuum when the post-cleanup SQLite freelist is empty. Internal `vacuum: true` retains forced partial-page repacking. Automatic thresholds, encryption, attachment inventory and snapshot/cursor semantics stay unchanged. See [ADR 0086](adr/0086-startup-copies-and-page-reclamation.md). Synthetic regression: `server/startup-storage.test.ts`. Run `scripts/benchmark-web-startup.ts` only through the bounded runner with synthetic profiles.
+
+Agent review fills its working pane rather than capping the review grid at 1120px. The existing narrow-screen single-column layout and review controls remain.
+
+Browser API integration authenticates each request with either the desktop per-launch token or the expiring browser gate session. The gate replaces the earlier terminal session link; it does not add a second sign-in step. OAuth start remains authenticated and CSRF-protected, single-use launch/state records remain capped, and the approved browser origin is retained through callback. `server/browser-session.test.ts` uses a temporary synthetic profile and ephemeral port to verify login, refusal, CSRF, origin and lock behavior without using another service's listener. Phone access uses verified private Tailscale HTTPS with the backend bound only to loopback; a high port alone provides no encryption.
+
+### Mobile browser layout
+
+Below 760px, Settings uses a native section picker while desktop retains the section rail. The picker uses the existing section navigation and save guards. Mobile Settings fills the available viewport, descriptions wrap, and form text remains at least 16px. Reply context stacks above the editor and remains independently scrollable. Touch controls, including the primary New Message action, target 44px and respect browser safe areas. Responsive CSS loads after application styles so compact desktop rules cannot override these sizes. The viewport requests content resizing for supported Android keyboards. `src/navigation.test.tsx` covers the phone picker, drawer and theme persistence with synthetic state; actual keyboard and screen geometry require device verification.
+
+Changelog and release notes follow [CONTRIBUTING.md](../CONTRIBUTING.md#changelog-and-release-notes). Versioned entries identify release changes; [legacy development notes](changelog-legacy.md) preserve the earlier unversioned history. The release owner verifies the published body matches the version section before declaring publication complete.

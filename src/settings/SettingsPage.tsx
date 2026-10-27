@@ -23,6 +23,7 @@ import { AppearanceSettings } from "./AppearanceSettings";
 import { BrandingSection } from "./BrandingSection";
 import { ConfigurationForm } from "./ConnectionForm";
 import { InteractionSettings } from "./InteractionSettings";
+import { PhoneAccessSettings } from "./PhoneAccessSettings";
 import { McpSection } from "./McpSection";
 import { settingsGroup, settingsGroupNames, settingsSections, type SettingsSection } from "./sections";
 
@@ -93,6 +94,12 @@ export function SettingsPage({
   const current = settingsSections.find((item) => item.id === section)!;
   return (
     <main className="settings">
+      {onSection && <label className="settings-mobile-navigation">
+        <span>Settings section</span>
+        <select aria-label="Settings section" value={section} onChange={event => onSection(event.target.value as SettingsSection)}>
+          {settingsSections.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
+        </select>
+      </label>}
       {onSection && <nav className="settings-navigation" aria-label="Settings sections">
         {settingsGroupNames.map((group) => <div className="settings-navigation-group" key={group} role="group" aria-label={group}>
           <span className="settings-rail-label" aria-hidden="true">{group}</span>
@@ -104,6 +111,7 @@ export function SettingsPage({
       </nav>}
       <div className="settings-column" ref={scrollPane}>
         <header className="settings-section-heading"><span className="settings-section-context">{settingsGroup(section)}</span><h1>{current.label}</h1><p>{current.description}</p></header>
+        {section === "phone-access" && <PhoneAccessSettings api={api} onCopied={onCopied} />}
         {section === "interaction" && <section>
           <InteractionSettings value={interaction} onChange={onInteraction} />
         </section>}

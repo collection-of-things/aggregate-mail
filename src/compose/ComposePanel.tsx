@@ -113,14 +113,21 @@ export function ComposePanel({
     const row = footerActions.current;
     const app = row?.closest<HTMLElement>(".app");
     if (!row || !app) return;
+    const toolbar = app.querySelector<HTMLElement>(".app-toolbar");
     const measure = () => {
       const height = `${Math.max(42, Math.ceil(row.getBoundingClientRect().height + 12))}px`;
       if (app.style.getPropertyValue("--app-footer-height") !== height) app.style.setProperty("--app-footer-height", height);
+      if (toolbar) app.style.setProperty("--compose-top", `${Math.ceil(toolbar.getBoundingClientRect().bottom)}px`);
     };
     measure();
     const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measure);
     observer?.observe(row);
-    return () => { observer?.disconnect(); app.style.removeProperty("--app-footer-height"); };
+    if (toolbar) observer?.observe(toolbar);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer?.disconnect(); window.removeEventListener("resize", measure);
+      app.style.removeProperty("--app-footer-height"); app.style.removeProperty("--compose-top");
+    };
   }, []);
 
   const [attachmentError, setAttachmentError] = useState("");

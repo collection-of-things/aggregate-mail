@@ -146,7 +146,7 @@
 .work-group .work-row:last-child { border-bottom: 0; }
 .work-select > .work-meta { color: var(--link); }
 .work-agents { padding: 18px 24px 28px; }
-.work-agents > .work-editing { max-width: 1120px; margin-inline: auto; }
+.work-agents > .work-editing { width: 100%; }
 .agent-navigation { position: sticky; top: -18px; z-index: 2; padding: 6px 0 12px; background: var(--surface); border-bottom: 1px solid var(--line); margin-bottom: 20px; }
 .agent-navigation .segmented { width: fit-content; max-width: 100%; flex-wrap: wrap; margin: 0; border: 0; background: var(--hover); padding: 4px; }
 .agent-navigation .segmented .active { color: var(--link); background: color-mix(in srgb, var(--accent) 12%, transparent); }

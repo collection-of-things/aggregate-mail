@@ -2,6 +2,99 @@
 
 An installable desktop email client for Windows, with a macOS build target, based on Ryan Vogel's video. Electron with React and TypeScript, a bundled mail service, and encrypted SQLite storage. The installed app needs no browser, terminal, or separate Node installation.
 
+## Local browser access
+
+The optional browser target uses the same mail interface without Electron.
+It requires Node 24.x and installed dependencies. Build once with
+`npm run build:web`, then run `npm run start:web` and open
+`http://127.0.0.1:3001`. This build does not package or compile Electron.
+The local service must remain running.
+
+Before starting, supply these environment variables through your local secret
+manager or protected launch environment. Do not put secrets in shell history,
+URLs, source files or shared launch scripts:
+
+| Variable | Requirement |
+| --- | --- |
+| `MAIL_WEB_PASSWORD` | A host recovery passphrase of 16 to 256 characters, supplied by a password manager; phones use passkeys |
+| `MAIL_DATA_KEY` | Optional with `npm run start:web`: the launcher generates and protects the key in the OS credential store. Existing externally managed profiles must supply their original 32-byte base64 key |
+| `MAIL_DATA_DIR` | Optional separate browser profile; defaults to the user app-data directory, outside the source and frontend |
+| `MAIL_WEB_PORT` | Optional loopback backend port, 1024 to 65535; default 3001 |
+| `APP_URL` | Loopback frontend origin; defaults to `http://127.0.0.1:<MAIL_WEB_PORT>` |
+
+`npm run start:web` automatically provisions a data key in macOS Keychain,
+Windows Credential Manager or an unlocked persistent Linux Secret Service. It
+never asks users to type or remember that key. Linux memory-only keyutils and
+plaintext key files are not used. Missing, locked, unreadable or inconsistent
+existing credentials stop startup before SQLite opens. Unlock the original
+credential store to recover access. Do not delete keys or reset profiles.
+
+Browser and desktop profiles remain separate. Existing external-key profiles
+continue to require their original `MAIL_DATA_KEY`; they are not automatically
+migrated into the OS store. Losing that key prevents recovery. Direct backend
+and development startup still require explicit key and profile provisioning.
+
+Open `/auth` locally to unlock with the recovery passphrase; password managers
+can fill it. It is accepted only at the configured localhost Host and Origin.
+Five attempts per minute are allowed. Phones use paired passkeys instead.
+Sessions lock after 30 minutes without a request or eight hours total;
+background polling counts as activity. Lock ends the current session. Closing a
+tab does not lock it. Restart locks every session. Phone login keeps the host
+session, while another login with the same passkey replaces that passkey's
+previous session. Removing a paired phone locks its sessions immediately.
+
+For development, export `APP_URL=http://127.0.0.1:5173` with the same required
+variables and run `npm run dev:web`. Open `http://127.0.0.1:5173/auth` first.
+The development server proxies access and API routes to the loopback service.
+Use built assets for normal use. Google OAuth callback registration must match
+`APP_URL` plus `/api/oauth/google/callback`.
+
+### Phone access over Tailscale
+
+Install and connect Tailscale on the host and phone. Start the built browser
+app, unlock it locally, then open **Settings → Phone access → Enable phone
+access**. Confirm to let Emc² create one private HTTPS Serve route on an unused
+port from 8444 to 8454. The host user must have permission to manage Serve.
+Emc² does not sign in to Tailscale or change its permissions.
+
+Settings shows the URL only after checking the live host, private route, TLS
+certificate and Emc² gate. Choose **Connect phone**, scan its QR code and compare
+the code shown on the phone with the host. Click **Approve matching phone** on
+the host. On the phone choose **Save passkey and open inbox**, using Face ID,
+fingerprint or the screen lock supported by that phone. Future visits offer
+**Unlock with passkey**. No password or encryption key needs typing on the phone.
+
+The invitation expires after two minutes, works once and grants no access before
+host approval. Its token is a URL fragment, immediately removed from browser
+history. Registration and login challenges are cookie-bound and consumed once.
+Up to eight passkeys may be paired. Settings lists phones with Remove controls;
+a synced passkey may represent more than one physical device. Removing it
+revokes every session using that passkey.
+
+Privacy removes the URL, QR and comparison code from the Settings DOM and hides
+the approval action. Host route management and pairing require the signed-in
+localhost browser, exact Origin and CSRF. The desktop target does not configure
+browser hosting. Keep Emc² and Tailscale running on the host.
+
+The backend stays on loopback. Existing Serve routes are preserved and public
+Funnel is refused for the Emc² endpoint. Checks renew every 30 seconds with a
+60-second admission lease. Failed verification suspends phone access; an expired
+lease invalidates its browser session. Refresh checks the route again. Disable
+revokes admission first and removes only the matching owned route. Changed or
+unverifiable routes remain untouched, with an error in Settings. Avoid changing
+Serve configuration concurrently with setup or removal.
+
+For Google OAuth, register the verified HTTPS origin plus
+`/api/oauth/google/callback` with your Google client as well as the localhost
+callback. Google may impose its own authorized-domain restrictions; phone OAuth
+requires separate provider verification. Existing IMAP setup stays available.
+
+Do not expose the service through a public proxy or bind it to a network
+interface. The gate cannot protect a compromised host account or hostile local
+processes. Browser and desktop profiles stay separate; MCP still requires its
+own loopback-only opt-in and bearer permissions. Interactive browser, phone,
+installed-app and real-provider acceptance remain separate checks.
+
 ## Contents
 
 - [Install](#install)
@@ -342,3 +435,10 @@ Video frames at 25s, 65s, 104s, 140s and 178s were inspected and measured at nat
 Use the [Emc² CLI](docs/cli.md) from a Node 24 source checkout. Run
 `npm run cli -- help`. It connects to the running app through scoped MCP
 grants; the desktop installer does not add a command to your PATH.
+
+Browser rendering also checks access before mounting private content and every
+10 seconds afterward. A revoked session or failed access check removes mounted
+mail and drafts. Hidden tabs conceal content and recheck access on return.
+The access page broadcasts explicit locking to other tabs on the same origin.
+Checks of session status do not renew request-idle expiry. Browser-session loss
+can discard unsaved edits; it never sends mail or retries an uncertain send.

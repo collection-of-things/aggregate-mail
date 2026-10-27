@@ -4,6 +4,7 @@ import { AtSign, Bell, Compose, Cpu, Image as ImageIcon, Info, Keyboard, Palette
 export const settingsSections = [
   { id: "accounts", label: "Accounts", description: "Connect email and check each account’s status.", Icon: AtSign },
   { id: "mcp", label: "AI and agents", description: "Set up assistants, keys and account permissions.", Icon: Cpu },
+  { id: "phone-access", label: "Phone access", description: "Open Emc² securely from your phone through private Tailscale HTTPS.", Icon: Plug },
   { id: "connection", label: "Google and connections", description: "Set up Google sign-in and optional sorting providers on this computer.", Icon: Plug },
   { id: "sorting", label: "Sorting and Teach", description: "Review the rules you taught Emc² to organize your mail.", Icon: Sort },
   { id: "compose", label: "Templates and signatures", description: "Reuse message text and add a sign-off to your emails.", Icon: Compose },

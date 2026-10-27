@@ -1,391 +1,42 @@
 # Changelog
 
+Entries describe user-visible changes. Published versions are newest first.
+[Legacy development notes](docs/changelog-legacy.md) preserve the earlier
+unversioned history without treating it as a release record.
+
 ## Unreleased
 
-- Require a reason when closing an issue or PR, links to existing fixes or ongoing work, and comments on linked issues or PRs.
+No changes recorded yet.
 
-- Correct contributor guidance for automatic patch releases and the `[skip release]` merge control.
+## 0.2.16 - 2026-10-27
 
-- Show separate receiving-account and sorting-status labels in All accounts, including compact rows. Match account dots to the sidebar, keep existing status meanings and remove provider overlays from sender icons. Narrow rows put account and status below the sender; privacy-safe labels also appear in screen-reader names.
-- Match supported mail shortcuts to Gmail, including O to open, S to pin locally, B to snooze, A to reply all, Shift+I to mark read, U to return to the list and G sequences for mail views. Customize single keys and two-letter sequences in Settings, Keyboard and mouse, with conflict checks and preserved older bindings. Add a mouse-history switch and mouse controls to shortcut help. Browser sessions recognize Mac command keys.
-- Require the person merging to rebase onto the latest target branch and confirm current checks and approvals before merging.
+### Added
 
-- Add a short agent task guide. Require duplicate searches and existing templates before filing issues or PRs, and current task State when using git.cafe. Clarify that personal context, tooling configuration and reference uploads stay out of the repository.
-- Keep automatic browser sync paused until the complete cached-mail snapshot loads, including after a failed initial read.
+- Open Emc² on a phone through private Tailscale HTTPS. Pair with a one-use QR invitation, approve the matching code on the host, and unlock with a passkey. Revoke phone access from Settings. [#84](https://github.com/collection-of-things/aggregate-mail/pull/84)
+- Add customizable two-key Gmail-style sequences and new shortcut defaults, including O to open, S to pin, B to snooze, A to reply all and G sequences for mail views. Retain single-key customization and existing saved bindings. [#112](https://github.com/collection-of-things/aggregate-mail/pull/112)
+- Enable or disable mouse side-button history in Settings. Existing single-click and double-click opening preferences remain available. [#112](https://github.com/collection-of-things/aggregate-mail/pull/112)
 
-- Organize Settings into Connections, Mail, Preferences and Advanced. Tighten control spacing and group keyboard shortcuts into compact, labeled columns while preserving existing bindings and preference behavior.
-- Load account and configuration status before the full mail cache, keep mail counts pending until complete, and offer a retry when cached mail cannot load.
+### Changed
 
-- Clarify in-app new-mail notices with the unread count as the heading, a mail icon, a distinct Open email action and a labeled close control. Keep optional details, privacy masking, exact-email opening and notification timing unchanged.
+- Show account status before the full cached mailbox finishes loading. Mail counts remain unknown until the snapshot is complete, and a failed read offers Retry loading mail. [#108](https://github.com/collection-of-things/aggregate-mail/pull/108)
+- Reduce repeated cached-mail copying and skip unnecessary database rewrites while preserving mail, attachments and drafts. [#107](https://github.com/collection-of-things/aggregate-mail/pull/107)
+- Distinguish the receiving account from sorting status in All accounts, including compact rows. Hide redundant account labels when one account is selected and retain privacy-safe labels. [#104](https://github.com/collection-of-things/aggregate-mail/pull/104)
+- Use a navigation drawer, compact Settings picker, larger touch controls and stacked reply context on narrow screens. Keep the saved side-by-side mail layout visible when no message is open. [#84](https://github.com/collection-of-things/aggregate-mail/pull/84)
+- Refresh visible browser inbox state on return to the tab and every 15 seconds. [#84](https://github.com/collection-of-things/aggregate-mail/pull/84)
 
-- Reduce cached-mail summary copying and unchanged-cursor work. Default storage compaction skips the database rewrite when there are no free pages, while retaining attachment inventory and all stored mail and drafts.
-- Show separate receiving-account and sorting-status labels in All accounts, including compact rows. Match account dots to the sidebar, keep existing status meanings and remove provider overlays from sender icons. Narrow rows put account and status below the sender; privacy-safe labels also appear in screen-reader names.
-- Start Google sign-in only from the app. Continue with Google and Connect Google Calendar now ask the desktop-authenticated service for a single-use, two-minute link, so other local programs can no longer connect their own Gmail account or flood pending sign-ins. Pending launches and OAuth states are capped at eight each.
-- Require a per-launch session link in the browser target (`npm run dev:web`, `npm run start:web`). The mail server prints the link at startup; opening it sets an HttpOnly, SameSite=Strict cookie, and `/api` requests without it or the desktop token are refused, so other local users and programs can no longer read mail or act through the browser target.
-- Find pinned mail from Filters or Commands, in the current view or in All cached, so pins that were archived or snoozed stay easy to reach. The selected account is kept, and a short note explains how Pin differs from Snooze and Track.
-- Add a searchable template picker to the composer: type to filter by name and content, arrows to move, Enter to insert the highlighted template and Escape to close only the picker. Insertion still appends before an unchanged signature and fills only an empty subject.
-- Reschedule a snooze from the reader: the snoozed return-time line gains Return to inbox and Change time actions. The snooze menu's custom field opens on the current return time and each preset shows its full local date and time.
-- Add aliases, quiet groups and disabled reasons to Commands. Exact label matches rank above alias and substring matches; selected-email actions stay listed with a reason such as Select an email first when they cannot run. The Commands button and entries show the platform's real modifier.
-- Move keyboard focus between the main window regions with F6 and Shift+F6: sidebar, search, mail list and the opened reader, forwards and backwards. Entering the list focuses the selected row; a closed sidebar, closed or full-width reader is skipped. Dialogs, the composer and editors keep their own keys.
+### Fixed
 
-- Stop a recipient display name made of `+` words from freezing privacy-mode redaction. Name words are now split on spaces and `+`, so matching stays linear.
-- Add a threat model to SECURITY.md covering trust boundaries, components, attackers, assets and lower-priority areas.
-- Add local contacts and recipient suggestions. To and Cc suggest saved contacts and addresses you sent to from Emc², per account, with keyboard and screen-reader support and privacy-mode redaction. Manage contacts and recent recipients in Settings. Nothing is inserted until you pick it.
-- Search older mail beyond the cache for one selected account on explicit request, importing up to 100 provider matches into the encrypted cache through Gmail search or read-only IMAP Archive, All Mail and Sent searches. The search line reports what the provider actually covered, cached results stay labelled as cached, and account: and is:pinned still apply only on this device.
+- Wait for a complete cached-mail snapshot before starting automatic browser sync, including after an initial read failure. [#108](https://github.com/collection-of-things/aggregate-mail/pull/108)
+- Skip the empty reader when cycling keyboard focus with F6. [#84](https://github.com/collection-of-things/aggregate-mail/pull/84)
 
-- List pull requests directly under What's Changed in generated release notes, without an "Other changes" group.
+### Security
 
-- Replace the installed macOS app and request a restart after a verified download, retaining the previous app and normal macOS trust checks. No manual dragging or developer tools are required by the new update route.
+- Protect browser access with expiring sessions, host-approved phone pairing and origin/CSRF checks. Keep browser data separate from desktop profiles and protect browser encryption keys in the OS credential store without a weaker fallback. [#84](https://github.com/collection-of-things/aggregate-mail/pull/84)
 
-- Keep Appearance theme tiles compact in floating Settings so empty space does not push the theme actions below their previews and labels.
+### Documentation
 
-- Replace ordinary macOS source-build updates with a verified release DMG handoff. Download the running architecture, check SHA256 and size, preserve macOS quarantine, drain mail and drafts, then open the installer for manual replacement and restart. No developer tools are needed.
-
-- Add explicit downloads for received attachments of any file type and on-demand PDF and raster-image previews, with privacy reset and load errors. Existing import limits still apply.
-
-- Prepare source package and lockfile version 0.2.5 without changing dependencies or release workflows.
-
-- Seed the large sync regression through the encrypted store so flag-batching checks use current summaries without incidental legacy-cache repair. Keep the 25,000-message workload and operation-count assertions.
-
-- Add an experimental standalone Android IMAP/SMTP client with multiple accounts, encrypted offline mail, a text reader, durable drafts and locked recovery after uncertain sends. This slice has no OAuth, attachments, background sync or desktop feature-parity claim.
-
-- Float Settings above the current mail or work view, with a compact header, section rail, independent scrolling, modal keyboard focus and reader-preserving history. Retain unsaved templates, pending-save locks and draft-safe navigation. Show one Linux local-key warning and preserve its session collapse preference across Settings and mail.
-
-- Resolve header searches from summaries immediately and decrypt only unresolved bodies. Keep confirmed header matches visible during body searches and display an explicit searching state instead of a premature empty result.
-
-- Display original emails in reply composers through the safe formatted reader, retaining per-opening image consent, privacy and plain-text fallback.
-
-- Allow vertical scrolling in local-session dialogs when content exceeds the available height.
-- Wrap local-session form actions when the dialog is too narrow for one row.
-
-- Add explicit local work sessions linked to a tracked task. Plan multiple Busy or Free sessions, move planned sessions, finish one session or remove it without changing task dates, status, history or email. Recover uncertain saves through reads and retain removed-session tombstones. Restore focus to the session heading when Finish or Remove removes its Today trigger, including after recovery review. Sessions check local conflicts only and never notify Google or send invitations.
-
-- Compact offered-time preferences, keep busy coverage visible, group selectable times by saved-zone date, and show full endpoint dates with numeric UTC offsets. Add an optional recipient-zone display without changing reply instants or text. Clear superseded previews after input changes while preserving exact check/draft recovery and explicit local booking.
-
-- Add Day and Monday-based Week calendar views with elapsed-time event spans, local UTC-offset ticks, separate date-only/all-day entries and point reminders. Read cross-month weeks from exact month caches, keep conflicting or partial coverage visible, and retain explicit Google Sync for each month.
-
-- Show current MCP permissions in CLI status without account identities, add cached Inbox/Sent/All selection, and request reviewed replies only when the app explicitly guarantees approval to Drafts without sending. Preserve older commands, grants and no automatic retries.
-- Replace the native composer From popup with a compact themed account menu, retaining private labels and keyboard selection.
-
-- Restore composer mouse history and sidebar/toolbar access with save-before-navigation. Extend its keyboard cycle to exposed controls while retaining editing keys, attachment reads and failed-save recovery. Use inline link entry with Enter/Cancel support.
-
-- Limit workspace proposal refreshes to related conversation bodies, preserving account-scoped membership and changed-source checks while reducing unrelated decryption and allocation.
-
-- Align sidebar, coverage and compose dividers on a shared footer track with clearance around 30px primary buttons. Compact saved-draft rows, move Refresh beside account tabs and add confirmed direct draft deletion while retaining failure and uncertain-send notices.
-
-- Add optional safe rich-text composition with a matching plain-text alternative, encrypted draft recovery and multipart sending. Keep plain-text messages as the default.
-- Tighten compose fields and reply spacing; place Delete draft and Close beside the Drafts account tabs. Keep the footer on one compact row and remove duplicate sender information. Extend the coverage footer divider to the pane edges.
-- Add subtle press/glow feedback to New Message and Send, respecting reduced motion.
-
-- Keep search text local to the toolbar while typing and coalesce result updates after 120ms; cancel pending input on navigation or unmount. Preserve summary-first header matches and avoid serializing source identities for every query.
-
-- Search cached mail across all accounts and mailboxes, including Sent, Archive and Snoozed, plus saved local drafts. Keep typo tolerance, make scope visible and clarify account and Gmail-label controls.
-
-- Reduce startup work by loading only Gmail and Calendar APIs, and bound account-sync body retention to active batches. Reuse list filtering across selection and draft edits.
-- Keep toolbar Search and Privacy usable during composition without releasing draft navigation guards. Show reply context beside the editor, align bottom bars and combine Today status counts and actions in one row.
-- Match one typo in plain search words while retaining exact quoted text, field operators, addresses and exclusions. Preserve saved device and account preferences.
-
-- Make macOS source-update fixtures independent of runner disk capacity while testing the unchanged 8 GB build and 1 GB replacement limits explicitly.
-
-- Reconcile macOS source updates with the repository move: prefer the current release repository, retain legacy fallback, and pin tag resolution and source checkout to the same repository. Preserve current quit guards and update validation.
-
-- Wait for synthetic update helpers to exit before removing their test workspaces on Windows.
-
-- Add a macOS source-update route: download a pinned stable release, build and sign it locally, verify and stage it, then drain mail and restart from the replacement while retaining the previous app. Preserve draft cancellation, encrypted profiles and Windows/Linux updater checks. Git, Node 24+, npm and Xcode Command Line Tools remain required.
-
-- Keep the app update icon clickable over native title bars by placing its no-drag region after the pane headers. Preserve its position and availability while installation blocks the mail interface.
-- Update mail parsing (mailparser 3.12, nodemailer 10.2, explicit HTML conversion error check), Electron 44.9 and electron-builder 26.18, react/react-dom 19.3, express 5.3, zod 4.6, htmlparser2 12, electron-updater 6.8.11, jsdom 30, happy-dom 21, concurrently 10, fast-uri 3.1.9 and undici 6.29.1/7.30.1.
-- Keep automatic release versions stable across full-run and build-job retries after tagging succeeds. Reuse a newer stable tag only at the exact source commit; keep manual source-version matching.
-- Fall back to the original update repository when the preferred release's manifest cannot be read or validated, preserving source and installer integrity checks.
-- Move every workflow job to GitHub-hosted runners: Windows on `windows-2025`, macOS on `macos-15` and the native Intel `macos-15-intel`, and all Linux jobs on `ubuntu-latest`. Raise the Windows/macOS release deadlines to 45 minutes and the CI test job to 15 minutes.
-- Restore automatic patch releases on pushes to `main`, balanced across GitHub (checks, Linux, publish) and Blacksmith (Windows, macOS), with tests run once and docs-only pushes skipped.
-- Added opt-in CI for pull requests labelled `ci`: typecheck on GitHub, tests on Blacksmith, 8-minute job cap, self-disabling after 150 runs a month.
-- Remove standalone CI, automatic releases, CodeQL workflows and Dependabot configuration. Keep one manually dispatched installer/release workflow, with existing platform builds and release integrity gates. No workflow runs on merge groups, pushes or schedules.
-- Simplify Blacksmith CI: run Linux tests/build on pull requests and fresh
-  four-platform tests/packages in the merge queue and release lanes. Remove
-  sharding and result-reuse scripts, combine workflow/privacy checks, schedule
-  monthly dependency updates and weekly CodeQL, and require maintainer review
-  of dependency updates. Use clean Bash for macOS Node architecture selection.
-- Move the macOS x64 jobs and CodeQL from GitHub-hosted runners to Blacksmith; x64 tests and packaging run under Rosetta on Apple silicon.
-- Block pull requests, including the merge queue's squash commit, when a commit author, committer or co-author email is not a GitHub noreply address.
-- Build with Node 24.22.1 from `.nvmrc` for the 21 October 2026 Node security release. Add grouped monthly dependency updates, scheduled CodeQL and grouped release notes.
-- Run CI in GitHub's merge queue, so every pull request is tested on top of the latest `main` before it lands.
-- Point the README, security policy, issue templates, code of conduct and publish settings at `collection-of-things/aggregate-mail`.
-- Revamp the shell with view breadcrumbs, compact search, account tabs and recipient-first draft rows. Give Settings a dedicated section rail and move attachment controls above the message. Keep softly shaded primary actions, Discard and Close beside From, save status beside Send, and scrolling without scrollbar indicators.
-- Preserve native Glass and Subtle across the Settings rail, Calendar headings and flush composer, using the existing shared pane tint without mail text behind the editor.
-- Rebuild the complete working layout: shared mail category strip, account context in narrow rows, secondary reader tools below the body, grouped Today status views, project context and decisions, side-by-side Calendar agenda, Agent review context and consistent Settings and dialog forms. Preserve source reading, privacy and existing mail operations.
-- Remove repeated view-title rows beneath the persistent toolbar. Inbox and Drafts place tabs directly below it; work views retain only their compact action controls, while Settings keeps its distinct section titles.
-- Enlarge the original-email preview in replies, allow vertical resizing and keyboard scrolling, and keep the Send/status footer outside scrolling content.
-- Show mail-row action controls only on mouse hover. Selection, focus and narrow or touch layouts no longer leave extra action strips visible; keyboard menus and reader actions remain available.
-- Exclude modal surfaces from native window dragging so the composer account menu, Discard and Close remain clickable over pane headers.
-- Use one glass tint across the window and clear opaque Settings group fills. Add a saved 0 to 100 percent Window opacity control in Appearance without fading text or changing native materials.
-
-- Restore clickable Read, Pin, Reply, Archive, Snooze and Trash buttons on mail rows, using the current flat theme without 3D effects. Keep More actions for the full menu.
-
-- Check `collection-of-things/aggregate-mail` for updates first, falling back to `screen-devs/aggregate-mail` until the new repository publishes a newer release, so installed Windows and Linux copies follow the move.
-- Allow the CI test step 20 minutes so the full serial suite can finish on hosted Intel macOS runners.
-
-- Restore Linux Ctrl+Q through normal application quit, retaining draft warnings and close-to-background behavior.
-- Disable invitation and cancellation drafts until an event has a connected account. Confirm local event deletion in the app dialog, with guarded pending requests and retained errors.
-- Warn before quitting with unsaved Calendar event changes through the same close prompt as a composer draft, and never block quit for an untouched form.
-- Use Emc² in the window title, left-align Calendar rows, and keep event dialog headings visible while the form scrolls.
-- Keep custom snooze forms inside the viewport as they grow, without moving focus out of the time input.
-- Remove the right-hand sender panel and its toolbar toggle.
-- Stack notices from their anchored edge with the newest nearest it, animate arrivals and dismissals, and add a labeled Dismiss button. Keep multiline notices and the count line reachable in a viewport-bounded scroll area with padding for shadows.
-- Skip whole-mailbox conversation scans when opening mail without matching saved time offers. Preserve source validation and existing offer relationships.
-
-- Preserve encrypted connection-settings migration when Node returns environment dictionaries with a null prototype. Keep unrelated settings and failure recovery unchanged.
-
-- Scan ordinary privacy text with direct UTF-16 offsets, avoiding per-character mapping arrays while preserving encoded-text decoding and masking behavior.
-
-- Automatically clean orphan attachments during idle maintenance and reclaim unused database pages when both space thresholds are met. Defer around active mail work, updates and shutdown; back off after failures.
-
-- Load cached bodies and HTML on demand instead of sending them in mail-list snapshots. Keep exact local body search, offline reading, reply recovery and body-sensitive server operations. Retain summaries rather than a full ciphertext index.
-- Encrypt saved connection settings with the existing mail key and migrate managed values out of legacy environment files after committed readback. Add authenticated, drained storage compaction with conservative orphan attachment cleanup.
-- Bound raw mail, MIME parsing concurrency, image downloads and decorative caches. Reject oversized mail explicitly while retaining previously cached messages.
-- Remove the macOS status-bar icon. Keep native menus, Dock reopening, background sync and guarded quit; retain Windows and Linux tray controls.
-
-- Previously raised the CI test step from 8 to 12 minutes for hosted Intel macOS runners; the current deadline is 20 minutes.
-- Move the Filters and privacy buttons into the persistent toolbar, and put Inbox tabs, the cached-mail note and work-view controls on the same line as each pane title.
-- Give every pane header below the toolbar one 48px height and extend Transparency (Glass/Subtle) to the whole window with one shared tint over the toolbar and every working pane, transparent child panes, blurred sticky headings and brighter secondary text for built-in and custom themes.
-- Show Inbox tabs at full header height in secondary text with a 2px accent underline sliding under the active tab's content, group Settings controls into rounded cards with labeled rows and rotating expanding groups, put the assistants Refresh beside "Your assistants", and run the section divider the full pane height.
-- Stop MCP endpoint and token copies from locking mail actions or reloading state, removing the sidebar flicker while keeping the copied notice and clipboard fallback.
-- Bundle Inter Variable so Windows and Linux get the same interface typeface instead of falling back to Segoe UI.
-- Keep social icon rows and other `align="left"`/floated newsletter tables horizontal in formatted mail, and accept `display: inline-table`; hiding values stay rejected.
-
-- Upgrade and pin CI actions, lint workflows before packaging, and group weekly Actions dependency updates. Reject incomplete release asset sets and artifact digest mismatches, serialize manual releases per ref, and support `[skip release]` in the final main commit message while ordinary CI still runs.
-
-- Show the exact cached original message in Reply with safe formatting, privacy masking and remote images blocked.
-
-- Run test files serially to avoid competing mounted UI workloads. Close the Calendar write test's SQLite store before deleting its temporary directory on Windows, and clean up navigation fixtures after cancellation or teardown failure.
-
-- Keep tiny and zero-sized newsletter text wrappers readable without disturbing text flow, preserve image height caps in placeholders, and keep inline image status prose out of sender layouts.
-
-- Replace the mail row action strip with a single More actions button on the selected or focused row (always visible without hover), opening the same context menu as right-click: Read, Snooze, Reply, Archive, Pin, Move to Trash and the work actions, keeping their provider safeguards.
-- Add Pick date and time… to the Snooze menu with an inline local time field (defaulting to tomorrow 9:00), future-time validation and Escape close.
-- Run mail rows edge to edge so hover and selected washes meet the pane dividers, and add Appearance's Size rows by importance switch (on by default) for uniform medium-height rows, also in Commands.
-- Move the app-update control into the toolbar flow between the pane tools and the window controls instead of floating over them.
-- Compact Projects into one navigation/action row with tasks before emails and decisions. Preserve failed decision input during recovery. Reduce empty Today groups and proposal spacing while keeping review controls explicit.
-- Expand closed mail lists and collapse optional conversation details. Hide confirmed-empty attachment/image sections and show snoozed return times in the reader.
-- Retain unsaved templates and signatures across Settings navigation and close, removing disconnected-account signatures without losing other edits. Keep pending saves locked across navigation so older responses cannot replace newer changes. Reset section scrolling and reduce control spacing; distinguish unavailable draft counts from empty lists.
-- Give Today more room for the email, with compact task rows and collapsed details. Projects shows email rows, open tasks and decisions with an inline reader; adding a task keeps the selected project and closes any previous email.
-
-- Edit an assistant's allowed accounts and permissions in place. Changes apply to its next request and to pending approvals.
-- Keep selected Today work in the right pane when there is room, even when mail opens in place. Show open undated work on today's date in Calendar.
-
-- Disable event fields during Calendar and Schedule meeting saves; failed saves retain input for retry. Restore Calendar focus after the destination pane renders, including source-reader return and event, task and snoozed-entry Back/Escape paths.
-
-- Add an explicit source-email unlink control before reassigning an uninvited event after account removal; Cancel preserves the saved link. Keep reviewed Google results bound to their original event when selecting another event. Clearing a Meet link now removes it from the saved event and later invitation drafts.
-
-- Skip state materialization when the response has already closed before the handler starts. Keep cancellation during decoding local to that request and preserve live peers.
-
-- Restore MCP/CLI tool discovery with structured invitation validation and retain ordinary mail-content shapes. Allow reviewed RSVP drafts through edit, save and ordinary Send. Keep source-linked events bound to their account, offer Google re-consent while connected, and reconcile unknown Google inserts from the saved operation after local edits without another write.
-
-- Add Offer times in the email reader: save availability in a chosen IANA zone, explicitly check local events and selected Google calendars, and prepare an ordinary reviewed reply. Resume saved checks and recover lost responses with the same identities. Book an agreed slot as one local event after fresh conflict checks. Google free/busy needs separate consent and complete response-window coverage; preparing and booking send nothing.
-
-- Prepare reviewed calendar invitation, update, cancellation and RSVP drafts for ordinary Send. Read bounded incoming calendar messages in the reader. Add explicit Google meeting creation with attendee notifications and Meet requests, plus source-bound own-attendee RSVP. Save unknown Google outcomes for read-only reconciliation and keep created event details reachable without a prior synced window. Agents never send.
-
-- Add optional Google Calendar read sync per Gmail OAuth account. Connect explicitly, choose calendars and Sync the visible month. Remote events share the grid, agenda and detail pane; cached failures stay labeled stale. Local events, reminders and mail keep their existing behavior. Read sync sends no invitations and makes no calendar writes.
-
-- Add Emc² calendar events stored in the encrypted local database. New event and Schedule meeting (from an email, prefilled with its subject and people except you) record title, time or all-day dates, attendees, location, Meet link, notes and account. Events appear in the month grid, day list and agenda beside work, follow-ups and snoozes. Selecting any entry opens it in the right-hand pane, including snoozed mail, instead of switching views. Saving an event sends no invitations.
-- Approving an agent reply now saves it to Drafts and opens it in the composer. Nothing is sent until the user presses Send. Remove the now-unused Allow sending replies switch.
-- Hide account addresses in the composer From list in privacy mode and drop raw image-link placeholders from mail previews.
-- Document required bounded verification on shared Linux hosts, workflow failure cases and artifact-bound installed smoke checks. Keep synthetic, installed and real-account acceptance separate.
-- Keep assistant setup in Settings and proposed actions in Agent review. Move history controls beside search and remove duplicate selected-email action bars.
-- Show Drafts as a searchable account-filtered list with sender, recipients, subject, preview, attachments and saved time. Preserve privacy and unknown-send warnings.
-- Anchor Snooze presets at the clicked control and show active snoozes in Calendar. Add text-size shortcuts and Page Up/Down email navigation. Keep reply context visible and accept validated attachment drops.
-- Make notification previews respect enabled delivery, details, privacy and sound, with a compact settings summary.
-
-- Add opt-in sender, subject and preview details to in-app and desktop new-mail notices, exact-email opening, and system/off/custom sound. Import bounded local audio without exposing its path. Keep privacy generic, prune removed-message details and preserve V2 delta updates.
-
-- Use small icon-only mail-row actions, a one-line Settings/sync footer, immediate snooze presets and quick Needs reply/Needs work/Waiting tracking. Simplify the composer, Projects picker and assistant cards. Confirm assistant removal, retain review history and deduplicate source links within each proposal. Support native horizontal history gestures without intercepting vertical scrolling.
-
-- Explain missing MCP assistant/account permissions instead of suggesting a sync retry. Keep denials enforced and clarify which assistant an OpenCode setup connects.
-
-- Complete the V2 navigation treatment with separate Workspace and Mail groups, a compact branded sidebar and bottom Settings. Show assistant cards with expandable permissions and connection setup, collapse new-assistant setup when assistants exist, and wrap preset descriptions. Add Track to the selected-email toolbar. Style notifications by type and let users dismiss the in-app queue together. Show projects as direct filter buttons.
-
-- Keep mail navigation visible in Settings, with a bottom Settings action and a ten-section rail. Replace Settings dropdowns with visible choices, including keyboard navigation. Keep search and Commands available across mail and work views. Separate Agent Reviews into Assistants, Review queue and Activity without changing permissions or approval behavior.
-
-- Integrate the optional source CLI for scoped mail and workspace reads, confirmed project and commitment creation, and draft proposals. Keep read/archive actions pending app review and preserve existing permissions.
-
-- Add explicit, default-off MCP grants to create single-account projects and track open commitments immediately without per-item review, plus separately scoped project and commitment lists. Reuse workspace validation, dates, encrypted persistence and history; require caller UUIDs for safe identical retries and reject changed or edited work. Preserve proposal approval and sending controls.
-
-- Revalidate pending mail reads after external database writes, keeping captured records and revision cursors in the same generation. Stop state-response decoding when its client disconnects while preserving shared initialization for other readers.
-
-- Bound encrypted mail reads and initial state serialization so they yield during large cached-mail loads. Reuse one mail view and each source fingerprint within proposal responses, scope sync cache reads by account, and use keyed message lookups. Reload unchanged status without mail bodies; apply changed records and explicit removals while retaining complete initial mail, body search and privacy behavior. Native responsiveness still needs measurement.
-
-- Mask known private account names in Projects cross-account approval labels while privacy is enabled. Preserve selected emails and explicit approval of the exact account set. The mounted regression retains source checkbox identities across selected-first sorting and privacy changes.
-
-- Mask known private account names in Agent Reviews allowed-account labels and existing-grant summaries while privacy is enabled. Preserve account selection and permission grants.
-
-- Mask known private names in the work coverage account label while privacy is enabled.
-
-- Simplify agent setup with provider and key first, optional model controls, and an explicit draft-only Reply assistant preset. Add editable reply, task and waiting templates for new commitments, with plain explanations of work sections, due dates and reminders.
-
-- Reconcile BYOK preparation with a workspace read started after preparation settles. Wait for an older read before fetching current proposals, retain the hold after a failed refresh, and avoid permission-refresh toggles during proposal reconciliation.
-
-- Mask cached source/evidence aliases in quick tracking and selected-account text in BYOK. Preserve quick-tracking drafts through recovery and hold BYOK preparation until current history is available. Restore mail shortcuts for opened Today sources; show status and reminder choices directly. Keep private editors hidden on dialog opening, with explicit focus to edit and blur to hide. Preserve input and block duplicate saves until refresh and review.
-
-- Add inline Today reading with the existing email reader, a compact commitment summary and preserved work-list selection and scroll. Add explicit per-deliverable quick tracking and local reminder presets from mail rows and the reader. Share the workspace and account-scoped due follow-up count across views, label stale data, and require refresh and review after unknown saves.
-
-- Add per-agent Bring your own key settings for OpenAI-compatible providers, including OpenAI and DeepSeek. Encrypt saved keys and prepare a reply from one explicitly selected cached email as a pending proposal for review. Keep provider output limited to reply text, preserve existing approval rules, and refuse stale evidence or revoked permissions. Hold further preparation after an unconfirmed response until action history refresh succeeds.
-
-- Add one-button OpenCode setup to each scoped MCP grant. The desktop app saves the grant's config into the user's OpenCode file, editing only `mcp.emc2` with a private backup and keeping the credential out of the interface, then enables MCP on the same click. Replace an existing different `emc2` connection only after confirmation; keep the copy-ready JSON under Advanced: manual setup.
-
-- Highlight mail-list sorting reasons such as Account and May need with the theme's sorting-reason color.
-
-- Fix the MCP endpoint Copy button in the desktop app. Use a native action restricted to copying that endpoint; keep browser clipboard permissions denied.
-
-- Show the saved-draft total beside Drafts in the sidebar, including zero. Refresh the desktop count after a draft is created, discarded or removed after sending.
-
-- Preserve evidence links when a commitment patch changes only its follow-up, deadline or status.
-
-- Add the V2 built-in follow-up calendar with month and agenda views, overdue and undated work, and one optional local follow-up time per commitment. Keep date-only deadlines, explicit completion and encrypted history separate.
-- Compact Today into grouped rows and an evidence inspector. Move commitment editing into a focused dialog with bounded source search, and shorten work navigation labels. Preserve edits by blocking app navigation while the dialog is open.
-
-- Ignore activation callbacks for destroyed native windows and clear the closed-window reference, preventing the main-process error during quit.
-
-- Add a local confirmed-work experiment with Today's actions, separate reply/work/waiting lists, source links, explicit completion and dated evidence history. Add client/project links with account-combination approval and source-backed decisions.
-- Import bounded Sent evidence separately from Inbox sync, show coverage gaps, and link cached conversations by account-scoped provider threads and message references.
-- Preview account-scoped Teach conditions before saving, including a visible question-mark heuristic and future-only application. Give agents account/tool grants and immutable proposals with explicit approval, revocation and encrypted action history.
-- Add Cc/group replies and bounded attachments to compose, encrypted draft recovery and MIME delivery. Restore Read, Reply, Snooze, Archive and Trash controls on hovered or keyboard-focused mail rows, retaining touch access.
-
-- Improve cached-mail search for canonical Unicode, Latin-accent variants and whitespace. Keep phrases inside individual fields and preserve email identifier distinctions. Reuse normalized documents in memory and invalidate them when searchable text changes; do not persist a plaintext search index.
-
-- Add customizable floating notifications in Settings: separate new-mail and action switches, position, duration, preview and reset. Confirm Snooze with its return time, Return to inbox, Archive and Trash; preserve confirmed outcomes when inbox refresh fails. Errors and uncertain-send warnings remain until dismissed.
-
-- Keep the release-validator test loader as a file URL so Node can import it on Windows.
-
-- Build automatic patch releases from the triggering commit and create their tags only after every platform build passes. Keep version stamping in the runner instead of pushing a version commit to `main`.
-
-- Accept Windows checkout line endings in automatic-release workflow tests.
-
-- Keep theme dialogs inside the app's navigation and shortcut guards so Back/Forward cannot discard unsaved edits and Commands cannot open a second modal. Restore navigation and commands when the theme dialog closes.
-
-- Publish GitHub-safe `Emc2-` installer filenames and Windows/Linux updater manifests with release checksums. Match Linux AppImage `x86_64` filenames and verify packaged metadata, size and SHA512 before upload. The application remains Emc² with the update icon and existing signing policy.
-
-- Stamp reusable release builds from the checked-out tag so published installers keep the stable version; reject tags that disagree with the package version.
-
-- Stack the mail features on the Linux fallback, keeping its protection warning separate from the update icon and retaining draft and account-privacy guards.
-
-- On Linux without system credential encryption, start fresh profiles with a local 0600 mail key and show a persistent weaker-protection warning instead of failing. Profiles protected by the system keyring still stop, now with a clear keyring/reset message instead of a raw decrypt error. macOS and Windows still stop when encryption is unavailable. See ADR 0027.
-
-- Rebase the mail features onto the merged sidebar redesign, keeping the corner toggle, update icon, privacy and draft guards. Reconcile decision links with main.
-
-- Keep disabled row Trash buttons hidden until hover or keyboard focus so they cannot overlap mail timestamps during sync. Preserve always-visible actions on touch devices.
-- Add custom themes in Settings, Appearance with light and dark palettes, background/accent generation, advanced color controls and live preview. Create, edit, duplicate, export and import Emc² JSON themes; confirm deletion and restore the previous appearance on Cancel. Save the theme library and selection together on this device, retaining the editor if storage fails.
-- Extend window transparency through the mail list, reader and Settings, with a stronger neutral tint in light mode. Keep foreground text sharp and Off opaque.
-- Put Drafts directly below New message in the sidebar and Settings beside Sync as a gear icon.
-- Keep the theme picker above the accent swatches by limiting the fixed stacked-row height to mail rows.
-
-- Autosave compose and reply text to encrypted local drafts, with visible save status and recovery from the Drafts button. Closing compose keeps the draft; discarding is a separate confirmed action. Reconcile lost save responses without overwriting newer revisions. Save a durable uncertainty marker before sending, require confirmation before resending an uncertain draft and treat accepted-send cleanup failures as warnings. Draft writes remain available during sync and stop during updater quiescence. Disconnect explicitly warns before permanently deleting the account's local drafts, including uncertain sends.
-
-- Rebase the sidebar redesign onto current main, preserving macOS key migration and test timeouts. Reconcile contributor guidance, component links and ADR numbering.
-
-- Add a macOS migration path that wraps the existing mail key under Emc² and preserves the original protected key, identity metadata and encrypted mail for rollback. Later starts prefer a validated current record; migration errors stop before opening mail. Native Keychain labels and reinstall behavior still require separate verification.
-
-- Limit macOS filesystem test fixtures to supported hosts while retaining portable protocol checks and Windows startup coverage.
-
-- Put the sidebar toggle first in the top-left corner, before drawn window controls, at the same spot whether the sidebar is open or closed. Tint the selected row with the accent while the list has focus instead of filling it, keeping the row's own text colors.
-
-- Let Windows and Linux choose between the drawn macOS-style window controls and the system's own caption buttons, switched from Settings, Appearance by reopening the window in place. Use native context menus for mail rows on the desktop. Make the email toolbar icon-only in Mail-style groups and add Move to Trash to it. Mark unread mail with an accent dot, divide rows with hairlines and fill the selected row with the accent while the list has focus. Tint sidebar icons with the accent and let its sections fold. Arrange Settings in System Settings-style groups.
-
-- Add structured cached-mail search, a searchable command palette, plain-text templates and per-account signatures, local message pins, and queued in-app arrival/send/error toasts. Store templates and signatures in the encrypted mail store. Preserve uncertain-send and Sent-copy warnings until dismissal.
-- Let Up and Down select emails in the list without page scrolling, opening mail or marking it read. Keep editor and open-reader arrow behavior.
-
-- Port the full `feat/sidebar-design` interface: full-height sidebar and Settings navigation, per-pane headers, six Inbox categories, light/dark/system modes, themes, accents, native materials, side-by-side or full-width reading, compact action/filter controls and native mail menus. Keep the updater as an icon with dismissible details and retain the account-label, Back/Forward, density and windowing corrections.
-- Check Gmail API mailbox revisions every 15 seconds with backoff, preserving IMAP events, the shared sync queue, updater drain and five-minute recovery sync. Reuse unchanged renderer snapshots and avoid hidden-window redraws.
-- Preserve bounded newsletter layout, centering and quoted-reply formatting without loading scripts, sender stylesheets or images before consent. Keep Windows caption changes behind the native draft guard and validate new IPC against the current main frame and application origin.
-- Disable overscroll bouncing on the showcase website.
-
-- Let Back leave the reader and immediate Forward reopen the latest email without adding mail-to-mail history. Preserve mouse, shortcut and draft guards; ignore stale reader identities.
-- Keep saved custom account labels visible during privacy mode while hiding addresses inside them. Restore Ctrl plus/minus density changes from focused closed filters.
-- Bound mounted inbox rows to the viewport with overscan, keeping all cached mail reachable, selected/focused rows retained, reader-return positioning and wrapped touch controls. Avoid scanning message bodies when search is empty.
-- Document database and cross-platform E2E encryption options, migration safeguards and recipient compatibility limits. No encryption implementation changes.
-
-- Allow local account names in Settings through a validated name-only PATCH. Preserve names across sync and reconnect, store them with encrypted accounts and redact addresses in privacy mode.
-
-
-
-- Trigger synthetic Gmail timeout tests after the loopback request arrives, preserving real connection-close and no-retry checks. Add a negative control for lost transport cancellation.
-
-- Hide scrollbar indicators without disabling scrolling. Allow Show images while personal text is hidden, with per-opening consent and masked text, captions and image descriptions. Image URLs containing detected private information remain blocked. Keep captions and inline images in order when private text spans sender markup or image boundaries. Redact image descriptions before truncating them; use a generic description when privacy-mode gallery metadata may already be cut mid-token.
-
-- Check cached updater files before reading them, limit hashing to the expected size, and stop hashing on cancellation or timeout. Ignore cached metadata paths and recheck cache contents before reuse.
-
-- Preserve the installed AppImage and any existing destination when update replacement or launch fails. Enforce download size limits before writing excess bytes, including responses without a Content-Length header, and abort cancelled requests before headers arrive.
-
-- Add an app-update notice with download progress and a single download, install and restart action for compatible Windows NSIS and Linux AppImage releases. Verify release and file identity, drain mail work and honor draft cancellation before installer handoff. Show unavailable states for unsupported builds and release metadata; automatic macOS installation remains disabled under local ad-hoc signing.
-
-- Watch IMAP inbox events to refresh arrivals and read flags through the existing account sync queue. Keep Gmail API polling, bounded reconnect recovery and one notification per successful run; suppress notifications until the first complete import succeeds.
-
-- Keep reader keyboard navigation in the chosen sort order when read-on-open removes the current message from Unread results.
-
-- Add a visible account setup button and a compact picker for multiple accounts. Combine unread, relevance, account, label and search filters; sort by newest, oldest or relevance and restore controls with Back/Forward. Keep account addresses hidden in privacy mode.
-
-- Use a 16-pixel template image for the macOS tray and a 22-pixel tray image on Linux. Keep the Windows tray image unchanged.
-- Add visible Read, Reply, Done, Snooze and Move to Trash controls for selected and opened mail. Show pending reads and apply confirmed read state before an inbox refresh completes. Report failed actions without removing mail.
-- Move mail to the provider's Trash only after confirmation. Require safe IMAP MOVE support and a unique server-declared Trash folder, counting mixed-case duplicates; preserve Done as archive and never permanently delete mail.
-- Document 13 public email-client feedback reports, their evidence limits and priorities for the mail UX stack.
-
-- Close the desktop window to the tray instead of exiting, keep the mail service and a five-minute sync running while it is hidden, and show one native notification for the new unread mail a sync finds. Reopen from the tray, its menu or a second launch, and quit from the tray. Fields and selected text keep a native right-click menu.
-
-- Preserve macOS Keychain identity for existing protected mail keys, with one bounded legacy retry and no replacement of unreadable keys. Keep explicit startup-check profiles isolated from saved accounts.
-
-- Match formatted email text, backgrounds, borders and links to the app's dark theme while preserving sender layout, emphasis and image controls.
-
-- Add a macOS source-installation route with Git, Node and Xcode Command Line Tools, requiring no Apple Developer account. Replace invalid inherited signatures through explicit local ad-hoc signing without certificate or provisioning-profile discovery. Keep notarization, DMG signing and existing public release assets unchanged.
-
-- Hide a sender avatar initial when it is a known private name component, while keeping ordinary company initials visible.
-
-- Hide known recipient names in Gmail label controls, including single-letter Unicode name components and encoded destinations. Close Interaction settings with Escape from a focused shortcut field.
-
-- Integrate account setup, sync recovery, uncertain-send protection and reader navigation while preserving every original PR commit. Keep connection forms available during sync, context-menu Open working, and read-on-open active for history and Gmail IMAP All Mail.
-
-- Verify the exact archived IMAP Message-ID before marking mail read; reject missing or mismatched search candidates.
-- Mark mail read when moving through the open reader with j/k, and close the old reader when a number shortcut changes accounts.
-- Keep the synthetic IMAP store until process exit so Windows does not try to delete an open SQLite file during test cleanup.
-
-- Keep sender provider badges visible in compact rows and give Gmail/IMAP badges opaque rounded-square backgrounds instead of empty circular outlines.
-
-- Add explicit Mark as read to the mail context menu, sharing queued provider updates and retryable errors with read-on-open.
-- Adopt roomier macOS-style dark chrome across the toolbar, inbox, sender pane, Settings, menus and dialogs, with rounded controls, smooth programmatic scrolling and reduced-motion support; keep compact density available.
-
-- Restore the mail context menu in the feature client: right-click or Shift+F10 on rows and opened messages for existing mail actions.
-
-- Replace client action icons with consistent rounded outlines and use a vector Gmail mark in account filters, Settings and sender badges.
-
-- Sync Gmail labels, filter cached mail by label, and edit existing custom labels on opened messages.
-- Add Ctrl+Plus and Ctrl+Minus shortcuts for comfortable and compact inbox density.
-- Mark opened unread mail read without dropping requests during other actions or sync; include archived Gmail mail and safely locate archived IMAP mail by Message-ID, with retryable errors.
-- Open guided account setup directly from the inbox, with provider defaults, app-password help and errors that keep the form open for correction.
-- Keep another provider's connection form open when Google sign-in finishes, including while its connection check is pending.
-- Close the onboarding test database before removing its temporary directory so fixture cleanup works on Windows.
-- Add Gmail and Google Workspace connections through TLS IMAP/SMTP with a Google app password, alongside configured Google sign-in. Keep the two connection methods separate and avoid duplicate Gmail Sent copies.
-- Allow connecting additional mailboxes during sync and preserve renewed account credentials when an older sync finishes.
-- Show fetched mail with local sorting while sync continues, then apply the configured AI sorting.
-- Keep the opened message and reply target when background sorting moves mail to another category.
-- Replace cached Gmail metadata reads with unread-ID lists, skip cached IMAP body downloads, and bound Gmail read and token-refresh waits.
-- Add Retry connection in Settings using encrypted saved credentials. Duplicate requests share account work; a failed account can retry while another account syncs.
-- Report fixed sync error categories and safe failure details. Contain IMAP transport errors, reject incomplete mailbox listings before archiving cached mail, and keep cleanup warnings separate from the sync outcome.
-- Skip unchanged mail writes, commit changed batches in one transaction, and coalesce renderer refreshes. Keep fresh Gmail batches visible while later downloads run, including a final refresh queued during a failed read.
-- Keep AI sorting limited to committed mail after a batch rollback and classify IMAP connection/greeting timeouts and closed connections as transient failures.
-- Make the background AI-failure regression wait for sync completion without starting another sync that can clear the expected warning.
-- Recover formatted email for older cached mail through the authenticated content API without changing body text or current mailbox state. Render a bounded safe subset of sender formatting; Show images remains blocked until per-opening activation.
-- Add editable keyboard shortcuts and a single-click or double-click opening choice in Settings, with double-click as the default.
-- Hide connected recipient names, first names and surnames alongside addresses in previews, headers and email content. Remove hidden values from rendered text, tooltips and accessibility labels; suppress private link destinations and body images in privacy mode.
-- Keep recipient names hidden in Snooze, preserve supported images when empty or rejected formatted content falls back, and retain 15px paragraph text without image-status styling.
-- Add visible Back and Forward controls and side mouse buttons for visited inbox contexts and emails, with session-only history and draft/dialog guards.
-- Keep hidden-address bars within their text lines so adjacent sender details do not overlap.
-- Make email bodies easier to read with bounded paragraph spacing, 15px text and a wrapping sender header, without changing stored text.
-- Add per-message Show images for supported remote HTTPS images, blocked by default. Older cached mail loads image metadata on demand; older archived IMAP mail fails safely instead of reusing an INBOX UID.
-- Preserve cached image metadata when an overlapping read or archive operation completes, and do not restore messages removed during that wait.
-
-- Add contributor coordination guidance and issue templates to reduce duplicate and overlapping work.
-- Keep uncertain sends as "Send status unknown" with the draft and a possible-delivery warning. Require duplicate-risk confirmation before sending again, including keyboard submission, and retain uncertainty through draft edits.
-- Keep the native application-close prompt neutral about whether a draft was sent.
-- Preserve confirmed send success when saving the Sent copy, closing its connection or refreshing the inbox fails. Treat an IMAP logout result of `false` as a cleanup warning.
-- Close the synthetic send-test database before deleting its temporary files so Windows cleanup can release the directory.
+- Require explanations when closing issues or pull requests, with links to merged fixes or ongoing work. [#113](https://github.com/collection-of-things/aggregate-mail/pull/113), [#114](https://github.com/collection-of-things/aggregate-mail/pull/114)
+- Separate this release from legacy unversioned notes and require clear, source-linked changelog entries and matching published release notes for future releases.
 
 ## 0.1.5
 
