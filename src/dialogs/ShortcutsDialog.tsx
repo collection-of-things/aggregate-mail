@@ -26,9 +26,9 @@ export function ShortcutsDialog({ shortcut, onClose }: {
           </div>
         ))}
       </div>
-      <p className="note">Customize keys, two-letter sequences, opening mode and mouse history in Settings, Interaction. Sequences must finish within 1.5 seconds. Editing fields and dialogs keep their own keys.</p>
+      <p className="note">Customize keys, two-letter sequences, opening mode and mouse history in Settings, Keyboard and mouse. Sequences must finish within 1.5 seconds. Editing fields and dialogs keep their own keys.</p>
       <h2>Mouse controls</h2>
-      <p className="note">Click selects an email; double-click opens it by default. Settings, Interaction can enable single-click opening. Right-click an email for actions. Hover or focus a row to show its action buttons. Mouse side buttons go Back and Forward.</p>
+      <p className="note">Click selects an email; double-click opens it by default. Settings, Keyboard and mouse can enable single-click opening. Right-click an email for actions. Hover or focus a row to show its action buttons. Mouse side buttons go Back and Forward.</p>
     </Dialog>
   );
 }
