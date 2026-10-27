@@ -11,7 +11,18 @@ test("the browser target requires its printed session link before serving /api",
     MAIL_DATA_KEY: Buffer.alloc(32, 61).toString("base64"), APP_URL: "http://127.0.0.1:3001", MAIL_DESKTOP_TOKEN: "",
     GOOGLE_CLIENT_ID: "", GOOGLE_CLIENT_SECRET: "", TYPESAFE_API_KEY: "", OPENAI_API_KEY: "" };
   delete env.NODE_TEST_CONTEXT;
-  const child = spawn(process.execPath, ["--import", "tsx", "server/index.ts"], { env, stdio: ["ignore", "pipe", "pipe"] });
+  // Give this subprocess its own ephemeral listener; never probe a host service
+  // that already owns the development port.
+  const launch = `
+    import { Server } from "node:net";
+    const listen = Server.prototype.listen;
+    Server.prototype.listen = function(port, ...args) {
+      this.once("listening", () => console.log("TEST_PORT=" + this.address().port));
+      return listen.call(this, 0, ...args);
+    };
+    await import("./server/index.ts");
+  `;
+  const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", launch], { env, stdio: ["ignore", "pipe", "pipe"] });
   try {
     let output = "";
     const link = await new Promise<string>((resolve, reject) => {
@@ -19,13 +30,14 @@ test("the browser target requires its printed session link before serving /api",
       const read = (chunk: Buffer) => {
         output += chunk;
         const match = output.match(/Open (http:\/\/127\.0\.0\.1:3001\/api\/session\?token=[0-9a-f]{64}) /);
-        if (match) { clearTimeout(timer); resolve(match[1]); }
+        const port = output.match(/TEST_PORT=(\d+)/);
+        if (match && port) { clearTimeout(timer); const url = new URL(match[1]); url.port = port[1]; resolve(url.href); }
       };
       child.stdout.on("data", read);
       child.stderr.on("data", read);
       child.once("exit", (code) => { clearTimeout(timer); reject(new Error(`Server exited (${code}): ${output}`)); });
     });
-    const origin = "http://127.0.0.1:3001";
+    const origin = new URL(link).origin;
     const denied = await fetch(`${origin}/api/state`);
     assert.equal(denied.status, 403);
     assert.deepEqual(await denied.json(), { error: "Open the browser link printed by the mail server." });
