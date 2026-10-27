@@ -491,10 +491,13 @@ remain, with unavailable source evidence, so disconnect does not erase work.
 
 ## Contribution guides
 
-[AGENTS.md](../AGENTS.md) defines the project map, change boundaries, mail privacy safeguards and verification requirements for agents. [CONTRIBUTING.md](../CONTRIBUTING.md) provides setup, focused-change and pull-request steps for people and AI contributors. Read these before changing the repository.
+[AGENTS.md](../AGENTS.md) defines the project map, change boundaries, mail privacy safeguards and verification requirements for agents. [SKILLS.md](../SKILLS.md) routes agents to task-specific change, review and verification procedures. [CONTRIBUTING.md](../CONTRIBUTING.md) provides setup, focused-change and pull-request steps for people and AI contributors. Agents must read AGENTS.md and SKILLS.md at task start, then apply the matching procedures.
 
 Before shared work starts or resumes, follow the issue search, ownership and
-worktree steps in [CONTRIBUTING.md](../CONTRIBUTING.md). The issue or pull
+worktree steps in [CONTRIBUTING.md](../CONTRIBUTING.md). Before creating an
+issue or PR, search open and closed upstream issues and PRs, record the search
+and resolve matching work and ownership. Stop creation if the search is
+unavailable or incomplete. The issue or pull
 request is the task record for scope, owner, branches, checks and status. See
 [ADR 0007](adr/0007-contributor-coordination.md) for the reason for this process.
 

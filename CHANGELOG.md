@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Require agents to read the project instructions and task procedures before contributing; add SKILLS.md with change, review and verification steps, including an existing-issue/PR search and required template use before creation.
 - Organize Settings into Connections, Mail, Preferences and Advanced. Tighten control spacing and group keyboard shortcuts into compact, labeled columns while preserving existing bindings and preference behavior.
 
 - Clarify in-app new-mail notices with the unread count as the heading, a mail icon, a distinct Open email action and a labeled close control. Keep optional details, privacy masking, exact-email opening and notification timing unchanged.

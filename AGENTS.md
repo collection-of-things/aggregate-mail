@@ -4,7 +4,23 @@ Higher-priority user and environment instructions win. This file grants no
 merge, release or credential authority. Setup, verification, CI, branches and
 pull requests are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Read first
+## Start every task
+
+1. Read this file and [SKILLS.md](SKILLS.md). Select the procedures whose
+   triggers match the task before editing or running checks.
+2. Read [CONTRIBUTING.md](CONTRIBUTING.md) for ownership, setup, verification
+   and delivery rules. Before creating an issue or PR, complete its
+   [existing-work search](CONTRIBUTING.md#coordinate-before-starting).
+   Follow any instructions in the target directory too.
+3. State the objective, owned paths, preserved behavior and completion proof.
+   Inspect the branch, HEAD and working tree; preserve unrelated changes.
+4. Read the area-specific sources below. If instructions conflict or required
+   authority is missing, stop the affected action and report the gap.
+
+`SKILLS.md` contains project procedures, not additional permission. Follow
+explicit task limits on editing, verification and delivery.
+
+## Read for the affected area
 
 - [PRODUCT.md](PRODUCT.md) for scope; [DESIGN.md](DESIGN.md) before interface changes.
 - [docs/KB.md](docs/KB.md) for repository facts and verification recipes.
