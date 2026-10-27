@@ -1725,7 +1725,7 @@ Narrow lists and devices without hover show a scrollable strip below each messag
 windowing reserves its 36-pixel height. Controls use theme tokens without
 bevels or shadows. The reader omits confirmed-empty attachments and image controls;
 unknown metadata and load failures retain recovery controls. Conversation evidence
-is a disclosure. Single-item quick tracking shows the deliverable once, with an
+is an inline stack with explicit per-message action selection. Single-item quick tracking shows the deliverable once, with an
 explicit action to add another.
 
 Settings resets its scroll container on section/history changes. App retains
@@ -2697,3 +2697,31 @@ filtered list up to 200. Selection clears on view/filter changes and prunes
 missing or account-changed mail. Fields, dialogs and opened readers keep their
 keys. Trash confirms the captured count; results identify affected items with
 privacy-redacted subjects. See [ADR 0089](adr/0089-bulk-mail-selection.md).
+
+## Inline cached conversation reader (#54)
+
+`src/mail/ConversationReader.tsx` reuses GET `/messages/:id/conversation` and
+POST `/messages/:id/conversation/expand`. Membership comes from the existing
+account-scoped service model, never from subjects. Order is oldest first with
+ID tie-breaking. Cache counts and reported gaps do not establish complete
+history. Gmail fetch remains capped at 100 messages; IMAP has no remote expansion.
+
+Malformed response envelopes or message entries retain the opened mail with an
+unavailable-evidence notice. Late results from another opening cannot replace
+the current conversation or trigger its refresh. An expansion failure retains
+the last valid cache and makes no automatic retry.
+
+`Reader.tsx` preserves the existing single-message reader for each expanded
+entry. Only the selected message receives callbacks bound to the App target.
+Other entries expose their own context menus and Select for actions, which uses
+the existing opening and mark-read operation. Collapse unmounts content and
+resets image consent; privacy applies independently to every entry. App forwards
+conversation menus without changing the selected reader, so its navigation
+cleanup does not close them. Closed-list menus, bulk selection, custom shortcuts
+and provider contracts are unchanged.
+
+Focused synthetic coverage is in `src/conversation-reader.test.tsx`,
+`src/reader-content.test.tsx` and `src/today-workflow.test.tsx`; existing image,
+formatting, privacy, navigation, snooze and conversation-service checks remain
+relevant. These checks do not prove browser, native, installed or real-provider
+behavior. See [the reader decision](adr/0090-inline-conversation-reader.md).
