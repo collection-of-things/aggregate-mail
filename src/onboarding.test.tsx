@@ -184,6 +184,7 @@ function mockApp(connection = Promise.resolve(new Response("{}"))) {
   globalThis.fetch = async (url, init) => {
     const path = String(url);
     calls.push(`${init?.method} ${path}`);
+    if (path === "/api/outbox") return Response.json([]);
     if (path === "/api/state") return new Response(JSON.stringify({ ...state, syncing: true, googleConfigured: true, csrf: "synthetic-csrf" }));
     if (path === "/api/sync") return new Response('{"errors":[]}');
     if (path === "/api/accounts/imap" && init?.method === "POST") return connection;
@@ -377,5 +378,5 @@ test("fallback warning collapses across mail and Settings and remains reopenable
   await render(<App />);
   await act(async () => { const inbox = [...container.querySelectorAll<HTMLButtonElement>(".sidebar button")].find((button) => button.textContent?.trim().startsWith("Inbox")); inbox?.click(); });
   assert.ok(container.querySelector('.list-pane .credential-fallback-notice[role="alert"]'));
-  assert.ok(api.calls.every((call) => ["GET /api/bootstrap", "GET /api/state", "GET /api/workspace"].includes(call)), "No account or provider mutation");
+  assert.ok(api.calls.every((call) => ["GET /api/bootstrap", "GET /api/state", "GET /api/workspace", "GET /api/outbox"].includes(call)), "No account or provider mutation");
 }));
