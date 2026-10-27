@@ -494,7 +494,8 @@ remain, with unavailable source evidence, so disconnect does not erase work.
 Agents must read [AGENTS.md](../AGENTS.md) for project rules and
 [SKILLS.md](../SKILLS.md) for task-specific references.
 [CONTRIBUTING.md](../CONTRIBUTING.md) covers ownership, duplicate searches,
-issue and PR templates, git.cafe State, verification, rebase-before-merge and
+issue and PR templates, closure reasons and fix links, git.cafe State,
+verification, rebase-before-merge and
 delivery. Follow it
 before starting or resuming work. See [ADR 0007](adr/0007-contributor-coordination.md)
 for the coordination rationale.

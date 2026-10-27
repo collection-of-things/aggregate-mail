@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Require a reason when closing a PR, links to existing fixes or ongoing work, and comments on linked PRs.
+
 - Require the person merging to rebase onto the latest target branch and confirm current checks and approvals before merging.
 
 - Add a short agent task guide. Require duplicate searches and existing templates before filing issues or PRs, and current task State when using git.cafe. Clarify that personal context, tooling configuration and reference uploads stay out of the repository.
