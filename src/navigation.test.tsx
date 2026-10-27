@@ -2720,6 +2720,11 @@ test("search widening preserves query and account and Back restores exact filter
     await app.choose("Sort mail", "Oldest");
     await app.click(app.button("Filters"));
     const help = () => app.container.querySelector("#mail-search-help")!;
+    // Input commits before the cached-search request's own debounce finishes.
+    for (let attempt = 0; attempt < 20 && help().textContent?.startsWith("Searching"); attempt++) {
+      await act(async () => { await new Promise(resolve => setTimeout(resolve, 25)); });
+    }
+    assert.ok(app.requests.some(url => url === "/api/messages/search?query=Alpha"), "cached fixture search completed");
     assert.match(help().textContent!, /Unread.*High relevance.*Oldest first/);
     assert.equal(help().getAttribute("role"), "status");
     await app.click(app.button("Search all cached mail in this account"));
