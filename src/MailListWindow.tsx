@@ -85,14 +85,19 @@ export function MailListWindow<T extends Mail>({ messages, selectedId, focusSele
   }, [listRef, measure]);
   const selectedIndex = useMemo(() => messages.findIndex(mail => mail.id === selectedId), [messages, selectedId]);
   const lastSelection = useRef<string | undefined>(undefined);
+  const lastLayout = useRef("");
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list || !measured) return;
     if (selectedIndex < 0) { lastSelection.current = undefined; return; }
-    // Layout, refresh and passive scroll updates never request selection focus or scrolling.
-    if (lastSelection.current === selectedId) return;
-    const behavior = lastSelection.current === undefined ? "instant" : "auto";
+    const layout = JSON.stringify([density, narrow, sizeByImportance, sizes]);
+    const selectionChanged = lastSelection.current !== selectedId;
+    const layoutChanged = lastLayout.current !== layout;
+    // Density and text sizing keep selection visible; refresh and passive scroll do not snap it back.
+    if (!selectionChanged && !layoutChanged) return;
+    const behavior = lastSelection.current === undefined || layoutChanged ? "instant" : "auto";
     lastSelection.current = selectedId;
+    lastLayout.current = layout;
     const row = geometry.rows[selectedIndex];
     const top = windowOffset() + row.top;
     const bottom = windowOffset() + row.bottom;
@@ -101,12 +106,12 @@ export function MailListWindow<T extends Mail>({ messages, selectedId, focusSele
     else if (bottom > list.scrollTop + (list.clientHeight || 600))
       list.scrollTo({ top: bottom - (list.clientHeight || 600), behavior });
     const active = document.activeElement;
-    if (focusSelection && (active === document.body ||
+    if (selectionChanged && focusSelection && (active === document.body ||
       (active instanceof HTMLElement && !!active.closest(".mail-row, .row, .message") &&
         !active.closest("input, textarea, select, [contenteditable], [role=menu], [role=dialog]"))))
       document.getElementById(`mail-${selectedId}`)?.focus({ preventScroll: true });
     measure();
-  }, [selectedId, selectedIndex, geometry, focusSelection, measured, measure, sizes.group, sort, windowOffset]);
+  }, [selectedId, selectedIndex, geometry, focusSelection, measured, measure, sizes, sort, windowOffset, density, narrow, sizeByImportance]);
   const top = Math.max(0, viewport.top - viewport.offset - 300);
   const bottom = viewport.top - viewport.offset + viewport.height + 300;
   const firstAfter = (position: number) => {

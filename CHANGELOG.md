@@ -22,6 +22,8 @@ unversioned history without treating it as a release record.
 
 ### Changed
 
+- Choose Comfortable or Compact spacing in Appearance. Settings, Commands and the density shortcut share a saved value; changing spacing or text size keeps the selected row visible. [#64](https://github.com/collection-of-things/aggregate-mail/issues/64)
+
 - Open account Settings from readable keyboard-accessible warnings. Account status uses fixed safe messages and keeps Retry connection explicit. [#63](https://github.com/collection-of-things/aggregate-mail/issues/63)
 
 - Show exact cached-search filters and sort order. Empty results can widen the search without losing the query or account; Back restores the previous scope. [#61](https://github.com/collection-of-things/aggregate-mail/issues/61)

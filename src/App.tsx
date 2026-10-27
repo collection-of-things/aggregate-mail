@@ -314,8 +314,9 @@ export function App() {
     return Number.isFinite(value) && value >= 0.8 && value <= 1.5 ? value : 1;
   });
   const [density, setDensity] = useState<"comfortable" | "compact">(
-    "comfortable",
+    () => { try { return localStorage.getItem("emc2.density") === "compact" ? "compact" : "comfortable"; } catch { return "comfortable"; } },
   );
+  const storedDensity = useRef(density);
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [notifications, setNotifications] = useState(readNotifications);
@@ -325,6 +326,13 @@ export function App() {
   const setNotice = useCallback((text: string) => { if (text) pushToast(text, "error"); }, [pushToast]);
   const [outboxRefresh, setOutboxRefresh] = useState(0);
   const outboxNotice = useCallback((text: string, kind: "info" | "error" = "info") => pushToast(text, kind), [pushToast]);
+  useEffect(() => {
+    // Persist explicit changes only; startup must not write device storage.
+    if (storedDensity.current === density) return;
+    storedDensity.current = density;
+    try { localStorage.setItem("emc2.density", density); }
+    catch { setNotice("Density could not be saved on this device."); }
+  }, [density, setNotice]);
   const arrivals = useRef<number | undefined>(undefined);
   const [notificationTargets, setNotificationTargets] = useState<string[]>([]);
   useEffect(() => {
@@ -1599,6 +1607,8 @@ export function App() {
               onSection={setSettingsSection}
               assistants={<Workbench mode="assistants" state={state} api={api} work={work} accountFilter={accountFilter}
                 onOpen={jumpTo} onMailChanged={reload} onNotice={setNotice} onModalChange={setWorkModal} renderHead={(tools) => <div className="settings-group-label"><h2>Your assistants</h2>{tools}</div>} />}
+              density={density}
+              onDensity={setDensity}
               appearance={appearance}
               scheme={themePreview?.scheme ?? scheme}
               onAppearance={updateAppearance}
