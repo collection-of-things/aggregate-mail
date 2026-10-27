@@ -679,7 +679,7 @@ export function App() {
   };
   const changeMessage = (
     mail: Mail,
-    action: "read" | "archive" | "snooze" | "unsnooze" | "pin" | "unpin",
+    action: "read" | "unread" | "inbox" | "archive" | "snooze" | "unsnooze" | "pin" | "unpin",
     until?: number,
   ) =>
     perform(() =>
@@ -836,7 +836,7 @@ export function App() {
   const neighbourIndex = neighbours.findIndex((mail) => mail.id === selected?.id);
   const previousMail = neighbours[neighbourIndex - 1];
   const nextMail = neighbours[neighbourIndex + 1];
-  type MailMenuId = "open" | "read" | "pin" | "reply" | "reply-all" | "forward-mail" | "archive" | "snooze" | "unsnooze" | "trash" | "track" | "meeting" | "teach";
+  type MailMenuId = "open" | "read" | "unread" | "inbox" | "pin" | "reply" | "reply-all" | "forward-mail" | "archive" | "snooze" | "unsnooze" | "trash" | "track" | "meeting" | "teach";
   const busyReason = busy ? "Another action is in progress" : syncing ? "Mail is syncing" : undefined;
   // Why a mailbox-state action is unavailable; undefined while it can run.
   const mailActionReason = (mail: Mail) =>
@@ -846,6 +846,10 @@ export function App() {
     { id: "open", label: "Open", key: shortcut("open"), run: () => openMail(mail) },
     { id: "read", key: shortcut("read"), label: reading.has(mail.id) ? "Marking as read…" : "Mark as read", disabled: mail.direction === "sent" || !mail.unread || reading.has(mail.id),
       description: mail.direction === "sent" ? "Sent mail is already read" : reading.has(mail.id) ? "Update in progress" : !mail.unread ? "Already read" : undefined, run: () => markRead(mail) },
+    { id: "unread", key: shortcut("unread"), label: "Mark as unread", disabled: busy || syncing || mail.direction === "sent" || mail.unread || reading.has(mail.id),
+      description: mail.direction === "sent" ? "Not available for sent mail" : mail.unread ? "Already unread" : reading.has(mail.id) ? "Update in progress" : busyReason, run: () => void changeMessage(mail, "unread") },
+    { id: "inbox", key: shortcut("inbox"), label: "Move to Inbox", disabled: busy || syncing || !mail.archived || mail.direction === "sent",
+      description: mail.direction === "sent" ? "Not available for sent mail" : !mail.archived ? "Already in Inbox" : busyReason, run: () => void changeMessage(mail, "inbox") },
     { id: "pin", key: shortcut("pin"), label: mail.pinned ? "Unpin email" : "Pin email", disabled: busy, description: busy ? "Another action is in progress" : undefined, run: () => void changeMessage(mail, mail.pinned ? "unpin" : "pin") },
     { id: "reply", label: "Reply", key: shortcut("reply"), disabled: busy, description: busy ? "Another action is in progress" : undefined, separator: true, run: () => startCompose(mail) },
     { id: "reply-all", key: shortcut("replyAll"), label: "Reply all", disabled: busy, description: busy ? "Another action is in progress" : undefined, run: () => startCompose(mail, true) },
@@ -1030,7 +1034,7 @@ export function App() {
       else if (inbox && action === "important") switchView("inbox");
       else if (inbox && action === "other") nextTab();
       else if (target instanceof HTMLElement && target.closest(".row-actions") &&
-        ["next", "previous", "open", "done", "reply", "replyAll", "forwardMail", "read", "pin", "snooze", "teach"].includes(action ?? "")) return;
+        ["next", "previous", "open", "done", "reply", "replyAll", "forwardMail", "read", "unread", "inbox", "pin", "snooze", "teach"].includes(action ?? "")) return;
       else if (inbox && (action === "next" || action === "previous")) {
         event.preventDefault();
         const next = action === "next" ? nextMail : previousMail;
@@ -1039,7 +1043,7 @@ export function App() {
         (!(target instanceof HTMLElement) || !target.closest("button, a, [role=button]") || target.closest(".row"))) {
         event.preventDefault(); openMail(selected);
       } else if (mailActions && action === "done" && selected && !busy) archive(selected);
-      else if (mailActions && ["pin", "read", "replyAll"].includes(action ?? "") && selected) {
+      else if (mailActions && ["pin", "read", "unread", "inbox", "replyAll"].includes(action ?? "") && selected) {
         const id = action === "replyAll" ? "reply-all" : action;
         const command = mailMenuActions(selected).find(command => command.id === id);
         if (command && !command.disabled) { event.preventDefault(); command.run(); }
@@ -1174,6 +1178,8 @@ export function App() {
       shortcut={shortcut}
       onTrash={() => setTrashMail(selected)}
       onRead={() => markRead(selected)}
+      onUnread={() => void changeMessage(selected, "unread")}
+      onInbox={() => void changeMessage(selected, "inbox")}
       onReply={() => startCompose(selected)}
       onArchive={() => archive(selected)}
       onSnooze={(event) => showSnooze(selected, event)}
@@ -1262,6 +1268,8 @@ export function App() {
   const placeholderMailCommands: { id: Exclude<MailMenuId, "unsnooze">; label: string; key?: string }[] = [
     { id: "open", label: "Open", key: shortcut("open") },
     { id: "read", key: shortcut("read"), label: "Mark as read" },
+    { id: "unread", key: shortcut("unread"), label: "Mark as unread" },
+    { id: "inbox", key: shortcut("inbox"), label: "Move to Inbox" },
     { id: "pin", key: shortcut("pin"), label: "Pin email" },
     { id: "reply", label: "Reply", key: shortcut("reply") },
     { id: "reply-all", key: shortcut("replyAll"), label: "Reply all" },

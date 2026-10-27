@@ -2669,3 +2669,14 @@ synthetic checks are `server/scheduled-send.test.ts`, `src/scheduled-send.test.t
 `server/outbox.test.ts`, `server/outbox-http.test.ts` and `desktop/main.test.ts`.
 Real network transitions, OS sleep, installed delivery and native acceptance
 remain separate proof.
+
+## Unread and Inbox restoration
+
+The serialized single-message PATCH route accepts `unread` and `inbox`. Gmail
+adds UNREAD or INBOX. IMAP resolves archived mail by its exact Message-ID before
+restoring it; UIDPLUS, a unique flagged archive folder and MOVE are required.
+Gmail over IMAP copies from All Mail instead. Destination identifiers map back
+to the same local ID during sync. Shift+U and V are editable defaults, preserving
+U for return-to-list and B for snooze. Commands and message actions use the same
+eligibility checks. An open reader stays unread after the action.
+See [ADR 0088](adr/0088-single-message-unread-and-inbox.md).

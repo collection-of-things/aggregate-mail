@@ -13,6 +13,8 @@ unversioned history without treating it as a release record.
 - Add Undo send with an encrypted outbox and a composer delay control. Recover pending mail for review after restart or sleep; never retry an uncertain submission automatically ([#55](https://github.com/collection-of-things/aggregate-mail/issues/55)).
 - Forward cached mail as plain text, address multiple To recipients and add Bcc, with encrypted draft recovery and explicit attachment omissions ([#51](https://github.com/collection-of-things/aggregate-mail/issues/51)).
 
+- Mark mail unread or move archived mail back to Inbox from message actions, Commands or customizable shortcuts. [#53](https://github.com/collection-of-things/aggregate-mail/issues/53)
+
 ### Fixed
 
 - Keep formatted email tables readable and show supported embedded images in their original position after Show images, including recovery of older cached imports ([#133](https://github.com/collection-of-things/aggregate-mail/issues/133)).

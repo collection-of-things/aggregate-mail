@@ -14,7 +14,7 @@ import { accountLabel } from "../mail-ui";
 
 type RowLayout = "inline" | "stacked" | "brief" | "card";
 type RowAction = Omit<MenuAction, "run"> & { run: (event: MouseEvent<HTMLButtonElement>) => void };
-const rowIcons = { read: Check, snooze: Clock, unsnooze: Inbox, reply: Reply, archive: Archive, pin: Pin, trash: Trash };
+const rowIcons = { unread: Check, inbox: Inbox, read: Check, snooze: Clock, unsnooze: Inbox, reply: Reply, archive: Archive, pin: Pin, trash: Trash };
 
 /**
  * Mail rows under sticky date headings. Wide lists keep sender and subject on

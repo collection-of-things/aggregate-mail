@@ -121,7 +121,9 @@ async function mount(preferences?: NotificationPreferences, revisionContract = f
       if (action === "read") {
         mail.unread = false;
         mail.labelIds = mail.labelIds?.filter((label) => label !== "UNREAD");
-      } else if (action === "snooze") mail.snoozedUntil = until!;
+      } else if (action === "unread") { mail.unread = true; mail.labelIds = [...(mail.labelIds || []), "UNREAD"]; }
+      else if (action === "inbox") mail.archived = false;
+      else if (action === "snooze") mail.snoozedUntil = until!;
       else if (action === "pin") mail.pinned = true;
       else if (action === "unpin") delete mail.pinned;
       else if (action === "unsnooze") mail.snoozedUntil = null;
@@ -898,4 +900,26 @@ test("cancelling the audio chooser preserves Off and System with saved audio; im
       assert.equal(app.button("Custom audio", settings).getAttribute("aria-checked"), "true");
     }
   } finally { await app.close(); }
+});
+
+
+test("unread and Move to Inbox keep single-message targets and do not reread the open message", async () => {
+ const app = await mount();
+ try {
+  await app.open();
+  assert.equal(app.state.messages[0].unread, false);
+  await app.click(app.button("Mark as unread", app.toolbar()));
+  assert.equal(app.state.messages[0].unread, true);
+  await app.refresh();
+  assert.equal(app.state.messages[0].unread, true);
+  assert.equal(app.mutations.filter(value => value.action === "read").length, 1);
+  assert.equal(app.mutations.filter(value => value.action === "unread").length, 1);
+  await app.click(app.button("Archive", app.toolbar()));
+  await app.click(app.button("Archive", app.container.querySelector('.sidebar')!));
+  await app.click(app.row());
+  await app.key("v");
+  assert.equal(app.state.messages[0].archived, false);
+  assert.equal(app.mutations.filter(value => value.action === "inbox").length, 1);
+  assert.ok(app.mutations.filter(value => ["unread", "inbox"].includes(value.action)).every(value => value.id === "a:1:5"));
+ } finally { await app.close(); }
 });

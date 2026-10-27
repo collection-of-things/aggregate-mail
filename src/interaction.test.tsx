@@ -65,6 +65,12 @@ test("storage sanitizes fields, rejects corrupted bindings and tolerates unavail
   Object.defineProperty(globalThis, "localStorage", { configurable: true, value: dom.window.localStorage });
   try {
     assert.deepEqual(read(), defaults);
+    const legacy = copy(); legacy.shortcuts.next = { key: "v" };
+    const {unread: _unread, inbox: _inbox, ...legacyShortcuts} = legacy.shortcuts;
+    dom.window.localStorage.setItem("emc2.interaction.v1", JSON.stringify({...legacy, shortcuts:legacyShortcuts}));
+    const migrated = read();
+    assert.equal(migrated.shortcuts.next.key, "v");
+    assert.equal(validateShortcut("inbox", migrated.shortcuts.inbox, migrated), null);
     const value = copy(); value.opening = "single"; value.shortcuts.next = { key: "x", shift: true };
     assert.equal(save({ ...value, unrelated: "discard" } as InteractionPreferences), true);
     assert.deepEqual(read(), { ...value, shortcuts: Object.fromEntries(interactionActions.map(({ id }) => [id, { ...shortcutFromEvent({ key: value.shortcuts[id].key, ctrlKey: !!value.shortcuts[id].ctrl, metaKey: !!value.shortcuts[id].meta, altKey: !!value.shortcuts[id].alt, shiftKey: !!value.shortcuts[id].shift }), ...(value.shortcuts[id].prefix ? { prefix: value.shortcuts[id].prefix } : {}) }])) });

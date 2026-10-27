@@ -253,11 +253,13 @@ export async function syncMailCache(accountId: string) {
   const summaries = await captureMailRows(rows => new Map([...rows]
     .filter(([, row]) => row.summary.accountId === accountId && row.summary.direction !== "sent")
     .map(([id, row]) => [id, row.summary])));
+  const identities = new Map([...summaries].map(([id, summary]) => [`${accountId}:${summary.remoteId}`, id]));
   return {
     summaries,
     size: summaries.size,
-    has: (id: string) => summaries.has(id),
+    has: (id: string) => summaries.has(id) || identities.has(id),
     get: (id: string) => {
+      id = identities.get(id) ?? id;
       const summary = summaries.get(id);
       if (!summary) return undefined;
       const mail = get("mail", id);

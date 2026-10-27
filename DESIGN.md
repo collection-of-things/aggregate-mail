@@ -473,3 +473,7 @@ Commands and its persistent generic notice, with local times, delivery state,
 Edit, Cancel schedule and Reschedule. Held and unknown outcomes stay visible
 for review. Keep sender and recipient content out of notices; Ctrl/Cmd+Z retains
 immediate Undo-send ownership.
+
+Mark as unread and Move to Inbox appear in message actions and Commands. Shift+U
+and V are customizable defaults. Sent mail explains unavailable actions in
+Commands; marking an open message unread does not read it again.
