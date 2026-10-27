@@ -1228,12 +1228,12 @@ test("mouse side buttons leave and restore an initial reader while dialogs guard
     assert.equal(app.title(), undefined);
     await app.mouse(4);
     assert.equal(app.title(), "Alpha");
-    for (const shortcut of ["m", "s", "?"]) {
+    for (const shortcut of ["m", "b", "?"]) {
       await app.key(shortcut);
-      assert.ok(app.container.querySelector(shortcut === "s" ? '[role="menu"]' : '[role="dialog"]'));
+      assert.ok(app.container.querySelector(shortcut === "b" ? '[role="menu"]' : '[role="dialog"]'));
       await app.mouse(3); await app.mouse(4);
       assert.equal(app.title(), "Alpha");
-      assert.ok(app.container.querySelector(shortcut === "s" ? '[role="menu"]' : '[role="dialog"]'));
+      assert.ok(app.container.querySelector(shortcut === "b" ? '[role="menu"]' : '[role="dialog"]'));
       await app.key("Escape");
     }
     await app.mouse(3);
@@ -1628,9 +1628,9 @@ test("mounted App guards modal dialogs and uses one native side-button source wi
     await app.native("back");
     await app.open("a:1");
     const mutations = app.mutations.length;
-    for (const shortcut of ["m", "s", "?"]) {
+    for (const shortcut of ["m", "b", "?"]) {
       await app.key(shortcut);
-      assert.ok(app.container.querySelector(shortcut === "s" ? '[role="menu"]' : '[role="dialog"]'));
+      assert.ok(app.container.querySelector(shortcut === "b" ? '[role="menu"]' : '[role="dialog"]'));
       assert.ok(app.back().disabled && app.forward().disabled);
       await app.native("back");
       await app.native("forward");
@@ -2179,7 +2179,7 @@ test("Find pinned mail searches this view or All cached and keeps the selected a
 test("mixed global search draft focus isolates mail shortcuts and traversal", async (t) => {
   const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: "client@example.test", subject: "Needle draft", body: "Saved draft body", sendUnknown: false };
   for (const control of [".draft-row", ".draft-refresh"]) {
-    for (const key of ["e", "r", "s", "m", "j", "k", "ArrowDown", "ArrowUp", "PageDown", "PageUp", "Enter"]) {
+    for (const key of ["e", "r", "b", "m", "j", "k", "ArrowDown", "ArrowUp", "PageDown", "PageUp", "Enter"]) {
       await t.test(`${control}: ${key}`, async () => {
         const app = await mount(false, state => {
           state.messages = state.messages.map(mail => ({ ...mail, subject: `Needle ${mail.subject}` }));
