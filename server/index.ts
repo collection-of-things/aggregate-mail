@@ -50,6 +50,7 @@ import { loadConfiguration, saveConfiguration } from "./config.js";
 loadConfiguration();
 const desktopEvents = new EventEmitter();
 const outbox = new Outbox(() => desktopEvents.emit("mail-changed"));
+export function setOutboxOnlineCheck(check: () => boolean) { outbox.setOnlineCheck(check); }
 export function holdPendingOutbox() { return outbox.hold(); }
 const app = express();
 if (browserGate) app.use(browserGate);
@@ -796,6 +797,11 @@ app.post("/api/send", (req, res) => {
 app.get("/api/outbox", (_req, res) => { res.json(outboxStatuses()); });
 app.post("/api/outbox/:id/send", async (req, res) => {
   await outbox.submit(z.uuid().parse(req.params.id));
+  res.json({ ok: true });
+});
+app.post("/api/outbox/:id/reschedule", (req, res) => {
+  const input = z.object({ at: z.number().int().positive() }).strict().parse(req.body);
+  outbox.reschedule(z.uuid().parse(req.params.id), input.at);
   res.json({ ok: true });
 });
 app.post("/api/outbox/:id/edit", (req, res) => {

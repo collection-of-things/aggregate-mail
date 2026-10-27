@@ -73,4 +73,7 @@ User Send queues an encrypted local snapshot with a configurable Off, 5, 10
 (default) or 30 second delay. Undo restores the exact draft before submission.
 The app must be running to send. Restarted pending mail requires review, and
 unknown outcomes require checking the provider before an explicitly confirmed
-resend. There is no recall after provider acceptance. Send later is separate.
+resend. There is no recall after provider acceptance. Send later adds local presets and
+custom times, with a Scheduled list for edit, cancel and reschedule. Emc² must
+remain running and online; sleep, restart and missed offline schedules require
+review.

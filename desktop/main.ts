@@ -6,6 +6,8 @@ import {
   ipcMain,
   Menu,
   Notification,
+  net,
+  powerMonitor,
   nativeImage,
   nativeTheme,
   safeStorage,
@@ -351,6 +353,9 @@ else {
       else delete process.env.MAIL_RENDERER_ORIGIN;
       const backend = await import("../server/index.js");
       quitBackend = backend;
+      backend.setOutboxOnlineCheck(() => net.isOnline());
+      powerMonitor.on("suspend", () => backend.holdPendingOutbox());
+      powerMonitor.on("resume", () => backend.holdPendingOutbox());
       delete process.env.MAIL_DATA_KEY;
       const mailNotifications = new MailNotifications(path.join(dataPath, "notifications.json"), {
         create: (options) => Notification.isSupported() ? new Notification(options) : undefined,

@@ -1349,7 +1349,7 @@ with mail saved for review. It drains active submissions through their receipt.
 An update holds pending mail and drains active submissions before the existing
 renderer/native close flow. Cancellation leaves pending mail held; it does not
 restart a countdown. Update integrity checks are unchanged. Agent approvals
-still only create drafts under ADR 0053. Automatic scheduling remains deferred.
+still only create drafts under ADR 0053. Scheduled sends extend these records as described below.
 Outbox attachments remain inline encrypted snapshots under the existing send
 limits. No uploaded-reference contract or attachment lifecycle is introduced.
 
@@ -2627,3 +2627,45 @@ Synthetic checks: `server/forward.test.ts`, `server/compose-recipients.test.ts`,
 contracts and recovery. Installed UI, real providers and recipient delivery
 need separate acceptance. Frozen snapshots and unknown-send recovery retain
 the ADR 0038 sequence; there is no automatic resend.
+
+
+## Scheduled send
+
+Send later in the composer offers Tomorrow morning, Monday morning and a custom
+local date/time using the existing follow-up preset helper. Send still freezes
+and acknowledges the exact draft before queue admission. The optional
+`scheduleAt` timestamp on `POST /api/send` must be in the future and within one
+year. The encrypted record retains `scheduledFor` and uses it as `dueAt`, with
+the same committed pending/submitting/sent/failed/unknown transitions as Undo
+send. Schedule replay is idempotent for the original payload, revision and time.
+
+Open Scheduled from Commands or the persistent scheduled-mail notice. It shows
+times and delivery state without mail content. Edit cancels the pending attempt
+and restores the exact draft in compose; Cancel schedule saves that draft in
+Drafts. Reschedule changes only the pending entry's timestamps, preserving its
+identity, source revision and frozen snapshot. `POST /api/outbox/:id/reschedule`
+accepts `{ at }`. Active and terminal attempts cannot be rescheduled. An unknown
+Edit retains the duplicate-risk warning before another Send. Ctrl/Cmd+Z remains
+owned by immediate Undo send and never cancels scheduled mail.
+
+Emc² must be running and online to send. All pending mail, including future
+schedules, is conservatively held for review after restart, sleep or ordinary
+quit/update drain. A timer gap over two seconds or a backwards clock change
+holds pending mail. Native suspend/resume events also hold it. When a due
+schedule sees the operating system offline, it is held; reconnect never rearms
+it. Review offers explicit Send now, Edit, Cancel schedule or Reschedule. The
+visible scheduled-mail notice calls out held or unknown outcomes. There is no
+new background service, cloud credential hosting, automatic retry or recall.
+
+Desktop uses Electron's online signal; the standalone service checks for a
+non-loopback network interface. These signals do not prove provider reachability.
+A failed or lost provider response retains the existing conservative unknown
+classification. Each dispatch rereads the entry and commits submitting before
+awaiting provider work, so a concurrent due tick and user action cannot admit
+the same pending entry twice.
+
+[ADR 0093](adr/0093-local-scheduled-send.md) records this extension. Focused
+synthetic checks are `server/scheduled-send.test.ts`, `src/scheduled-send.test.tsx`,
+`server/outbox.test.ts`, `server/outbox-http.test.ts` and `desktop/main.test.ts`.
+Real network transitions, OS sleep, installed delivery and native acceptance
+remain separate proof.

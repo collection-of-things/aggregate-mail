@@ -465,3 +465,11 @@ Send now, Edit and Discard for held pending mail. Unknown outcomes say to check
 the provider and require duplicate-risk confirmation before another Send.
 The composer's Undo delay control offers Off, 5, 10 (default) and 30 seconds. No mail content
 appears in Outbox notices. There is no recall after provider acceptance.
+
+
+Send later shares the compose footer and existing local-time presets. Show the
+app-running/online requirement beside its time picker. Scheduled opens from
+Commands and its persistent generic notice, with local times, delivery state,
+Edit, Cancel schedule and Reschedule. Held and unknown outcomes stay visible
+for review. Keep sender and recipient content out of notices; Ctrl/Cmd+Z retains
+immediate Undo-send ownership.

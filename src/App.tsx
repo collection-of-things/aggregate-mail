@@ -165,6 +165,7 @@ export function App() {
   };
   const [trashMail, setTrashMail] = useState<Mail | null>(null);
   const gmailPrefix = useRef({ key: "", at: 0 });
+  const [scheduledOpen, setScheduledOpen] = useState(false);
   const [shortcuts, setShortcuts] = useState(false);
   const [palette, setPalette] = useState(false);
   const [settingsModal, setSettingsModal] = useState(false);
@@ -172,7 +173,7 @@ export function App() {
   // The shared unload guard also protects an event form with unsaved changes.
   const [eventDirty, setEventDirty] = useState(false);
   useEffect(() => { if (updateInstalling) setPalette(false); }, [updateInstalling]);
-  const toolbarBlocked = !!(teach || snooze || trashMail || shortcuts || labelMail || connecting || updateInstalling || settingsModal || workModal || quickSource || meetingMail);
+  const toolbarBlocked = !!(scheduledOpen || teach || snooze || trashMail || shortcuts || labelMail || connecting || updateInstalling || settingsModal || workModal || quickSource || meetingMail);
   const navigationBlocked = settings || !!compose || toolbarBlocked;
   const navigate = (patch: Partial<MailLocation>, search = false) => {
     if (toolbarBlocked) return false;
@@ -618,13 +619,20 @@ export function App() {
   const draftOpenGuard = useRef(false);
   useLayoutEffect(() => { draftOpenGuard.current = draftOpeningAllowed; });
   const outboxGeneration = composeGeneration.current;
-  const outboxOpenContext = useRef({ allowed: false, accounts: state.accounts });
-  useLayoutEffect(() => { outboxOpenContext.current = { allowed: draftOpeningAllowed && !busy, accounts: state.accounts }; });
+  const outboxOpenContext = useRef({ allowed: false, scheduled: false, accounts: state.accounts });
+  useLayoutEffect(() => { outboxOpenContext.current = { allowed: draftOpeningAllowed && !busy, scheduled: scheduledOpen && !busy && !updateInstalling && !settingsModal && !workModal, accounts: state.accounts }; });
   const openOutboxDraft = (draft: Draft) => {
     const context = outboxOpenContext.current;
     if (context.allowed && outboxGeneration === composeGeneration.current && !draftSession.current &&
       context.accounts.some(account => account.id === draft.accountId)) openCompose(draft);
     else setNotice("Send was cancelled. The restored draft is saved in Drafts; your current view is unchanged.");
+  };
+  const openScheduledDraft = (draft: Draft) => {
+    const context = outboxOpenContext.current;
+    if (context.scheduled && outboxGeneration === composeGeneration.current && !draftSession.current &&
+      context.accounts.some(account => account.id === draft.accountId)) {
+      setScheduledOpen(false); openCompose(draft);
+    } else setNotice("The restored draft is saved in Drafts; your current view is unchanged.");
   };
   const openSavedDraft = (draft: Draft) => {
     if (!draftOpenGuard.current || draftSession.current || sendLock.current || draftLock.current || attachmentTask.current) return;
@@ -1280,6 +1288,7 @@ export function App() {
       run: () => updateAppearance({ ...appearance, sizeByImportance: !appearance.sizeByImportance }) },
     ...paletteViews.map((next) => ({ id: `view-${next}`, label: `Open ${viewNames[next]}`, group: "navigation" as const,
       aliases: commandAliases[`view-${next}`], run: () => navigate({ page: "mail", view: next, opened: false }) })),
+    { id: "scheduled", label: "Open Scheduled", group: "navigation", disabled: navigationBlocked, run: () => setScheduledOpen(true) },
     { id: "drafts", label: "Open Drafts", group: "navigation", disabled: !state.accounts.length,
       disabledReason: !state.accounts.length ? "Add an account first" : undefined, run: () => switchView("drafts") },
     { id: "archive-view", label: "Show Archive", group: "navigation", aliases: commandAliases["archive-view"], run: () => switchView("archive") },
@@ -1302,9 +1311,14 @@ export function App() {
         data-view={settings ? "settings" : view}
         style={{ "--text-scale": textScale } as React.CSSProperties}
       >
-        <ToastStack outbox={<OutboxNotices api={api} refreshKey={outboxRefresh} enabled={loaded} blocked={busy || updateInstalling || !!compose || settingsModal || workModal} onEdit={openOutboxDraft} onNotice={outboxNotice} onChanged={() => { void reload().catch(() => {}); }} />} toasts={toasts} onDismiss={dismissToast} position={notifications.position} preferences={notifications} onOpen={requestNotificationMail} />
+        <ToastStack outbox={<OutboxNotices api={api} refreshKey={outboxRefresh} enabled={loaded} onScheduled={() => setScheduledOpen(true)} blocked={busy || updateInstalling || scheduledOpen || !!compose || settingsModal || workModal} onEdit={openOutboxDraft} onNotice={outboxNotice} onChanged={() => { void reload().catch(() => {}); }} />} toasts={toasts} onDismiss={dismissToast} position={notifications.position} preferences={notifications} onOpen={requestNotificationMail} />
+        {scheduledOpen && <Dialog title="Scheduled" onClose={() => setScheduledOpen(false)}>
+          <p className="dialog-copy">Emc² must be running and online. Sleep, restart and missed offline schedules require review. Unknown outcomes are never retried automatically.</p>
+          <OutboxNotices api={api} scheduledOnly enabled={loaded} blocked={busy || updateInstalling}
+            onEdit={openScheduledDraft} onNotice={outboxNotice} onChanged={() => { setOutboxRefresh(current => current + 1); void reload().catch(() => {}); }} />
+        </Dialog>}
         {palette && !updateInstalling && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
-        <div className="frame" inert={settings || updateInstalling || palette}>
+        <div className="frame" inert={settings || updateInstalling || palette || scheduledOpen}>
           {!roomy && mobileSidebarOpen && <button type="button" className="mobile-sidebar-backdrop" aria-label="Close navigation" onClick={() => { setMobileSidebarOpen(false); requestAnimationFrame(() => document.getElementById("sidebar-toggle")?.focus()); }} />}
           <Sidebar
             open={sidebarShown}
@@ -1638,7 +1652,7 @@ export function App() {
               if (busy || sendLock.current || draftAdmissionLock.current || attachmentTask.current || updateInstalling) return;
               if (confirm("Save a separate copy? The previous saved draft may still exist. Neither copy will be sent automatically.")) openCompose(draftSession.current?.content || compose);
             }}
-            onSend={() => {
+            onSend={scheduleAt => {
               const session = draftSession.current;
               if (!session || busy || draftAdmissionLock.current || sendLock.current || attachmentTask.current || updateInstalling) return;
               const snapshot = { ...session.content, to: session.content.to.map(value => value.trim()).filter(Boolean), cc: session.content.cc?.map((value) => value.trim()).filter(Boolean), bcc: session.content.bcc?.map(value => value.trim()).filter(Boolean) };
@@ -1650,16 +1664,17 @@ export function App() {
                   await session.flush();
                 },
                 send: async (draft) => {
-                  try { return await api<{ queued: boolean }>("/send", "POST", {
+                  try { const result = await api<{ queued: boolean }>("/send", "POST", {
                     payload: { ...draft, ...(draft.invitation && session.stored ? { calendarDraft: { id: session.stored.id, revision: session.stored.revision } } : {}) },
                     sourceDraftId: session.stored!.id, sourceRevision: session.stored!.revision,
-                  }); } catch (error) {
+                    ...(scheduleAt === undefined ? {} : { scheduleAt }),
+                  }); return { ...result, scheduled: scheduleAt !== undefined }; } catch (error) {
                     // A lost queue response must not leave a locked pending draft
                     // trapped in the composer or create a second attempt.
                     try {
                       const entries = await api<OutboxStatus[]>("/outbox");
                       if (entries.some(entry => entry.sourceDraftId === session.stored?.id && entry.sourceRevision === session.stored?.revision))
-                        return { queued: true };
+                        return { queued: true, scheduled: scheduleAt !== undefined };
                     } catch { /* Retain conservative uncertainty until review is available. */ }
                     throw error;
                   }
@@ -1675,7 +1690,7 @@ export function App() {
                   setCompose(value);
                 },
                 setBusy,
-                setNotice: (text) => pushToast(text, text === "Email sent." ? "success" : text.startsWith("Email queued") ? "info" : "error"),
+                setNotice: (text) => pushToast(text, text === "Email sent." ? "success" : (text.startsWith("Email queued") || text.startsWith("Email scheduled")) ? "info" : "error"),
                 confirm: (message) => confirm(message),
               });
             }}

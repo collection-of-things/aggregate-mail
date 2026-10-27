@@ -66,6 +66,7 @@ export type OutboxStatus = {
   createdAt: number;
   updatedAt: number;
   dueAt: number;
+  scheduledFor?: number;
   review: boolean;
   warning?: string;
 };
