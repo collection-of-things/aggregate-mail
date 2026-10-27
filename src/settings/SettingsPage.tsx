@@ -1,3 +1,4 @@
+import { accountStatus } from "../account-status";
 import { notificationDefaults, type NotificationPreferences } from "../notifications";
 import { NotificationSettings } from "./NotificationSettings";
 import { Fragment, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
@@ -44,6 +45,7 @@ export function SettingsPage({
   section,
   onSection,
   assistants,
+  accountTarget,
   appearance,
   scheme,
   onAppearance,
@@ -76,6 +78,7 @@ export function SettingsPage({
   section: SettingsSection;
   onSection?: (section: SettingsSection) => void;
   assistants?: ReactNode;
+  accountTarget?: string;
   appearance: Appearance;
   scheme: Scheme;
   onAppearance: (value: Appearance) => boolean;
@@ -91,6 +94,18 @@ export function SettingsPage({
   const [renameError, setRenameError] = useState("");
   const scrollPane = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => { scrollPane.current?.scrollTo({ top: 0, behavior: "instant" }); }, [section]);
+  useLayoutEffect(() => {
+    if (section !== "accounts" || !accountTarget) return;
+    let cancelled = false;
+    // Let the enclosing dialog establish its focus and return target first.
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const target = document.getElementById(`settings-account-${accountTarget}`);
+      target?.focus();
+      target?.scrollIntoView?.({ block: "nearest" });
+    });
+    return () => { cancelled = true; };
+  }, [section, accountTarget]);
   const current = settingsSections.find((item) => item.id === section)!;
   return (
     <main className="settings">
@@ -122,20 +137,13 @@ export function SettingsPage({
           <h2>Connected</h2>
           {state.accounts.length ? (
             <div className="settings-group">{state.accounts.map((a, index) => (
-              <Fragment key={a.id}><div className="account-row">
+              <Fragment key={a.id}><div className="account-row" id={`settings-account-${a.id}`} tabIndex={-1} role="group" aria-label={accountLabel(a, index, privacy, state.accounts)}>
                 <ProviderIcon provider={a.provider} />
                 <strong>
                   {accountLabel(a, index, privacy, state.accounts)}
                 </strong>
-                <span
-                  className={a.error ? "attention" : undefined}
-                  title={
-                    [a.error && (privacy ? redactPrivateText(a.error, names) : a.error),
-                      a.syncFailure && `${a.syncFailure.phase}: ${a.syncFailure.code}${a.syncFailure.status ? ` (${a.syncFailure.status})` : ""}`,
-                      a.syncWarning && "Mail result retained; connection cleanup failed."].filter(Boolean).join("\n") || undefined
-                  }
-                >
-                  {a.syncStatus === "queued" ? "Retry queued" : a.syncStatus === "running" ? "Syncing" : a.error ? "Needs attention" : "Connected"}
+                <span className={a.error || a.syncFailure || a.syncWarning ? "attention" : undefined}>
+                  {accountStatus(a)}
                 </span>
                 <button type="button" className="link" disabled={busy} onClick={() => { setRenaming(a.id); setRenameError(""); }}>Rename</button>
                 <button

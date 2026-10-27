@@ -252,3 +252,7 @@
 .sidebar-footer { border-top: 1px solid var(--line); }
 .sidebar-settings { color: var(--text-2); }
 .sidebar-count { padding: 1px 5px; min-width: 19px; text-align: center; border-radius: 5px; background: var(--hover); }
+
+.sidebar-group button.account-warning { height: auto; padding-block: 6px; align-items: flex-start; text-align: left; }
+.account-warning span { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.account-warning .error-dot { flex-shrink: 0; margin-top: 6px; }

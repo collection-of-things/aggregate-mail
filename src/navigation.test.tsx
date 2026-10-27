@@ -912,7 +912,7 @@ test("multiple IMAP accounts stay distinguishable and private, choose compose Fr
     hidden();
     await app.click(app.account("Account 2 · Custom IMAP"));
     assert.equal(app.activeAccount(), "Account 2 · Custom IMAP");
-    assert.ok(app.account("Account 2 · Custom IMAP").querySelector('[aria-label="Needs attention"]'));
+    assert.ok(app.account("Account 2 · Custom IMAP").nextElementSibling?.matches(".account-warning"));
     hidden();
     assert.deepEqual([...app.container.querySelectorAll(".row")].map(row => row.id), ["mail-b:1"]);
     await app.key("c");
@@ -925,7 +925,7 @@ test("multiple IMAP accounts stay distinguishable and private, choose compose Fr
     await app.key("Escape");
     await app.click(app.button("Show personal information"));
     assert.ok(app.account("first@example.com"));
-    assert.ok(app.account("second@example.com").querySelector('[aria-label="Needs attention"]'));
+    assert.ok(app.account("second@example.com").nextElementSibling?.matches(".account-warning"));
     assert.equal(app.mutations.length, 0, "filter and setup entry do not mutate mail");
   } finally { await app.close(); }
 });
@@ -2734,6 +2734,32 @@ test("search widening preserves query and account and Back restores exact filter
     await app.click(app.back());
     assert.match(help().textContent!, /0 mail results.*Unread.*High relevance.*Oldest first/);
     assert.ok(app.button("Search all cached mail in this account"));
+    assert.equal(app.mutations.length, 0);
+  } finally { await app.close(); }
+});
+
+test("account warning opens the affected private account without reconnecting on focus", async () => {
+  const app = await mount(false, (state, storage) => {
+    storage.setItem("privacy", "on");
+    state.accounts[1].error = "password rejected by private.example.test";
+    state.accounts[1].syncFailure = { kind: "auth", phase: "auth", code: "private.example.test" };
+    state.accounts[1].syncWarning = { kind: "unknown", phase: "cleanup", code: "private.example.test" };
+  });
+  try {
+    const warning = app.container.querySelector<HTMLButtonElement>(".account-warning")!;
+    assert.ok(warning, "warning is a separate native button");
+    assert.match(warning.getAttribute("aria-label")!, /Account 2.*needs attention.*cleanup failed/);
+    assert.equal(warning.tabIndex, 0);
+    await act(async () => warning.focus());
+    assert.equal(app.requests.filter(url => url.endsWith("/reconnect")).length, 0);
+    await app.click(warning);
+    const target = app.container.querySelector<HTMLElement>("#settings-account-b")!;
+    assert.equal(app.window.document.activeElement, target);
+    assert.match(target.textContent!, /Connection needs attention.*cleanup failed/);
+    assert.doesNotMatch(app.container.innerHTML, /private\.example\.test|password rejected|second@example\.com/);
+    const retry = [...target.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.trim() === "Retry connection")!;
+    await app.click(retry);
+    assert.deepEqual(app.requests.filter(url => url.endsWith("/reconnect")), ["/api/accounts/b/reconnect"]);
     assert.equal(app.mutations.length, 0);
   } finally { await app.close(); }
 });

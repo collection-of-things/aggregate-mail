@@ -101,6 +101,7 @@ export function App() {
   const [searching, setSearching] = useState(false);
   const settingsSearchPending = useRef(false);
   const settings = page === "settings";
+  const [accountSettingsTarget, setAccountSettingsTarget] = useState<string>();
   const inlineWorkView = view === "actions" || view === "projects" || view === "calendar";
   const workView = view === "actions" || view === "calendar" || view === "projects" || view === "agents";
   const ViewIcon = settings ? SettingsIcon : sidebarViews.find((item) => item.view === view)?.Icon ?? MailIcon;
@@ -1377,6 +1378,10 @@ export function App() {
               onDrafts: () => fromSidebar(() => switchView("drafts")),
               draftCount: state.draftCount,
               onSettings: () => fromSidebar(() => setSettings(true)),
+              onAccountSettings: (id) => fromSidebar(() => {
+                setAccountSettingsTarget(id);
+                navigate({ page: "settings", settingsSection: "accounts" });
+              }),
               shortcut,
               syncing,
               lastSync: state.lastSync,
@@ -1589,6 +1594,7 @@ export function App() {
                 setInteraction(value);
                 if (!saveInteraction(value)) setNotice("Interaction settings could not be saved on this device.");
               }}
+              accountTarget={accountSettingsTarget}
               section={settingsSection}
               onSection={setSettingsSection}
               assistants={<Workbench mode="assistants" state={state} api={api} work={work} accountFilter={accountFilter}
