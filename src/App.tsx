@@ -1306,6 +1306,7 @@ export function App() {
                     opening={interaction.opening}
                     accounts={state.accounts}
                     sizeByImportance={appearance.sizeByImportance}
+                    showAccount={accountFilter === "all" && state.accounts.length > 1}
                     actions={(mail) => mailMenuActions(mail).map((action) => action.id === "snooze"
                       ? { ...action, run: (event: ReactMouseEvent<HTMLButtonElement>) => showSnooze(mail, event) }
                       : action)}

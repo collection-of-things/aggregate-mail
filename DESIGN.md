@@ -45,6 +45,17 @@ The reader keeps the subject and sender above the body, with secondary label,
 reply-all and scheduling controls below it. Narrow mail rows include account
 context within the same measured virtual row.
 
+All accounts shows separate Account and Status columns in wide mail lists.
+Account names stay neutral and use the existing privacy-safe labels. A small
+dot matches the same account in the sidebar; colour supplements the name.
+The four dot colours repeat for additional accounts in sidebar order. Sender
+avatars carry no provider overlay. Existing high-importance sorting reasons
+remain status labels, independent of the row-sizing preference. May need uses
+the reason colour; other statuses use secondary text. A blank status stays
+blank. Selecting one account hides the redundant account column.
+Narrow rows place account and status together below the sender, before the
+subject. Compact narrow rows use a 72px size token shared with list windowing.
+
 Today groups open work into overdue, due today, upcoming, undated and waiting
 sections. Open, Waiting and Completed views change only the visible local
 list. Every row retains its status. Existing source-opening and explicit

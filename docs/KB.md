@@ -570,6 +570,17 @@ The complete interface from [PR #48](https://github.com/screen-devs/aggregate-ma
 
 Text-size shortcut dispatch precedes the closed-filter combobox guard, preserving editable-field and dialog ownership. `src/MailListWindow.tsx` uses density/relevance size tokens shared with CSS, date offsets, resize observation and bounded row mounts. Synthetic component tests reach all 3,000 messages and select within 25,624; mounted App tests cover tail reachability, reader return, filters, sorting and focus. These prove DOM bounds, not native latency.
 
+`src/mail/MailList.tsx` shows receiving-account and existing high-importance
+sorting-status labels separately in All accounts. `src/App.tsx` hides the
+account column for a selected account. Labels reuse `accountLabel`, including
+duplicate names, privacy redaction and unavailable-account fallback; row
+accessible names include the permitted account and status. Account dots match
+sidebar order and repeat after four accounts. Narrow rows put metadata below
+the sender. The compact narrow height is 72px in both CSS tokens and windowing
+fallbacks. Sender avatars omit provider overlays. Status visibility follows
+message importance, independent of the Size rows by importance preference;
+only May need labels take the existing reason colour.
+
 Synthetic mounted-App tests cover combined controls, empty-result reset, privacy-safe account labels, account-specific compose, setup entry, keyboard ownership, read-on-open, history, section folding and collapse focus. They do not prove actual account connections or native appearance.
 
 ## Encrypted local draft API

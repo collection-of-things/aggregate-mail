@@ -57,7 +57,7 @@ export function MailListWindow<T extends Mail>({ messages, selectedId, focusSele
       low: token("low", narrow ? 80 : 28),
       medium: token("medium", narrow ? 100 : 34),
       high: token("high", narrow ? 100 : 48),
-      compact: token("compact", narrow ? 52 : 24),
+      compact: token("compact", narrow ? 72 : 24),
       group: (parseFloat(style.getPropertyValue("--mail-group-height")) || 30) * scale,
     };
     setSizes(current => Object.keys(current).every(key => current[key as keyof typeof current] === nextSizes[key as keyof typeof nextSizes]) ? current : nextSizes);

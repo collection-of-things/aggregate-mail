@@ -106,7 +106,7 @@ test('touch and narrow lists do not reserve a persistent action strip', async ()
  for (const narrow of [false, true]) for (const density of ['comfortable', 'compact'] as const) {
   const ui = await mountRows([mail, {...mail, id: 'b:1'}], {touch: true, narrow, density});
   try {
-   const height = density === 'compact' ? narrow ? 52 : 24 : narrow ? 100 : 34;
+   const height = density === 'compact' ? narrow ? 72 : 24 : narrow ? 100 : 34;
    assert.equal(document.querySelectorAll('.with-action-strip').length, 0);
    assert.equal(parseFloat(ui.rows()[1].style.top), height);
    assert.equal(parseFloat(document.querySelector<HTMLElement>('.mail-window')!.style.height), height * 2);
@@ -121,7 +121,7 @@ test('the rendered row layout and the windowing height agree for every sizing co
    const expectedClass=(relevance:number)=>density==='compact'?(narrow?'card':'inline')
      :!sizeByImportance?(narrow?'card':'inline')
      :narrow?'card':relevance===3?'stacked':relevance===2?'inline':'brief';
-   const expectedHeight=(relevance:number)=>(density==='compact'?(narrow?52:24)
+   const expectedHeight=(relevance:number)=>(density==='compact'?(narrow?72:24)
      :!sizeByImportance?(narrow?100:34)
      :narrow?(relevance===1?80:100):relevance===3?48:relevance===2?34:28);
    for(const[index,row]of rows.entries()){

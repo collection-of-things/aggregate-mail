@@ -26,7 +26,7 @@ const rowIcons = { read: Check, snooze: Clock, unsnooze: Inbox, reply: Reply, ar
  */
 export function MailList<T extends Mail>({
   messages, selectedId, density, narrow, sort, opening, accounts, listRef, focusSelection, sizeByImportance = true,
-  onOpen, onSelect, onMenu, onMenuKey, actions,
+  onOpen, onSelect, onMenu, onMenuKey, actions, showAccount = accounts.length > 1,
 }: {
   messages: T[];
   listRef: RefObject<HTMLElement | null>;
@@ -37,6 +37,7 @@ export function MailList<T extends Mail>({
   sort: MailLocation["sort"];
   opening: InteractionPreferences["opening"];
   accounts: Account[];
+  showAccount?: boolean;
   sizeByImportance?: boolean;
   onOpen: (mail: T) => void;
   onSelect: (id: string) => void;
@@ -45,8 +46,9 @@ export function MailList<T extends Mail>({
   actions?: (mail: T) => RowAction[];
 }) {
   const { on: privacy } = useContext(PrivacyContext);
-  const provider = (mail: Mail) => accounts.find((account) => account.id === mail.accountId)?.provider;
-  return <MailListWindow messages={messages} selectedId={selectedId} focusSelection={focusSelection}
+  return <>
+    {showAccount && !narrow && <div className="mail-list-columns" aria-hidden="true"><span>Account</span><span>Status</span></div>}
+    <MailListWindow messages={messages} selectedId={selectedId} focusSelection={focusSelection}
     density={density} sort={sort} listRef={listRef} narrow={narrow} sizeByImportance={sizeByImportance}>{(m) => {
     const relevance = sizeByImportance ? m.relevance : 2;
     const layout: RowLayout = narrow
@@ -58,14 +60,23 @@ export function MailList<T extends Mail>({
           : "brief";
     const current = m.id === selectedId;
     const accountIndex = accounts.findIndex((account) => account.id === m.accountId);
+    const accountName = accountIndex < 0 ? "Account unavailable" : accountLabel(accounts[accountIndex], accountIndex, privacy, accounts);
     const names = privacy ? collectPrivateNames(accounts, m) : [];
     const reason = privacy ? redactPrivateText(m.reason, names) : m.reason;
     const label = `${m.pinned ? "Pinned: " : ""}${m.unread ? "Unread: " : ""}${m.sender}, ${m.subject}`;
-    const reasonLabel = relevance === 3 && reason && (
-      <span className="row-label" title={reason}>
+    const reasonLabel = m.relevance === 3 && reason && (
+      <span className={`row-label${/^may need\b/i.test(reason) ? " row-label-attention" : ""}`} title={reason}>
         <Redact text={shortLabel(reason)} />
       </span>
     );
+    const metadata = (showAccount || reasonLabel) && <span className={`row-meta${showAccount ? "" : " row-meta-status"}`}>
+      {showAccount && <span className="row-account" title={accountName}>
+        {accountIndex >= 0 && <i className="account-dot" data-tone={accountIndex % 4} aria-hidden="true" />}
+        <span>{accountName}</span>
+      </span>}
+      <span className="row-status">{reasonLabel}</span>
+    </span>;
+    const accessibleLabel = `${privacy ? redactPrivateText(label, names) : label}, Account: ${accountName}${reasonLabel ? `, Status: ${reason}` : ""}`;
     const time = <time>{relative(m.date)}</time>;
     return (
       <MailPrivacy key={m.id} mail={m}>
@@ -79,24 +90,23 @@ export function MailList<T extends Mail>({
             onContextMenu={(event) => onMenu(event, m)}
             onKeyDown={(event) => onMenuKey(event, m)}
             aria-haspopup="menu"
-            aria-label={privacy ? redactPrivateText(label, names) : label}
+            aria-label={accessibleLabel}
             aria-current={current ? "true" : undefined}
           >
             {m.unread && <i className="unread-dot" aria-hidden="true" />}
             {m.pinned && <span className="row-pin" aria-hidden="true"><Pin size={12} /></span>}
-            <Avatar mail={m} provider={provider(m)} />
+            <Avatar mail={m} />
             {layout === "card" ? (
               <span className="row-text">
                 <span className="row-line">
                   <strong><Redact text={m.sender} /></strong>
-                  {reasonLabel}
                   {time}
                 </span>
+                {metadata}
                 <span className="row-subject"><Redact text={m.subject || "(no subject)"} /></span>
                 {density === "comfortable" && relevance > 1 && (
                   <span className="row-preview"><Redact text={previewText(m.preview)} /></span>
                 )}
-                {density === "comfortable" && accountIndex >= 0 && <span className="row-account">{accountLabel(accounts[accountIndex], accountIndex, privacy, accounts)}</span>}
               </span>
             ) : (
               <>
@@ -112,7 +122,7 @@ export function MailList<T extends Mail>({
                     <span className="row-preview"><Redact text={previewText(m.preview)} /></span>
                   )}
                 </span>
-                {reasonLabel}
+                {metadata}
                 {time}
               </>
             )}
@@ -143,5 +153,5 @@ export function MailList<T extends Mail>({
         </div>
       </MailPrivacy>
     );
-  }}</MailListWindow>;
+  }}</MailListWindow></>;
 }
