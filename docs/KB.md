@@ -736,17 +736,18 @@ snapshot reconciliation before another save. A conflict never adopts a newer
 revision to overwrite it. Explicit deletion stops queued autosaves. PUT never
 creates a missing record, so delayed saves cannot restore a deleted ID.
 
-Before sending, the renderer freezes editing, drains autosaves, saves the exact
-snapshot with `sendUnknown: true`, and await its acknowledgement. If that save
-is unacknowledged, do not send. Only then call the existing `/api/send` once.
-An acknowledged `ok: true`, including a Sent-copy warning, proves provider
-acceptance only, never recipient delivery. The caller may then DELETE the exact
-frozen revision with `confirmUnknown: true`. A dropped send response, crash,
-or unacknowledged deletion retains uncertainty until the caller reads current
-state. Never infer an unsent message from a recovered draft or retry a send
-because copying to Sent failed. Resending an uncertain draft requires explicit
-duplicate-risk confirmation. Manual discard also requires explicit confirmation.
-Editing cannot clear the marker. There is no receipt engine, outbox or retry.
+Before queueing, the renderer freezes editing, drains autosaves and waits for
+acknowledgement of the exact snapshot. An unacknowledged save blocks Send.
+The user Send queues that revision in the encrypted outbox described under
+[Send outcomes](#send-outcomes). Pending has no provider attempt. The service
+persists `sendUnknown: true` on the locked source draft only when submission
+starts. A committed sent receipt, including a Sent-copy warning, proves
+provider acceptance only and removes the exact source revision. A lost queue
+acknowledgement is reconciled through outbox status; an unavailable status read
+retains conservative uncertainty in the composer. Crash recovery never sends.
+Never infer an unsent message from a recovered draft or retry because copying
+to Sent failed. Resending an uncertain draft requires explicit duplicate-risk
+confirmation. Editing cannot clear the marker; manual discard is confirmed.
 
 Drafts sits directly below New message in the sidebar and lists account-scoped summaries; opening one fetches its body
 without sending. Privacy mode omits private summary subjects and recipients.
@@ -1296,9 +1297,9 @@ The repository has no `scripts/documentation.py`; documentation checks currently
 
 ## Send outcomes
 
-Compose retains the draft after an untyped send failure, including transport loss, an unreadable response or HTTP 400. HTTP 400 alone does not establish rejection: the API uses that status for provider exceptions too. The draft shows "Send status unknown" and possible delivery. Editing fields does not clear this status. All form submissions share a duplicate-risk confirmation; canceling it makes no send request. Native form validation blocks invalid input before submission. The in-flight send lock prevents overlapping submissions before the busy state renders.
+Compose retains the draft after an untyped queue failure, including transport loss, an unreadable response or HTTP 400. Review the Outbox to reconcile a possible committed queue entry before sending again. HTTP 400 alone does not establish rejection: the API uses that status for provider exceptions too. The draft shows "Send status unknown" and possible delivery. Editing fields does not clear this status. All form submissions share a duplicate-risk confirmation; canceling it makes no send request. Native form validation blocks invalid input before submission. The in-flight send lock prevents overlapping submissions before the busy state renders.
 
-After SMTP accepts the message, Sent-copy and connection cleanup failures become `SentCopyError` warnings. An IMAP append or logout result of `false` also produces a warning. The shared mail operation retains `{ ok: true, warning }` for both the API and MCP. A successful send clears compose before refreshing the inbox; a refresh failure adds a separate warning and preserves send success and any provider warning. These outcomes confirm provider acceptance, not recipient delivery.
+After SMTP accepts the message, Sent-copy and connection cleanup failures become `SentCopyError` warnings. An IMAP append or logout result of `false` also produces a warning. The shared mail operation retains `{ ok: true, warning }`, and the outbox persists its sent receipt with that warning. Queue acknowledgement clears compose before refreshing the inbox; a refresh failure does not resubmit. Agent approvals only create drafts. These outcomes confirm provider acceptance, not recipient delivery.
 
 Focused synthetic regressions:
 
@@ -1308,7 +1309,57 @@ node --import tsx --test src/compose-send.test.tsx server/send-provider.test.ts
 
 [Renderer regressions](../src/compose-send.test.tsx) execute the compose submission function, form event handlers and rendered status text. A loopback HTTP server records a submission and drops its response, then verifies canceled and confirmed resends. Tests cover uncertainty through edits, shared pointer/keyboard form handling, validation, close prompts, overlapping submissions and refresh failure. [Provider regressions](../server/send-provider.test.ts) run the real provider and shared send operation with synthetic SMTP and IMAP adapters. They cover accepted SMTP, Sent-copy and cleanup warnings, invalid input and SMTP failure without an IMAP connection. These tests do not drive a native window, verify browser event dispatch or prove real mail delivery.
 
-Attempt identifiers, persistent receipts, automatic retries and a durable outbox are deferred. The renderer persists send uncertainty with the encrypted draft before sending; reopening the draft retains the warning and never sends automatically. Sources: [compose](../src/compose/ComposePanel.tsx), [providers](../server/providers.ts), [shared send operation](../server/mail-actions.ts) and [interface behavior](../DESIGN.md).
+User Send now commits an encrypted local outbox entry before any provider call
+([ADR 0092](adr/0092-encrypted-outbox-undo-send.md)). The composer's Undo delay control offers
+Off, 5, 10 (default) or 30 seconds. Pending mail has a countdown and an Undo
+button. Ctrl/Cmd+Z undoes the latest pending send outside editors and dialogs;
+Tab reaches the same action. Undo restores the exact source draft, including
+Bcc, markup and attachments. There is no recall after provider acceptance.
+Emc² must be running to send; this is not a background service.
+
+`POST /api/send` accepts `{ payload, sourceDraftId, sourceRevision }`, where
+payload passes sendSchema and matches that saved draft. It returns HTTP 202
+with `{ queued: true, entry }`, not provider acceptance. The encrypted record
+keeps the opaque payload, original draft, stable attempt UUID, account, source
+revision, creation/update times and deadline. Repeating an identical source
+revision returns its existing entry. Source draft editing/deletion is blocked
+until the outbox is resolved. Legacy string-To records normalize read-only at
+admission without saving or changing the frozen revision. `GET /api/outbox`
+returns status metadata only.
+`POST /api/outbox/:id/edit` restores the draft and removes the entry. A delayed
+Undo response leaves any newer composer open and keeps the restored draft saved;
+`POST /api/outbox/:id/send` explicitly submits pending mail;
+`DELETE /api/outbox/:id` discards it, requiring `confirmUnknown: true` for
+unknown outcomes. Sent entries can only be dismissed, never resent.
+
+The committed states are pending → submitting → sent, failed or unknown.
+Only explicit protocol rejection establishes failed; network loss and other
+ambiguous errors remain unknown. A Sent-copy warning is sent and never retried.
+Submitting is persisted before provider execution. Startup holds all recovered
+pending entries for Send now, Edit or Discard, and converts submitting to
+unknown. Missed deadlines after sleep are held for review. Unknown Edit retains
+the duplicate-risk warning; user confirmation is required before another Send.
+There is no automatic retry. Source drafts are removed only with a committed
+sent receipt. Records remain until explicit dismissal, Edit or Discard, bounded
+to 100 per account without eviction. Account removal refuses during submission
+and otherwise purges local entries with that account.
+
+Quit holds pending entries before asking whether to keep the app open or quit
+with mail saved for review. It drains active submissions through their receipt.
+An update holds pending mail and drains active submissions before the existing
+renderer/native close flow. Cancellation leaves pending mail held; it does not
+restart a countdown. Update integrity checks are unchanged. Agent approvals
+still only create drafts under ADR 0053. Automatic scheduling remains deferred.
+Outbox attachments remain inline encrypted snapshots under the existing send
+limits. No uploaded-reference contract or attachment lifecycle is introduced.
+
+Focused synthetic checks: `server/outbox.test.ts`, `src/outbox.test.tsx`,
+`src/outbox-recovery.test.tsx`, `server/update-drain.test.ts` and
+`src/update-lifecycle.test.tsx`, run serially through the bounded wrapper in
+CONTRIBUTING.md. Native quit/update interaction, installed recovery and real
+provider delivery require separate acceptance. Sources: [outbox](../server/outbox.ts),
+[compose](../src/compose/ComposePanel.tsx), [providers](../server/providers.ts),
+[shared send operation](../server/mail-actions.ts) and [interface behavior](../DESIGN.md).
 
 The provider fixture calls [closeStore](../server/store.ts) before deleting its temporary database directory. Windows cannot remove the directory while SQLite holds its files open.
 
@@ -2554,8 +2605,9 @@ in the originating compose generation while the source and account remain
 available and installation has not started. A newer composer stays open; the
 prepared encrypted draft remains available in Drafts without repeating the POST.
 
-`POST /api/send` requires `accountId`, `to` (1..100 email addresses), `subject`
-and nonempty `body`. Optional `cc` and `bcc` each allow 0..100 addresses.
+The `payload` inside `POST /api/send` requires `accountId`, `to` (1..100 email
+addresses), `subject` and nonempty `body`. The enclosing queue request also
+requires the saved `sourceDraftId` and `sourceRevision`. Optional `cc` and `bcc` each allow 0..100 addresses.
 Existing optional HTML, attachment, calendar and reply/thread fields remain.
 Drafts permit incomplete recipients. MCP draft inputs and plain send proposals
 accept the legacy single-address To form and normalize it to an array. Agent

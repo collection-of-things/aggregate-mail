@@ -57,6 +57,18 @@ export type Draft = DraftContent & {
   updatedAt: number;
   sendUnknown: boolean;
 };
+export type OutboxStatus = {
+  id: string;
+  accountId: string;
+  sourceDraftId: string;
+  sourceRevision: number;
+  state: "pending" | "submitting" | "sent" | "failed" | "unknown";
+  createdAt: number;
+  updatedAt: number;
+  dueAt: number;
+  review: boolean;
+  warning?: string;
+};
 export type DraftSummary = Pick<Draft, "id" | "accountId" | "revision" | "updatedAt" | "to" | "cc" | "subject" | "sendUnknown"> & { preview?: string; attachmentCount?: number };
 export type DraftSave = DraftContent & { revision: number };
 export type DraftDelete = { revision: number; confirmUnknown?: boolean };

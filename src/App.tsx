@@ -1,3 +1,4 @@
+import { OutboxNotices } from "./compose/OutboxNotices";
 import { SearchToolbar } from "./shell/SearchToolbar";
 import { mailNotice } from "../shared/notifications";
 import { readNotifications, saveNotifications } from "./notifications";
@@ -13,7 +14,7 @@ import {
 } from "react";
 import { inboxTab, inboxTabs, type InboxTab } from "../shared/inbox-tabs";
 import type { Commitment, SentCoverage } from "../shared/workspace";
-import type { Draft, RendererMail as Mail, RendererState as State, StateResponse, BootstrapResponse } from "../shared/types";
+import type { Draft, OutboxStatus, RendererMail as Mail, RendererState as State, StateResponse, BootstrapResponse } from "../shared/types";
 import { emptyComposePreferences, type ComposePreferences } from "../shared/mail-features";
 import { initialCompose } from "./compose/ComposePreferences";
 import { replyRecipients } from "./compose/recipients";
@@ -314,6 +315,8 @@ export function App() {
   const [notifications, setNotifications] = useState(readNotifications);
   const { toasts, push: pushToast, dismiss: dismissToast } = useToasts(notifications);
   const setNotice = useCallback((text: string) => { if (text) pushToast(text, "error"); }, [pushToast]);
+  const [outboxRefresh, setOutboxRefresh] = useState(0);
+  const outboxNotice = useCallback((text: string, kind: "info" | "error" = "info") => pushToast(text, kind), [pushToast]);
   const arrivals = useRef<number | undefined>(undefined);
   const [notificationTargets, setNotificationTargets] = useState<string[]>([]);
   useEffect(() => {
@@ -614,6 +617,15 @@ export function App() {
   const draftOpeningAllowed = !navigationBlocked && !contextMenu && !palette;
   const draftOpenGuard = useRef(false);
   useLayoutEffect(() => { draftOpenGuard.current = draftOpeningAllowed; });
+  const outboxGeneration = composeGeneration.current;
+  const outboxOpenContext = useRef({ allowed: false, accounts: state.accounts });
+  useLayoutEffect(() => { outboxOpenContext.current = { allowed: draftOpeningAllowed && !busy, accounts: state.accounts }; });
+  const openOutboxDraft = (draft: Draft) => {
+    const context = outboxOpenContext.current;
+    if (context.allowed && outboxGeneration === composeGeneration.current && !draftSession.current &&
+      context.accounts.some(account => account.id === draft.accountId)) openCompose(draft);
+    else setNotice("Send was cancelled. The restored draft is saved in Drafts; your current view is unchanged.");
+  };
   const openSavedDraft = (draft: Draft) => {
     if (!draftOpenGuard.current || draftSession.current || sendLock.current || draftLock.current || attachmentTask.current) return;
     openCompose(draft);
@@ -1290,7 +1302,7 @@ export function App() {
         data-view={settings ? "settings" : view}
         style={{ "--text-scale": textScale } as React.CSSProperties}
       >
-        <ToastStack toasts={toasts} onDismiss={dismissToast} position={notifications.position} preferences={notifications} onOpen={requestNotificationMail} />
+        <ToastStack outbox={<OutboxNotices api={api} refreshKey={outboxRefresh} enabled={loaded} blocked={busy || updateInstalling || !!compose || settingsModal || workModal} onEdit={openOutboxDraft} onNotice={outboxNotice} onChanged={() => { void reload().catch(() => {}); }} />} toasts={toasts} onDismiss={dismissToast} position={notifications.position} preferences={notifications} onOpen={requestNotificationMail} />
         {palette && !updateInstalling && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
         <div className="frame" inert={settings || updateInstalling || palette}>
           {!roomy && mobileSidebarOpen && <button type="button" className="mobile-sidebar-backdrop" aria-label="Close navigation" onClick={() => { setMobileSidebarOpen(false); requestAnimationFrame(() => document.getElementById("sidebar-toggle")?.focus()); }} />}
@@ -1604,6 +1616,12 @@ export function App() {
             setDraft={editCompose}
             accounts={state.accounts}
             preferences={state.composePreferences ?? emptyComposePreferences}
+            onUndoDelay={seconds => runDraftAction(async session => {
+              await session.flush();
+              const current = await api<ComposePreferences>("/compose-preferences");
+              const saved = await api<ComposePreferences>("/compose-preferences", "PUT", { ...current, undoSendSeconds: seconds });
+              setState(currentState => ({ ...currentState, composePreferences: saved }));
+            })}
             busy={busy || updateInstalling}
             progress={draftProgress}
             onClose={closeCompose}
@@ -1627,22 +1645,37 @@ export function App() {
               sendTask.current = sendCompose(snapshot, {
                 lock: sendLock,
                 prepare: async () => {
-                  session.change({ ...snapshot, sendUnknown: true });
+                  session.change(snapshot);
                   setCompose(session.content);
                   await session.flush();
                 },
-                send: (draft) => {
-                  pushToast("Sending email…", "info");
-                  return api("/send", "POST", { ...draft, ...(draft.invitation && session.stored ? { calendarDraft: { id: session.stored.id, revision: session.stored.revision } } : {}) });
+                send: async (draft) => {
+                  try { return await api<{ queued: boolean }>("/send", "POST", {
+                    payload: { ...draft, ...(draft.invitation && session.stored ? { calendarDraft: { id: session.stored.id, revision: session.stored.revision } } : {}) },
+                    sourceDraftId: session.stored!.id, sourceRevision: session.stored!.revision,
+                  }); } catch (error) {
+                    // A lost queue response must not leave a locked pending draft
+                    // trapped in the composer or create a second attempt.
+                    try {
+                      const entries = await api<OutboxStatus[]>("/outbox");
+                      if (entries.some(entry => entry.sourceDraftId === session.stored?.id && entry.sourceRevision === session.stored?.revision))
+                        return { queued: true };
+                    } catch { /* Retain conservative uncertainty until review is available. */ }
+                    throw error;
+                  }
+                },
+                uncertain: () => {
+                  session.change({ ...session.content, sendUnknown: true });
+                  void session.flush().catch(() => {});
                 },
                 complete: () => session.discard(),
                 reload,
                 setDraft: (value) => {
-                  if (value === null) draftSession.current = null;
+                  if (value === null) { draftSession.current = null; setOutboxRefresh(current => current + 1); }
                   setCompose(value);
                 },
                 setBusy,
-                setNotice: (text) => pushToast(text, text === "Email sent." ? "success" : "error"),
+                setNotice: (text) => pushToast(text, text === "Email sent." ? "success" : text.startsWith("Email queued") ? "info" : "error"),
                 confirm: (message) => confirm(message),
               });
             }}

@@ -89,8 +89,16 @@ test("update quiesce drains renderer sends and queued sync/mutations, approved a
   const headers = { "X-Desktop-Token": "synthetic-update-desktop-token", "X-CSRF-Token": "", "Content-Type": "application/json" };
   const state = await (await fetch(`${base}/api/state`, { headers })).json() as State & { csrf: string };
   headers["X-CSRF-Token"] = state.csrf;
-  const submit = () => fetch(`${base}/api/send`, { method: "POST", headers,
-    body: JSON.stringify({ accountId: "a", to: ["recipient@example.test"], subject: "Synthetic", body: "Synthetic" }) });
+  const submit = async () => {
+    const payload = { accountId: "a", to: ["recipient@example.test"], subject: "Synthetic", body: "Synthetic" };
+    const { createDraft } = await import("./drafts.js");
+    const draft = createDraft("a", { to: payload.to, subject: payload.subject, body: payload.body });
+    const queued = await fetch(`${base}/api/send`, { method: "POST", headers,
+      body: JSON.stringify({ payload, sourceDraftId: draft.id, sourceRevision: draft.revision }) });
+    if (queued.status !== 202) return queued;
+    const { entry } = await queued.json() as { entry: { id: string } };
+    return fetch(`${base}/api/outbox/${entry.id}/send`, { method: "POST", headers, body: "{}" });
+  };
   try {
     const rendererSend = submit();
     const proposal = propose("synthetic-agent", "send", { accountId: "a", to: ["recipient@example.test"], subject: "Synthetic", body: "Synthetic reply" }, "a:1");

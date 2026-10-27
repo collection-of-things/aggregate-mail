@@ -46,8 +46,9 @@ test("mounted calendar and reader prepare bound drafts, recover ordinary Send, p
       if (route === "/api/sync") return Response.json({ errors: [] });
       if (route === "/api/send") {
         sends++;
-        const saved = store.get("draft", body.calendarDraft.id)!;
-        assert.equal(saved.sendUnknown, true); assert.equal(saved.revision, body.calendarDraft.revision); assert.deepEqual(body.invitation, saved.invitation);
+        const payload = body.payload;
+        const saved = store.get("draft", payload.calendarDraft.id)!;
+        assert.equal(saved.sendUnknown, !!payload.sendUnknown); assert.equal(saved.revision, payload.calendarDraft.revision); assert.deepEqual(payload.invitation, saved.invitation);
         if (sendUnknown) throw new Error("Synthetic lost send response");
         return Response.json({ ok: true, warning: "Email sent, but saving a Sent copy failed. Do not resend." });
       }

@@ -16,6 +16,7 @@ test("reviewed calendar drafts preserve MIME, identity, revisions, idempotency a
   const store = await import("./store.js");
   const { parse, providers, calendarMime, sendSchema } = await import("./providers.js");
   const codec = await import("./ical.js");
+  const { sendMail } = await import("./mail-actions.js");
   const drafts = await import("./drafts.js");
   const invitations = await import("./invitations.js");
   const backend = await import("./index.js");
@@ -47,7 +48,7 @@ test("reviewed calendar drafts preserve MIME, identity, revisions, idempotency a
     const saved = await (await request(`/accounts/a/drafts/${draft.id}`, "PUT", { ...content, body: "Reviewed invitation body", sendUnknown: true, revision: 1 })).json() as Draft;
     assert.equal(saved.revision, 2); assert.deepEqual(saved.invitation, draft.invitation); assert.deepEqual(saved.calendarContext, draft.calendarContext);
     const send = { ...saved, calendarDraft: { id: saved.id, revision: saved.revision } };
-    assert.equal((await request("/send", "POST", send)).status, 200); assert.equal(sends, 1);
+    assert.equal((await sendMail(send)).ok, true); assert.equal(sends, 1);
     const decoded = await simpleParser(outgoing);
     const calendar = decoded.attachments.find((part) => part.contentType === "text/calendar")!;
     assert.ok(calendar);
@@ -109,7 +110,7 @@ test("reviewed calendar drafts preserve MIME, identity, revisions, idempotency a
     store.put("account", "a", { ...receiving, email: "wrong@example.test" });
     await assert.rejects(calendarMime(store.get("account", "a")!, sendSchema.parse(replySend)), /another account/);
     store.put("account", "a", receiving);
-    assert.equal((await request("/send", "POST", replySend)).status, 200); assert.equal(sends, 2);
+    assert.equal((await sendMail(replySend)).ok, true); assert.equal(sends, 2);
     const replyMime = await simpleParser(outgoing);
     const replyCalendar = replyMime.attachments.find((part) => part.contentType === "text/calendar")!;
     assert.match(outgoing.toString(), /text\/calendar;[^\r\n]*method=REPLY/i);

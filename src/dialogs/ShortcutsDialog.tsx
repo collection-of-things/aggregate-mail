@@ -17,6 +17,7 @@ export function ShortcutsDialog({ shortcut, onClose }: {
           ["↑ / ↓", "Select previous / next email in the list"],
           [interactionPlatform() === "darwin" ? "Cmd+K" : "Ctrl+K", "Commands"],
           ["Ctrl/Cmd + / − / 0", "Larger / smaller / reset text"],
+          ["Ctrl/Cmd+Z", "Undo latest pending send outside editors and dialogs"],
           ["Page Up / Page Down", "Previous / next email"],
           ...(interactionPlatform() === "darwin" ? [["Cmd+[ / Cmd+]", "Back / Forward"]] : []),
         ].map(([key, text]) => (

@@ -79,6 +79,9 @@ let server: Server | undefined;
 let tray: Tray | undefined;
 let syncTimer: ReturnType<typeof setInterval> | undefined;
 let quitting = false;
+let quitDrainComplete = false;
+let quitDrainRunning = false;
+let quitBackend: Pick<typeof import("../server/index.js"), "holdPendingOutbox" | "quiesceMail" | "resumeMail"> | undefined;
 let updates: Updates | undefined;
 let updateDisposal: Promise<void> | undefined;
 let updatesDisposed = false;
@@ -347,6 +350,7 @@ else {
       if (developing) process.env.MAIL_RENDERER_ORIGIN = rendererOrigin;
       else delete process.env.MAIL_RENDERER_ORIGIN;
       const backend = await import("../server/index.js");
+      quitBackend = backend;
       delete process.env.MAIL_DATA_KEY;
       const mailNotifications = new MailNotifications(path.join(dataPath, "notifications.json"), {
         create: (options) => Notification.isSupported() ? new Notification(options) : undefined,
@@ -514,6 +518,8 @@ else {
             event.preventDefault();
           else {
             quitting = false;
+            quitDrainComplete = false;
+            quitBackend?.resumeMail();
             finishUpdateClose?.(false);
           }
         });
@@ -674,7 +680,30 @@ else {
       app.quit();
     });
   app.on("window-all-closed", () => { if (!updateClosing) app.quit(); });
-  app.on("before-quit", () => {
+  app.on("before-quit", (event) => {
+    if (quitBackend && !quitDrainComplete && !updateClosing && !checking) {
+      event.preventDefault();
+      if (quitDrainRunning) return;
+      const backend = quitBackend;
+      const pending = backend.holdPendingOutbox();
+      if (pending && dialog.showMessageBoxSync({
+        type: "question", buttons: ["Keep app open", "Quit and keep pending mail"], defaultId: 0, cancelId: 0,
+        message: "Pending mail has not been sent.",
+        detail: "Quit keeps it encrypted on this device for review next time. Nothing pending will be sent while quitting.",
+      }) !== 1) { quitting = false; return; }
+      quitDrainRunning = true;
+      void backend.quiesceMail(30000).then(() => {
+        quitDrainRunning = false;
+        quitDrainComplete = true;
+        setImmediate(() => app.quit());
+      }).catch(() => {
+        quitDrainRunning = false;
+        quitting = false;
+        backend.resumeMail();
+        dialog.showErrorBox("Mail is still finishing", "Quit was cancelled. Check the Outbox before trying again.");
+      });
+      return;
+    }
     quitting = true;
   });
   app.on("will-quit", (event) => {
