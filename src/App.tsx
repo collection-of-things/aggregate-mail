@@ -856,18 +856,35 @@ export function App() {
         });
         return;
       }
+      const sequence = prefix.key && Date.now() - prefix.at < 1500 ? prefix.key : "";
+      const action = interactionActions.find(({ id }) => matches(event, id, interaction, interactionPlatform(), !!compose, sequence))?.id;
+      const element = target instanceof HTMLElement ? target : null;
+      const editing = element?.closest('input, textarea, select, [role="combobox"], [contenteditable]:not([contenteditable="false"]), [data-interaction-settings]');
+      const dialog = element?.closest('dialog, [role="dialog"]');
+      const sequenceScope = !toolbarBlocked && !editing && !element?.closest('[role="menu"]') &&
+        (!dialog || compose && dialog.matches(".compose-dialog") || settings && dialog.matches(".settings-dialog"));
+      // Invalid sequences never fall through to mutations, while editors keep their keys.
+      if (sequence && !action && sequenceScope) { event.preventDefault(); return; }
+      const prefixKey = event.key.toLowerCase();
+      const allowedSequences = settings ? ["search", "privacy", "back", "forward", "settings"] :
+        compose ? ["search", "privacy", "back", "forward", "settings", "help", "compose"] : null;
+      if (!action && sequenceScope && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey &&
+        !event.getModifierState?.("AltGraph") && interactionActions.some(({ id }) =>
+          (!allowedSequences || allowedSequences.includes(id)) && interaction.shortcuts[id].prefix === prefixKey)) {
+        event.preventDefault(); gmailPrefix.current = { key: prefixKey, at: Date.now() }; return;
+      }
       if (settings && !toolbarBlocked && !(target instanceof HTMLElement && target.closest("[data-interaction-settings]"))) {
-        if (matches(event, "search", interaction, interactionPlatform(), true)) {
+        if (action === "search") {
           event.preventDefault();
           navigate({ page: "mail", view: "all", readFilter: "all", relevanceFilter: "all", labelFilter: "all", query: "", selectedId: null, opened: false });
           setSearching(true);
           settingsSearchPending.current = true;
           return;
         }
-        if (matches(event, "privacy", interaction, interactionPlatform(), true)) { event.preventDefault(); togglePrivacy(); return; }
+        if (action === "privacy") { event.preventDefault(); togglePrivacy(); return; }
       }
-      if (compose && !toolbarBlocked && matches(event, "search", interaction, interactionPlatform(), true)) { event.preventDefault(); showSearch(); return; }
-      if (compose && !toolbarBlocked && matches(event, "privacy", interaction, interactionPlatform(), true)) { event.preventDefault(); togglePrivacy(); return; }
+      if (compose && !toolbarBlocked && action === "search") { event.preventDefault(); showSearch(); return; }
+      if (compose && !toolbarBlocked && action === "privacy") { event.preventDefault(); togglePrivacy(); return; }
       if (target instanceof HTMLElement && (target.isContentEditable ||
         ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.closest('[role="combobox"]'))) return;
       if (target instanceof HTMLElement && target.tagName === "BUTTON" && target.getAttribute("role") === "combobox") return;
@@ -880,7 +897,6 @@ export function App() {
         return;
       }
       if (compose) {
-        const action = interactionActions.find(({ id }) => matches(event, id, interaction, interactionPlatform(), true))?.id;
         if (action === "back" || action === "forward") { event.preventDefault(); travel(action === "back" ? -1 : 1); }
         else if (action === "settings") { event.preventDefault(); setSettings(value => !value); }
         else if (action === "help") { event.preventDefault(); leaveCompose({ type: "shortcuts" }); }
@@ -888,10 +904,6 @@ export function App() {
         return;
       }
       if (teach || snooze || trashMail || shortcuts || labelMail || connecting) return;
-      const sequence = prefix.key && Date.now() - prefix.at < 1500 ? prefix.key : "";
-      const action = interactionActions.find(({ id }) => matches(event, id, interaction, interactionPlatform(), false, sequence))?.id;
-      // A mistyped sequence must not fall through to a mail mutation.
-      if (sequence && !action) { event.preventDefault(); return; }
       if (action === "back" || action === "forward") {
         event.preventDefault(); travel(action === "back" ? -1 : 1); return;
       }
@@ -903,10 +915,6 @@ export function App() {
           navigate({ page: "mail", view: destinations[action as keyof typeof destinations], accountFilter: "all",
             query: action === "goPinned" ? "is:pinned" : "", readFilter: "all", relevanceFilter: "all", labelFilter: "all", opened: false, selectedId: null });
           return;
-        }
-        if (!action && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey &&
-          interactionActions.some(({ id }) => interaction.shortcuts[id].prefix === event.key)) {
-          event.preventDefault(); gmailPrefix.current = { key: event.key, at: Date.now() }; return;
         }
         if (action === "returnToList" && opened) { event.preventDefault(); closeReader(); return; }
       }

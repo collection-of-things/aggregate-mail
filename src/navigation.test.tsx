@@ -2442,3 +2442,36 @@ test("Gmail pin, mark-read and reply-all shortcuts reuse guarded mail actions", 
     await app.key("s"); assert.equal(app.mutations.length, duringCompose, "composer retains pin key");
   } finally { await app.close(); }
 });
+
+test("custom sequences retain safe Settings and compose actions and Caps Lock navigation", async () => {
+  const app = await mount(false, (_state, storage) => {
+    const custom = structuredClone(defaults);
+    custom.shortcuts.privacy = { prefix: "z", key: "p" };
+    custom.shortcuts.search = { prefix: "z", key: "f" };
+    custom.shortcuts.back = { prefix: "z", key: "b" };
+    storage.setItem("emc2.interaction.v1", JSON.stringify(custom));
+  });
+  const privacyLabel = () => app.container.querySelector('[aria-label="Show personal information"], [aria-label="Hide personal information"]')?.getAttribute("aria-label");
+  try {
+    await app.key("G"); await app.key("T");
+    assert.equal(app.container.querySelector(".pane-title")?.textContent, "Sent", "Caps Lock starts a canonical sequence");
+    await app.key("g"); await app.key("i");
+    await app.key(",");
+    const before = privacyLabel();
+    await app.key("z"); await app.key("p");
+    assert.notEqual(privacyLabel(), before, "custom Privacy works in Settings");
+    await app.key("z"); await app.key("f");
+    assert.equal(app.container.querySelector(".settings"), null, "custom Search leaves Settings");
+    await app.key("c");
+    await app.input(app.container.querySelector<HTMLTextAreaElement>('[aria-label="Message body"]')!, "Saved before custom history navigation");
+    const control = app.container.querySelector<HTMLButtonElement>('[aria-label="Delete draft"]')!;
+    await act(async () => control.focus());
+    const press = async (key: string) => { await act(async () => control.dispatchEvent(new app.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }))); };
+    const composing = privacyLabel();
+    await press("z"); await press("p");
+    assert.notEqual(privacyLabel(), composing, "custom Privacy works from nonediting compose controls");
+    await press("z"); await press("b");
+    assert.equal(app.container.querySelector(".compose-dialog"), null);
+    assert.equal(app.savedDraft()?.body, "Saved before custom history navigation");
+  } finally { await app.close(); }
+});

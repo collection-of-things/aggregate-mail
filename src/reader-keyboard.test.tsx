@@ -34,6 +34,7 @@ const b = { ...a, id: "a:2", remoteId: "2", subject: "B", body: "Body B", unread
 const other = { ...b, id: "b:1", accountId: "b", body: "Other account" };
 class Element {
   isContentEditable = false;
+  closest(_selector: string) { return null; }
   constructor(public tagName = "DIV") {}
 }
 
