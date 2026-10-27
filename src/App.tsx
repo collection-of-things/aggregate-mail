@@ -13,7 +13,7 @@ import {
 } from "react";
 import { inboxTab, inboxTabs, type InboxTab } from "../shared/inbox-tabs";
 import type { Commitment, SentCoverage } from "../shared/workspace";
-import type { Draft, RendererMail as Mail, RendererState as State, StateResponse } from "../shared/types";
+import type { Draft, RendererMail as Mail, RendererState as State, StateResponse, BootstrapResponse } from "../shared/types";
 import { emptyComposePreferences, type ComposePreferences } from "../shared/mail-features";
 import { initialCompose } from "./compose/ComposePreferences";
 import { replyRecipients } from "./compose/recipients";
@@ -296,6 +296,9 @@ export function App() {
     }).catch(() => setNotice("Desktop notification settings are unavailable."));
   }, [notifications, privacy, setNotice]);
   const [loaded, setLoaded] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [mailLoadError, setMailLoadError] = useState("");
+  const startupLoad = useRef<AbortController | undefined>(undefined);
   const csrf = useRef("");
   const pendingReads = useRef(new Set<string>());
   const [reading, setReading] = useState(new Set<string>());
@@ -322,8 +325,8 @@ export function App() {
     },
     [],
   );
-  const work = useWorkspace(api, loaded);
-  const dueCount = work.loaded && !work.stale && !work.refreshing ? work.workspace.commitments.filter((item) =>
+  const work = useWorkspace(api, ready);
+  const dueCount = ready && work.loaded && !work.stale && !work.refreshing ? work.workspace.commitments.filter((item) =>
     (accountFilter === "all" || item.accountId === accountFilter) && openCommitment(item) && item.followUpAt !== undefined && item.followUpAt <= work.now).length : undefined;
   const openCompose = (value: Compose | Draft, source?: Mail) => {
     setReplyContext(source);
@@ -370,9 +373,23 @@ export function App() {
   });
   const reload = useMemo(() => coalesceReload(async () => {
     const revision = ++loadRevision.current;
-    const data = await api<StateResponse>(mailCursor.current ? `/state?mailCursor=${encodeURIComponent(mailCursor.current)}` : "/state");
+    const signal = startupLoad.current?.signal;
+    setMailLoadError("");
+    let data: StateResponse;
+    try {
+      data = await api<StateResponse>(mailCursor.current ? `/state?mailCursor=${encodeURIComponent(mailCursor.current)}` : "/state", "GET", undefined, signal);
+    } catch (error) {
+      if (!signal?.aborted) {
+        setMailLoadError("Cached mail could not be loaded. Retry to check your mail.");
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          csrf.current = ""; mailCursor.current = undefined; arrivals.current = undefined;
+          setReady(false); setLoaded(false); setState(empty);
+        }
+      }
+      throw error;
+    }
+    if (signal?.aborted || revision !== loadRevision.current) return data;
     csrf.current = data.csrf;
-    if (revision !== loadRevision.current) return data;
     if (data.unreadArrivals !== undefined) {
       if (arrivals.current !== undefined && data.unreadArrivals > arrivals.current) {
         const accepted = (data.mailArrivals || []).filter((arrival) => arrival.sequence > arrivals.current! && arrival.sequence <= data.unreadArrivals!);
@@ -390,7 +407,9 @@ export function App() {
       return signatures.length === Object.keys(current.signatures).length ? current : { ...current, signatures: Object.fromEntries(signatures) };
     });
     setSyncing(data.syncing || syncLock.current);
+    if (signal && startupLoad.current?.signal === signal) startupLoad.current = undefined;
     setLoaded(true);
+    setReady(true);
     return data;
   }), [api, pushToast]);
   const sync = useCallback(async () => {
@@ -431,12 +450,26 @@ export function App() {
     }
     if (params.has("connected") || params.has("error"))
       history.replaceState({}, "", "/");
+    const controller = new AbortController();
+    startupLoad.current = controller;
+    let complete = false;
+    // Status and the full snapshot start together. Bootstrap never supplies mail
+    // or a cursor, and a late result cannot overwrite a completed mail read.
+    void api<BootstrapResponse>("/bootstrap", "GET", undefined, controller.signal).then((status) => {
+      if (controller.signal.aborted || complete || mailCursor.current) return;
+      if (!Array.isArray(status.accounts) || !Array.isArray(status.labels) || !Array.isArray(status.rules) || typeof status.csrf !== "string" || "messages" in status || "mailCursor" in status) return;
+      csrf.current = status.csrf;
+      setState(current => ({ ...current, ...status }));
+      setReady(true);
+    }).catch(() => { /* Older services and bootstrap failures use the full snapshot. */ });
     void reload()
       .then((data) => {
-        if (data.accounts.length && !params.has("connected")) void sync();
+        complete = true;
+        if (!controller.signal.aborted && data.accounts.length && !params.has("connected")) void sync();
       })
-      .catch((error) => setNotice(error.message));
-  }, [reload, sync]);
+      .catch((error) => { complete = true; if (!controller.signal.aborted) setNotice(error.message); });
+    return () => { complete = true; controller.abort(); ++loadRevision.current; };
+  }, [api, reload, sync]);
   useEffect(() => {
     if (window.desktop || !state.accounts.length) return;
     const timer = setInterval(() => void sync(), 300000);
@@ -1162,8 +1195,8 @@ export function App() {
             mail={{
               view,
               onView: switchView,
-              inboxCount: inboxMail.length,
-              snoozedCount,
+              inboxCount: loaded ? inboxMail.length : undefined,
+              snoozedCount: loaded ? snoozedCount : undefined,
               dueCount,
               accounts: state.accounts,
               accountFilter,
@@ -1237,16 +1270,16 @@ export function App() {
           </main>
         ) : workView ? (
           <main className="work-pane" inert={!!compose}>
-            <Workbench key={`${view}:${accountFilter}:${trackingSession}`} work={work} initialSource={trackingSource} initialItem={trackingItem} initialDraft={trackingDraft} onSourceConsumed={() => { setTrackingSource(undefined); setTrackingItem(undefined); setTrackingDraft(undefined); }} onModalChange={setWorkModal} onEventDirtyChange={setEventDirty} mode={view as "actions" | "calendar" | "projects" | "agents"} state={state} api={api} accountFilter={accountFilter} onOpen={inlineWorkView ? openWorkSource : jumpTo} onMailChanged={reload} onNotice={setNotice} onManageAssistants={() => navigate({ page: "settings", settingsSection: "mcp" })} onOpenDraft={openCompose}
+            {!loaded ? <div className="empty" role="status"><p>Loading cached mail</p>{mailLoadError && <><p>{mailLoadError}</p><button type="button" className="link" onClick={() => { void reload().catch(error => setNotice(error.message)); }}>Retry loading mail</button></>}</div> : <Workbench key={`${view}:${accountFilter}:${trackingSession}`} work={work} initialSource={trackingSource} initialItem={trackingItem} initialDraft={trackingDraft} onSourceConsumed={() => { setTrackingSource(undefined); setTrackingItem(undefined); setTrackingDraft(undefined); }} onModalChange={setWorkModal} onEventDirtyChange={setEventDirty} mode={view as "actions" | "calendar" | "projects" | "agents"} state={state} api={api} accountFilter={accountFilter} onOpen={inlineWorkView ? openWorkSource : jumpTo} onMailChanged={reload} onNotice={setNotice} onManageAssistants={() => navigate({ page: "settings", settingsSection: "mcp" })} onOpenDraft={openCompose}
               renderHead={(tools) => <PaneHeader className="main-head work-action-head" corner={null} maximized={maximized}><h1 className="pane-title visually-hidden">{viewNames[view]}</h1><div className="head-tools">{tools}</div></PaneHeader>}
               readerOpened={opened} fullReading={!splitRoom} onCloseReader={closeReader}
-              reader={selected && opened ? <div ref={readerRef} className="today-mail">{actions}{reader}</div> : undefined} />
+              reader={selected && opened ? <div ref={readerRef} className="today-mail">{actions}{reader}</div> : undefined} />}
           </main>
         ) : (
           <div className="mail-view" inert={!!compose}>
               <h1 className="pane-title visually-hidden">{viewNames[view]}</h1>
               {(view === "sent" || view === "all") && <PaneHeader className="main-head mail-view-head" corner={null} maximized={maximized}>
-                <span className="view-summary">{filtered.length} cached {filtered.length === 1 ? "message" : "messages"}</span>
+                <span className="view-summary">{loaded ? `${filtered.length} cached ${filtered.length === 1 ? "message" : "messages"}` : "Loading cached mail"}</span>
                 {(view === "sent" || view === "all") && <div className="head-note">Cached mail only. <button type="button" title={accountFilter === "all" ? "Select one account to fetch up to 50 Sent messages" : "Fetch up to 50 Sent messages"} disabled={busy || accountFilter === "all"} onClick={() => void perform(async () => { const coverage = await api<SentCoverage>(`/accounts/${encodeURIComponent(accountFilter)}/sent/sync`, "POST", { bound: 50 }); if (coverage.error) throw new Error("Sent import failed. Existing cached mail remains available."); }, "Sent cache refreshed.")}>Fetch Sent</button>{accountFilter === "all" && <small>Choose an account first.</small>}</div>}
               </PaneHeader>}
               {view === "inbox" && !query && <div className="mail-category-bar"><InboxTabs tab={tab} unread={tabUnread} onTab={switchTab} /></div>}
@@ -1286,6 +1319,8 @@ export function App() {
                     searchPending={search.pending}
                     includesDrafts={showSearchDrafts}
                     loaded={loaded}
+                    loadError={mailLoadError}
+                    onRetry={() => { void reload().catch(error => setNotice(error.message)); }}
                     hasAccounts={state.accounts.length > 0}
                     filtered={hasListControls}
                     title={view === "sent" ? "No cached Sent mail" : view === "all" ? "No cached mail" : view === "snoozed" ? "No snoozed mail" : view === "archive" ? "No archived mail" : `Nothing in ${tabName(tab)}`}

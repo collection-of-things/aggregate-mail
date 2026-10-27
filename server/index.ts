@@ -39,7 +39,7 @@ import { mountMcp, authorizeMcp } from "./mcp.js";
 import { classify, sortMail, SortingUnavailable } from "./sorting.js";
 import { companyLogo } from "./avatars.js";
 import { companySvg, isFreeMail, normalizeDomain, syncLogos } from "./logos.js";
-import { jevProviderOf, type Provider, type Mail, type StateResponse, type SyncFailure } from "../shared/types.js";
+import { jevProviderOf, type Provider, type Mail, type StateResponse, type BootstrapResponse, type SyncFailure } from "../shared/types.js";
 import { emptyComposePreferences } from "../shared/mail-features.js";
 import { loadConfiguration, saveConfiguration } from "./config.js";
 
@@ -153,6 +153,29 @@ mountInvitations(app);
 mountAgentProvider(app);
 mountContacts(app);
 mountProviderSearch(app, () => desktopEvents.emit("mail-changed"));
+function stateStatus(includeArrivals = true): BootstrapResponse & Partial<Pick<StateResponse, "unreadArrivals" | "mailArrivals">> {
+  return {
+    draftCount: count("draft"),
+    draftToken: draftChangeToken(),
+    composePreferences: all("compose")[0] ?? emptyComposePreferences,
+    ...(includeArrivals ? { unreadArrivals, mailArrivals } : {}),
+    csrf,
+    accounts: all("account").map(({ credentials: _credentials, ...a }) => ({ ...a, syncStatus: accountSyncStatus(a.id) })),
+    labels: all("label"),
+    rules: all("rule"),
+    googleConfigured: !!(
+      process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    ),
+    googleClientId: process.env.GOOGLE_CLIENT_ID || null,
+    jevConfigured: !!process.env.TYPESAFE_API_KEY,
+    jevProvider: jevProviderOf(process.env.TYPESAFE_PROVIDER),
+    aiConfigured: !!process.env.OPENAI_API_KEY,
+    lastSync: all("meta")[0]?.lastSync || null,
+    syncing,
+  };
+}
+// Status deliberately avoids the mail index, bodies and arrival validation scans.
+app.get("/api/bootstrap", (_req, res) => res.json(stateStatus(false)));
 app.get("/api/state", async (req, res) => {
   if (res.destroyed) return;
   const controller = new AbortController();
@@ -163,26 +186,7 @@ app.get("/api/state", async (req, res) => {
     const changes = await mailSummaryChanges(typeof req.query.mailCursor === "string" ? req.query.mailCursor : undefined, () => {
       // Capture status at the same boundary as the encrypted mail view, before decoding yields.
       mailArrivals = mailArrivals.filter((arrival) => !!get("mail", arrival.mail.id));
-      status = {
-      draftCount: count("draft"),
-      draftToken: draftChangeToken(),
-      composePreferences: all("compose")[0] ?? emptyComposePreferences,
-      unreadArrivals,
-      mailArrivals,
-      csrf,
-      accounts: all("account").map(({ credentials: _credentials, ...a }) => ({ ...a, syncStatus: accountSyncStatus(a.id) })),
-      labels: all("label"),
-      rules: all("rule"),
-      googleConfigured: !!(
-        process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-      ),
-      googleClientId: process.env.GOOGLE_CLIENT_ID || null,
-      jevConfigured: !!process.env.TYPESAFE_API_KEY,
-      jevProvider: jevProviderOf(process.env.TYPESAFE_PROVIDER),
-      aiConfigured: !!process.env.OPENAI_API_KEY,
-      lastSync: all("meta")[0]?.lastSync || null,
-      syncing,
-      };
+      status = stateStatus();
     }, controller.signal);
     if (res.destroyed) return;
     const { messages, ...mailStatus } = changes;

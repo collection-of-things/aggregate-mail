@@ -1962,6 +1962,28 @@ privacy and synthetic narrow/focus behavior. They do not prove installed layout,
 physical input, real consent, provider access or delivery.
 
 
+## Status-first startup
+
+Authenticated `/api/bootstrap` returns status without initializing the mail index
+or reading mail/draft bodies. It shares account/configuration status fields with
+`/api/state`, excluding mail and cursor/arrival fields. The client starts both
+requests together and sets CSRF before status readiness. Full mail and its cursor
+remain a single complete snapshot. Unknown mail counts stay hidden; mail lists
+and source-dependent workspace details remain loading until that snapshot arrives.
+Workspace reads may prefetch after status. A bootstrap error falls back to full
+state. Full-read failures offer Retry loading mail; auth failures reset renderer
+readiness/cursor/CSRF, without discarding drafts or altering compose sessions.
+Unmount aborts startup reads. Desktop mail events retain the existing reload path.
+Bootstrap does not replace browser focus/visibility refresh.
+See [ADR 0087](adr/0087-status-first-startup.md).
+
+Focused checks: `server/bootstrap.test.ts` and `src/bootstrap.test.tsx`, serially
+through the bounded runner. For matched 34,000-message synthetic measurements,
+run `node --import tsx scripts/benchmark-bootstrap.ts` through the bounded runner
+with 3072 MiB and a 420-second deadline. It reports process-cold API status and
+full-mail availability separately. It does not prove browser paint, real-provider
+behavior, installed performance or an immediate complete mail list.
+
 ## Encrypted connection settings and storage compaction
 
 `server/config.ts` stores managed Google OAuth, OpenAI and Typesafe settings in

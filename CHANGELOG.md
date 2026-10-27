@@ -8,6 +8,7 @@
 
 - Add a short agent task guide. Require duplicate searches and existing templates before filing issues or PRs, and current task State when using git.cafe. Clarify that personal context, tooling configuration and reference uploads stay out of the repository.
 - Organize Settings into Connections, Mail, Preferences and Advanced. Tighten control spacing and group keyboard shortcuts into compact, labeled columns while preserving existing bindings and preference behavior.
+- Load account and configuration status before the full mail cache, keep mail counts pending until complete, and offer a retry when cached mail cannot load.
 
 - Clarify in-app new-mail notices with the unread count as the heading, a mail icon, a distinct Open email action and a labeled close control. Keep optional details, privacy masking, exact-email opening and notification timing unchanged.
 

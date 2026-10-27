@@ -210,6 +210,7 @@ export type MailChanges<T = MailSummary> = {
   removedMailIds: string[];
 };
 export type StateResponse = Omit<State, "messages"> & MailChanges & { csrf: string };
+export type BootstrapResponse = Omit<StateResponse, keyof MailChanges | "unreadArrivals" | "mailArrivals">;
 
 export type State<T = Mail> = {
   draftCount?: number;
