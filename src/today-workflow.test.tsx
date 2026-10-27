@@ -532,7 +532,7 @@ test("quick recovery preserves draft title status and reminder through explicit 
   }
 });
 
-for (const [key, action] of [["r", "reply"], ["e", "archive"], ["s", "snooze"], ["m", "teach"]] as const) test(`Today opened source accepts ${action} shortcut without changing commitment`, async () => {
+for (const [key, action] of [["r", "reply"], ["e", "archive"], ["b", "snooze"], ["m", "teach"]] as const) test(`Today opened source accepts ${action} shortcut without changing commitment`, async () => {
   const item = commitment("brief"); const ui = await mount([item]); try {
     ui.state.messages[0].sender = "Distinct Sender"; ui.state.messages[0].address = "distinct@example.test";
     await ui.mailChanged(); await ui.click(ui.container.querySelector<HTMLButtonElement>(".work-select")!);

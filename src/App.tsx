@@ -30,7 +30,7 @@ import { SnoozeMenu } from "./dialogs/SnoozeMenu";
 import { TeachDialog } from "./dialogs/TeachDialog";
 import { TrashDialog } from "./dialogs/TrashDialog";
 import { CommandPalette, type PaletteCommand } from "./dialogs/CommandPalette";
-import { interactionActions, matches, read as readInteraction, save as saveInteraction, shortcutLabel } from "./interaction";
+import { interactionActions, interactionPlatform, matches, read as readInteraction, save as saveInteraction, shortcutLabel } from "./interaction";
 import { InboxTabs } from "./mail/InboxTabs";
 import { ListEmpty } from "./mail/ListEmpty";
 import { MailActions } from "./mail/MailActions";
@@ -154,6 +154,7 @@ export function App() {
       x: event?.detail ? event.clientX : bounds.left, y: event?.detail ? event.clientY : bounds.bottom });
   };
   const [trashMail, setTrashMail] = useState<Mail | null>(null);
+  const gmailPrefix = useRef({ key: "", at: 0 });
   const [shortcuts, setShortcuts] = useState(false);
   const [palette, setPalette] = useState(false);
   const [settingsModal, setSettingsModal] = useState(false);
@@ -197,14 +198,14 @@ export function App() {
     const native = !!window.desktop?.onNavigation &&
       ["win32", "linux"].includes(window.desktop.platform);
     const unsubscribe = native ? window.desktop?.onNavigation((direction) =>
-      travel(direction === "back" ? -1 : 1)) : undefined;
+      interaction.mouseHistory && travel(direction === "back" ? -1 : 1)) : undefined;
     const mouse = (event: MouseEvent) => {
       if (event.button !== 3 && event.button !== 4) return;
       event.preventDefault();
       const element = event.target instanceof Element ? event.target : null;
       const guarded = element?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [role="menu"], [data-update-command], .update-notice, .credential-fallback-notice');
       const composeTarget = element?.closest(".compose-dialog") && !element.closest('select, [role="menu"]');
-      if (!native && (!guarded || composeTarget) && event.type === "mouseup") travel(event.button === 3 ? -1 : 1);
+      if (interaction.mouseHistory && !native && (!guarded || composeTarget) && event.type === "mouseup") travel(event.button === 3 ? -1 : 1);
     };
     window.addEventListener("mousedown", mouse, true);
     window.addEventListener("mouseup", mouse, true);
@@ -761,11 +762,11 @@ export function App() {
   // One list of actions feeds the native menu on the desktop and the drawn menu elsewhere.
   const mailMenuActions = (mail: Mail): (MenuAction & { id: MailMenuId })[] => [
     { id: "open", label: "Open", key: shortcut("open"), run: () => openMail(mail) },
-    { id: "read", label: reading.has(mail.id) ? "Marking as read…" : "Mark as read", disabled: mail.direction === "sent" || !mail.unread || reading.has(mail.id),
+    { id: "read", key: shortcut("read"), label: reading.has(mail.id) ? "Marking as read…" : "Mark as read", disabled: mail.direction === "sent" || !mail.unread || reading.has(mail.id),
       description: mail.direction === "sent" ? "Sent mail is already read" : reading.has(mail.id) ? "Update in progress" : !mail.unread ? "Already read" : undefined, run: () => markRead(mail) },
-    { id: "pin", label: mail.pinned ? "Unpin email" : "Pin email", disabled: busy, description: busy ? "Another action is in progress" : undefined, run: () => void changeMessage(mail, mail.pinned ? "unpin" : "pin") },
+    { id: "pin", key: shortcut("pin"), label: mail.pinned ? "Unpin email" : "Pin email", disabled: busy, description: busy ? "Another action is in progress" : undefined, run: () => void changeMessage(mail, mail.pinned ? "unpin" : "pin") },
     { id: "reply", label: "Reply", key: shortcut("reply"), disabled: busy, description: busy ? "Another action is in progress" : undefined, separator: true, run: () => startCompose(mail) },
-    { id: "reply-all", label: "Reply all", disabled: busy, description: busy ? "Another action is in progress" : undefined, run: () => startCompose(mail, true) },
+    { id: "reply-all", key: shortcut("replyAll"), label: "Reply all", disabled: busy, description: busy ? "Another action is in progress" : undefined, run: () => startCompose(mail, true) },
     { id: "archive", label: "Archive", key: shortcut("done"), disabled: busy || syncing || mail.archived || mail.direction === "sent", description: mailActionReason(mail), separator: true, run: () => archive(mail) },
     { id: "snooze", label: "Snooze", key: shortcut("snooze"), disabled: busy || syncing || mail.archived || mail.direction === "sent", description: mailActionReason(mail), run: () => showSnooze(mail) },
     ...(isSnoozed(mail) ? [{ id: "unsnooze" as const, label: "Return to inbox", disabled: busy || syncing, description: busyReason, run: () => void changeMessage(mail, "unsnooze") }] : []),
@@ -815,11 +816,13 @@ export function App() {
   };
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
+      const prefix = gmailPrefix.current;
+      gmailPrefix.current = { key: "", at: 0 };
       if (settingsModal || workModal || quickSource || meetingMail || updateInstalling || contextMenu || event.defaultPrevented || event.isComposing ||
         event.repeat && !["ArrowUp", "ArrowDown"].includes(event.key)) return;
       const target = event.target;
       if (event.key.toLowerCase() === "k" && !event.altKey && !event.shiftKey &&
-        (window.desktop?.platform === "darwin" ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)) {
+        (interactionPlatform() === "darwin" ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)) {
         if (!toolbarBlocked && !settings) { event.preventDefault(); setFiltersOpen(false); if (compose) leaveCompose({ type: "commands" }); else setPalette((value) => !value); }
         return;
       }
@@ -853,18 +856,35 @@ export function App() {
         });
         return;
       }
+      const sequence = prefix.key && Date.now() - prefix.at < 1500 ? prefix.key : "";
+      const action = interactionActions.find(({ id }) => matches(event, id, interaction, interactionPlatform(), !!compose, sequence))?.id;
+      const element = target instanceof HTMLElement ? target : null;
+      const editing = element?.closest('input, textarea, select, [role="combobox"], [contenteditable]:not([contenteditable="false"]), [data-interaction-settings]');
+      const dialog = element?.closest('dialog, [role="dialog"]');
+      const sequenceScope = !toolbarBlocked && !editing && !element?.closest('[role="menu"]') &&
+        (!dialog || compose && dialog.matches(".compose-dialog") || settings && dialog.matches(".settings-dialog"));
+      // Invalid sequences never fall through to mutations, while editors keep their keys.
+      if (sequence && !action && sequenceScope && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); return; }
+      const prefixKey = event.key.toLowerCase();
+      const allowedSequences = settings ? ["search", "privacy", "back", "forward", "settings"] :
+        compose ? ["search", "privacy", "back", "forward", "settings", "help", "compose"] : null;
+      if (!action && sequenceScope && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey &&
+        !event.getModifierState?.("AltGraph") && interactionActions.some(({ id }) =>
+          (!allowedSequences || allowedSequences.includes(id)) && interaction.shortcuts[id].prefix === prefixKey)) {
+        event.preventDefault(); gmailPrefix.current = { key: prefixKey, at: Date.now() }; return;
+      }
       if (settings && !toolbarBlocked && !(target instanceof HTMLElement && target.closest("[data-interaction-settings]"))) {
-        if (matches(event, "search", interaction, window.desktop?.platform, true)) {
+        if (action === "search") {
           event.preventDefault();
           navigate({ page: "mail", view: "all", readFilter: "all", relevanceFilter: "all", labelFilter: "all", query: "", selectedId: null, opened: false });
           setSearching(true);
           settingsSearchPending.current = true;
           return;
         }
-        if (matches(event, "privacy", interaction, window.desktop?.platform, true)) { event.preventDefault(); togglePrivacy(); return; }
+        if (action === "privacy") { event.preventDefault(); togglePrivacy(); return; }
       }
-      if (compose && !toolbarBlocked && matches(event, "search", interaction, window.desktop?.platform, true)) { event.preventDefault(); showSearch(); return; }
-      if (compose && !toolbarBlocked && matches(event, "privacy", interaction, window.desktop?.platform, true)) { event.preventDefault(); togglePrivacy(); return; }
+      if (compose && !toolbarBlocked && action === "search") { event.preventDefault(); showSearch(); return; }
+      if (compose && !toolbarBlocked && action === "privacy") { event.preventDefault(); togglePrivacy(); return; }
       if (target instanceof HTMLElement && (target.isContentEditable ||
         ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.closest('[role="combobox"]'))) return;
       if (target instanceof HTMLElement && target.tagName === "BUTTON" && target.getAttribute("role") === "combobox") return;
@@ -877,7 +897,6 @@ export function App() {
         return;
       }
       if (compose) {
-        const action = interactionActions.find(({ id }) => matches(event, id, interaction, window.desktop?.platform, true))?.id;
         if (action === "back" || action === "forward") { event.preventDefault(); travel(action === "back" ? -1 : 1); }
         else if (action === "settings") { event.preventDefault(); setSettings(value => !value); }
         else if (action === "help") { event.preventDefault(); leaveCompose({ type: "shortcuts" }); }
@@ -885,11 +904,20 @@ export function App() {
         return;
       }
       if (teach || snooze || trashMail || shortcuts || labelMail || connecting) return;
-      const action = interactionActions.find(({ id }) => matches(event, id, interaction, window.desktop?.platform))?.id;
       if (action === "back" || action === "forward") {
         event.preventDefault(); travel(action === "back" ? -1 : 1); return;
       }
       if (settings && action !== "settings") return;
+      if (!navigationBlocked && !settings && !(target instanceof HTMLElement && target.closest('[role="dialog"], [role="menu"]'))) {
+        const destinations = { goInbox: "inbox", goSent: "sent", goDrafts: "drafts", goAll: "all", goPinned: "all", goSnoozed: "snoozed" } as const;
+        if (action && action in destinations) {
+          event.preventDefault();
+          navigate({ page: "mail", view: destinations[action as keyof typeof destinations], accountFilter: "all",
+            query: action === "goPinned" ? "is:pinned" : "", readFilter: "all", relevanceFilter: "all", labelFilter: "all", opened: false, selectedId: null });
+          return;
+        }
+        if (action === "returnToList" && opened) { event.preventDefault(); closeReader(); return; }
+      }
       if (target instanceof HTMLElement && target.closest("#sidebar")) return;
       const draftControl = target instanceof HTMLElement && !!target.closest(".draft-list, .draft-tab-bar");
       const inbox = !draftControl && !settings && !workView && view !== "drafts";
@@ -918,7 +946,7 @@ export function App() {
       else if (inbox && action === "important") switchView("inbox");
       else if (inbox && action === "other") nextTab();
       else if (target instanceof HTMLElement && target.closest(".row-actions") &&
-        ["next", "previous", "open", "done", "reply", "snooze", "teach"].includes(action ?? "")) return;
+        ["next", "previous", "open", "done", "reply", "replyAll", "read", "pin", "snooze", "teach"].includes(action ?? "")) return;
       else if (inbox && (action === "next" || action === "previous")) {
         event.preventDefault();
         const next = action === "next" ? nextMail : previousMail;
@@ -927,6 +955,11 @@ export function App() {
         (!(target instanceof HTMLElement) || !target.closest("button, a, [role=button]") || target.closest(".row"))) {
         event.preventDefault(); openMail(selected);
       } else if (mailActions && action === "done" && selected && !busy) archive(selected);
+      else if (mailActions && ["pin", "read", "replyAll"].includes(action ?? "") && selected) {
+        const id = action === "replyAll" ? "reply-all" : action;
+        const command = mailMenuActions(selected).find(command => command.id === id);
+        if (command && !command.disabled) { event.preventDefault(); command.run(); }
+      }
       else if (mailActions && action === "reply" && selected) startCompose(selected);
       else if (mailActions && action === "snooze" && selected) showSnooze(selected);
       else if (mailActions && action === "teach" && selected) setTeach(selected);
@@ -941,8 +974,15 @@ export function App() {
         }
       }
     };
+    const resetSequence = () => { gmailPrefix.current = { key: "", at: 0 }; };
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    window.addEventListener("blur", resetSequence);
+    document.addEventListener("focusin", resetSequence);
+    return () => {
+      window.removeEventListener("keydown", handler);
+      window.removeEventListener("blur", resetSequence);
+      document.removeEventListener("focusin", resetSequence);
+    };
   });
   useEffect(() => {
     const handle = (e: BeforeUnloadEvent) => {
@@ -1135,10 +1175,10 @@ export function App() {
   // Actions on the selected email stay listed, disabled, when nothing is selected.
   const placeholderMailCommands: { id: Exclude<MailMenuId, "unsnooze">; label: string; key?: string }[] = [
     { id: "open", label: "Open", key: shortcut("open") },
-    { id: "read", label: "Mark as read" },
-    { id: "pin", label: "Pin email" },
+    { id: "read", key: shortcut("read"), label: "Mark as read" },
+    { id: "pin", key: shortcut("pin"), label: "Pin email" },
     { id: "reply", label: "Reply", key: shortcut("reply") },
-    { id: "reply-all", label: "Reply all" },
+    { id: "reply-all", key: shortcut("replyAll"), label: "Reply all" },
     { id: "archive", label: "Archive", key: shortcut("done") },
     { id: "snooze", label: "Snooze", key: shortcut("snooze") },
     { id: "trash", label: "Move to Trash" },

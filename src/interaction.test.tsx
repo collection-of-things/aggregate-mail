@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { act, useState } from "react";
 import { JSDOM } from "jsdom";
 import { InteractionSettings } from "./settings/InteractionSettings";
-import { defaults, interactionActions, matches, read, save, shortcutFromEvent, shortcutLabel, validateShortcut, type InteractionPreferences } from "./interaction";
+import { defaults, interactionActions, interactionPlatform, commandsChord, matches, read, save, shortcutFromEvent, shortcutLabel, validateShortcut, type InteractionPreferences } from "./interaction";
 
 const copy = () => structuredClone(defaults);
 
@@ -13,7 +13,7 @@ test("registry preserves existing keys, Teach alias, history defaults and exact 
   assert.equal(defaults.opening, "double");
   for (const action of interactionActions) {
     assert.equal(validateShortcut(action.id, defaults.shortcuts[action.id], defaults), null);
-    assert.equal(matches(key(action.key, { altKey: "alt" in action }), action.id, defaults), true);
+    assert.equal(matches(key(action.key, { altKey: "alt" in action, shiftKey: "shift" in action }), action.id, defaults, "", false, "prefix" in action ? action.prefix : ""), true);
   }
   assert.equal(matches(key("t"), "teach", defaults), true);
   assert.equal(matches(key("[", { metaKey: true }), "back", defaults, "darwin"), true);
@@ -67,7 +67,7 @@ test("storage sanitizes fields, rejects corrupted bindings and tolerates unavail
     assert.deepEqual(read(), defaults);
     const value = copy(); value.opening = "single"; value.shortcuts.next = { key: "x", shift: true };
     assert.equal(save({ ...value, unrelated: "discard" } as InteractionPreferences), true);
-    assert.deepEqual(read(), { ...value, shortcuts: Object.fromEntries(interactionActions.map(({ id }) => [id, shortcutFromEvent({ key: value.shortcuts[id].key, ctrlKey: !!value.shortcuts[id].ctrl, metaKey: !!value.shortcuts[id].meta, altKey: !!value.shortcuts[id].alt, shiftKey: !!value.shortcuts[id].shift })])) });
+    assert.deepEqual(read(), { ...value, shortcuts: Object.fromEntries(interactionActions.map(({ id }) => [id, { ...shortcutFromEvent({ key: value.shortcuts[id].key, ctrlKey: !!value.shortcuts[id].ctrl, metaKey: !!value.shortcuts[id].meta, altKey: !!value.shortcuts[id].alt, shiftKey: !!value.shortcuts[id].shift }), ...(value.shortcuts[id].prefix ? { prefix: value.shortcuts[id].prefix } : {}) }])) });
     assert.equal(dom.window.localStorage.getItem("emc2.interaction.v1")!.includes("discard"), false);
     value.shortcuts.next = { key: "k" };
     assert.equal(save(value), false);
@@ -106,7 +106,7 @@ test("mounted settings captures without app dispatch, rejects conflicts, changes
   }
   try {
     await act(async () => root.render(<Harness />));
-    const fields = [...dom.window.document.querySelectorAll<HTMLInputElement>("input")];
+    const fields = [...dom.window.document.querySelectorAll<HTMLInputElement>('input[type="text"]')];
     assert.equal(fields.length, interactionActions.length, "grouping keeps every shortcut editable");
     for (const { id, label } of interactionActions) {
       const input = fields.find(field => field.id.endsWith(`-${id}`))!;
@@ -114,7 +114,7 @@ test("mounted settings captures without app dispatch, rejects conflicts, changes
       assert.equal(dom.window.document.querySelector(`label[for="${input.id}"]`)?.textContent, label);
       assert.ok(dom.window.document.getElementById(input.getAttribute("aria-describedby")!));
     }
-    const field = dom.window.document.querySelector<HTMLInputElement>("input")!;
+    const field = dom.window.document.querySelector<HTMLInputElement>('input[type="text"]')!;
     field.focus();
     const press = async (key: string, options = {}) => {
       const event = new dom.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...options });
@@ -125,8 +125,13 @@ test("mounted settings captures without app dispatch, rejects conflicts, changes
     assert.equal(field.value, "Shift+X"); assert.equal(changes, 1); assert.equal(actions, 0);
     await press("k"); assert.equal(changes, 1);
     assert.match(dom.window.document.querySelector('[role="status"]')!.textContent!, /Already used/);
+    await act(async () => dom.window.document.querySelector<HTMLButtonElement>('[aria-label="Record sequence for Next email"]')!.click());
+    await press("z"); await press("x");
+    assert.equal(field.value, "Z then X"); assert.equal(changes, 2);
+    await act(async () => dom.window.document.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+    assert.equal(current.mouseHistory, false); assert.equal(changes, 3);
     await press("Shift"); await press("c", { ctrlKey: true });
-    assert.equal(changes, 1);
+    assert.equal(changes, 3);
     assert.equal((await press("Tab")).defaultPrevented, false);
     assert.equal((await press("Escape")).defaultPrevented, false); assert.equal(escapes, 1);
     await act(async () => [...dom.window.document.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find(button => button.textContent === "Single click")!.click());
@@ -156,4 +161,57 @@ test("Settings shell permits only safe shortcuts and its nearest child dialog an
       assert.equal(matches(event as unknown as KeyboardEvent, "search", defaults, "darwin", true), false, selector);
     }
   } finally { dom.window.close(); }
+});
+
+
+test("Gmail bindings, sequence conflicts, custom sequences and legacy preferences survive storage", () => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  const dom = new JSDOM("", { url: "http://localhost" });
+  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: dom.window.localStorage });
+  try {
+    assert.equal(defaults.shortcuts.pin.key, "s");
+    assert.equal(defaults.shortcuts.snooze.key, "b");
+    assert.equal(shortcutLabel(defaults.shortcuts.goInbox), "G then I");
+    assert.ok(validateShortcut("next", { key: "g" }, defaults), "sequence prefix cannot shadow a single key");
+    assert.ok(validateShortcut("next", { prefix: "c", key: "x" }, defaults), "single key cannot shadow a prefix");
+    const custom = copy();
+    custom.shortcuts.goInbox = { prefix: "z", key: "x" };
+    custom.mouseHistory = false;
+    assert.equal(save(custom), true);
+    assert.equal(read().mouseHistory, false);
+    assert.equal(shortcutLabel(read().shortcuts.goInbox), "Z then X");
+    const event = new dom.window.KeyboardEvent("keydown", { key: "x" }) as unknown as KeyboardEvent;
+    assert.equal(matches(event, "goInbox", custom), false);
+    assert.equal(matches(event, "goInbox", custom, "", false, "z"), true);
+    const legacy = copy();
+    legacy.shortcuts.open = { key: "Enter" };
+    legacy.shortcuts.other = { key: "o" };
+    legacy.shortcuts.snooze = { key: "s" };
+    legacy.shortcuts.next = { key: "a" };
+    const old = Object.fromEntries(Object.entries(legacy.shortcuts).filter(([id]) =>
+      !["pin", "replyAll", "read", "returnToList", "goInbox", "goSent", "goDrafts", "goAll", "goPinned", "goSnoozed"].includes(id)));
+    dom.window.localStorage.setItem("emc2.interaction.v1", JSON.stringify({ opening: "single", shortcuts: old }));
+    const restored = read();
+    for (const [id, binding] of Object.entries(old)) assert.equal(shortcutLabel(restored.shortcuts[id as keyof typeof restored.shortcuts]), shortcutLabel(binding));
+    assert.equal(restored.opening, "single");
+    assert.equal(restored.mouseHistory, true);
+    for (const { id } of interactionActions) assert.equal(validateShortcut(id, restored.shortcuts[id], restored), null);
+  } finally {
+    if (previous) Object.defineProperty(globalThis, "localStorage", previous); else Reflect.deleteProperty(globalThis, "localStorage");
+    dom.window.close();
+  }
+});
+
+test("web sessions detect Mac modifiers without the desktop bridge", () => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const dom = new JSDOM();
+  Object.defineProperty(dom.window.navigator, "platform", { value: "MacIntel" });
+  Object.defineProperty(globalThis, "window", { configurable: true, value: dom.window });
+  try {
+    assert.equal(interactionPlatform(), "darwin");
+    assert.equal(commandsChord(), "⌘K");
+  } finally {
+    if (previous) Object.defineProperty(globalThis, "window", previous); else Reflect.deleteProperty(globalThis, "window");
+    dom.window.close();
+  }
 });

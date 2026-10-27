@@ -11,7 +11,7 @@ An installable desktop email client for Windows, with a macOS build target, base
 - [Inbox](#inbox)
 - [Search and compose tools](#search-and-compose-tools)
 - [MCP](#mcp)
-- [Keyboard](#keyboard)
+- [Keyboard and mouse](#keyboard-and-mouse)
 - [Local storage](#local-storage)
 - [Development](#development)
 - [CI](#ci)
@@ -229,27 +229,37 @@ Each create requires a caller-generated UUID `requestId`. Generate it once for e
 
 Approved replies use the same send path as the compose window. Sent imports remain explicit and separate from Inbox reconciliation. An unknown send result consumes the approval and requires a manual delivery check; it never triggers an automatic resend.
 
-## Keyboard
+## Keyboard and mouse
+
+New preferences use Gmail shortcuts for supported actions. Existing saved bindings stay unchanged.
 
 | Key | Action |
 | --- | --- |
 | `j` / `k` | Move selection |
-| Enter | Open message |
+| `o` or Enter | Open message |
 | Escape | Go back |
-| `i` / `o`, or Tab in the message body | Show Inbox / next Inbox category |
+| `i` / Shift+`o` | Show Inbox / next Inbox category |
 | `0` to `9` | Filter by account |
 | `/` | Search |
 | `c` | Compose |
 | `r` | Reply |
 | `e` | Archive |
-| `s` | Snooze |
+| `b` | Snooze |
+| `s` | Pin or unpin locally |
+| `a` | Reply all |
+| Shift+`i` | Mark as read |
+| `u` | Return from reader to list |
+| `g` then `i` / `t` / `d` | Go to Inbox / Sent / Drafts |
+| `g` then `a` / `s` / `b` | Go to All cached / Pinned / Snoozed |
 | `m` or `t` | Teach |
 | `d` | Toggle Comfortable / Compact |
 | `p` | Hide email addresses and known connected-recipient names, select a hidden value to reveal it |
 | `,` | Settings |
 | `?` | Shortcut list |
 
-Standard Tab navigation still works on controls. Settings, Interaction lets you edit action shortcuts and choose single-click or double-click opening. Double-click is the default. Mouse side buttons and Alt+Left/Right go back and forward; macOS also supports Command+[ and Command+].
+Settings, Keyboard and mouse lets you customize each action with a single key or a two-letter sequence. Focus a binding to record a single key, or choose Sequence and press two letters. Conflicting keys and sequence prefixes are rejected. Sequences must finish within 1.5 seconds and cancel on focus changes, dialogs, editing or an invalid printable second key. Reset interaction defaults applies the Gmail defaults. Unsupported Gmail actions, such as mute and spam, are not added. Pin stays local to this app.
+
+Click selects a row; double-click opens it by default. Settings, Keyboard and mouse can enable single-click opening and turn mouse side-button navigation on or off. Right-click opens mail actions; hover or focus reveals row actions. Alt+Left/Right go back and forward; macOS also supports Command+[ and Command+], including browser sessions. Tab moves focus on controls; on the page body it moves to the next Inbox category. Editing fields and dialogs retain their own keys.
 
 ## Local storage
 

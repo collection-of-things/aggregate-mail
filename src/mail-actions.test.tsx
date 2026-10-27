@@ -283,7 +283,7 @@ test("pointer Snooze and keyboard Return to inbox use the local message action",
     assert.ok([...app.container.querySelectorAll(".toast-success")].some((toast) => toast.textContent?.includes("Email returned to inbox.")));
     assert.equal(app.state.messages.find((mail) => mail.id === "b:1:5")!.snoozedUntil, null);
     await app.click(app.button("Inbox3"));
-    await app.key("s");
+    await app.key("b");
     assert.equal(app.container.querySelector('[role="menu"]')?.getAttribute("aria-label"), "Snooze email");
     await app.key("Escape");
     assert.equal(app.dialog(), null);
@@ -303,7 +303,7 @@ test("the snooze menu accepts a custom future time, rejects a past one and close
       await act(async () => form.dispatchEvent(new app.container.ownerDocument.defaultView!.Event("submit", { bubbles: true, cancelable: true })));
     };
     await app.click(app.row());
-    await app.key("s");
+    await app.key("b");
     await app.click(app.button("Pick date and time…", menu()!));
     const input = menu()!.querySelector<HTMLInputElement>('input[type="datetime-local"]')!;
     assert.ok(input, "the custom time field opens inside the snooze menu");
@@ -319,7 +319,7 @@ test("the snooze menu accepts a custom future time, rejects a past one and close
     assert.deepEqual(app.mutations, [{ id: "a:1:5", action: "snooze" }]);
     assert.equal(app.state.messages.find((mail) => mail.id === "a:1:5")!.snoozedUntil, future.getTime());
     await app.click(app.row("b:1:5"));
-    await app.key("s");
+    await app.key("b");
     await app.click(app.button("Pick date and time…", menu()!));
     await app.key("Escape", menu()!.querySelector("input")!);
     assert.equal(menu(), null, "Escape closes the menu from inside the form");
@@ -338,7 +338,7 @@ test("the reader's Change time reschedules a snooze and restores focus on Escape
       await act(async () => form.dispatchEvent(new app.container.ownerDocument.defaultView!.Event("submit", { bubbles: true, cancelable: true })));
     };
     await app.click(app.row());
-    await app.key("s");
+    await app.key("b");
     await app.click(app.button("In one hour", menu()!));
     const until = app.state.messages.find((mail) => mail.id === "a:1:5")!.snoozedUntil!;
     await app.click(app.button("Snoozed1"));
@@ -505,7 +505,7 @@ test("commands pin cached mail, structured search finds it and arrival notices a
     await app.key("k", app.row(), { ctrlKey: true });
     const dialog = app.dialog();
     assert.equal(dialog.getAttribute("aria-label"), "Commands");
-    const pin = [...dialog.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent === "Pin email")!;
+    const pin = [...dialog.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.querySelector("span")?.textContent === "Pin email")!;
     assert.ok(pin);
     await app.click(pin);
     assert.equal(app.dialog(), null, "command closes before action");
@@ -516,7 +516,7 @@ test("commands pin cached mail, structured search finds it and arrival notices a
     assert.equal(app.container.querySelectorAll(".row").length, 1);
     assert.ok(app.row());
     await app.key("k", app.row(), { ctrlKey: true });
-    await app.click([...app.dialog().querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent === "Unpin email")!);
+    await app.click([...app.dialog().querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.querySelector("span")?.textContent === "Unpin email")!);
     assert.equal(app.container.querySelectorAll(".row").length, 0);
     app.state.unreadArrivals = 1;
     await app.refresh();
@@ -590,7 +590,7 @@ test("snooze and context menus Return to inbox confirm the local action", async 
       await app.click(app.button("Snoozed1"));
       if (entry === "snooze") {
         await app.click(app.row());
-        await app.key("s");
+        await app.key("b");
         await app.click(app.button("Return to inbox now", app.container.querySelector('[role="menu"][aria-label="Snooze email"]')!));
       } else {
         await act(async () => app.row().dispatchEvent(new app.container.ownerDocument.defaultView!.MouseEvent("contextmenu", { bubbles: true, clientX: 100, clientY: 100 })));

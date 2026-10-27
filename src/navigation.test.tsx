@@ -2,6 +2,7 @@ import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { act } from "react";
 import { JSDOM } from "jsdom";
+import { defaults } from "./interaction";
 import { compileMailSearch } from "./mail-search";
 import type { Draft, Mail, State } from "../shared/types";
 import { generatePalette, parseThemeFile, serializeThemeFile, type CustomTheme } from "./themes";
@@ -641,7 +642,7 @@ test("privacy removes connected recipient names and addresses from list, headers
     assertHidden();
     await app.open("a:1");
     assertHidden();
-    await app.key("s"); assert.ok(app.container.querySelector('[role="menu"]'));
+    await app.key("b"); assert.ok(app.container.querySelector('[role="menu"]'));
     assertHidden(); await app.key("Escape");
     assert.equal(app.container.querySelector(".message-body img"), null);
     assert.equal(app.button("Show images").disabled, false);
@@ -1227,12 +1228,12 @@ test("mouse side buttons leave and restore an initial reader while dialogs guard
     assert.equal(app.title(), undefined);
     await app.mouse(4);
     assert.equal(app.title(), "Alpha");
-    for (const shortcut of ["m", "s", "?"]) {
+    for (const shortcut of ["m", "b", "?"]) {
       await app.key(shortcut);
-      assert.ok(app.container.querySelector(shortcut === "s" ? '[role="menu"]' : '[role="dialog"]'));
+      assert.ok(app.container.querySelector(shortcut === "b" ? '[role="menu"]' : '[role="dialog"]'));
       await app.mouse(3); await app.mouse(4);
       assert.equal(app.title(), "Alpha");
-      assert.ok(app.container.querySelector(shortcut === "s" ? '[role="menu"]' : '[role="dialog"]'));
+      assert.ok(app.container.querySelector(shortcut === "b" ? '[role="menu"]' : '[role="dialog"]'));
       await app.key("Escape");
     }
     await app.mouse(3);
@@ -1627,9 +1628,9 @@ test("mounted App guards modal dialogs and uses one native side-button source wi
     await app.native("back");
     await app.open("a:1");
     const mutations = app.mutations.length;
-    for (const shortcut of ["m", "s", "?"]) {
+    for (const shortcut of ["m", "b", "?"]) {
       await app.key(shortcut);
-      assert.ok(app.container.querySelector(shortcut === "s" ? '[role="menu"]' : '[role="dialog"]'));
+      assert.ok(app.container.querySelector(shortcut === "b" ? '[role="menu"]' : '[role="dialog"]'));
       assert.ok(app.back().disabled && app.forward().disabled);
       await app.native("back");
       await app.native("forward");
@@ -2178,7 +2179,7 @@ test("Find pinned mail searches this view or All cached and keeps the selected a
 test("mixed global search draft focus isolates mail shortcuts and traversal", async (t) => {
   const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: "client@example.test", subject: "Needle draft", body: "Saved draft body", sendUnknown: false };
   for (const control of [".draft-row", ".draft-refresh"]) {
-    for (const key of ["e", "r", "s", "m", "j", "k", "ArrowDown", "ArrowUp", "PageDown", "PageUp", "Enter"]) {
+    for (const key of ["e", "r", "b", "m", "j", "k", "ArrowDown", "ArrowUp", "PageDown", "PageUp", "Enter"]) {
       await t.test(`${control}: ${key}`, async () => {
         const app = await mount(false, state => {
           state.messages = state.messages.map(mail => ({ ...mail, subject: `Needle ${mail.subject}` }));
@@ -2381,4 +2382,119 @@ test("global search draft deletion reports a failed count refresh without retryi
     assert.equal(app.container.querySelector(".draft-row"), null);
     assert.equal(app.container.querySelector(".compose-dialog"), null);
   } finally { globalThis.fetch = priorFetch; await app.close(); }
+});
+
+
+test("Gmail go-to sequences navigate views, cancel safely and expose saved hints", async () => {
+  const app = await mount();
+  try {
+    for (const [key, title] of [["t", "Sent"], ["d", "Drafts"], ["a", "All cached"], ["b", "Snoozed"], ["i", "Inbox"]]) {
+      await app.key("g"); await app.key(key);
+      assert.equal(app.container.querySelector(".pane-title")?.textContent, title);
+    }
+    const before = app.mutations.length;
+    await app.key("g"); await app.key("e");
+    assert.equal(app.mutations.length, before, "mistyped sequence cannot archive");
+    await app.key("g"); await app.key("s");
+    assert.equal(app.container.querySelector<HTMLInputElement>('.search input')?.value, "is:pinned");
+    await app.key("g"); await app.key("i");
+    await app.key("o"); assert.equal(app.title(), "Alpha");
+    await app.key("u"); assert.equal(app.title(), undefined);
+    await app.key("?");
+    assert.match(app.container.querySelector('[role="dialog"]')!.textContent!, /G then I/);
+    assert.match(app.container.querySelector('[role="dialog"]')!.textContent!, /Mouse controls/);
+  } finally { await app.close(); }
+});
+
+test("custom sequences and mouse-history preferences persist and respect editor focus", async () => {
+  const app = await mount(false, (_state, storage) => {
+    const custom = structuredClone(defaults);
+    custom.shortcuts.goSent = { prefix: "z", key: "x" };
+    custom.mouseHistory = false;
+    storage.setItem("emc2.interaction.v1", JSON.stringify(custom));
+  });
+  try {
+    await app.open("a:1");
+    await app.mouse(3); assert.equal(app.title(), "Alpha", "disabled side button does not leave reader");
+    await app.key("z"); await app.key("x");
+    assert.equal(app.container.querySelector(".pane-title")?.textContent, "Sent");
+    await app.key("g"); await app.key("i");
+    const field = app.container.querySelector<HTMLInputElement>('.search input')!;
+    await app.key("z");
+    await act(async () => field.focus());
+    await app.key("x");
+    assert.equal(app.container.querySelector(".pane-title")?.textContent, "Inbox", "focus change cancels sequence");
+    await app.key("g");
+    await act(async () => field.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "i", bubbles: true })));
+    assert.equal(app.container.querySelector(".pane-title")?.textContent, "Inbox", "editor keeps its keys");
+  } finally { await app.close(); }
+});
+
+test("Gmail pin, mark-read and reply-all shortcuts reuse guarded mail actions", async () => {
+  const app = await mount();
+  try {
+    const before = app.mutations.length;
+    await app.key("s"); assert.equal(app.mutations.length, before + 1);
+    await app.key("I", { shiftKey: true });
+    assert.equal(app.state.messages[0].unread, false);
+    await app.key("a"); assert.ok(app.container.querySelector(".compose-dialog"));
+    const duringCompose = app.mutations.length;
+    await app.key("s"); assert.equal(app.mutations.length, duringCompose, "composer retains pin key");
+  } finally { await app.close(); }
+});
+
+test("custom sequences retain safe Settings and compose actions and Caps Lock navigation", async () => {
+  const app = await mount(false, (_state, storage) => {
+    const custom = structuredClone(defaults);
+    custom.shortcuts.privacy = { prefix: "z", key: "p" };
+    custom.shortcuts.search = { prefix: "z", key: "f" };
+    custom.shortcuts.back = { prefix: "z", key: "b" };
+    storage.setItem("emc2.interaction.v1", JSON.stringify(custom));
+  });
+  const privacyLabel = () => app.container.querySelector('[aria-label="Show personal information"], [aria-label="Hide personal information"]')?.getAttribute("aria-label");
+  try {
+    await app.key("G"); await app.key("T");
+    assert.equal(app.container.querySelector(".pane-title")?.textContent, "Sent", "Caps Lock starts a canonical sequence");
+    await app.key("g"); await app.key("i");
+    await app.key(",");
+    const before = privacyLabel();
+    await app.key("z"); await app.key("p");
+    assert.notEqual(privacyLabel(), before, "custom Privacy works in Settings");
+    await app.key("z"); await app.key("f");
+    assert.equal(app.container.querySelector(".settings"), null, "custom Search leaves Settings");
+    await app.key("c");
+    await app.input(app.container.querySelector<HTMLTextAreaElement>('[aria-label="Message body"]')!, "Saved before custom history navigation");
+    const control = app.container.querySelector<HTMLButtonElement>('[aria-label="Delete draft"]')!;
+    await act(async () => control.focus());
+    const press = async (key: string) => { await act(async () => control.dispatchEvent(new app.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }))); };
+    const composing = privacyLabel();
+    await press("z"); await press("p");
+    assert.notEqual(privacyLabel(), composing, "custom Privacy works from nonediting compose controls");
+    await press("z"); await press("b");
+    assert.equal(app.container.querySelector(".compose-dialog"), null);
+    assert.equal(app.savedDraft()?.body, "Saved before custom history navigation");
+  } finally { await app.close(); }
+});
+
+test("pending sequences preserve Escape, Tab and system shortcuts", async () => {
+  const app = await mount(false, (_state, storage) => {
+    const custom = structuredClone(defaults);
+    custom.shortcuts.privacy = { prefix: "z", key: "p" };
+    storage.setItem("emc2.interaction.v1", JSON.stringify(custom));
+  });
+  try {
+    await app.open("a:1");
+    await app.key("g"); await app.key("Escape");
+    assert.equal(app.title(), undefined, "Escape closes the reader after a prefix");
+    for (const options of [{ key: "Tab" }, { key: "c", metaKey: true }]) {
+      await app.key("g");
+      const event = new app.window.KeyboardEvent("keydown", { ...options, bubbles: true, cancelable: true });
+      const control = app.container.querySelector<HTMLButtonElement>(".commands-button")!;
+      await act(async () => control.dispatchEvent(event));
+      assert.equal(event.defaultPrevented, false, `${options.key} keeps native behavior`);
+    }
+    await app.key(",");
+    await app.key("z"); await app.key("Escape");
+    assert.equal(app.container.querySelector(".settings"), null);
+  } finally { await app.close(); }
 });
