@@ -20,6 +20,10 @@ unversioned history without treating it as a release record.
 
 - Mark mail unread or move archived mail back to Inbox from message actions, Commands or customizable shortcuts. [#53](https://github.com/collection-of-things/aggregate-mail/issues/53)
 
+### Changed
+
+- Show exact cached-search filters and sort order. Empty results can widen the search without losing the query or account; Back restores the previous scope. [#61](https://github.com/collection-of-things/aggregate-mail/issues/61)
+
 ### Fixed
 
 - Keep inline conversation Forward actions bound to the selected message ([#124](https://github.com/collection-of-things/aggregate-mail/pull/124)).
