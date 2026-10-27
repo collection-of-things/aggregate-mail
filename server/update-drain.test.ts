@@ -90,10 +90,10 @@ test("update quiesce drains renderer sends and queued sync/mutations, approved a
   const state = await (await fetch(`${base}/api/state`, { headers })).json() as State & { csrf: string };
   headers["X-CSRF-Token"] = state.csrf;
   const submit = () => fetch(`${base}/api/send`, { method: "POST", headers,
-    body: JSON.stringify({ accountId: "a", to: "recipient@example.test", subject: "Synthetic", body: "Synthetic" }) });
+    body: JSON.stringify({ accountId: "a", to: ["recipient@example.test"], subject: "Synthetic", body: "Synthetic" }) });
   try {
     const rendererSend = submit();
-    const proposal = propose("synthetic-agent", "send", { accountId: "a", to: "recipient@example.test", subject: "Synthetic", body: "Synthetic reply" }, "a:1");
+    const proposal = propose("synthetic-agent", "send", { accountId: "a", to: ["recipient@example.test"], subject: "Synthetic", body: "Synthetic reply" }, "a:1");
     const approved = await (await fetch(`${base}/api/agent/proposals/${proposal.id}/approve`, { method: "POST", headers, body: JSON.stringify({ digest: proposal.digest }) })).json() as { status: string; receipt: { draftId?: string } };
     assert.equal(approved.status, "succeeded"); assert.ok(approved.receipt.draftId, "Approval saves a draft");
     await waitFor(() => sends === 1);

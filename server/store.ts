@@ -304,7 +304,7 @@ export async function mailSummaryChanges(cursor?: string, captureStatus?: () => 
   });
 }
 export function draftSummary({ id, accountId, revision, updatedAt, to, cc, subject, body, attachments, sendUnknown }: Draft): DraftSummary {
-  return { id, accountId, revision, updatedAt, to, cc, subject, sendUnknown,
+  return { id, accountId, revision, updatedAt, to: Array.isArray(to) ? to : [to], cc, subject, sendUnknown,
     preview: body.replace(/\s+/g, " ").trim().slice(0, 200), attachmentCount: attachments?.length || 0 };
 }
 export async function searchMail(query: string, accounts: Account[], signal?: AbortSignal): Promise<MailSearchResult> {

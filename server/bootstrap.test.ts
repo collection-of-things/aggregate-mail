@@ -12,7 +12,7 @@ test("bootstrap is authenticated, scan-free and independent of corrupt mail", as
   const store = await import("./store.js");
   const { startServer } = await import("./index.js");
   store.put("account", "a", { id: "a", email: "reader@example.test", provider: "imap", credentials: { password: "synthetic-password" } });
-  store.put("draft", "d", { id: "d", accountId: "a", revision: 3, updatedAt: 1, subject: "Draft", body: "Synthetic draft body", to: "to@example.test", sendUnknown: true });
+  store.put("draft", "d", { id: "d", accountId: "a", revision: 3, updatedAt: 1, subject: "Draft", body: "Synthetic draft body", to: ["to@example.test"], sendUnknown: true });
   const raw = new DatabaseSync(path.join(directory, "mail.sqlite"));
   raw.prepare("INSERT INTO records VALUES ('mail','bad','invalid-ciphertext')").run();
   const server = await startServer(0, undefined, undefined, undefined, quietImapWatch, quietGmailRevision);

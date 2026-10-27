@@ -20,7 +20,7 @@ test("SMTP acceptance survives Sent-copy and connection cleanup failures", async
   });
   const input = {
     accountId: "synthetic",
-    to: "recipient@example.com",
+    to: ["recipient@example.com"],
     subject: "Synthetic test",
     body: "Synthetic message",
   };
@@ -45,7 +45,7 @@ test("SMTP acceptance survives Sent-copy and connection cleanup failures", async
         let logouts = 0;
         let closes = 0;
         t.mock.method(nodemailer, "createTransport", () => ({
-          sendMail: async () => { sends++; return { accepted: [input.to] }; },
+          sendMail: async () => { sends++; return { accepted: input.to }; },
         }));
         t.mock.method(ImapFlow.prototype, "connect", async function (this: ImapFlow) {
           if (scenario.connect === false) throw new Error("Synthetic connection failure");
@@ -84,6 +84,21 @@ test("SMTP acceptance survives Sent-copy and connection cleanup failures", async
         }
       });
     }
+    await t.test("partial SMTP rejection is accepted with a sanitized warning and no retry", async (t) => {
+      let sends = 0;
+      t.mock.method(nodemailer, "createTransport", () => ({
+        sendMail: async () => { sends++; return { accepted: ["recipient@example.com"], rejected: ["private-rejected@example.test"], response: "private provider detail" }; },
+      }));
+      const connect = t.mock.method(ImapFlow.prototype, "connect", async () => { throw new Error("Must not append for Gmail SMTP"); });
+      put("account", "partial", { id: "partial", email: "sender@example.com", provider: "gmail-imap", credentials: {} });
+      const result = await sendMail({ ...input, accountId: "partial", to: [...input.to, "private-rejected@example.test"] });
+      assert.equal(result.ok, true);
+      assert.match(result.warning!, /some recipients were rejected/);
+      assert.match(result.warning!, /Do not resend/);
+      assert.doesNotMatch(result.warning!, /private/);
+      assert.equal(sends, 1);
+      assert.equal(connect.mock.callCount(), 0);
+    });
     await t.test("SMTP rejection stays a failure and never opens IMAP", async (t) => {
       t.mock.method(nodemailer, "createTransport", () => ({
         sendMail: async () => { throw new Error("Synthetic SMTP rejection"); },
@@ -96,7 +111,7 @@ test("SMTP acceptance survives Sent-copy and connection cleanup failures", async
       const transport = t.mock.method(nodemailer, "createTransport", () => {
         throw new Error("Must not submit invalid input");
       });
-      await assert.rejects(sendMail({ ...input, to: "invalid" }));
+      await assert.rejects(sendMail({ ...input, to: ["invalid"]}));
       assert.equal(transport.mock.callCount(), 0);
     });
   } finally {

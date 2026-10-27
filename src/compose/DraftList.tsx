@@ -140,12 +140,12 @@ export function DraftList({ accounts, api, accountFilter, query, refreshKey, act
       return <li key={`${draft.accountId}:${draft.id}`}>
         <button type="button" className="draft-row" disabled={opening || !active} onClick={() => void open(draft)}>
           <span className="draft-row-identity">
-            <span className="draft-row-recipient">{privateText ? "Hidden recipients" : draft.to || "No recipient"}</span>
+            <span className="draft-row-recipient">{privateText ? "Hidden recipients" : (Array.isArray(draft.to) ? draft.to.join(", ") : draft.to) || "No recipient"}</span>
             <span className="draft-row-account row-account" title={accountName}><i className="account-dot" data-tone={accountIndex % 4} aria-hidden="true" /><span>{accountName}</span></span>
           </span>
           <span className="draft-row-content">
             <strong>{privateText ? `Draft ${index + 1}` : draft.subject || "No subject"}</strong>
-            <span className="draft-row-addresses">From: {privateText ? "Hidden sender" : account.email} · To: {privateText ? "Hidden recipients" : draft.to || "No recipient"}{!!draft.cc?.length && ` · Cc: ${privateText ? draft.cc.length : draft.cc.join(", ")}`}</span>
+            <span className="draft-row-addresses">From: {privateText ? "Hidden sender" : account.email} · To: {privateText ? "Hidden recipients" : (Array.isArray(draft.to) ? draft.to.join(", ") : draft.to) || "No recipient"}{!!draft.cc?.length && ` · Cc: ${privateText ? draft.cc.length : draft.cc.join(", ")}`}</span>
             <span className="draft-row-preview">{privateText ? "Preview hidden" : draft.preview || "No message yet"}</span>
             {draft.sendUnknown && <span className="draft-warning">Send status unknown. May already have been sent.</span>}
           </span>

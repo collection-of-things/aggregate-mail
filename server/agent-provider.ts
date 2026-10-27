@@ -57,7 +57,7 @@ function reply(mail: ReturnType<typeof source>) {
   if (recipients.length !== 1 || !z.email().max(320).safeParse(recipients[0]?.address).success)
     return fail(400, "The source needs one valid reply address.");
   return {
-    accountId: mail.accountId, to: recipients[0].address, subject: /^re:/i.test(mail.subject) ? mail.subject : `Re: ${mail.subject}`,
+    accountId: mail.accountId, to: [recipients[0].address], subject: /^re:/i.test(mail.subject) ? mail.subject : `Re: ${mail.subject}`,
     inReplyTo: mail.messageId, threadId: mail.threadId,
     references: mail.messageId ? [...(mail.references || []).filter((value) => value !== mail.messageId).slice(-99), mail.messageId] : mail.references,
   };

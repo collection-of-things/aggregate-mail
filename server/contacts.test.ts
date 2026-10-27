@@ -36,7 +36,7 @@ test("local contacts: encrypted account-scoped storage, sent recipients and sugg
   const list = async () => await (await request("/contacts")).json() as ContactList;
   const suggest = async (query: string, accountId: string) =>
     await (await request(`/contacts/suggestions?${new URLSearchParams({ query, accountId })}`)).json() as ContactSuggestion[];
-  const send = (to: string, cc?: string[], accountId = "work") => request("/send", "POST", { accountId, to, ...(cc ? { cc } : {}), ...message });
+  const send = (to: string, cc?: string[], accountId = "work") => request("/send", "POST", { accountId, to: [to], ...(cc ? { cc } : {}), ...message });
   let delivery: () => Promise<void> = async () => {};
   t.mock.method(providers.imap, "send", async () => delivery());
   try {

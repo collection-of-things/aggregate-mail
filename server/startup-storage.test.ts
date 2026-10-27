@@ -19,7 +19,7 @@ test("summary copies isolate nested metadata and healthy compaction preserves ev
     store.put("mail", mail.id, mail);
     store.put("mail", "b:1", { ...mail, id: "b:1", accountId: "b", archived: true, direction: "sent" });
     store.put("attachment", "a:1:file", { accountId: "a", content: "c3ludGhldGlj" });
-    store.put("draft", "draft", { id: "draft", accountId: "a", revision: 4, updatedAt: 1, to: "recipient@example.test", subject: "Draft", body: "Draft body", sendUnknown: true, attachments: [{ filename: "draft.txt", contentType: "text/plain", content: "c3ludGhldGlj" }] });
+    store.put("draft", "draft", { id: "draft", accountId: "a", revision: 4, updatedAt: 1, to: ["recipient@example.test"], subject: "Draft", body: "Draft body", sendUnknown: true, attachments: [{ filename: "draft.txt", contentType: "text/plain", content: "c3ludGhldGlj" }] });
     const first = await store.mailSummaryChanges();
     const expected = structuredClone(first);
     first.messages[0].labelIds!.push("changed"); first.messages[0].references!.push("changed");

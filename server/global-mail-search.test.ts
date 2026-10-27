@@ -12,7 +12,7 @@ process.env.MAIL_CONFIG_PATH = path.join(directory, "absent.env");
 process.env.MAIL_DATA_KEY = Buffer.alloc(32, 73).toString("base64");
 const store = await import("./store.js");
 const accounts = ["a", "b"].map(id => ({ id, name: `Studio ${id}`, email: `${id}@example.test`, provider: "imap" as const, credentials: {} }));
-const draft: Draft = { id: "same", accountId: "b", revision: 1, updatedAt: Date.UTC(2026, 9, 24), to: "client@example.test", cc: ["copy@example.test"], subject: "Saved proposal", body: "x".repeat(500) + " Réunion needle", sendUnknown: true, attachments: [{ filename: "private.txt", contentType: "text/plain", content: "ATTACHMENT-BYTES" }] };
+const draft: Draft = { id: "same", accountId: "b", revision: 1, updatedAt: Date.UTC(2026, 9, 24), to: ["client@example.test"], cc: ["copy@example.test"], subject: "Saved proposal", body: "x".repeat(500) + " Réunion needle", sendUnknown: true, attachments: [{ filename: "private.txt", contentType: "text/plain", content: "ATTACHMENT-BYTES" }] };
 const mail: Mail = { id: "same", accountId: "a", remoteId: "1", sender: "Sender", address: "sender@example.test", to: "a@example.test", subject: "Needle", body: "Needle", preview: "Needle", date: 1, unread: true, archived: false, snoozedUntil: null, category: "other", relevance: 1, reason: "" };
 
 test("global service searches saved drafts, invalidates saves, yields and cancels", async t => {

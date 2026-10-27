@@ -134,8 +134,13 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
         matches: [...state.messages.filter(search.matches).map(mail => ({ kind: "mail", id: mail.id, accountId: mail.accountId, contentVersion: "synthetic" })),
           ...fixtureDrafts.filter(draft => { const account = state.accounts.find(a => a.id === draft.accountId); return account && search.matchesDraft(draft, account); }).map(({ body, attachments, ...draft }) => ({ ...draft, kind: "draft", preview: body.slice(0, 200), attachmentCount: attachments?.length || 0 }))] }) } as Response;
     }
+    if (url.endsWith("/forward") && options?.method === "POST") {
+      const mail = state.messages.find(mail => url === `/api/messages/${encodeURIComponent(mail.id)}/forward`)!;
+      return { ok: true, json: async () => ({ id: "forwarded-draft", accountId: mail.accountId, revision: 1, updatedAt: 1,
+        to: [], subject: `Fwd: ${mail.subject}`, body: "Synthetic forwarded text", sendUnknown: false }) } as Response;
+    }
     if (url.includes("/drafts/") && (!options?.method || options.method === "GET")) return { ok: true, json: async () => fixtureDrafts.find(draft => url.endsWith(`/drafts/${draft.id}`)) } as Response;
-    if (url.endsWith("/drafts") && !options?.method) return { ok: true, json: async () => fixtureDrafts.filter(draft => url.includes(`/accounts/${draft.accountId}/`)).map(({ body, attachments, ...draft }) => ({ ...draft, preview: body.slice(0, 200), attachmentCount: attachments?.length || 0 })) } as Response;
+    if (url.endsWith("/drafts") && (!options?.method || options.method === "GET")) return { ok: true, json: async () => fixtureDrafts.filter(draft => url.includes(`/accounts/${draft.accountId}/`)).map(({ body, attachments, ...draft }) => ({ ...draft, preview: body.slice(0, 200), attachmentCount: attachments?.length || 0 })) } as Response;
     if (url.includes("/drafts") && ["POST", "PUT"].includes(options?.method || "")) {
       if (draftSaveFails) return { ok: false, json: async () => ({ error: "Synthetic draft save failure" }) } as Response;
       savedDraft = { ...JSON.parse(String(options?.body)), id: "synthetic-draft", accountId: url.split("/")[3],
@@ -585,11 +590,11 @@ test("Settings persist opening mode and custom keys while single-click opens and
     const search = [...app.container.querySelectorAll<HTMLInputElement>('[data-interaction-settings] input')]
       .find((input) => input.value === "/")!;
     search.focus();
-    await act(async () => search.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "f", bubbles: true, cancelable: true })));
-    assert.equal(search.value, "F");
+    await act(async () => search.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "z", bubbles: true, cancelable: true })));
+    assert.equal(search.value, "Z");
     assert.ok(app.container.querySelector('input[aria-describedby="mail-search-help"]'), "global search stays available");
     const saved = JSON.parse(app.storage.getItem("emc2.interaction.v1")!);
-    assert.equal(saved.opening, "single"); assert.equal(saved.shortcuts.search.key, "f");
+    assert.equal(saved.opening, "single"); assert.equal(saved.shortcuts.search.key, "z");
     const preferences = app.storage.getItem("emc2.interaction.v1");
     assert.equal(app.window.document.activeElement, search);
     for (const options of [{ ctrlKey: true }, { metaKey: true }, { altKey: true },
@@ -1184,7 +1189,7 @@ test("desktop mail rows use a native context menu and run the chosen action", as
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(app.container.querySelector('[role="menu"]'), null, "no drawn menu on the desktop");
     assert.deepEqual(menus[0].items.map((item) => item.label),
-      ["Open", "Mark as read", "Pin email", "Reply", "Reply all", "Archive", "Snooze", "Move to Trash", "Track work", "Schedule meeting", "Teach sorting"]);
+      ["Open", "Mark as read", "Pin email", "Reply", "Reply all", "Forward message", "Archive", "Snooze", "Move to Trash", "Track work", "Schedule meeting", "Teach sorting"]);
     assert.deepEqual(menus[0].items.filter((item) => item.separator).map((item) => item.id), ["reply", "archive", "teach"]);
     assert.ok(app.mutations.some((url) => url.endsWith(encodeURIComponent("a:1"))), "the chosen action ran");
   } finally { await app.close(); }
@@ -2194,7 +2199,7 @@ test("Find pinned mail searches this view or All cached and keeps the selected a
 });
 
 test("mixed global search draft focus isolates mail shortcuts and traversal", async (t) => {
-  const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: "client@example.test", subject: "Needle draft", body: "Saved draft body", sendUnknown: false };
+  const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: ["client@example.test"], subject: "Needle draft", body: "Saved draft body", sendUnknown: false };
   for (const control of [".draft-row", ".draft-refresh"]) {
     for (const key of ["e", "r", "b", "m", "j", "k", "ArrowDown", "ArrowUp", "PageDown", "PageUp", "Enter"]) {
       await t.test(`${control}: ${key}`, async () => {
@@ -2230,7 +2235,7 @@ test("mixed global search draft focus isolates mail shortcuts and traversal", as
 });
 
 test("mixed global search draft focus preserves global shortcuts and draft activation", async () => {
-  const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: "client@example.test", subject: "Alpha draft", body: "Saved draft body", sendUnknown: false };
+  const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: ["client@example.test"], subject: "Alpha draft", body: "Saved draft body", sendUnknown: false };
   const app = await mount(false, state => { state.draftCount = 1; state.draftToken = "d1"; }, {}, [draft]);
   try {
     const search = app.container.querySelector<HTMLInputElement>(".search input")!;
@@ -2256,7 +2261,7 @@ test("mixed global search draft focus preserves global shortcuts and draft activ
 });
 
 test("global search finds and opens a saved draft body with no cached mail and no account-list requests", async () => {
-  const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: "client@example.test", subject: "Saved proposal", body: "x".repeat(500) + " Needle", sendUnknown: true };
+  const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: ["client@example.test"], subject: "Saved proposal", body: "x".repeat(500) + " Needle", sendUnknown: true };
   const app = await mount(false, state => { state.messages = []; state.draftCount = 1; state.draftToken = "d1"; }, {}, [draft]);
   try {
     const search = app.container.querySelector<HTMLInputElement>(".search input")!;
@@ -2375,7 +2380,7 @@ test("F6 keeps dialog and composer focus scope", async () => {
 
 
 test("global search draft deletion reports a failed count refresh without retrying deletion", async () => {
-  const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: "client@example.test", subject: "Alpha draft", body: "Saved body", sendUnknown: false };
+  const draft: Draft = { id: "saved", accountId: "b", revision: 3, updatedAt: 1, to: ["client@example.test"], subject: "Alpha draft", body: "Saved body", sendUnknown: false };
   const drafts = [draft];
   const app = await mount(false, state => { state.draftCount = 1; state.draftToken = "d1"; }, {}, drafts);
   const priorFetch = globalThis.fetch;
@@ -2607,4 +2612,100 @@ test("phone Settings section picker switches panels without changing saved mail"
     await app.click(app.button("Close settings"));
     assert.ok(app.button("Show sidebar"));
   } finally { await app.close(); }
+});
+
+
+test("Forward shortcut prepares one draft without sending", async () => {
+  const app = await mount();
+  try {
+    await app.key("f");
+    assert.ok(app.container.querySelector(".compose-dialog"));
+    assert.equal(app.container.querySelector<HTMLInputElement>('input[aria-label="To"]')!.value, "");
+    assert.equal(app.container.querySelector<HTMLInputElement>('.compose-subject input')!.value, "Fwd: Alpha");
+    assert.equal(app.requests.filter(url => url.endsWith("/forward")).length, 1);
+    assert.equal(app.requests.filter(url => url === "/api/send").length, 0);
+    await app.key("f");
+    assert.equal(app.requests.filter(url => url.endsWith("/forward")).length, 1, "composer blocks forward shortcut");
+  } finally { await app.close(); }
+});
+
+
+test("Commands lists Forward with its configured shortcut", async () => {
+  const app = await mount();
+  try {
+    await app.click(app.button("Commands"));
+    const search = app.container.querySelector<HTMLInputElement>('[aria-label="Search commands"]')!;
+    await app.input(search, "Forward message");
+    assert.match(app.container.querySelector('[aria-label="Commands"]')!.textContent!, /Forward message/);
+    const command = [...app.container.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.querySelector("span")?.textContent === "Forward message")!;
+    assert.equal(command.querySelector("kbd")?.textContent, "F");
+    await app.click(command);
+    assert.ok(app.container.querySelector(".compose-dialog"));
+    assert.equal(app.requests.filter(url => url.endsWith("/forward")).length, 1);
+  } finally { await app.close(); }
+});
+
+
+for (const replacement of ["keyboard", "sidebar", "saved draft", "source removed", "account removed", "update"] as const) {
+  test(`delayed Forward preserves context: ${replacement}`, async () => {
+    let updateState: ((state: import("../shared/updates").UpdateState) => void) | undefined;
+    const saved: Draft = { id: "saved", accountId: "a", revision: 3, updatedAt: 1, to: [], subject: "Keep this draft", body: "Synthetic text", sendUnknown: false };
+    const app = await mount(false, state => { state.draftCount = 1; }, { updates: {
+      state: async () => ({ phase: "current" }), command: async () => { throw new Error("No installer allowed"); },
+      onState: callback => { updateState = callback; return () => {}; }, onDrain: () => () => {},
+    } }, [saved]);
+    const originalFetch = globalThis.fetch;
+    let release!: () => void;
+    const wait = new Promise<void>(resolve => { release = resolve; });
+    globalThis.fetch = async (input, options) => {
+      const response = await originalFetch(input, options);
+      if (String(input).endsWith("/forward")) await wait;
+      return response;
+    };
+    try {
+      await app.key("f");
+      if (replacement === "keyboard") await app.key("c");
+      else if (replacement === "sidebar") await app.click(app.button("New message"));
+      else if (replacement === "saved draft") {
+        // Drafts sidebar is disabled while busy; global search remains available.
+        await app.input(app.container.querySelector<HTMLInputElement>(".search input")!, "subject:Keep");
+        await act(async () => { await new Promise(resolve => setTimeout(resolve, 145)); });
+        const row = app.container.querySelector<HTMLElement>(".draft-row");
+        assert.ok(row, "saved draft is exposed through global search while Forward waits");
+        await app.click(row);
+      } else if (replacement === "update") {
+        await act(async () => { updateState!({ phase: "installing", version: "0.1.7" }); });
+      } else {
+        if (replacement === "source removed") app.state.messages = app.state.messages.filter(mail => mail.id !== "a:1");
+        else app.state.accounts = app.state.accounts.filter(account => account.id !== "a");
+        const before = app.requests.filter(url => url.startsWith("/api/state")).length;
+        await app.refresh();
+        assert.ok(app.requests.filter(url => url.startsWith("/api/state")).length > before, "removal is published to App before resolving Forward");
+      }
+      await act(async () => { release(); await wait; });
+      assert.equal(app.container.querySelector<HTMLInputElement>('.compose-subject input')?.value,
+        replacement === "keyboard" || replacement === "sidebar" ? "" : replacement === "saved draft" ? saved.subject : undefined);
+      assert.equal(app.requests.filter(url => url.endsWith("/forward")).length, 1);
+      assert.equal(app.requests.filter(url => url === "/api/send").length, 0);
+    } finally { release(); globalThis.fetch = originalFetch; await app.close(); }
+  });
+}
+
+test("Forward admits only one request before React renders", async () => {
+  const app = await mount();
+  const originalFetch = globalThis.fetch;
+  let release!: () => void;
+  const wait = new Promise<void>(resolve => { release = resolve; });
+  globalThis.fetch = async (input, options) => {
+    const response = await originalFetch(input, options);
+    if (String(input).endsWith("/forward")) await wait;
+    return response;
+  };
+  try {
+    await act(async () => {
+      for (let i = 0; i < 2; i++) app.window.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "f", bubbles: true }));
+    });
+    assert.equal(app.requests.filter(url => url.endsWith("/forward")).length, 1);
+    await act(async () => { release(); await wait; });
+  } finally { release(); globalThis.fetch = originalFetch; await app.close(); }
 });

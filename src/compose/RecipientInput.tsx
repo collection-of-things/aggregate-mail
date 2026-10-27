@@ -76,6 +76,7 @@ export function RecipientInput({ label, value, onChange, accountId, accounts, ap
       <span>{label}</span>
       <input
         type="email"
+        aria-label={label}
         multiple={multiple}
         required={required}
         disabled={disabled}

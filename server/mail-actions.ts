@@ -160,5 +160,5 @@ export async function sendMail(value: unknown, beforeExecution?: () => void) {
 
 // Delivery already succeeded, so a failed contact write must not turn it into a send error.
 function rememberRecipients(input: SendInput) {
-  try { recordRecentRecipients(input.accountId, [input.to, ...(input.cc ?? [])]); } catch { /* suggestions are optional */ }
+  try { recordRecentRecipients(input.accountId, [...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])]); } catch { /* suggestions are optional */ }
 }

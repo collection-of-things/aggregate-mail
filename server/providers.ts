@@ -538,10 +538,11 @@ export const providers: Record<
     },
     async send(a, input) {
       input = sendSchema.parse(input);
-      const raw = await new MailComposer({
+      const message = new MailComposer({
         from: a.email,
         to: input.to,
         cc: input.cc,
+        bcc: input.bcc,
         subject: input.subject,
         text: input.body,
         html: input.html,
@@ -550,8 +551,9 @@ export const providers: Record<
         icalEvent: await calendarMime(a, input),
         attachments: input.attachments?.map((attachment) => ({ ...attachment, content: Buffer.from(attachment.content, "base64") })),
       })
-        .compile()
-        .build();
+        .compile();
+      message.keepBcc = true;
+      const raw = await message.build();
       await gmail(a).users.messages.send({
         userId: "me",
         requestBody: {
@@ -916,14 +918,22 @@ function imapProvider() {
       })
         .compile()
         .build();
-      await smtp(a).sendMail({
-        envelope: { from: a.email, to: [input.to, ...(input.cc || [])] },
+      const receipt = await smtp(a).sendMail({
+        envelope: { from: a.email, to: [...input.to, ...(input.cc || []), ...(input.bcc || [])] },
         raw,
       });
-      // Gmail SMTP saves Sent itself; appending over IMAP would duplicate it.
-      if (a.provider === "gmail-imap") return;
-      let client: ImapFlow | undefined;
       const warnings: string[] = [];
+      if (receipt.rejected?.length) {
+        if (receipt.accepted?.length === 0)
+          throw Object.assign(new Error("SMTP rejected every recipient."), { code: "EENVELOPE" });
+        warnings.push("some recipients were rejected");
+      }
+      // Gmail SMTP saves Sent itself; appending over IMAP would duplicate it.
+      if (a.provider === "gmail-imap") {
+        if (warnings.length) throw new SentCopyError(`Email was sent, but ${warnings.join(" and ")}. Do not resend.`);
+        return;
+      }
+      let client: ImapFlow | undefined;
       try {
         client = imap(a);
         await client.connect();
@@ -963,7 +973,8 @@ export const attachmentsSchema = z.array(attachmentSchema).max(10).refine((attac
 export const sendSchema = z.object({
   accountId: z.string(),
   calendarDraft: z.object({ id: z.uuid(), revision: z.number().int().min(1) }).strict().optional(),
-  to: z.email().max(320),
+  to: z.array(z.email().max(320)).min(1).max(100),
+  bcc: z.array(z.email().max(320)).max(100).optional(),
   cc: z.array(z.email().max(320)).max(100).optional(),
   attachments: attachmentsSchema.optional(),
   references: z
@@ -989,7 +1000,7 @@ export const sendSchema = z.object({
   threadId: z.string().max(100).optional(),
 }).refine(validComposeMarkup, "Formatted content must match its plain text alternative").refine((input) => Buffer.byteLength(JSON.stringify(input), "utf8") <= 1900000, "Message exceeds the request size limit");
 const { html: _richHtml, ...plainSendShape } = sendSchema.shape;
-export const plainSendSchema = z.object(plainSendShape).strict().refine((input) => Buffer.byteLength(JSON.stringify(input), "utf8") <= 1900000, "Message exceeds the request size limit");
+export const plainSendSchema = z.object({ ...plainSendShape, to: z.union([plainSendShape.to, z.email().max(320).transform(value => [value])]) }).strict().refine((input) => Buffer.byteLength(JSON.stringify(input), "utf8") <= 1900000, "Message exceeds the request size limit");
 export type SendInput = z.infer<typeof sendSchema>;
 
 // Resolve encrypted, reviewed metadata instead of accepting calendar text from a send caller.
@@ -998,7 +1009,7 @@ export async function calendarMime(account: StoredAccount, input: SendInput) {
   const { get } = await import("./store.js");
   const draft = get("draft", input.calendarDraft.id);
   if (!draft || draft.accountId !== account.id || draft.revision !== input.calendarDraft.revision || !draft.sendUnknown || !draft.invitation ||
-      draft.to !== input.to || !isDeepStrictEqual(draft.cc || [], input.cc || []) || draft.subject !== input.subject || draft.body !== input.body || draft.html !== input.html)
+      !isDeepStrictEqual(Array.isArray(draft.to) ? draft.to : [draft.to], input.to) || !isDeepStrictEqual(draft.cc || [], input.cc || []) || !isDeepStrictEqual(draft.bcc || [], input.bcc || []) || draft.subject !== input.subject || draft.body !== input.body || draft.html !== input.html)
     throw new Error("Invitation draft changed. Recover the saved draft before sending.");
   const context = draft.calendarContext;
   const event = context && get("calendarEvent", context.eventId);

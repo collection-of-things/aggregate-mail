@@ -203,7 +203,7 @@ test("offers use encrypted settings, complete explicit Google reads, reviewed re
     });
     await t.test("ordinary reviewed replies replay atomically and bind source/account/thread", async () => {
       const offer = await create(true), first = await prepare(offer); assert.equal(first.status, 200);
-      const draft = await first.json() as Draft; assert.equal(draft.accountId, "a"); assert.equal(draft.to, "guest@example.test"); assert.equal(draft.inReplyTo, mail.messageId); assert.equal(draft.threadId, mail.threadId); assert.equal(draft.invitation, undefined); assert.match(draft.body, /Time zone: UTC/); assert.match(draft.body, /not reserved/);
+      const draft = await first.json() as Draft; assert.equal(draft.accountId, "a"); assert.deepEqual(draft.to, ["guest@example.test"]); assert.equal(draft.inReplyTo, mail.messageId); assert.equal(draft.threadId, mail.threadId); assert.equal(draft.invitation, undefined); assert.match(draft.body, /Time zone: UTC/); assert.match(draft.body, /not reserved/);
       assert.equal((await (await prepare(offer)).json() as Draft).id, draft.id); assert.equal((await prepare(offer, [2])).status, 409);
       store.put("mail", mail.id, { ...mail, body: "changed" }); assert.equal((await prepare(offer)).status, 409); store.put("mail", mail.id, mail);
       store.put("availability", "working", { ...working, bufferMinutes: 1 }); assert.equal((await book(offer)).status, 409); store.put("availability", "working", working);

@@ -22,7 +22,7 @@ test("provider evidence: bounded Sent, exact threads and encrypted attachment ro
   put("account", a.id, a);
   put("account", "b", { ...a, id: "b" });
   const attachment = { filename: "report.txt", contentType: "text/plain", content: Buffer.from("synthetic attachment bytes").toString("base64") };
-  const input = { accountId: a.id, to: "one@example.com", cc: ["two@example.com"], subject: "Reply", body: "Synthetic body", inReplyTo: "<original@example.com>", references: ["<older@example.com>", "<original@example.com>"], attachments: [attachment] };
+  const input = { accountId: a.id, to: ["one@example.com"], cc: ["two@example.com"], subject: "Reply", body: "Synthetic body", inReplyTo: "<original@example.com>", references: ["<older@example.com>", "<original@example.com>"], attachments: [attachment] };
   const raw = await new MailComposer({ from: a.email, to: input.to, subject: input.subject, text: input.body, inReplyTo: input.inReplyTo, references: input.references, attachments: [{ ...attachment, content: Buffer.from(attachment.content, "base64") }] }).compile().build();
   try {
     await t.test("Gmail Sent is independent, bounded, and keeps provider thread identity", async (t) => {
@@ -120,7 +120,7 @@ test("provider evidence: bounded Sent, exact threads and encrypted attachment ro
     await t.test("Gmail and SMTP MIME include Cc and exact attachment bytes, same bytes saved to Sent", async (t) => {
       let gmailRaw: Buffer = Buffer.alloc(0), smtpRaw: Buffer = Buffer.alloc(0), sentRaw: Buffer = Buffer.alloc(0);
       t.mock.method(google, "gmail", () => ({ users: { messages: { send: async (query: { requestBody: { raw: string } }) => { gmailRaw = Buffer.from(query.requestBody.raw, "base64url"); } } } }), {});
-      t.mock.method(nodemailer, "createTransport", () => ({ sendMail: async (query: { raw: Buffer; envelope: { to: string[] } }) => { smtpRaw = query.raw; assert.deepEqual(query.envelope.to, [input.to, ...input.cc]); } }));
+      t.mock.method(nodemailer, "createTransport", () => ({ sendMail: async (query: { raw: Buffer; envelope: { to: string[] } }) => { smtpRaw = query.raw; assert.deepEqual(query.envelope.to, [...input.to, ...input.cc]); return { accepted: query.envelope.to, rejected: [] }; } }));
       t.mock.method(ImapFlow.prototype, "connect", async function (this: ImapFlow) { this.usable = true; });
       t.mock.method(ImapFlow.prototype, "logout", async () => {});
       t.mock.method(ImapFlow.prototype, "list", async () => [{ path: "Sent", specialUse: "\\Sent" }]);

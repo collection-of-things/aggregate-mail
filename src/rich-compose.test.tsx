@@ -13,7 +13,7 @@ test("rich compose preserves selection, saves alternatives and inserts only plai
   for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, value });
   const { createRoot } = await import("react-dom/client");
   const root = createRoot(document.getElementById("root")!);
-  let value: Compose = { accountId: "synthetic", to: "", subject: "", body: "Hello team", sendUnknown: true };
+  let value: Compose = { accountId: "synthetic", to: [""], subject: "", body: "Hello team", sendUnknown: true };
   const commands: string[] = [];
   Object.defineProperty(document, "queryCommandSupported", { value: () => true, configurable: true });
   Object.defineProperty(document, "execCommand", { configurable: true, value: (command: string, _ui: boolean, input?: string) => {
@@ -70,7 +70,7 @@ test("link entry uses an inline keyboard form without relying on a native browse
     const selection = window.getSelection()!, range = selection.getRangeAt(0), anchor = document.createElement("a");
     anchor.setAttribute("href", url!); anchor.append(range.extractContents()); range.insertNode(anchor); return true;
   } });
-  let value: Compose = { accountId: "a", to: "", subject: "", body: "Review this" };
+  let value: Compose = { accountId: "a", to: [""], subject: "", body: "Review this" };
   const { createRoot } = await import("react-dom/client"); const root = createRoot(document.getElementById("root")!);
   function Editor() { const [draft, update] = useState(value); return <RichBody draft={draft} disabled={false} onChange={next => { value = next; update(next); }} />; }
   try {

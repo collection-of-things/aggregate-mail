@@ -39,8 +39,9 @@ export type DraftContent = {
   html?: string;
   invitation?: import("./invitations").Invitation;
   cc?: string[];
+  bcc?: string[];
   attachments?: DraftAttachment[];
-  to: string;
+  to: string[];
   subject: string;
   body: string;
   inReplyTo?: string;

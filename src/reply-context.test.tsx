@@ -17,7 +17,7 @@ const source: Mail = {
 
 test("reply context uses safe sender formatting instead of raw plaintext tracking URLs", () => {
   const html = renderToStaticMarkup(<ComposePanel
-    source={source} draft={{ accountId: "a", inReplyTo: source.messageId, to: source.address, subject: "Reply", body: "Draft text" }}
+    source={source} draft={{ accountId: "a", inReplyTo: source.messageId, to: [source.address], subject: "Reply", body: "Draft text" }}
     accounts={[{ id: "a", email: "reader@example.test", provider: "imap" }]} setDraft={() => {}}
     busy={false} onClose={() => {}} onDiscard={() => {}} onRetry={() => {}} onSaveCopy={() => {}}
     onSend={() => {}} progress={{ phase: "saved", message: "Draft saved." }} />);
@@ -49,7 +49,7 @@ test("reply context recovers formatted content and resets image consent on priva
   const recovered = { ...source, html: undefined, attachments: undefined };
   const render = (mail: Mail, privacy = false) => act(async () => root.render(
     <PrivacyContext.Provider value={{ on: privacy, revealed: new Set(), toggle() {}, accounts: [{ id: "a", email: "reader@example.test", provider: "imap" }] }}>
-      <ComposePanel source={mail} api={api} draft={{ accountId: "a", to: source.address, subject: "Reply", body: "Unchanged reply" }}
+      <ComposePanel source={mail} api={api} draft={{ accountId: "a", to: [source.address], subject: "Reply", body: "Unchanged reply" }}
         accounts={[{ id: "a", email: "reader@example.test", provider: "imap" }]} setDraft={() => {}} busy={false}
         onClose={() => {}} onDiscard={() => {}} onRetry={() => {}} onSaveCopy={() => {}} onSend={() => {}}
         progress={{ phase: "saved", message: "Draft saved." }} />
@@ -79,7 +79,7 @@ test("reply context recovers formatted content and resets image consent on priva
 test("empty-body replies keep the cached preview when HTML is absent or rejected", () => {
   for (const html of [null, '<script>untrusted()</script>']) {
     const markup = renderToStaticMarkup(<ComposePanel source={{ ...source, body: '', preview: 'Cached original preview', html }}
-      draft={{ accountId: 'a', to: source.address, subject: 'Reply', body: 'My draft' }}
+      draft={{ accountId: 'a', to: [source.address], subject: 'Reply', body: 'My draft' }}
       accounts={[{ id: 'a', email: 'reader@example.test', provider: 'imap' }]} setDraft={() => {}} busy={false}
       onClose={() => {}} onDiscard={() => {}} onRetry={() => {}} onSaveCopy={() => {}} onSend={() => {}}
       progress={{ phase: 'saved', message: 'Draft saved.' }} />);

@@ -5,9 +5,9 @@ import type { Api } from "./api";
 import { composeContent, DraftSession, type Compose, type DraftProgress } from "./compose/draft-session";
 
 const initial: Compose = {
-  accountId: "synthetic", to: "recipient@example.com", subject: "Synthetic subject", body: "Synthetic body",
+  accountId: "synthetic", to: ["recipient@example.com"], subject: "Synthetic subject", body: "Synthetic body",
 };
-const blank: Compose = { accountId: initial.accountId, to: "", subject: "", body: "" };
+const blank: Compose = { accountId: initial.accountId, to: [""], subject: "", body: "" };
 const rawError = "Synthetic private response must never reach progress";
 const saved = (content: Compose = initial, revision = 4): Draft => ({
   ...composeContent(content), id: "synthetic-draft", revision, updatedAt: 1,
@@ -33,7 +33,7 @@ function fixture(record?: Draft) {
     if (request.method === "POST") {
       const content = request.body as DraftContent;
       for (const key of Object.keys(content))
-        assert.ok(["to", "cc", "attachments", "subject", "body", "html", "inReplyTo", "threadId", "references", "sendUnknown"].includes(key));
+        assert.ok(["to", "cc", "bcc", "attachments", "subject", "body", "html", "inReplyTo", "threadId", "references", "sendUnknown"].includes(key));
       remote = saved({ ...content, accountId: initial.accountId }, 1);
       return structuredClone(remote);
     }
@@ -196,7 +196,7 @@ test("clearing a saved draft persists empty strings and removes omitted reply fi
   session.change(blank);
   await session.flush();
   assert.deepEqual(f.methods(), ["PUT"]);
-  assert.deepEqual(f.requests[0].body, { to: "", subject: "", body: "", sendUnknown: false, revision: 4 });
+  assert.deepEqual(f.requests[0].body, { to: [""], subject: "", body: "", sendUnknown: false, revision: 4 });
   assert.equal(f.remote?.inReplyTo, undefined);
   assert.equal(f.remote?.threadId, undefined);
   assert.equal(f.remote?.references, undefined);
@@ -547,13 +547,18 @@ test("sessions reject mixed accounts synchronously and encode the bound account 
   assert.deepEqual(routes, ["/accounts/synthetic%2Faccount/drafts"]);
 });
 
-test('Cc and attachments survive draft snapshots, save changes and attachment-only drafts', async () => {
+test('To, Cc, Bcc and attachments survive draft snapshots, save changes and attachment-only drafts', async () => {
  const attachments = [{ filename: 'note.txt', contentType: 'text/plain', content: 'bm90ZQ==' }];
  const f = fixture();
- const session=f.session({...blank, cc:['copy@example.com'], attachments});
+ const recipients=['one@example.test','two@example.test'];
+ const hidden=['hidden@example.test'];
+ const session=f.session({...blank, to:recipients, bcc:hidden, cc:['copy@example.com'], attachments});
+ recipients[0]='changed@example.test'; hidden[0]='changed@example.test';
  attachments[0].filename='changed.txt';
  assert.equal(session.content.attachments?.[0].filename,'note.txt');
  session.change(session.content); await session.flush();
+ assert.deepEqual(f.remote?.to,['one@example.test','two@example.test']);
+ assert.deepEqual(f.remote?.bcc,['hidden@example.test']);
  assert.deepEqual(f.remote?.cc,['copy@example.com']);
  assert.equal(f.remote?.attachments?.[0].filename,'note.txt');
  session.change({...session.content,cc:['other@example.com']}); await session.flush();

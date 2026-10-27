@@ -43,7 +43,7 @@ test("reviewed calendar drafts preserve MIME, identity, revisions, idempotency a
     assert.equal((await request(`/accounts/b/drafts/${draft.id}`)).status, 404);
     const { id: _id, accountId: _account, revision: _rev, updatedAt: _time, calendarContext: _context, ...content } = draft;
     assert.equal((await request("/accounts/a/drafts", "POST", content)).status, 400, "Untrusted callers cannot manufacture calendar metadata");
-    assert.equal((await request(`/accounts/a/drafts/${draft.id}`, "PUT", { ...content, to: "intruder@example.test", revision: 1 })).status, 409);
+    assert.equal((await request(`/accounts/a/drafts/${draft.id}`, "PUT", { ...content, to: ["intruder@example.test"], revision: 1 })).status, 409);
     const saved = await (await request(`/accounts/a/drafts/${draft.id}`, "PUT", { ...content, body: "Reviewed invitation body", sendUnknown: true, revision: 1 })).json() as Draft;
     assert.equal(saved.revision, 2); assert.deepEqual(saved.invitation, draft.invitation); assert.deepEqual(saved.calendarContext, draft.calendarContext);
     const send = { ...saved, calendarDraft: { id: saved.id, revision: saved.revision } };
@@ -87,7 +87,7 @@ test("reviewed calendar drafts preserve MIME, identity, revisions, idempotency a
     const replyInput = { fingerprint: identity.fingerprint, response: "ACCEPTED" };
     const reply = await (await request(`${invitationRoute}/reply`, "POST", replyInput)).json() as Draft;
     const replay = await (await request(`${invitationRoute}/reply`, "POST", replyInput)).json() as Draft;
-    assert.equal(reply.id, replay.id); assert.equal(reply.to, invite.organizer); assert.equal(reply.accountId, "a");
+    assert.equal(reply.id, replay.id); assert.deepEqual(reply.to, [invite.organizer]); assert.equal(reply.accountId, "a");
     assert.deepEqual(reply.invitation?.attendees, [{ email: "A@example.test", response: "ACCEPTED" }]); assert.equal(reply.invitation?.method, "REPLY");
     const local = store.all("calendarEvent").find((item) => item.uid === invite.uid)!;
     assert.equal(local.accountId, "a"); assert.equal(local.myResponse, "accepted"); assert.equal(sends, 1);

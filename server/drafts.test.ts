@@ -10,7 +10,7 @@ import type { Draft, DraftSummary } from "../shared/types.js";
 import { quietImapWatch } from "./imap-watch-fixture.js";
 
 const content = {
-  to: "unfinished-recipient-SYNTHETIC",
+  to: ["unfinished-recipient-SYNTHETIC", "second-SYNTHETIC@example.test"],
   subject: "draft-subject-SYNTHETIC",
   body: "reply-body-SYNTHETIC-秘密\nUnfinished reply",
   inReplyTo: "<draft-parent-SYNTHETIC@example.test>",
@@ -34,7 +34,7 @@ function assertEncrypted(directory: string, requireWal = false) {
     }
     const bytes = readFileSync(filename);
     assert.ok(bytes.length > 0);
-    for (const text of [content.to, content.subject, content.body, content.inReplyTo, content.threadId, ...content.references])
+    for (const text of [...content.to, content.subject, content.body, content.inReplyTo, content.threadId, ...content.references])
       assert.equal(bytes.includes(Buffer.from(text)), false, `plaintext draft field in SQLite${suffix}`);
   }
 }
@@ -70,6 +70,18 @@ test("encrypted drafts: authenticated lifecycle, stale writes, sync and update g
     return await response.json() as Draft;
   };
   try {
+    await t.test("legacy single-To records normalize without rewriting; all recipient arrays persist", async () => {
+      const draft = await create({ ...content, cc: ["copy@example.test"], bcc: ["hidden@example.test"] });
+      assert.deepEqual(drafts.readDraft("a", draft.id).bcc, ["hidden@example.test"]);
+      store.put("draft", draft.id, { ...draft, to: "legacy@example.test" } as unknown as Draft);
+      assert.deepEqual(drafts.readDraft("a", draft.id).to, ["legacy@example.test"]);
+      assert.deepEqual(drafts.listDrafts("a")[0].to, ["legacy@example.test"]);
+      assert.equal((store.get("draft", draft.id) as unknown as { to: string }).to, "legacy@example.test");
+      const saved = drafts.saveDraft("a", draft.id, { ...content, cc: draft.cc, bcc: draft.bcc, revision: draft.revision });
+      assert.deepEqual(saved.to, content.to);
+      assert.deepEqual(saved.bcc, draft.bcc);
+      drafts.deleteDraft("a", saved.id, { revision: saved.revision });
+    });
     await t.test("formatted alternatives are exact, encrypted and survive revisions", async () => {
       const formatted = { ...content, body: "Formatted body", html: "<strong>Formatted body</strong>" };
       const draft = await create(formatted);
@@ -106,7 +118,7 @@ test("encrypted drafts: authenticated lifecycle, stale writes, sync and update g
         null, [], {}, { ...content, accountId: "b" }, { ...content, id: "chosen-id" },
         { ...content, revision: 1 }, { ...content, sendUnknown: "true" },
         { ...content, body: "x".repeat(1000001) }, { ...content, subject: "x".repeat(999) },
-        { ...content, to: "x".repeat(10001) }, { ...content, threadId: "x".repeat(101) },
+        { ...content, to: ["x".repeat(10001)] }, { ...content, threadId: "x".repeat(101) },
         { ...content, inReplyTo: "x".repeat(999) },
         { ...content, references: Array(101).fill("x") }, { ...content, references: ["x".repeat(999)] },
       ]) assert.equal((await request("", "POST", invalid)).status, 400);
@@ -139,7 +151,7 @@ test("encrypted drafts: authenticated lifecycle, stale writes, sync and update g
       assert.deepEqual(summary.cc, ["copy@example.test"]);
       assert.equal(summary.attachmentCount, 1);
       for (const field of ["body", "attachments", "inReplyTo", "references", "threadId"]) assert.equal(field in summary, false);
-      const empty = await create({ to: "", subject: "", body: "" });
+      const empty = await create({ to: [""], subject: "", body: "" });
       assert.equal(empty.body, "");
       assertEncrypted(directory, true);
       for (const saved of [draft, empty, detailed]) assert.equal((await request(`/${saved.id}`, "DELETE", { revision: saved.revision })).status, 200);
@@ -232,7 +244,7 @@ test("encrypted drafts: authenticated lifecycle, stale writes, sync and update g
     await t.test("bounded creation refuses overflow without eviction; deleting frees a slot", async () => {
       store.put("account", "bounded", syntheticAccount("bounded"));
       for (let i = 0; i < drafts.MAX_DRAFTS_PER_ACCOUNT; i++)
-        drafts.createDraft("bounded", { to: "", subject: "", body: "" });
+        drafts.createDraft("bounded", { to: [""], subject: "", body: "" });
       assert.throws(() => drafts.createDraft("bounded", content), /limit reached/);
       const list = drafts.listDrafts("bounded");
       assert.equal(list.length, 100);

@@ -60,7 +60,7 @@ test("security stays important, promotions stay compact", () => {
 test("send validation rejects header injection and invalid recipient", () => {
   const valid = {
     accountId: "a",
-    to: "hello@example.com",
+    to: ["hello@example.com"],
     subject: "Hello",
     body: "Message",
   };
@@ -71,7 +71,7 @@ test("send validation rejects header injection and invalid recipient", () => {
       subject: "Hello\r\nBcc: other@example.com",
     }).success,
   );
-  assert.ok(!sendSchema.safeParse({ ...valid, to: "invalid" }).success);
+  assert.ok(!sendSchema.safeParse({ ...valid, to: ["invalid"] }).success);
 });
 
 test("scoped conditional Teach wins over global and unconditional rules consistently", () => {

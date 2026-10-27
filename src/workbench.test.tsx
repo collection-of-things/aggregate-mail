@@ -128,7 +128,7 @@ test("Agent creation permissions are visible, opt-in and absent from the reply p
 test("removing an assistant requires confirmation, preserves proposals and blocks their approval", async () => {
  const ui=await mount("assistants");try {
   ui.grants.push({id:"agent",name:"Private Reader assistant",token:"synthetic-only",accountIds:["a"],tools:["propose_draft"],createdAt:1});
-  ui.workspace.proposals.push({id:"kept-proposal",agentId:"agent",accountId:"a",action:"draft",payload:{accountId:"a",to:"team@example.com",subject:"Reviewed reply",body:"Kept content"},sourceMailId:"in-a",digest:"a".repeat(64),status:"pending",createdAt:1});
+  ui.workspace.proposals.push({id:"kept-proposal",agentId:"agent",accountId:"a",action:"draft",payload:{accountId:"a",to: ["team@example.com"],subject:"Reviewed reply",body:"Kept content"},sourceMailId:"in-a",digest:"a".repeat(64),status:"pending",createdAt:1});
   await ui.click(ui.button("Refresh workspace"));
   const remove=ui.button("Remove assistant");assert.equal(remove.closest("details"),null,"removal is visible without expanding permissions");
   ui.confirm(false);await ui.click(remove);
@@ -151,10 +151,10 @@ test("removing an assistant requires confirmation, preserves proposals and block
 test("review cards link each email once and preserve distinct action, account, recipient and content proposals", async () => {
  const ui=await mount("agents");try {
   const base:AgentProposal={id:"archive",agentId:"agent",accountId:"a",action:"archive",payload:{mailId:"in-a"},sourceMailId:"in-a",digest:"b".repeat(64),status:"pending",createdAt:1};
-  const draft:AgentProposal={...base,id:"draft",action:"draft",payload:{accountId:"a",to:"first@example.com",subject:"Reply",body:"First content"}};
+  const draft:AgentProposal={...base,id:"draft",action:"draft",payload:{accountId:"a",to: ["first@example.com"],subject:"Reply",body:"First content"}};
   ui.workspace.proposals.push(base,{...base,id:"read",action:"read"},draft,
-   {...draft,id:"recipient",payload:{accountId:"a",to:"second@example.com",subject:"Reply",body:"First content"}},
-   {...draft,id:"content",payload:{accountId:"a",to:"first@example.com",subject:"Reply",body:"Second content"}},
+   {...draft,id:"recipient",payload:{accountId:"a",to: ["second@example.com"],subject:"Reply",body:"First content"}},
+   {...draft,id:"content",payload:{accountId:"a",to:["first@example.com"],subject:"Reply",body:"Second content"}},
    {...base,id:"account",accountId:"b",payload:{mailId:"in-b"},sourceMailId:"in-b"});
   await ui.click(ui.button("Refresh workspace"));await ui.click(ui.button("Review queue (6)"));
   const cards=[...ui.container.querySelectorAll(".agent-proposal")];assert.equal(cards.length,6);
@@ -202,7 +202,7 @@ async function mount(mode: "actions"|"calendar"|"projects"|"agents"|"assistants"
       await preparation;
       const input=body as {sourceMailId:string;revision:string};
       assert.equal(input.sourceMailId,"in-a");assert.equal(input.revision,"provider-revision");
-      const proposal:AgentProposal={id:`proposal-${workspace.proposals.length+1}`,agentId:"agent",accountId:"a",action:"draft",payload:{accountId:"a",to:"team@example.com",subject:"Re: Private Reader in-a",body:"Prepared synthetic reply"},sourceMailId:input.sourceMailId,digest:"f".repeat(64),status:"pending",createdAt:1};
+      const proposal:AgentProposal={id:`proposal-${workspace.proposals.length+1}`,agentId:"agent",accountId:"a",action:"draft",payload:{accountId:"a",to: ["team@example.com"],subject:"Re: Private Reader in-a",body:"Prepared synthetic reply"},sourceMailId:input.sourceMailId,digest:"f".repeat(64),status:"pending",createdAt:1};
       workspace.proposals.push(proposal);
       if(lostPreparation)throw new Error("Synthetic stored-but-lost response");
       result=proposal;
@@ -372,7 +372,7 @@ test("failed decision save keeps text and sources through project clicks until r
 
 test("proposal envelope omits empty Cc and attachment rows without removing the review gate", async () => {
  const ui = await mount("agents"); try {
-  ui.workspace.proposals.push({ id: "empty-envelope", agentId: "agent", accountId: "a", action: "draft", payload: { accountId: "a", to: "recipient@example.test", cc: [], subject: "Proposal", body: "Review this text", attachments: [] }, sourceMailId: "in-a", digest: "d".repeat(64), status: "pending", createdAt: 1 });
+  ui.workspace.proposals.push({ id: "empty-envelope", agentId: "agent", accountId: "a", action: "draft", payload: { accountId: "a", to: ["recipient@example.test"], cc: [], subject: "Proposal", body: "Review this text", attachments: [] }, sourceMailId: "in-a", digest: "d".repeat(64), status: "pending", createdAt: 1 });
   await ui.click(ui.button("Refresh workspace"));
   const card = ui.container.querySelector(".agent-proposal")!;
   assert.deepEqual([...card.querySelectorAll("dt")].map(node => node.textContent), ["From", "To", "Subject"]);
@@ -385,7 +385,7 @@ test("proposal envelope omits empty Cc and attachment rows without removing the 
 
 test("reply proposals freeze exact payload, need reviewed evidence and approve into Drafts without the sending switch",async()=>{const ui=await mount("agents");try{
  ui.grants.push({id:"agent",name:"Sender",token:"synthetic-only",accountIds:["a"],tools:["reply_to_email"],createdAt:1});
- const proposal:AgentProposal={id:"proposal",agentId:"agent",accountId:"a",action:"send",payload:{accountId:"a",to:"recipient@example.com",cc:["copy@example.com"],subject:"Reviewed subject",body:"Exact body",attachments:[{filename:"note.txt",contentType:"text/plain",content:"bm90ZQ=="}]},sourceMailId:"in-a",digest:"d".repeat(64),status:"pending",createdAt:1};ui.workspace.proposals.push(proposal);await ui.click(ui.button("Refresh workspace"));
+ const proposal:AgentProposal={id:"proposal",agentId:"agent",accountId:"a",action:"send",payload:{accountId:"a",to: ["recipient@example.com"],cc:["copy@example.com"],subject:"Reviewed subject",body:"Exact body",attachments:[{filename:"note.txt",contentType:"text/plain",content:"bm90ZQ=="}]},sourceMailId:"in-a",digest:"d".repeat(64),status:"pending",createdAt:1};ui.workspace.proposals.push(proposal);await ui.click(ui.button("Refresh workspace"));
  const card = ui.container.querySelector(".agent-proposal")!;
  assert.deepEqual([...card.querySelectorAll(".proposal-envelope dt")].map(node => node.textContent), ["From", "To", "Cc", "Subject"]);
  assert.deepEqual([...card.querySelectorAll(".proposal-envelope dd")].map(node => node.textContent), ["reader@example.com", "recipient@example.com", "copy@example.com", "Reviewed subject"]);
@@ -407,7 +407,7 @@ test("workspace hides source-header-only names in commitments, history and propo
   await ui.click(ui.container.querySelector<HTMLButtonElement>(".work-select")!);await ui.click(ui.button("Edit task"));assert.ok(ui.container.textContent?.includes("Selected evidence unavailable in cache"));assert.ok(!ui.container.innerHTML.includes("missing-private-id"));
   assert.equal(ui.container.querySelector<HTMLFormElement>("form")!.checkValidity(),true,"hidden populated required editors remain valid");
   await ui.fill("Project","");await ui.submit();assert.equal(ui.requests.filter(request=>request.method==="PATCH").at(-1)?.body.projectId,null);
-  ui.workspace.proposals.push({id:"p",agentId:"agent",accountId:"a",action:"draft",payload:{accountId:"a",to:"recipient@example.com",subject:"Nora Lane plan",body:"Nora Lane evidence"},digest:"e".repeat(64),sourceMailId:"in-a",createdAt:1,status:"rejected"});
+  ui.workspace.proposals.push({id:"p",agentId:"agent",accountId:"a",action:"draft",payload:{accountId:"a",to: ["recipient@example.com"],subject:"Nora Lane plan",body:"Nora Lane evidence"},digest:"e".repeat(64),sourceMailId:"in-a",createdAt:1,status:"rejected"});
   ui.setMode("agents");await ui.render();assert.ok(!ui.container.innerHTML.includes("Nora"));assert.ok(!ui.container.innerHTML.includes("Lane"));
  }finally{await ui.close();}
 });
@@ -707,7 +707,7 @@ for (const outcome of ["acknowledged", "stored-but-lost", "failed fresh read"] a
    assert.equal(proposal.sourceMailId, "in-a");
    assert.equal(proposal.accountId, "a");
    assert.equal("body" in proposal.payload && proposal.payload.body, "Prepared synthetic reply");
-   assert.equal("to" in proposal.payload && proposal.payload.to, "team@example.com");
+   assert.deepEqual("to" in proposal.payload && proposal.payload.to, ["team@example.com"]);
    assert.equal(ui.button("Prepare draft").matches(":disabled"),false);
    assert.equal(posts().length,1,"fresh history never automatically prepares again");
    await ui.click(ui.button("Prepare draft"));assert.equal(posts().length,2,"only a later explicit Prepare can start P2");
