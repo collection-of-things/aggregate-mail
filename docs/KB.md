@@ -2679,4 +2679,4 @@ Gmail over IMAP copies from All Mail instead. Destination identifiers map back
 to the same local ID during sync. Shift+U and V are editable defaults, preserving
 U for return-to-list and B for snooze. Commands and message actions use the same
 eligibility checks. An open reader stays unread after the action.
-See [ADR 0088](adr/0088-single-message-unread-and-inbox.md).
+See [ADR 0095](adr/0095-single-message-unread-and-inbox.md).

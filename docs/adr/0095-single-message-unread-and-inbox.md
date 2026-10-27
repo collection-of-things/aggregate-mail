@@ -1,4 +1,4 @@
-# ADR 0088: Single-message unread and Move to Inbox
+# ADR 0095: Single-message unread and Move to Inbox
 
 Date: 2026-10-27
 Status: Implementation for issue #53; independent review pending.
