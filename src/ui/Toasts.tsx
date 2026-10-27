@@ -23,7 +23,8 @@ export function useToasts(preferences: NotificationPreferences = notificationDef
       ? current : [...current, { id, text, kind, eventId, duration: value.duration, mail, undo }]);
   }, []);
   const dismiss = useCallback((id: number) => setToasts((current) => current.filter((toast) => toast.id !== id)), []);
-  return { toasts, push, dismiss };
+  const consumeUndo = useCallback((token: string) => setToasts(current => current.filter(toast => toast.undo?.token !== token)), []);
+  return { toasts, push, dismiss, consumeUndo };
 }
 
 // Matches the slot collapse in mail-features.css so neighbours finish moving first.

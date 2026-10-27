@@ -1027,3 +1027,27 @@ test("local confirmation Undo captures its message, rejects stale changes and re
     assert.equal(app.undoRequests.at(-1)?.accountId, "b");
   } finally { await app.close(); }
 });
+
+for (const lostResponse of [false, true]) test(`Commands Undo consumes its confirmation receipt after ${lostResponse ? "a lost response" : "success"} without consuming other notices`, async () => {
+  const app = await mount(undefined, false, false, true);
+  try {
+    await app.key("s", app.row());
+    const unrelated = app.button("Undo", app.container.querySelector(".toast-success")!);
+    await app.click(app.row("b:1:5"));
+    await app.key("s", app.row("b:1:5"));
+    const notices = [...app.container.querySelectorAll<HTMLElement>(".toast-success")];
+    const original = app.button("Undo", notices.at(-1)!);
+    if (lostResponse) app.loseUndo();
+    await app.key("k", undefined, { ctrlKey: true });
+    const command = [...app.dialog().querySelectorAll<HTMLElement>('[role="option"]')].find(value => value.querySelector("span")?.textContent === "Undo last action")!;
+    await app.click(command);
+    assert.equal(app.undoRequests.length, 1);
+    assert.equal(app.undoRequests[0].id, "b:1:5");
+    await app.click(original);
+    assert.equal(app.undoRequests.length, 1, "the original toast must not submit the consumed receipt again");
+    assert.ok(app.container.contains(unrelated), "an unrelated receipt stays available");
+    await app.click(unrelated);
+    assert.equal(app.undoRequests.length, 2);
+    assert.equal(app.undoRequests[1].id, "a:1:5");
+  } finally { await app.close(); }
+});

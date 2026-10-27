@@ -317,7 +317,7 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [notifications, setNotifications] = useState(readNotifications);
-  const { toasts, push: pushToast, dismiss: dismissToast } = useToasts(notifications);
+  const { toasts, push: pushToast, dismiss: dismissToast, consumeUndo } = useToasts(notifications);
   const [lastUndo, setLastUndo] = useState<LocalMailUndo | null>(null);
   const undoLock = useRef(false);
   const setNotice = useCallback((text: string) => { if (text) pushToast(text, "error"); }, [pushToast]);
@@ -702,6 +702,7 @@ export function App() {
   const undoLocalAction = async (receipt: LocalMailUndo) => {
     if (busy || syncing || toolbarBlocked || undoLock.current) return;
     undoLock.current = true;
+    consumeUndo(receipt.token);
     setLastUndo(current => current?.token === receipt.token ? null : current);
     try {
       await perform(async () => {
