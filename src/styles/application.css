@@ -380,15 +380,15 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
 
 /* Every Settings section and dialog uses the same grouping and control rhythm. */
 .settings { grid-template-columns: 205px minmax(0, 1fr); }
-.settings-navigation { padding: 20px 12px; }
-.settings-rail-label { padding: 0 10px 12px; color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
-.settings-navigation button { min-height: 34px; padding: 7px 10px; font-size: calc(11px * var(--text-scale, 1)); line-height: 1.5; }
+.settings-navigation { padding: 20px 12px; gap: 22px; }
+.settings-rail-label { padding: 0 10px 6px; color: var(--text-3); font-size: calc(10px * var(--text-scale, 1)); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.settings-navigation button { min-height: 32px; padding: 6px 10px; font-size: calc(12px * var(--text-scale, 1)); line-height: 1.4; }
 .settings-column { max-width: 730px; padding: 30px 40px 48px; }
 .settings h1 { font-size: calc(23px * var(--text-scale, 1)); font-weight: 550; letter-spacing: -.03em; }
-.settings-section-heading p { color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); line-height: 1.7; }
-.settings-section-heading { margin-bottom: 30px; }
-.settings .settings-row { min-height: 63px; padding-block: 13px; }
-.settings-row > span:first-child { font-size: calc(12px * var(--text-scale, 1)); }
+.settings-section-heading p { color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); line-height: 1.6; white-space: normal; overflow-wrap: anywhere; }
+.settings-section-heading { margin-bottom: 24px; }
+.settings .settings-row { min-height: 44px; padding-block: 8px; }
+.settings-row > span:first-child { font-size: calc(13px * var(--text-scale, 1)); }
 .settings .settings-group { border-radius: 9px; }
 .settings-row .note, .settings-row small { font-size: calc(10px * var(--text-scale, 1)); }
 .segmented button { font-size: calc(11px * var(--text-scale, 1)); }
@@ -429,7 +429,6 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
 @container (max-width: 680px) {
   .settings { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; }
   .settings-navigation { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .settings-rail-label { grid-column: 1 / -1; }
 }
 .reader-secondary-tools { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 10px 18px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
 .reader-secondary-tools .message-labels { border: 0; padding: 0; margin: 0; gap: 12px; font-size: calc(11px * var(--text-scale, 1)); }

@@ -106,6 +106,14 @@ test("mounted settings captures without app dispatch, rejects conflicts, changes
   }
   try {
     await act(async () => root.render(<Harness />));
+    const fields = [...dom.window.document.querySelectorAll<HTMLInputElement>("input")];
+    assert.equal(fields.length, interactionActions.length, "grouping keeps every shortcut editable");
+    for (const { id, label } of interactionActions) {
+      const input = fields.find(field => field.id.endsWith(`-${id}`))!;
+      assert.ok(input, `missing shortcut: ${id}`);
+      assert.equal(dom.window.document.querySelector(`label[for="${input.id}"]`)?.textContent, label);
+      assert.ok(dom.window.document.getElementById(input.getAttribute("aria-describedby")!));
+    }
     const field = dom.window.document.querySelector<HTMLInputElement>("input")!;
     field.focus();
     const press = async (key: string, options = {}) => {

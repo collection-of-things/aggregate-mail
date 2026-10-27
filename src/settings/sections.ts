@@ -15,3 +15,11 @@ export const settingsSections = [
   { id: "about", label: "About and storage", description: "Understand local storage, sync and what happens when the app closes.", Icon: Info },
 ] as const;
 export type SettingsSection = (typeof settingsSections)[number]["id"];
+
+export const settingsGroupNames = ["Connections", "Mail", "Preferences", "Advanced"] as const;
+export function settingsGroup(id: SettingsSection) {
+  if (["sorting", "compose", "contacts", "branding"].includes(id)) return "Mail";
+  if (["appearance", "notifications", "interaction"].includes(id)) return "Preferences";
+  if (["mcp", "about"].includes(id)) return "Advanced";
+  return "Connections";
+}

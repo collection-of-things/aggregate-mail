@@ -59,9 +59,14 @@ counts and Refresh/Add task share one row. See [ADR 0069](adr/0069-responsivenes
 ## Floating Settings
 
 Settings uses the shared `Dialog` above the mounted mail, Drafts or work pane.
-The background frame and update control are inert. Settings retains its ten
-sections, with separately scrolling rail and content; the rail moves above the
-content in narrow panes. Its fixed header contains Back, Forward and Close.
+The background frame and update control are inert. Settings retains all eleven
+sections, grouped as Connections, Mail, Preferences and Advanced, with separately scrolling rail and content; the grouped rail moves
+above the content in narrow panes. Shortcut fields remain labeled capture inputs,
+organized as Navigation, Mail actions and App. They use two columns when the
+Settings pane is at least 820px wide and one column below that width. Reset
+interaction defaults stays beside the shortcut heading, with fixed system
+shortcuts in a disclosure. Preference validation and save behavior are unchanged.
+Its fixed header contains Back, Forward and Close.
 Stacked Settings rows remain single-column flex containers. Only horizontal
 rows wrap their controls; wrapping a stacked row can inflate the theme grid
 and leave excessive empty space below each preview and label.
