@@ -50,6 +50,14 @@ that do not apply; do not invent evidence. Apply one type label:
 | `documentation` | Documentation-only changes |
 | `chore` | CI, dependencies, releases, maintenance |
 
+## Closing issues and pull requests
+
+Anyone closing an issue or PR must comment with the reason. If it is linked
+to another issue or PR, include that link and comment there with the reason
+and a link back. If the fix already exists or is being implemented elsewhere,
+link to the fixing commit or PR and state whether it is merged or still in
+progress. Confirm the comments are posted before closing.
+
 ## Set up
 
 Node 24.22.1 or a newer 24.x (see `.nvmrc`) and npm. From the repository root:
@@ -180,11 +188,6 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
 
 ## Pull requests
 
-- Anyone closing a PR must comment with the reason. If it is linked to another
-  PR, include that link and comment on the linked PR with the reason and a
-  link back. If the fix already exists or is being implemented elsewhere,
-  link to the fixing commit or PR and state whether it is merged or still
-  in progress. Confirm the comments are posted before closing.
 - Use [the PR template](.github/PULL_REQUEST_TEMPLATE.md) for web, CLI and API
   submissions. Keep its headings and checklist, fill the fields, and mark
   missing proof or fields that do not apply. Check only verified items.

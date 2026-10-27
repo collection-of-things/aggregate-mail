@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Require a reason when closing a PR, links to existing fixes or ongoing work, and comments on linked PRs.
+- Require a reason when closing an issue or PR, links to existing fixes or ongoing work, and comments on linked issues or PRs.
 
 - Require the person merging to rebase onto the latest target branch and confirm current checks and approvals before merging.
 
