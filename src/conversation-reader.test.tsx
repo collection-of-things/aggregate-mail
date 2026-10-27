@@ -239,14 +239,15 @@ test("Reader preserves selected snooze/reply/label callbacks and never applies t
   try {
     await act(async () => ui.root.render(<Reader mail={base} provider="gmail" labels={[]} api={api} busy={false}
       onLabels={() => actions.push("labels:a:2")} onReplyAll={() => actions.push("reply:a:2")}
+      onForward={() => actions.push("forward:a:2")}
       onUnsnooze={() => actions.push("inbox:a:2")} onChangeTime={() => actions.push("snooze:a:2")}
       onOpen={item => actions.push(`open:${item.id}`)} onChanged={async () => {}}
       onMenu={(_, item) => actions.push(`menu:${item.id}`)} onMenuKey={() => {}} />));
     await ui.click(ui.container.querySelector('.conversation-toggle')!);
     const oldCard = ui.container.querySelector('[data-message-id="a:1"]')!;
-    assert.doesNotMatch(oldCard.textContent!, /Return to inbox|Change time|Reply all|Edit labels/);
-    for (const label of ["Return to inbox", "Change time", "Reply all", "Edit labels"]) await ui.click(ui.button(label));
-    assert.deepEqual(actions, ["inbox:a:2", "snooze:a:2", "reply:a:2", "labels:a:2"]);
+    assert.doesNotMatch(oldCard.textContent!, /Return to inbox|Change time|Reply all|Forward message|Edit labels/);
+    for (const label of ["Return to inbox", "Change time", "Reply all", "Forward message", "Edit labels"]) await ui.click(ui.button(label));
+    assert.deepEqual(actions, ["inbox:a:2", "snooze:a:2", "reply:a:2", "forward:a:2", "labels:a:2"]);
     await ui.click(ui.button("Select for actions")); assert.equal(actions.at(-1), "open:a:1");
   } finally { await ui.close(); }
 });

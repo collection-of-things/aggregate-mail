@@ -101,6 +101,7 @@ export function Reader(props: Parameters<typeof SingleReader>[0]) {
     renderMessage={(mail) => <SingleReader {...props} mail={mail}
       provider={mail.id === props.mail.id ? props.provider : undefined}
       onReplyAll={mail.id === props.mail.id ? props.onReplyAll : undefined}
+      onForward={mail.id === props.mail.id ? props.onForward : undefined}
       onUnsnooze={mail.id === props.mail.id ? props.onUnsnooze : undefined}
       onChangeTime={mail.id === props.mail.id ? props.onChangeTime : undefined}
       state={mail.id === props.mail.id ? props.state : undefined} />} />;

@@ -20,6 +20,8 @@ unversioned history without treating it as a release record.
 
 ### Fixed
 
+- Keep inline conversation Forward actions bound to the selected message ([#124](https://github.com/collection-of-things/aggregate-mail/pull/124)).
+
 - Keep formatted email tables readable and show supported embedded images in their original position after Show images, including recovery of older cached imports ([#133](https://github.com/collection-of-things/aggregate-mail/issues/133)).
 
 - Keep midnight labels clear of the shaded outside-day notice in Calendar weeks that cross daylight-saving changes. [#130](https://github.com/collection-of-things/aggregate-mail/issues/130)

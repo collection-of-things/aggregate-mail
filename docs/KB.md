@@ -2725,3 +2725,7 @@ Focused synthetic coverage is in `src/conversation-reader.test.tsx`,
 formatting, privacy, navigation, snooze and conversation-service checks remain
 relevant. These checks do not prove browser, native, installed or real-provider
 behavior. See [the reader decision](adr/0090-inline-conversation-reader.md).
+
+When inline conversation reading is combined with Forward, only the selected
+message receives the callback bound to the current action target. Other
+expanded messages must first use Select for actions.
