@@ -2475,3 +2475,26 @@ test("custom sequences retain safe Settings and compose actions and Caps Lock na
     assert.equal(app.savedDraft()?.body, "Saved before custom history navigation");
   } finally { await app.close(); }
 });
+
+test("pending sequences preserve Escape, Tab and system shortcuts", async () => {
+  const app = await mount(false, (_state, storage) => {
+    const custom = structuredClone(defaults);
+    custom.shortcuts.privacy = { prefix: "z", key: "p" };
+    storage.setItem("emc2.interaction.v1", JSON.stringify(custom));
+  });
+  try {
+    await app.open("a:1");
+    await app.key("g"); await app.key("Escape");
+    assert.equal(app.title(), undefined, "Escape closes the reader after a prefix");
+    for (const options of [{ key: "Tab" }, { key: "c", metaKey: true }]) {
+      await app.key("g");
+      const event = new app.window.KeyboardEvent("keydown", { ...options, bubbles: true, cancelable: true });
+      const control = app.container.querySelector<HTMLButtonElement>(".commands-button")!;
+      await act(async () => control.dispatchEvent(event));
+      assert.equal(event.defaultPrevented, false, `${options.key} keeps native behavior`);
+    }
+    await app.key(",");
+    await app.key("z"); await app.key("Escape");
+    assert.equal(app.container.querySelector(".settings"), null);
+  } finally { await app.close(); }
+});

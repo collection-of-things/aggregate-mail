@@ -864,7 +864,7 @@ export function App() {
       const sequenceScope = !toolbarBlocked && !editing && !element?.closest('[role="menu"]') &&
         (!dialog || compose && dialog.matches(".compose-dialog") || settings && dialog.matches(".settings-dialog"));
       // Invalid sequences never fall through to mutations, while editors keep their keys.
-      if (sequence && !action && sequenceScope) { event.preventDefault(); return; }
+      if (sequence && !action && sequenceScope && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); return; }
       const prefixKey = event.key.toLowerCase();
       const allowedSequences = settings ? ["search", "privacy", "back", "forward", "settings"] :
         compose ? ["search", "privacy", "back", "forward", "settings", "help", "compose"] : null;

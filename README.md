@@ -257,7 +257,7 @@ New preferences use Gmail shortcuts for supported actions. Existing saved bindin
 | `,` | Settings |
 | `?` | Shortcut list |
 
-Settings, Interaction lets you customize each action with a single key or a two-letter sequence. Focus a binding to record a single key, or choose Sequence and press two letters. Conflicting keys and sequence prefixes are rejected. Sequences must finish within 1.5 seconds and cancel on focus changes, dialogs, editing or an invalid second key. Reset interaction defaults applies the Gmail defaults. Unsupported Gmail actions, such as mute and spam, are not added. Pin stays local to this app.
+Settings, Interaction lets you customize each action with a single key or a two-letter sequence. Focus a binding to record a single key, or choose Sequence and press two letters. Conflicting keys and sequence prefixes are rejected. Sequences must finish within 1.5 seconds and cancel on focus changes, dialogs, editing or an invalid printable second key. Reset interaction defaults applies the Gmail defaults. Unsupported Gmail actions, such as mute and spam, are not added. Pin stays local to this app.
 
 Click selects a row; double-click opens it by default. Settings, Interaction can enable single-click opening and turn mouse side-button navigation on or off. Right-click opens mail actions; hover or focus reveals row actions. Alt+Left/Right go back and forward; macOS also supports Command+[ and Command+], including browser sessions. Tab moves focus on controls; on the page body it moves to the next Inbox category. Editing fields and dialogs retain their own keys.
 

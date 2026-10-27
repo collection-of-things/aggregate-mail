@@ -18,7 +18,7 @@ filter and Teach alias reservations. Enter remains an opening alias when the
 default O binding is active and Enter is not assigned to another action.
 
 Expire sequences after 1.5 seconds. Clear pending state on focus changes,
-window blur, composition, repeats and blocked interactions. An invalid second
+window blur, composition, repeats and blocked interactions. An invalid printable second
 key consumes the sequence without dispatching a mail mutation. Editors, dialogs
 and compose guards retain their existing ownership. Mail operations reuse their
 existing eligibility checks and never send automatically.
