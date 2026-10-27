@@ -40,7 +40,11 @@ Record blockers and confirm updates were saved. Report failed updates.
 
 Use the matching [issue template](.github/ISSUE_TEMPLATE/) for web, CLI and
 API submissions. Keep its sections and fill required fields. Mark fields
-that do not apply; do not invent evidence. Apply one type label:
+that do not apply; do not invent evidence. State the problem, expected result,
+scope, observable acceptance criteria and planned verification so a contributor
+or agent can act on the issue. Use Unknown for details that need investigation.
+Keep planned checks separate from observed evidence; completed checks identify
+the command or target, result and version or revision. Apply one type label:
 
 | Label | Use for |
 | --- | --- |

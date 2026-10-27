@@ -1,36 +1,45 @@
 name: Bug report
-description: Something in Emc² does not work as documented.
+description: Report a problem with steps and an expected result.
 title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the report. Emc² handles real mail, so remove mail content,
-        addresses, account names and local paths from anything you paste.
+        Remove mail content, addresses, account names, credentials and local paths.
+        Report vulnerabilities through [SECURITY.md](https://github.com/collection-of-things/aggregate-mail/blob/main/SECURITY.md).
+        Write Unknown for details you cannot establish.
   - type: textarea
     id: what-happened
     attributes:
-      label: What happened
-      description: What you did, what you saw, and what you expected instead.
+      label: Problem
+      description: What did you do, and what happened?
+    validations:
+      required: true
+  - type: textarea
+    id: expected-result
+    attributes:
+      label: Expected result
+      description: What should have happened instead?
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Steps to reproduce
+      label: Reproduction steps
+      description: Give the smallest sequence and inputs that trigger the problem. Use synthetic data.
       placeholder: |
         1. Open ...
         2. Select ...
-        3. See ...
+        3. Observe ...
     validations:
       required: true
   - type: input
     id: version
     attributes:
       label: Emc² version
-      description: Settings → About, or the name of the installer you ran.
-      placeholder: "0.1.4"
+      description: Use Settings → About or the installer name. Include the commit for a source build if known.
+      placeholder: x.y.z or Unknown
     validations:
       required: true
   - type: dropdown
@@ -43,9 +52,43 @@ body:
         - macOS (Apple silicon)
         - macOS (Intel)
         - Linux
-        - Built from source
+        - Android
+        - iOS or iPadOS (browser)
+        - Other
+        - Unknown
     validations:
       required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: App surface
+      options:
+        - Desktop app
+        - Browser or phone access
+        - Android app
+        - CLI or MCP
+        - Unknown
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options:
+        - Published installer or package
+        - Built from source
+        - Not applicable (browser access)
+        - Other
+        - Unknown
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS and browser versions
+      description: Include the browser version for browser or phone access. Write Unknown if needed.
+    validations:
+      required: false
   - type: dropdown
     id: provider
     attributes:
@@ -58,20 +101,42 @@ body:
         - Fastmail
         - Yahoo Mail
         - IMAP
+        - Unknown
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Name the affected workflow and behavior that must stay unchanged. File paths are optional; write Unknown if needed.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable conditions that would prove the bug is fixed. Refer to Expected result if it fully defines them.
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Verification plan
+      description: Name checks or manual steps to run. Write Unknown if the checks need investigation; do not claim planned checks passed.
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
-      label: Logs or screenshots
-      description: Redacted output, a screenshot, or nothing.
+      label: Evidence
+      description: Optional redacted output or screenshots. For checks already run, include the command or target, result and version or revision.
     validations:
       required: false
   - type: textarea
     id: related-work
     attributes:
-      label: Related issues or pull requests
-      description: Link relevant open or closed work, or state that you searched by problem and affected area.
+      label: Related work
+      description: Link relevant issues, PRs and dependencies, or state what you searched.
     validations:
       required: true
   - type: checkboxes
@@ -79,7 +144,7 @@ body:
     attributes:
       label: Before submitting
       options:
-        - label: I removed mail content, addresses, account names and local paths from this report.
+        - label: I removed mail content, addresses, account names, credentials and local paths from this report.
           required: true
         - label: This is not a security vulnerability. I will report those privately instead.
           required: true
