@@ -1,3 +1,5 @@
+import { ScheduleTime } from "./ScheduleTime";
+import { followUpPreset } from "../../shared/follow-up-presets";
 import { RichBody } from "./RichBody";
 import { useContext, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { Account, Mail } from "../../shared/types";
@@ -23,7 +25,7 @@ export async function sendCompose(
   { lock, prepare, send, complete, reload, setDraft, setBusy, setNotice, confirm, uncertain }: {
     lock: { current: boolean };
     prepare: () => Promise<void>;
-    send: (draft: Compose) => Promise<{ ok?: boolean; queued?: boolean; warning?: string }>;
+    send: (draft: Compose) => Promise<{ ok?: boolean; queued?: boolean; scheduled?: boolean; warning?: string }>;
     uncertain?: () => void;
     complete: () => Promise<void>;
     reload: () => Promise<unknown>;
@@ -48,7 +50,7 @@ export async function sendCompose(
       setNotice("Draft save could not be confirmed. No send was attempted. Keep this window open and check the draft save status.");
       return;
     }
-    let result: { warning?: string; queued?: boolean };
+    let result: { warning?: string; queued?: boolean; scheduled?: boolean };
     try {
       const accepted = await send(draft);
       if (accepted.ok !== true && accepted.queued !== true) throw new Error("Unconfirmed send");
@@ -61,7 +63,7 @@ export async function sendCompose(
     }
     if (result.queued) {
       setDraft(null);
-      setNotice("Email queued on this device. Use Undo in the Outbox before submission.");
+      setNotice(result.scheduled ? "Email scheduled on this device. Open Scheduled from Commands to review it." : "Email queued on this device. Use Undo in the Outbox before submission.");
       try { await reload(); } catch { setNotice("Email queued. Inbox refresh failed. Review the Outbox before sending again."); }
       return;
     }
@@ -111,12 +113,13 @@ export function ComposePanel({
   onRetry: () => void;
   onSaveCopy: () => void;
   progress: DraftProgress;
-  onSend: () => void;
+  onSend: (scheduleAt?: number) => void;
   preferences?: ComposePreferences;
   onUndoDelay?: (seconds: NonNullable<ComposePreferences["undoSendSeconds"]>) => void;
   onAttachmentTask?: (task: Promise<void>) => void;
 }) {
   const { on: privacy } = useContext(PrivacyContext);
+  const [scheduleAt, setScheduleAt] = useState<number | undefined>();
   const sourceKey = useMemo(() => mailBodyKey(source), [source]);
   const footerActions = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -196,7 +199,7 @@ export function ComposePanel({
           e.preventDefault();
           if (!e.currentTarget.reportValidity()) return;
           if (!draft.body) { e.currentTarget.querySelector<HTMLElement>('[aria-label="Message body"]')?.focus(); return; }
-          onSend();
+          onSend(scheduleAt);
         }}
       >
         <div className="compose-scroll">
@@ -273,6 +276,7 @@ export function ComposePanel({
         )}
         </div>
         <div className="compose-footer">
+          {scheduleAt !== undefined && <ScheduleTime at={scheduleAt} onChange={setScheduleAt} disabled={busy || loadingFiles} />}
           {progress.phase === "error" && (
             <div className="draft-recovery-actions">
               <button type="button" disabled={busy || loadingFiles} onClick={onRetry}>Retry save</button>
@@ -282,8 +286,9 @@ export function ComposePanel({
           <div className="compose-actions" ref={footerActions}>
             <button type="button" disabled={busy || loadingFiles} onClick={onClose}>Keep draft</button>
             <p className={`compose-save-status${progress.phase === "error" ? " save-error" : ""}`} role="status">{progress.message}</p>
+            <button type="button" disabled={busy || loadingFiles} onClick={() => setScheduleAt(scheduleAt === undefined ? followUpPreset("tomorrow", Date.now()) : undefined)}>{scheduleAt === undefined ? "Send later" : "Cancel scheduling"}</button>
             <button className="button primary-button compose-send" disabled={busy || loadingFiles || progress.phase === "error"} type="submit">
-              {busy ? "Please wait" : "Send"}
+              {busy ? "Please wait" : scheduleAt === undefined ? "Send" : "Schedule send"}
             </button>
           </div>
 

@@ -168,6 +168,8 @@ await build({
             return Buffer.concat([iv, cipher.getAuthTag(), bytes]);
           }
         };
+        export const net = { isOnline: () => true };
+        export const powerMonitor = { on(event, callback) { if (config.scheduledPower) callback(); } };
         export const dialog = {
           showErrorBox(_title, message) { console.error('dialog:' + message); },
           showMessageBoxSync(options) { if (options.message === 'Pending mail has not been sent.') { audit('outbox:prompt'); return config.outboxQuitCase === 'accept' ? 1 : 0; } prompts++; return config.chromeCase === 'accept' || config.quitShortcutCase === 'accept' || config.opencodeReplace === 'accept' ? 1 : 0; }
@@ -414,6 +416,7 @@ await build({
         }
         const config = JSON.parse(process.env.TEST_STARTUP);
         const audit = value => { if (config.audit) appendFileSync(config.audit, JSON.stringify({helper:false, value}) + '\\n'); };
+        export function setOutboxOnlineCheck(check) { if (!check()) throw Error('Synthetic online signal missing'); }
         export function holdPendingOutbox() { audit('outbox:held'); return config.outboxQuitCase ? 1 : 0; }
         export async function quiesceMail() { audit('outbox:draining'); await new Promise(resolve => setTimeout(resolve, 10)); audit('outbox:drained'); }
         export function resumeMail() { audit('outbox:resumed'); }
@@ -1031,5 +1034,14 @@ for (const outboxQuitCase of ["cancel", "accept"]) test(`ordinary quit holds pen
     assert.ok(events.indexOf("outbox:prompt") < events.indexOf("outbox:draining"));
     assert.ok(events.includes("outbox:drained"));
   } else assert.equal(events.includes("outbox:draining"), false);
+  preserved(current.profile, current);
+});
+
+test("native suspend and resume hold scheduled mail before dispatch", () => {
+  const current = fixture("Emc²"), audit = path.join(current.appData, "scheduled-power-audit");
+  const result = launch(current.appData, { scheduledPower: true, audit });
+  assert.equal(result.status, 0, result.stderr);
+  const events = readFileSync(audit, "utf8").trim().split("\n").map(line => JSON.parse(line).value);
+  assert.equal(events.filter(value => value === "outbox:held").length, 2);
   preserved(current.profile, current);
 });

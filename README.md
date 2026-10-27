@@ -99,7 +99,9 @@ Undo send holds outgoing mail in an encrypted local outbox for 10 seconds by
 default. Change the delay in the composer's Undo delay control. Undo restores the exact draft
 before submission. Emc² must be running to send. Restarted pending mail needs
 review, and unknown outcomes are never retried automatically. There is no recall
-after provider acceptance.
+after provider acceptance. Send later adds local scheduling while Emc² is running
+and online. Open Scheduled from Commands to edit, cancel or reschedule. Restart,
+sleep and missed offline schedules require review before sending.
 
 ## Contents
 

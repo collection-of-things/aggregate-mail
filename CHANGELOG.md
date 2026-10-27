@@ -8,6 +8,8 @@ unversioned history without treating it as a release record.
 
 ### Added
 
+- Schedule sends for tomorrow morning, Monday morning or a custom local time. Review, edit, cancel or reschedule them in Scheduled; missed or uncertain sends are never retried automatically ([#60](https://github.com/collection-of-things/aggregate-mail/issues/60)).
+
 - Add Undo send with an encrypted outbox and a composer delay control. Recover pending mail for review after restart or sleep; never retry an uncertain submission automatically ([#55](https://github.com/collection-of-things/aggregate-mail/issues/55)).
 - Forward cached mail as plain text, address multiple To recipients and add Bcc, with encrypted draft recovery and explicit attachment omissions ([#51](https://github.com/collection-of-things/aggregate-mail/issues/51)).
 

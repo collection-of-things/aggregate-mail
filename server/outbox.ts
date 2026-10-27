@@ -1,4 +1,5 @@
 import { readDraft } from "./drafts.js";
+import { networkInterfaces } from "node:os";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
@@ -12,6 +13,7 @@ export const outboxRequest = z.object({
   payload: z.unknown(),
   sourceDraftId: z.uuid(),
   sourceRevision: z.number().int().positive(),
+  scheduleAt: z.number().int().positive().optional(),
 }).strict();
 export function outboxStatuses(): OutboxStatus[] {
   return all("outbox").sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)).map(({ payload: _payload, draft: _draft, ...status }) => status);
@@ -34,7 +36,8 @@ export class Outbox {
   private timer?: ReturnType<typeof setInterval>;
   private previousTick: number;
   constructor(private changed: () => void = () => {}, private now = Date.now,
-    private deliver: typeof sendMail = sendMail) { this.previousTick = now(); }
+    private deliver: typeof sendMail = sendMail,
+    private online = () => Object.values(networkInterfaces()).some(entries => entries?.some(entry => !entry.internal))) { this.previousTick = now(); }
   recover() {
     transaction(() => {
       for (const entry of all("outbox")) {
@@ -47,13 +50,17 @@ export class Outbox {
     this.recover();
     this.previousTick = this.now();
     this.timer = setInterval(() => {
-      // A suspended process must not silently send a missed deadline on wake.
-      const now = this.now();
-      if (now - this.previousTick > 2000 || now < this.previousTick) this.hold();
-      this.previousTick = now;
-      void this.dispatchDue().catch(() => this.hold());
+      void this.tick().catch(() => this.hold());
     }, 250);
     this.timer.unref();
+  }
+  setOnlineCheck(check: () => boolean) { this.online = check; }
+  async tick() {
+    // A suspended process must not silently send a missed deadline on wake.
+    const now = this.now();
+    if (now - this.previousTick > 2000 || now < this.previousTick) this.hold();
+    this.previousTick = now;
+    await this.dispatchDue();
   }
   close() { clearInterval(this.timer); this.hold(); }
   hold(): number {
@@ -73,7 +80,7 @@ export class Outbox {
     const entry = transaction(() => {
       const existing = all("outbox").find(entry => entry.sourceDraftId === request.sourceDraftId && entry.sourceRevision === request.sourceRevision);
       if (existing) {
-        if (!isDeepStrictEqual(existing.payload, payload)) throw new Error("This draft revision already has a different send attempt.");
+        if (!isDeepStrictEqual(existing.payload, payload) || existing.scheduledFor !== request.scheduleAt) throw new Error("This draft revision already has a different send attempt.");
         return existing;
       }
       if (all("outbox").filter(entry => entry.accountId === payload.accountId).length >= 100)
@@ -85,10 +92,12 @@ export class Outbox {
       if (!isDeepStrictEqual(expected, payload)) throw new Error("Send must match the saved draft.");
       if (all("outbox").some(entry => entry.sourceDraftId === draft.id)) throw new Error("Review this draft's existing outbox entry first.");
       const now = this.now();
+      if (request.scheduleAt !== undefined) this.requireFuture(request.scheduleAt);
       const delay = get("compose", "preferences")?.undoSendSeconds ?? 10;
       const entry: OutboxRecord = { id: randomUUID(), accountId: payload.accountId,
         sourceDraftId: draft.id, sourceRevision: draft.revision, payload, draft,
-        state: "pending", review: false, createdAt: now, updatedAt: now, dueAt: now + delay * 1000 };
+        state: "pending", review: false, createdAt: now, updatedAt: now, dueAt: request.scheduleAt ?? now + delay * 1000,
+        ...(request.scheduleAt !== undefined ? { scheduledFor: request.scheduleAt } : {}) };
       put("outbox", entry.id, entry);
       return entry;
     });
@@ -96,11 +105,29 @@ export class Outbox {
     const { payload: _payload, draft: _draft, ...status } = entry;
     return status;
   }
+  private requireFuture(at: number) {
+    if (!Number.isSafeInteger(at) || at <= this.now() || at > this.now() + 366 * 86400000)
+      throw new Error("Choose a future time within one year.");
+  }
+  reschedule(id: string, at: number) {
+    assertMailAvailable();
+    this.requireFuture(at);
+    const entry = requireOutbox(id);
+    if (entry.state !== "pending") throw new Error("Only pending mail can be rescheduled. Check uncertain outcomes with your provider.");
+    if (entry.scheduledFor === undefined) throw new Error("Only scheduled mail can be rescheduled.");
+    put("outbox", id, { ...entry, scheduledFor: at, dueAt: at, review: false, updatedAt: this.now() });
+    this.changed();
+  }
   async dispatchDue() {
     if (mailIsQuiesced()) return;
     for (const entry of all("outbox")) {
       const latest = get("outbox", entry.id);
-      if (latest?.state === "pending" && !latest.review && latest.dueAt <= this.now()) await this.submit(entry.id);
+      if (latest?.state === "pending" && !latest.review && latest.dueAt <= this.now()) {
+        if (latest.scheduledFor !== undefined && !this.online()) {
+          put("outbox", latest.id, { ...latest, review: true, updatedAt: this.now() });
+          this.changed();
+        } else await this.submit(entry.id);
+      }
     }
   }
   submit(id: string) { return trackMailWork(() => this.attempt(id)); }
