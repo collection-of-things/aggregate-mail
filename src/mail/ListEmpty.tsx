@@ -1,7 +1,7 @@
 import { ArrowRight } from "../ui/icons";
 
 /** What an empty mail list says: loading, no accounts, no matches or nothing in this view. */
-export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, syncing, searchPending = false, includesDrafts = false, onConnect, onReset, onSync }: {
+export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, syncing, searchPending = false, includesDrafts = false, loadError, onRetry, onConnect, onReset, onSync }: {
   loaded: boolean;
   hasAccounts: boolean;
   filtered: boolean;
@@ -10,6 +10,8 @@ export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, sync
   syncing: boolean;
   searchPending?: boolean;
   includesDrafts?: boolean;
+  loadError?: string;
+  onRetry?: () => void;
   onConnect: () => void;
   onReset: () => void;
   onSync: () => void;
@@ -19,6 +21,7 @@ export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, sync
       <p className="empty-title">
         {!loaded ? "Loading" : !hasAccounts ? "No accounts connected" : searchPending ? "Searching cached mail" : filtered ? includesDrafts ? "No matching mail or saved drafts" : "No matching mail" : title}
       </p>
+      {!loaded && loadError && <><p>{loadError}</p><button type="button" className="link" onClick={onRetry}>Retry loading mail</button></>}
       {loaded &&
         (!hasAccounts ? (
           <button className="link" onClick={onConnect}>

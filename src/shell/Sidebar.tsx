@@ -46,8 +46,8 @@ export function Sidebar({
   mail: {
     view: View;
     onView: (view: View) => void;
-    inboxCount: number;
-    snoozedCount: number;
+    inboxCount?: number;
+    snoozedCount?: number;
     dueCount?: number;
     accounts: Account[];
     accountFilter: string;
@@ -112,7 +112,7 @@ export function Sidebar({
             <Heading id={group} folded={folded.has(group)} onFold={fold}>{group === "workspace" ? "Workspace" : "Mail"}</Heading>
             {!folded.has(group) && sidebarViews.filter(({ view }) => ["actions", "calendar", "projects", "agents"].includes(view) === (group === "workspace")).map(({ view, Icon }) => {
               const total = view === "actions" ? mail.dueCount ?? null : view === "snoozed" ? mail.snoozedCount : view === "inbox" ? mail.inboxCount : null;
-              if (view === "snoozed" && !total && mail.view !== "snoozed") return null;
+              if (view === "snoozed" && total === 0 && mail.view !== "snoozed") return null;
               return (
                 <button
                   key={view}
@@ -123,7 +123,7 @@ export function Sidebar({
                 >
                   <Icon color="currentColor" size={16} />
                   {viewNames[view]}
-                  {view === "actions" && mail.dueCount === undefined ? <span className="sidebar-count" aria-hidden="true">?</span> : total !== null && <span className="sidebar-count">{total}</span>}
+                  {view === "actions" && mail.dueCount === undefined ? <span className="sidebar-count" aria-hidden="true">?</span> : total != null && <span className="sidebar-count">{total}</span>}
                 </button>
               );
             })}

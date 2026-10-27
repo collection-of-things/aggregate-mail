@@ -377,5 +377,5 @@ test("fallback warning collapses across mail and Settings and remains reopenable
   await render(<App />);
   await act(async () => { const inbox = [...container.querySelectorAll<HTMLButtonElement>(".sidebar button")].find((button) => button.textContent?.trim().startsWith("Inbox")); inbox?.click(); });
   assert.ok(container.querySelector('.list-pane .credential-fallback-notice[role="alert"]'));
-  assert.ok(api.calls.every((call) => ["GET /api/state", "GET /api/workspace"].includes(call)), "No account or provider mutation");
+  assert.ok(api.calls.every((call) => ["GET /api/bootstrap", "GET /api/state", "GET /api/workspace"].includes(call)), "No account or provider mutation");
 }));
