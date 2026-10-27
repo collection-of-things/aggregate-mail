@@ -1,7 +1,9 @@
 import { ArrowRight } from "../ui/icons";
 
 /** What an empty mail list says: loading, no accounts, no matches or nothing in this view. */
-export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, syncing, searchPending = false, includesDrafts = false, loadError, onRetry, onConnect, onReset, onSync }: {
+export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, syncing, searchPending = false, includesDrafts = false, loadError, onRetry, onConnect, onReset, onSync, onWiden, widenLabel }: {
+  onWiden?: () => void;
+  widenLabel?: string;
   loaded: boolean;
   hasAccounts: boolean;
   filtered: boolean;
@@ -32,6 +34,7 @@ export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, sync
         ) : filtered ? (
           <>
             <p>No cached mail{includesDrafts ? " or saved drafts" : ""} matches these controls in {viewName}.</p>
+            {onWiden && <button type="button" className="link" onClick={onWiden}>{widenLabel}</button>}
             <button type="button" className="link" onClick={onReset}>Reset filters and sort</button>
           </>
         ) : (

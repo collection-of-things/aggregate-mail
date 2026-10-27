@@ -872,7 +872,7 @@ test("mounted cached-mail controls combine filters, retain the read-on-open read
     assert.equal(app.button("Sort mail").textContent, "Oldest");
     await app.click(app.forward());
     assert.equal(app.title(), undefined);
-    const reset = app.container.querySelector<HTMLButtonElement>(".empty button")!;
+    const reset = app.button("Reset filters and sort");
     assert.equal(reset.textContent, "Reset filters and sort");
     await app.click(reset);
     assert.deepEqual(rows(), ["mail-a:3", "mail-b:1", "mail-a:1", "mail-a:2"]);
@@ -2708,4 +2708,27 @@ test("Forward admits only one request before React renders", async () => {
     assert.equal(app.requests.filter(url => url.endsWith("/forward")).length, 1);
     await act(async () => { release(); await wait; });
   } finally { release(); globalThis.fetch = originalFetch; await app.close(); }
+});
+
+test("search widening preserves query and account and Back restores exact filters", async () => {
+  const app = await mount();
+  try {
+    await app.input(app.container.querySelector<HTMLInputElement>(".search input")!, "Alpha");
+    await app.click(app.account("first@example.com"));
+    await app.choose("Read status", "Unread");
+    await app.choose("Relevance filter", "High relevance");
+    await app.choose("Sort mail", "Oldest");
+    await app.click(app.button("Filters"));
+    const help = () => app.container.querySelector("#mail-search-help")!;
+    assert.match(help().textContent!, /Unread.*High relevance.*Oldest first/);
+    assert.equal(help().getAttribute("role"), "status");
+    await app.click(app.button("Search all cached mail in this account"));
+    assert.equal(app.container.querySelector<HTMLInputElement>(".search input")!.value, "Alpha");
+    assert.equal(app.activeAccount(), "first@example.com");
+    assert.match(help().textContent!, /1 mail results.*All read states.*All relevance.*Oldest first/);
+    await app.click(app.back());
+    assert.match(help().textContent!, /0 mail results.*Unread.*High relevance.*Oldest first/);
+    assert.ok(app.button("Search all cached mail in this account"));
+    assert.equal(app.mutations.length, 0);
+  } finally { await app.close(); }
 });

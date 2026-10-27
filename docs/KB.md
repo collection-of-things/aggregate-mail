@@ -2533,6 +2533,15 @@ plaintext search storage or preference changes are introduced. See
 
 ## Global cached-mail and draft search
 
+The search status names the cached view, account, read state, relevance, label,
+sort and saved-draft coverage, and announces result counts. Account and label
+text use existing privacy masking. Empty filtered searches offer an explicit
+widen action that keeps the query, account and sort, clears only narrowing
+filters and opens All cached. Back restores the prior scope. Reset filters and
+sort remains separate. Widening reads cached results only; it never requests
+provider history. Synthetic coverage: `src/mail-search-scope.test.tsx` and the
+search-widening case in `src/navigation.test.tsx`.
+
 The toolbar owns immediate input text and commits result updates after a 120ms
 pause. Navigation, disabling and unmount cancel pending input; Clear and Escape
 cancel it immediately. The search hook reuses equivalent source identities and

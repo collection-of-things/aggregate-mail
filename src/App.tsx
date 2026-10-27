@@ -1,5 +1,6 @@
 import { OutboxNotices } from "./compose/OutboxNotices";
 import type { LocalMailUndo, LocalMailActionResponse } from "../shared/local-mail-undo";
+import { mailSearchScope, widenMailSearch } from "./mail-search-scope";
 import { SearchToolbar } from "./shell/SearchToolbar";
 import { mailNotice } from "../shared/notifications";
 import { readNotifications, saveNotifications } from "./notifications";
@@ -1423,7 +1424,7 @@ export function App() {
               <div className="update-spacer" aria-hidden="true" />
             </PaneHeader>
             <div hidden={!searching || settings || workView} className="search-help">
-              <span id="mail-search-help" role={search.error ? "alert" : search.pending ? "status" : undefined}>{search.error || (search.pending ? "Searching cached mail and saved drafts…" : `Cached ${viewNames[view]} · ${accountFilter === "all" ? "All accounts" : !state.accounts.some(a => a.id === accountFilter) ? "Unavailable account" : accountLabel(state.accounts.find(a => a.id === accountFilter)!, state.accounts.findIndex(a => a.id === accountFilter), privacy, state.accounts)}${showSearchDrafts ? " · Includes saved drafts" : " · Mail only"}${readFilter !== "all" || relevanceFilter !== "all" || labelFilter !== "all" ? " · Filtered" : ""}`)}</span>
+              <span id="mail-search-help" role={search.error ? "alert" : "status"} aria-live="polite" aria-atomic="true">{search.error || (search.pending ? "Searching cached mail and saved drafts…" : `${filtered.length} mail results${showSearchDrafts ? `, ${search.drafts.filter(draft => accountFilter === "all" || draft.accountId === accountFilter).length} saved drafts` : ""}. ${mailSearchScope(navigation.location, state.accounts, activeLabel, privacy, showSearchDrafts)}`)}</span>
               <ProviderSearch api={api} query={query} account={searchAccount} accountName={searchAccount ? accountLabel(searchAccount, state.accounts.indexOf(searchAccount), privacy, state.accounts) : ""} blocked={toolbarBlocked || busy} visible={!settings && !workView && view !== "drafts" && !search.error && !search.pending} reload={reload} />
               <details><summary>Search help</summary><p>Use from:, to:, subject:, body:, account:, is:unread, is:pinned, before:YYYY-MM-DD or after:YYYY-MM-DD. Unquoted words allow one typo. Searches imported mail and saved drafts on this device, including Sent, Archive and Snoozed. Provider history may be incomplete. With one account selected, searching older mail asks the provider for up to 100 more matches: Gmail uses Gmail search, IMAP searches Archive (or All Mail) and Sent, and account: and is:pinned apply only on this device.</p></details>
             </div>
@@ -1503,6 +1504,8 @@ export function App() {
                     viewName={viewNames[view]}
                     syncing={syncing}
                     onConnect={() => setConnecting("choose")}
+                    onWiden={query.trim() && (view !== "all" || labelFilter !== "all" || readFilter !== "all" || relevanceFilter !== "all") ? () => navigate(widenMailSearch()) : undefined}
+                    widenLabel={accountFilter === "all" ? "Search all cached mail across all accounts" : "Search all cached mail in this account"}
                     onReset={resetListControls}
                     onSync={() => void sync()}
                   />
