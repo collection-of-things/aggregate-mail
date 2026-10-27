@@ -10,18 +10,15 @@ task. Report vulnerabilities privately via
 
 1. Find the canonical upstream from metadata and remotes; a fork's `origin`
    may not be it. If you cannot inspect upstream, stop and report the gap.
-2. Before creating any issue or PR, search upstream open and closed issues
-   and PRs by problem, area and related terms. Read matching discussions,
-   assignees, linked PRs and changed files. Record the search terms and
-   relevant matches, or that none were found, in the task record. If the
-   search is unavailable or incomplete, stop creation and report the gap.
-3. Reuse a matching active issue or PR with its owner's agreement instead of
-   creating a duplicate. For closed matches, check the resolution before
-   proposing new work. Do not reopen rejected work or repeat a completed fix.
-4. Create a new issue only when no existing issue covers the task. A small
-   isolated docs fix may use its PR as the record. Before opening a PR,
-   confirm no existing PR covers the change and link the existing issue when
-   one covers the task.
+2. Before creating an issue or PR, search open and closed upstream issues
+   and PRs for the same problem or change. Read matching discussions and
+   check ownership. Record matches or that none were found. If the search
+   cannot be completed, stop creation and report the gap.
+3. Reuse matching work with its owner's agreement. Do not create duplicates,
+   reopen rejected work or repeat a completed fix.
+4. Create a new issue only if none covers the task. A small isolated docs fix
+   may use its PR as the record. Link an existing issue from a new PR, and
+   confirm no existing PR covers the change.
 5. In that one issue or PR, record scope, owned paths, base and feature branch,
    owner, linked PR, required checks and status.
 6. Before editing, resuming or pushing, confirm the current owner. Get the
@@ -34,32 +31,16 @@ task. Report vulnerabilities privately via
 
 ## Keep git.cafe task state current
 
-Contributors using git.cafe, including people and agents, must update the
-issue's State when work starts, pauses, resumes, finishes or is canceled.
-Check the current state and owner before each transition. Use these states:
-
-| State | Use when |
-| --- | --- |
-| Triage | The report needs assessment or a scope decision. |
-| Backlog | The task is accepted but deferred. |
-| Todo | The task is ready to start and no one is actively working on it. |
-| In progress | Work has started, including verification and pending review or merge. |
-| Done | Required verification and acceptance passed, and the change is merged when merge is part of the task. |
-| Canceled | The owner or maintainer canceled the task or confirmed it is a duplicate. Link the retained task for duplicates. |
-
-On a pause, use Todo if the task remains ready, Backlog if deferred, or Triage
-if it needs reassessment. For a blocker or pending review, record the reason
-and next action in the task record; do not mark incomplete work Done.
-After a state update, read it back to confirm it was saved. If access or the
-update fails, report the gap and required transition without claiming success.
+Anyone using git.cafe must keep the issue's State current. Set In progress
+when work starts and Done only after required checks and acceptance, including
+merge when required. Update State when work pauses, resumes or is canceled.
+Record blockers and confirm updates were saved. Report failed updates.
 
 ## Issues and labels
 
-Before filing an issue, read the matching template in
-[.github/ISSUE_TEMPLATE/](.github/ISSUE_TEMPLATE/) and fill every required
-field. This applies to web, CLI and API creation. Preserve the template's
-sections in a CLI or API body. State when a field does not apply; do not
-invent evidence. Apply one type label:
+Use the matching [issue template](.github/ISSUE_TEMPLATE/) for web, CLI and
+API submissions. Keep its sections and fill required fields. Mark fields
+that do not apply; do not invent evidence. Apply one type label:
 
 | Label | Use for |
 | --- | --- |
@@ -199,14 +180,18 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
 
 ## Pull requests
 
-- Before filing a PR, read [the PR template](.github/PULL_REQUEST_TEMPLATE.md)
-  and fill its task record, ownership, verification and review sections.
-  Preserve its headings and checklist in web, CLI and API bodies. State when
-  a field does not apply or proof is unavailable. Check a box only when its
-  condition is verified.
+- Use [the PR template](.github/PULL_REQUEST_TEMPLATE.md) for web, CLI and API
+  submissions. Keep its headings and checklist, fill the fields, and mark
+  missing proof or fields that do not apply. Check only verified items.
 - Explain the problem, resulting behavior and checks; include repro steps for
   bugs and list remaining proof gaps.
 - Keep the diff in the agreed scope; use synthetic data in captures.
+- Whoever merges must first fetch the latest target branch and rebase the PR
+  branch onto it. Resolve conflicts and push the updated branch before merging.
+- All required checks must pass on the updated revision, including documented
+  local checks when hosted CI is absent. Do not merge with failed, pending,
+  missing or stale required results. If the target branch advances, update
+  again and refresh affected verification and review.
 - Before merge, a reviewer other than the author reviews the current base,
-  head and full diff. Required checks and approvals pass; blocking feedback is
+  head and full diff. Required approvals must be current and blocking feedback
   resolved. Assignment is not approval or merge authority.

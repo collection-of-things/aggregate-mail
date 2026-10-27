@@ -6,19 +6,11 @@ pull requests are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Start every task
 
-1. Read this file and [SKILLS.md](SKILLS.md). Select the procedures whose
-   triggers match the task before editing or running checks.
-2. Read [CONTRIBUTING.md](CONTRIBUTING.md) for ownership, setup, verification
-   and delivery rules. Before creating an issue or PR, complete its
-   [existing-work search](CONTRIBUTING.md#coordinate-before-starting).
-   Follow any instructions in the target directory too.
-3. State the objective, owned paths, preserved behavior and completion proof.
-   Inspect the branch, HEAD and working tree; preserve unrelated changes.
-4. Read the area-specific sources below. If instructions conflict or required
-   authority is missing, stop the affected action and report the gap.
-
-`SKILLS.md` contains project procedures, not additional permission. Follow
-explicit task limits on editing, verification and delivery.
+- Read [SKILLS.md](SKILLS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+- Confirm the task scope and inspect the branch and working tree. Preserve
+  unrelated changes and follow instructions in the target directory.
+- Read the sources for the affected area below. Report conflicting
+  instructions or missing authority before taking the affected action.
 
 ## Read for the affected area
 
@@ -105,9 +97,10 @@ encrypted SQLite. The installed app needs no separate browser, terminal or Node.
   read/archive tools change mailbox state even with sending off.
 - A Sent-copy warning can follow successful delivery. Never retry a send
   because copying to Sent failed.
-- Keep credentials, tokens, mailbox data, personal details, private hostnames,
-  machine paths and session records out of source, fixtures, logs, screenshots,
-  commit metadata, PRs, task records and release attachments.
+- Keep credentials, mailbox data, personal details, private conversation
+  context, personal tooling configuration and reference uploads out of the
+  repository and public task records. This includes private hostnames,
+  machine paths, session records, logs, screenshots and commit metadata.
 - The repository is public. Commit only as a GitHub noreply address
   (`<id>+<login>@users.noreply.github.com`) for author, committer and every
   `Co-authored-by` trailer. Before pushing, run
