@@ -191,7 +191,7 @@ export function compileMailSearch(query: string, accounts: Account[] = []): { ma
   }, matchesDraft: (draft, account) => {
     if (!allowsDrafts || draft.accountId !== account.id) return false;
     const mail: SearchMail = { id: draft.id, accountId: draft.accountId, sender: account.name || "", address: account.email,
-      to: draft.to, cc: draft.cc?.join(", "), subject: draft.subject, preview: "", body: draft.body,
+      to: (Array.isArray(draft.to) ? draft.to : [draft.to]).join(", "), cc: draft.cc?.join(", "), subject: draft.subject, preview: "", body: draft.body,
       date: draft.updatedAt, unread: false };
     // Drafts can be large and contain attachment bytes. Retain summaries only;
     // normalized draft text lives for this one record, outside the mail LRU.

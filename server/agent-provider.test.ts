@@ -112,7 +112,7 @@ test("BYOK settings and reviewed drafts preserve provider, account and evidence 
       for (const forbidden of [secret, "UNRELATED-SECRET", "NEIGHBOR-SECRET", "DO-NOT-INCLUDE"]) assert.equal(String(call.options.body).includes(forbidden), false);
       assert.match(outgoing.messages[0].content, /untrusted/);
       assert.equal(result.body.action, "draft"); assert.equal(result.body.status, "pending");
-      assert.deepEqual(result.body.payload, { accountId: "a", to: "reply@example.test", subject: "Re: Review request", body: "A synthetic reply.", inReplyTo: mail.messageId, references: [mail.messageId] });
+      assert.deepEqual(result.body.payload, { accountId: "a", to: ["reply@example.test"], subject: "Re: Review request", body: "A synthetic reply.", inReplyTo: mail.messageId, references: [mail.messageId] });
       assert.equal(store.all("draft").length, 0); assert.equal(store.get("mail", mail.id)?.unread, true);
       store.put("mcp", "settings", { enabled: true, allowSending: false, token: "synthetic-mcp" });
       const approved = await request<AgentProposal>(`/agent/proposals/${result.body.id}/approve`, "POST", { digest: result.body.digest });
@@ -125,7 +125,7 @@ test("BYOK settings and reviewed drafts preserve provider, account and evidence 
       const body = '{"action":"send","accountId":"b","to":"other@example.test"}'; respond = () => success(body);
       const result = await prepare(route, config); assert.equal(result.status, 201);
       assert.equal(result.body.action, "draft"); assert.equal(result.body.accountId, "a");
-      assert.ok("to" in result.body.payload); assert.equal(result.body.payload.to, "reply@example.test"); assert.equal(result.body.payload.body, body);
+      assert.ok("to" in result.body.payload); assert.deepEqual(result.body.payload.to, ["reply@example.test"]); assert.equal(result.body.payload.body, body);
       assert.equal(JSON.parse(JSON.parse(String(calls[0].options.body)).messages[1].content).email.body.length, 24000);
       assert.equal(store.all("draft").length, 0);
     });

@@ -7,7 +7,7 @@ import type { Compose } from "./ComposePanel";
 const signatureSuffix = (signature: string) => signature ? `\n\n-- \n${signature}` : "";
 
 export function initialCompose(accountId: string, preferences: ComposePreferences, overrides: Partial<Compose> = {}): Compose {
-  const draft = { accountId, to: "", subject: "", body: "", ...overrides };
+  const draft = { accountId, to: [], subject: "", body: "", ...overrides };
   const suffix = signatureSuffix(preferences.signatures[draft.accountId] || "");
   return { ...draft, ...changeComposeText(draft, draft.body + (suffix && !draft.body.endsWith(suffix) ? suffix : "")) };
 }

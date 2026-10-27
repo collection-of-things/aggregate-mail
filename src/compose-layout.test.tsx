@@ -13,7 +13,7 @@ test("composer discloses empty Cc, keeps recovered recipients visible and preser
   const root = createRoot(dom.window.document.getElementById("root")!);
   const document = dom.window.document;
   let retry = 0, copy = 0, close = 0;
-  const draft: Compose = { accountId: "test", to: "to@example.test", subject: "Subject", body: "Message" };
+  const draft: Compose = { accountId: "test", to: ["to@example.test"], subject: "Subject", body: "Message" };
   const render = async (value: Compose, phase: "saved" | "error" = "saved", busy = false, key = "new") => {
     await act(async () => root.render(<ComposePanel key={key} draft={value} setDraft={() => {}}
       accounts={[{ id: "test", email: "from@example.test", provider: "imap" }]} busy={busy}
@@ -21,7 +21,7 @@ test("composer discloses empty Cc, keeps recovered recipients visible and preser
       progress={{ phase, message: phase === "error" ? "Draft could not be saved." : "Draft saved." }} onSend={() => {}} />));
   };
   const button = (text: string) => [...document.querySelectorAll("button")].find((item) => item.textContent === text)!;
-  const cc = () => document.querySelector<HTMLInputElement>('input[type="email"][multiple]');
+  const cc = () => document.querySelector<HTMLInputElement>('input[aria-label="Cc"]');
   try {
     await render(draft);
     assert.equal(document.querySelector('.compose-actions .compose-save-status')?.nextElementSibling?.getAttribute('type'), 'submit');
@@ -34,7 +34,14 @@ test("composer discloses empty Cc, keeps recovered recipients visible and preser
     assert.equal(cc()!.value, "");
     assert.equal(document.querySelector('[aria-label="Add Cc recipients"]'), null);
 
-    await render({ ...draft, inReplyTo: "reply", cc: ["copy@example.test"], sendUnknown: true }, "error", false, "recovered");
+    const bccButton = document.querySelector<HTMLButtonElement>('[aria-label="Add Bcc recipients"]')!;
+    await act(async () => bccButton.click());
+    const bcc = document.querySelector<HTMLInputElement>('input[aria-label="Bcc"]')!;
+    assert.equal(document.activeElement, bcc);
+    assert.equal(bcc.multiple, true);
+    assert.equal(bcc.value, "");
+
+    await render({ ...draft, bcc: ["hidden@example.test"], inReplyTo: "reply", cc: ["copy@example.test"], sendUnknown: true }, "error", false, "recovered");
     assert.equal(document.querySelector('[role="dialog"]')!.getAttribute("aria-label"), "Reply");
     assert.equal(cc()!.value, "copy@example.test");
     assert.match(document.body.textContent!, /Send status unknown/);
@@ -65,7 +72,7 @@ test("reply retains original context and file drops reuse attachment validation 
   const previous = new Map(Object.keys(globals).map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
   for(const[key,value]of Object.entries(globals))Object.defineProperty(globalThis,key,{configurable:true,value});
   const {createRoot}=await import("react-dom/client");const root=createRoot(document.getElementById("root")!);
-  const draft:Compose={accountId:"a",to:"client@example.test",subject:"Reply",body:"My reply",inReplyTo:"<message>"};
+  const draft:Compose={accountId:"a",to: ["client@example.test"],subject:"Reply",body:"My reply",inReplyTo:"<message>"};
   const source = {id:"mail",accountId:"a",sender:"Client",address:"client@example.test",to:"me@example.test",subject:"Original subject",body:"Please confirm the delivery date.",date:1} as import("../shared/types").Mail;
   let changed:Compose|undefined,task:Promise<void>|undefined,sends=0;
   const render=(busy=false)=>act(async()=>root.render(<ComposePanel draft={draft} source={source} setDraft={value=>{changed=value;}} accounts={[{id:"a",email:"me@example.test",provider:"imap"},{id:"b",email:"selected@example.test",provider:"imap"}]} busy={busy} onClose={()=>{}} onDiscard={()=>{}} onRetry={()=>{}} onSaveCopy={()=>{}} progress={{phase:"saved",message:"Saved"}} onSend={()=>{sends++;}} onAttachmentTask={value=>{task=value;}}/>));
@@ -97,7 +104,7 @@ test("composer From hides account addresses in privacy mode", async () => {
   const { PrivacyContext } = await import("./ui/Privacy");
   const root = createRoot(dom.window.document.getElementById("root")!);
   const render = async (on: boolean) => act(async () => root.render(<PrivacyContext.Provider value={{ on, revealed: new Set(), toggle() {} }}>
-    <ComposePanel draft={{ accountId: "test", to: "", subject: "", body: "" }} setDraft={() => {}}
+    <ComposePanel draft={{ accountId: "test", to: [""], subject: "", body: "" }} setDraft={() => {}}
       accounts={[{ id: "test", email: "from@example.test", provider: "imap" }]} busy={false}
       onClose={() => {}} onDiscard={() => {}} onRetry={() => {}} onSaveCopy={() => {}}
       progress={{ phase: "saved", message: "Draft saved." }} onSend={() => {}} />
@@ -138,7 +145,7 @@ test("compose shares its action-row height across the app and cleans up the obse
   const { createRoot } = await import("react-dom/client"); const root = createRoot(document.getElementById("root")!);
   const app = document.querySelector<HTMLElement>(".app")!;
   try {
-    await act(async () => root.render(<ComposePanel draft={{ accountId: "a", to: "", subject: "", body: "" }} setDraft={() => {}}
+    await act(async () => root.render(<ComposePanel draft={{ accountId: "a", to: [""], subject: "", body: "" }} setDraft={() => {}}
       accounts={[{ id: "a", email: "from@example.test", provider: "imap" }]} busy={false} onClose={() => {}} onDiscard={() => {}} onRetry={() => {}} onSaveCopy={() => {}}
       progress={{ phase: "error", message: "Draft could not be saved. Your text is still here." }} onSend={() => {}} />));
     assert.equal(app.style.getPropertyValue("--app-footer-height"), "42px");

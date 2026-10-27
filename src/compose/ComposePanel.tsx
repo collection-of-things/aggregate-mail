@@ -134,6 +134,7 @@ export function ComposePanel({
   const [loadingFiles, setLoadingFiles] = useState(false);
   const filesBusy = useRef(false);
   const [dragging, setDragging] = useState(false);
+  const [showBcc, setShowBcc] = useState(false);
   const [showCc, setShowCc] = useState(false);
   const ccVisible = showCc || Boolean(draft.cc?.some((address) => address.trim()));
   const addFiles = async (files: File[]) => {
@@ -211,15 +212,19 @@ export function ComposePanel({
 
           </div>
           <div className="compose-to-row">
-            <RecipientInput label="To" required value={draft.to} accountId={draft.accountId} accounts={accounts} api={api}
+            <RecipientInput label="To" required multiple value={draft.to.join(", ")} accountId={draft.accountId} accounts={accounts} api={api}
               disabled={!!draft.invitation || busy || loadingFiles}
-              onChange={(to) => setDraft({ ...draft, to })} />
-            {!ccVisible && <button className="compose-cc-toggle" type="button" disabled={busy || loadingFiles}
+              onChange={(to) => setDraft({ ...draft, to: to.split(",").map(value => value.trimStart()) })} />
+            {!ccVisible && <button className="compose-cc-toggle" type="button" disabled={!!draft.invitation || busy || loadingFiles}
               aria-label="Add Cc recipients" aria-expanded={false} onClick={() => setShowCc(true)}>Cc</button>}
+            {!showBcc && !draft.bcc?.length && <button className="compose-cc-toggle" type="button" disabled={!!draft.invitation || busy || loadingFiles} aria-label="Add Bcc recipients" aria-expanded={false} onClick={() => setShowBcc(true)}>Bcc</button>}
           </div>
+          {(showBcc || !!draft.bcc?.length) && <RecipientInput label="Bcc" multiple autoFocus={showBcc} value={(draft.bcc || []).join(", ")}
+            accountId={draft.accountId} accounts={accounts} api={api} disabled={!!draft.invitation || busy || loadingFiles}
+            onChange={(bcc) => setDraft({ ...draft, bcc: bcc.split(",").map(value => value.trimStart()) })} />}
           {ccVisible && <RecipientInput label="Cc" multiple autoFocus={showCc} value={(draft.cc || []).join(", ")}
             accountId={draft.accountId} accounts={accounts} api={api} disabled={!!draft.invitation || busy || loadingFiles}
-            onChange={(cc) => setDraft({ ...draft, cc: cc.split(",") })} />}
+            onChange={(cc) => setDraft({ ...draft, cc: cc.split(",").map(value => value.trimStart()) })} />}
           <label className="compose-subject">
             <span>Subject</span>
             <input

@@ -13,7 +13,7 @@ test("Drafts lists account, envelope, snippet and saved time; scopes search, ope
   const previous = new Map(Object.keys(globals).map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
   for (const [key,value] of Object.entries(globals)) Object.defineProperty(globalThis,key,{configurable:true,value});
   const accounts: Account[] = [{id:"a",email:"sender@example.test",name:"Studio",provider:"imap"},{id:"b",email:"other@example.test",provider:"gmail"}];
-  const draft: Draft = {id:"one",accountId:"a",to:"client@example.test",cc:["copy@example.test"],subject:"Project plan",body:"A saved proposal",attachments:[],revision:2,updatedAt:1,sendUnknown:true};
+  const draft: Draft = {id:"one",accountId:"a",to: ["client@example.test"],cc:["copy@example.test"],subject:"Project plan",body:"A saved proposal",attachments:[],revision:2,updatedAt:1,sendUnknown:true};
   const requests: string[] = [], opened: Draft[] = [];
   const filters: string[] = [];
   let fail = false, release: (()=>void) | undefined;
@@ -44,7 +44,7 @@ test("Drafts lists account, envelope, snippet and saved time; scopes search, ope
     assert.ok(document.querySelector('.draft-account-tabs')!.textContent!.includes('Studio'), 'custom labels stay visible under ADR 0034');
     assert.equal(document.querySelector('.draft-row-account')?.textContent, 'Studio', 'row account labels match the inbox in privacy mode');
     assert.equal(document.querySelector('.draft-row-account .account-dot')?.getAttribute('data-tone'), '0');
-    for(const value of [draft.subject,draft.to,accounts[0].email,draft.body,"copy@example.test"]) assert.ok(!document.body.innerHTML.includes(value),value);
+    for(const value of [draft.subject,...draft.to,accounts[0].email,draft.body,"copy@example.test"]) assert.ok(!document.body.innerHTML.includes(value),value);
     const row=document.querySelector<HTMLButtonElement>('.draft-row')!;
     await act(async()=>{row.click();row.click();});assert.equal(requests.filter(url=>url.endsWith('/drafts/one')).length,1);assert.equal(opened.length,0);
     await act(async()=>release?.());assert.deepEqual(opened,[draft]);

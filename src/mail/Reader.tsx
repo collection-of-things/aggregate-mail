@@ -26,7 +26,7 @@ function readerDate(date: number) {
  * An opened email: subject, then one sender line with the recipient beneath
  * and the date at the right, Gmail labels, and the body with its image consent.
  */
-export function Reader({ mail, provider, labels, busy, api, onLabels, onMenu, onMenuKey, onOpen, onChanged, onReplyAll, onOpenDraft, onUnsnooze, onChangeTime, state }: {
+export function Reader({ mail, provider, labels, busy, api, onLabels, onMenu, onMenuKey, onOpen, onChanged, onReplyAll, onForward, onOpenDraft, onUnsnooze, onChangeTime, state }: {
   mail: Mail;
   state?: State;
   provider?: Provider;
@@ -37,6 +37,7 @@ export function Reader({ mail, provider, labels, busy, api, onLabels, onMenu, on
   onOpen?: (mail: Mail) => void;
   onChanged?: () => Promise<unknown>;
   onReplyAll?: () => void;
+  onForward?: () => void;
   onOpenDraft?: (draft: Draft) => void;
   onUnsnooze?: () => void;
   onChangeTime?: (event: MouseEvent<HTMLElement>) => void;
@@ -82,6 +83,7 @@ export function Reader({ mail, provider, labels, busy, api, onLabels, onMenu, on
             <button className="link" disabled={busy} onClick={onLabels}>Edit labels</button>
           </div>
         )}
+        {onForward && <div className="message-labels"><button type="button" className="link" disabled={busy} onClick={onForward}>Forward message</button></div>}
         {onReplyAll && <div className="message-labels"><button type="button" className="link" disabled={busy} onClick={onReplyAll}>Reply all</button></div>}
         {state && onOpenDraft && <OfferTimes key={`offers:${mail.id}`} mail={mail} state={state} api={api} onOpenDraft={onOpenDraft} />}
         </footer>

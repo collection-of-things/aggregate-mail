@@ -15,9 +15,9 @@ test("both provider paths send text first and safe HTML; SMTP Sent uses identica
   const { put, closeStore } = await import("./store.js");
   const { sendMail } = await import("./mail-actions.js");
   const { sendSchema } = await import("./providers.js");
-  const input = { accountId: "synthetic", to: "recipient@example.test", subject: "Formatted test", ...composeMarkup('<strong>Hello</strong><br><a href="https://example.com/">Plan</a>') };
+  const input = { accountId: "synthetic", to: ["recipient@example.test", "second@example.test"], cc: ["copy@example.test"], bcc: ["hidden@example.test"], subject: "Formatted test", ...composeMarkup('<strong>Hello</strong><br><a href="https://example.com/">Plan</a>') };
   let sent: Buffer | undefined, appended: Buffer | undefined, appends = 0, failCopy = false;
-  t.mock.method(nodemailer, "createTransport", () => ({ sendMail: async (message: { raw: Buffer }) => { sent = message.raw; return { accepted: [input.to] }; } }));
+  t.mock.method(nodemailer, "createTransport", () => ({ sendMail: async (message: { raw: Buffer }) => { sent = message.raw; assert.deepEqual((message as unknown as { envelope: { to: string[] } }).envelope.to, [...input.to, ...input.cc, ...input.bcc]); return { accepted: [input.to] }; } }));
   t.mock.method(ImapFlow.prototype, "connect", async function(this: ImapFlow) { this.usable = true; });
   t.mock.method(ImapFlow.prototype, "list", async () => [{ path: "Sent", specialUse: "\\Sent" }] as never);
   t.mock.method(ImapFlow.prototype, "append", async (_folder: string, raw: Buffer) => { appends++; appended = raw; if (failCopy) throw new Error("Synthetic copy failure"); return { uid: 1 }; });
@@ -30,6 +30,8 @@ test("both provider paths send text first and safe HTML; SMTP Sent uses identica
       const result = await sendMail(input);
       assert.equal(result.ok, true); assert.ok(sent);
       const source = sent.toString();
+      if (provider === "gmail") assert.match(source, /^Bcc: hidden@example.test\r?$/m);
+      else assert.doesNotMatch(source, /^Bcc:/mi);
       assert.match(source, /multipart\/alternative/);
       assert.ok(source.indexOf('Content-Type: text/plain') < source.indexOf('Content-Type: text/html'));
       const parsed = await simpleParser(sent);

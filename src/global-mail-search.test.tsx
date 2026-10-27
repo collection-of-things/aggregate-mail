@@ -10,7 +10,7 @@ import { DraftList } from "./compose/DraftList";
 import { accountLabel } from "./mail-ui";
 
 const accounts: Account[] = [{ id: "a", email: "one@example.test", provider: "imap" }, { id: "b", email: "two@example.test", provider: "imap" }];
-const draft: Draft = { id: "same", accountId: "a", revision: 2, updatedAt: 1, to: "client@example.test", subject: "Proposal", body: "x".repeat(500) + " Needle", sendUnknown: true };
+const draft: Draft = { id: "same", accountId: "a", revision: 2, updatedAt: 1, to: ["client@example.test"], subject: "Proposal", body: "x".repeat(500) + " Needle", sendUnknown: true };
 const summary: DraftSummary = { id: draft.id, accountId: draft.accountId, revision: draft.revision, updatedAt: 1, to: draft.to, subject: draft.subject, preview: "x".repeat(200), sendUnknown: true };
 async function fixture() {
   const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost" });

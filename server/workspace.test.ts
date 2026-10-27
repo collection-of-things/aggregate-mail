@@ -183,6 +183,20 @@ test("workspace HTTP preserves confirmed obligations, account boundaries and imm
       assert.equal(store.get("mail", "b:1")?.reason, "Other account classification must survive");
       store.remove("mail", fresh.id);
     });
+    await t.test("Forward HTTP prepares an encrypted independent draft from cached mail only", async () => {
+      const sends = t.mock.method(providers.imap, "send", async () => { assert.fail("Forward must not send"); });
+      const response = await request(`/messages/${encodeURIComponent(mail.id)}/forward`, "POST", {});
+      assert.equal(response.status, 201);
+      const draft = await response.json() as import("../shared/types.js").Draft;
+      assert.deepEqual(draft.to, []);
+      assert.equal(draft.subject, `Fwd: ${mail.subject}`);
+      assert.match(draft.body, /Forwarded message/);
+      assert.equal(draft.inReplyTo, undefined);
+      assert.equal(draft.threadId, undefined);
+      assert.equal(store.get("draft", draft.id)?.body, draft.body);
+      assert.equal(sends.mock.callCount(), 0);
+      store.remove("draft", draft.id);
+    });
     await t.test("MCP and agent proposal boundaries remain strictly plain text", async () => {
       const agent = await grant();
       const content = { to: "recipient@example.test", subject: "Synthetic", body: "Hello", html: "<strong>Hello</strong>" };
@@ -320,12 +334,12 @@ test("workspace HTTP preserves confirmed obligations, account boundaries and imm
         assert.match(download.headers.get("content-disposition")!, /^attachment;/);
         assert.equal(Buffer.from(await download.arrayBuffer()).toString("base64"), content);
       }
-      const saved = await (await request("/accounts/a/drafts", "POST", { to: mail.address, subject: "Draft attachment", body: "Synthetic", cc: ["other@example.test"], attachments: [attachment] })).json();
+      const saved = await (await request("/accounts/a/drafts", "POST", { to: [mail.address], subject: "Draft attachment", body: "Synthetic", cc: ["other@example.test"], attachments: [attachment] })).json();
       const recovered = await (await request(`/accounts/a/drafts/${saved.id}`)).json(); assert.deepEqual(recovered.cc, ["other@example.test"]); assert.deepEqual(recovered.attachments, [attachment]);
-      const partialResponse = await request("/accounts/a/drafts", "POST", { to: "unfinished", subject: "Partial Cc", body: "Synthetic", cc: ["some@", " "] });
+      const partialResponse = await request("/accounts/a/drafts", "POST", { to: ["unfinished"], subject: "Partial Cc", body: "Synthetic", cc: ["some@", " "] });
       assert.equal(partialResponse.status, 201); const partial = await partialResponse.json(); assert.deepEqual(partial.cc, ["some@", " "]);
-      assert.equal((await request("/send", "POST", { accountId: "a", to: mail.address, subject: "Invalid Cc", body: "Synthetic", cc: partial.cc })).status, 400);
-      assert.equal((await request("/accounts/a/drafts", "POST", { to: mail.address, subject: "Invalid", body: "Synthetic", attachments: [{ ...attachment, filename: "../escape" }] })).status, 400);
+      assert.equal((await request("/send", "POST", { accountId: "a", to: [mail.address], subject: "Invalid Cc", body: "Synthetic", cc: partial.cc })).status, 400);
+      assert.equal((await request("/accounts/a/drafts", "POST", { to: [mail.address], subject: "Invalid", body: "Synthetic", attachments: [{ ...attachment, filename: "../escape" }] })).status, 400);
       store.put("mail", incoming.id, { ...store.get("mail", incoming.id)!, attachments: [{ ...metadata, unavailable: true }] });
       assert.equal((await request(`/messages/${incoming.id}/attachments/${metadata.id}`)).status, 404);
       for (const suffix of ["", "-wal"]) assert.equal(readFileSync(path.join(directory, `mail.sqlite${suffix}`)).includes(Buffer.from("SYNTHETIC-PRIVATE-ATTACHMENT")), false);

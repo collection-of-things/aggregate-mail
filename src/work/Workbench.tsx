@@ -564,7 +564,7 @@ function Proposal({ permissionAvailable, proposal, state, pending, onOpen, onRev
   const sources = [...new Set([...("mailId" in payload ? [payload.mailId] : []), ...(proposal.sourceMailId ? [proposal.sourceMailId] : [])])];
   return <article className="work-item agent-proposal"><header className="proposal-header"><h3>{action}</h3><p>Status: {proposal.status}</p></header>
     <dl className="proposal-envelope"><dt>From</dt><dd><Redact text={account?.email||"Account unavailable"} /></dd>
-      {"to" in payload && <><dt>To</dt><dd><Redact text={payload.to}/></dd>{!!payload.cc?.length && <><dt>Cc</dt><dd><Redact text={payload.cc.join(", ")}/></dd></>}<dt>Subject</dt><dd><Redact text={payload.subject}/></dd></>}
+      {"to" in payload && <><dt>To</dt><dd><Redact text={Array.isArray(payload.to) ? payload.to.join(", ") : payload.to}/></dd>{!!payload.cc?.length && <><dt>Cc</dt><dd><Redact text={payload.cc.join(", ")}/></dd></>}{!!payload.bcc?.length && <><dt>Bcc</dt><dd><Redact text={payload.bcc.join(", ")}/></dd></>}<dt>Subject</dt><dd><Redact text={payload.subject}/></dd></>}
     </dl>
     {"to" in payload && <><pre><Redact text={payload.body}/></pre>{!!payload.attachments?.length && <p>Attachments: {payload.attachments.map((file,index)=><span key={index}><Redact text={file.filename}/> ({file.contentType}, {Math.floor(file.content.length*3/4)} bytes) </span>)}</p>}</>}
     {sources.map((id) => <Source key={id} id={id} state={state} onOpen={onOpen} />)}

@@ -571,7 +571,7 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
       async () => {
         const proposed = decode(await call("reply_to_email", { id: mail.id, body: "Thanks", replyAll: true, cc: ["extra@example.com", "bob@example.com", "ME@example.com"] })) as { id: string; digest: string; payload: SendInput };
         assert.equal(sent.length, 0);
-        assert.deepEqual(proposed.payload, { accountId: "a", to: "reply@example.com", cc: ["extra@example.com", "bob@example.com", "carol@example.com"], subject: "Re: Meeting", body: "Thanks", inReplyTo: mail.messageId, threadId: "thread", references: ["<parent@example.com>", mail.messageId] });
+        assert.deepEqual(proposed.payload, { accountId: "a", to: ["reply@example.com"], cc: ["extra@example.com", "bob@example.com", "carol@example.com"], subject: "Re: Meeting", body: "Thanks", inReplyTo: mail.messageId, threadId: "thread", references: ["<parent@example.com>", mail.messageId] });
         settings = await configure({ allowSending: true });
         const response = await fetch(`${base}/api/agent/proposals/${proposed.id}/approve`, { method: "POST", headers: settingsHeaders, body: JSON.stringify({ digest: proposed.digest }) });
         assert.equal(response.status, 200);
@@ -589,7 +589,7 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
     await t.test("reply proposals on Sent use original recipients instead of the account itself", async () => {
       put("mail", "a:sent", { ...mail, id: "a:sent", remoteId: "sent", direction: "sent", address: "me@example.com", to: "Bob <bob@example.com>, Other <other@example.com>", cc: "Carol <carol@example.com>, Me <me@example.com>" });
       const result = decode(await call("reply_to_email", { id: "a:sent", body: "Follow up", replyAll: true })) as { payload: SendInput };
-      assert.equal(result.payload.to, "bob@example.com");
+      assert.deepEqual(result.payload.to, ["bob@example.com"]);
       assert.deepEqual(result.payload.cc, ["other@example.com", "carol@example.com"]);
       assert.equal(sent.length, 1, "Preparing a Sent reply cannot send");
     });

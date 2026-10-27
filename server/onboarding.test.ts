@@ -45,7 +45,7 @@ test("account onboarding keeps transport identities and Gmail mailbox semantics"
   t.mock.method(ImapFlow.prototype, "append", async (...args: unknown[]) => appends.push(args));
   t.mock.method(nodemailer, "createTransport", (options: object) => {
     transports.push(options);
-    return { verify: async () => true, sendMail: async () => { sends++; } };
+    return { verify: async () => true, sendMail: async () => { sends++; return { accepted: ["recipient@example.com"], rejected: [] }; } };
   });
   t.mock.method(google.auth.OAuth2.prototype, "getToken", async () => ({ tokens: { refresh_token: "synthetic-refresh" } }));
   let googleEmail = "user@workspace.example";
@@ -190,7 +190,7 @@ test("account onboarding keeps transport identities and Gmail mailbox semantics"
     await t.test("Gmail SMTP does not append a second Sent copy; other IMAP still saves one", async () => {
       const stored = all("account").find((a) => a.provider === "gmail-imap")!;
       const count = connections.length;
-      const input = { accountId: stored.id, to: "recipient@example.com", subject: "Synthetic", body: "Synthetic test mail" };
+      const input = { accountId: stored.id, to: ["recipient@example.com"], subject: "Synthetic", body: "Synthetic test mail" };
       await providers[stored.provider].send(stored, input);
       assert.equal(sends, 1);
       assert.equal(connections.length, count);

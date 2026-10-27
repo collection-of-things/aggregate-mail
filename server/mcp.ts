@@ -242,7 +242,7 @@ export function createMcpServer(
         });
         const result = propose(agentId!, "send", {
           accountId: m.accountId,
-          to,
+          to: [to],
           cc: extra,
           subject: /^re:/i.test(m.subject) ? m.subject : `Re: ${m.subject}`,
           body,

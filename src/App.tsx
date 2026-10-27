@@ -750,6 +750,13 @@ export function App() {
     if (!navigationBlocked) setMeetingMail(mail);
   };
   const closeReader = () => { listFocusPending.current = true; setOpened(false); };
+  const forwardMail = async (mail: Mail) => {
+    if (compose || busy || updateInstalling) return;
+    setBusy(true);
+    try { openCompose(await api<Draft>(`/messages/${encodeURIComponent(mail.id)}/forward`, "POST", {})); }
+    catch { setNotice("Forward could not be prepared. No mail was sent."); }
+    finally { setBusy(false); }
+  };
   const startCompose = (reply?: Mail, all = false) => {
     if (!state.accounts.length) {
       setConnecting("choose");
@@ -762,7 +769,7 @@ export function App() {
       accountId:
         reply?.accountId ||
         (accountFilter !== "all" ? accountFilter : state.accounts[0].id),
-      ...(reply ? replyRecipients(reply, state.accounts.map((account) => account.email), all) : { to: "" }),
+      ...(reply ? replyRecipients(reply, state.accounts.map((account) => account.email), all) : { to: [] }),
       subject: reply
         ? /^re:/i.test(reply.subject)
           ? reply.subject
@@ -790,7 +797,7 @@ export function App() {
   const neighbourIndex = neighbours.findIndex((mail) => mail.id === selected?.id);
   const previousMail = neighbours[neighbourIndex - 1];
   const nextMail = neighbours[neighbourIndex + 1];
-  type MailMenuId = "open" | "read" | "pin" | "reply" | "reply-all" | "archive" | "snooze" | "unsnooze" | "trash" | "track" | "meeting" | "teach";
+  type MailMenuId = "open" | "read" | "pin" | "reply" | "reply-all" | "forward-mail" | "archive" | "snooze" | "unsnooze" | "trash" | "track" | "meeting" | "teach";
   const busyReason = busy ? "Another action is in progress" : syncing ? "Mail is syncing" : undefined;
   // Why a mailbox-state action is unavailable; undefined while it can run.
   const mailActionReason = (mail: Mail) =>
@@ -803,6 +810,7 @@ export function App() {
     { id: "pin", key: shortcut("pin"), label: mail.pinned ? "Unpin email" : "Pin email", disabled: busy, description: busy ? "Another action is in progress" : undefined, run: () => void changeMessage(mail, mail.pinned ? "unpin" : "pin") },
     { id: "reply", label: "Reply", key: shortcut("reply"), disabled: busy, description: busy ? "Another action is in progress" : undefined, separator: true, run: () => startCompose(mail) },
     { id: "reply-all", key: shortcut("replyAll"), label: "Reply all", disabled: busy, description: busy ? "Another action is in progress" : undefined, run: () => startCompose(mail, true) },
+    { id: "forward-mail", label: "Forward message", key: shortcut("forwardMail"), disabled: busy, run: () => void forwardMail(mail) },
     { id: "archive", label: "Archive", key: shortcut("done"), disabled: busy || syncing || mail.archived || mail.direction === "sent", description: mailActionReason(mail), separator: true, run: () => archive(mail) },
     { id: "snooze", label: "Snooze", key: shortcut("snooze"), disabled: busy || syncing || mail.archived || mail.direction === "sent", description: mailActionReason(mail), run: () => showSnooze(mail) },
     ...(isSnoozed(mail) ? [{ id: "unsnooze" as const, label: "Return to inbox", disabled: busy || syncing, description: busyReason, run: () => void changeMessage(mail, "unsnooze") }] : []),
@@ -983,7 +991,7 @@ export function App() {
       else if (inbox && action === "important") switchView("inbox");
       else if (inbox && action === "other") nextTab();
       else if (target instanceof HTMLElement && target.closest(".row-actions") &&
-        ["next", "previous", "open", "done", "reply", "replyAll", "read", "pin", "snooze", "teach"].includes(action ?? "")) return;
+        ["next", "previous", "open", "done", "reply", "replyAll", "forwardMail", "read", "pin", "snooze", "teach"].includes(action ?? "")) return;
       else if (inbox && (action === "next" || action === "previous")) {
         event.preventDefault();
         const next = action === "next" ? nextMail : previousMail;
@@ -997,6 +1005,7 @@ export function App() {
         const command = mailMenuActions(selected).find(command => command.id === id);
         if (command && !command.disabled) { event.preventDefault(); command.run(); }
       }
+      else if (mailActions && action === "forwardMail" && selected) void forwardMail(selected);
       else if (mailActions && action === "reply" && selected) startCompose(selected);
       else if (mailActions && action === "snooze" && selected) showSnooze(selected);
       else if (mailActions && action === "teach" && selected) setTeach(selected);
@@ -1152,6 +1161,7 @@ export function App() {
       onOpen={inlineWorkView ? openWorkSource : jumpTo}
       onChanged={reload}
       onReplyAll={() => startCompose(selected, true)}
+      onForward={() => void forwardMail(selected)}
       onLabels={() => setLabelMail(selected)}
       onUnsnooze={() => void changeMessage(selected, "unsnooze")}
       onChangeTime={(event) => showSnooze(selected, event)}
@@ -1216,6 +1226,7 @@ export function App() {
     { id: "pin", key: shortcut("pin"), label: "Pin email" },
     { id: "reply", label: "Reply", key: shortcut("reply") },
     { id: "reply-all", key: shortcut("replyAll"), label: "Reply all" },
+    { id: "forward-mail", label: "Forward message", key: shortcut("forwardMail") },
     { id: "archive", label: "Archive", key: shortcut("done") },
     { id: "snooze", label: "Snooze", key: shortcut("snooze") },
     { id: "trash", label: "Move to Trash" },
@@ -1593,7 +1604,7 @@ export function App() {
             onSend={() => {
               const session = draftSession.current;
               if (!session || busy || draftAdmissionLock.current || sendLock.current || attachmentTask.current || updateInstalling) return;
-              const snapshot = { ...session.content, to: session.content.to.trim(), cc: session.content.cc?.map((value) => value.trim()).filter(Boolean) };
+              const snapshot = { ...session.content, to: session.content.to.map(value => value.trim()).filter(Boolean), cc: session.content.cc?.map((value) => value.trim()).filter(Boolean), bcc: session.content.bcc?.map(value => value.trim()).filter(Boolean) };
               sendTask.current = sendCompose(snapshot, {
                 lock: sendLock,
                 prepare: async () => {

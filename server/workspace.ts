@@ -1,3 +1,4 @@
+import { forwardContent } from "./forward.js";
 import { conversationMembers } from "./conversation-members.js";
 import { sameImapAccount } from "./imap-watch.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -236,7 +237,7 @@ async function approve(id: string, expected: string) {
     // Approved agent replies become editable local drafts; only the user's own Send delivers them.
     if (proposal.action === "draft" || proposal.action === "send") {
       const { accountId, ...content } = proposal.payload as AgentPayload;
-      draftId = createDraft(accountId, content).id;
+      draftId = createDraft(accountId, { ...content, to: Array.isArray(content.to) ? content.to : [content.to] }).id;
       if (proposal.action === "send")
         message = "Saved to Drafts. Not sent. Edit and send it from the composer.";
     }
@@ -361,6 +362,10 @@ export function mountWorkspace(app: express.Express) {
       }
     });
     res.json(conversation(mail.id));
+  });
+  router.post("/messages/:id/forward", (req, res) => {
+    const mail = findMail(req.params.id);
+    res.status(201).json(createDraft(mail.accountId, forwardContent(mail)));
   });
   router.get("/messages/:id/attachments/:attachmentId", (req, res) => {
     const m = findMail(req.params.id);

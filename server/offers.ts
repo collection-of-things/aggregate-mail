@@ -137,7 +137,7 @@ export function mountOffers(app: express.Express) {
       }
       if (selected.some((index) => !offer.slots[index] || Date.parse(offer.slots[index].start) <= Date.now())) return fail(409, "An offered time is unavailable or past. Check again.");
       const mail = original.mail;
-      const draft = createDraftInTransaction(offer.accountId, { to: offer.recipient, cc: [], subject: /^re:/i.test(mail.subject) ? mail.subject : `Re: ${mail.subject}`,
+      const draft = createDraftInTransaction(offer.accountId, { to: [offer.recipient], cc: [], subject: /^re:/i.test(mail.subject) ? mail.subject : `Re: ${mail.subject}`,
         body: `Would one of these times work for you?\nTime zone: ${offer.settings.timeZone}\n\n${selected.map((index) => offeredTime(offer.slots[index], offer.settings.timeZone)).join("\n")}\n\nPlease reply with your preferred time. These times are not reserved.`,
         inReplyTo: mail.messageId, references: [...(mail.references || []), ...(mail.messageId ? [mail.messageId] : [])].slice(-100), threadId: mail.threadId });
       put("calendarOffer", offer.id, { ...offer, selected, draftId: draft.id });

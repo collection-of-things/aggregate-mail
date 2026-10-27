@@ -7,7 +7,7 @@ import { ComposePanel, sendCompose, type Compose } from "./compose/ComposePanel"
 
 const initial: Compose = {
   accountId: "synthetic",
-  to: "recipient@example.com",
+  to: ["recipient@example.com"],
   subject: "Synthetic subject",
   body: "Synthetic body",
 };
@@ -166,7 +166,7 @@ test("editing an unknown draft preserves its warning and the next send guard", a
 
 test("pre-submission form validation never calls send", async () => {
   let sends = 0;
-  const ui = await panel({ ...initial, to: "invalid", body: "" }, () => { sends++; });
+  const ui = await panel({ ...initial, to: ["invalid"], body: "" }, () => { sends++; });
   try {
     assert.equal(ui.form.querySelector<HTMLInputElement>('input[type="email"]')!.required, true);
     assert.equal(ui.form.querySelector<HTMLTextAreaElement>("textarea")!.required, true);
@@ -187,7 +187,7 @@ test("explicitly discarding an unknown draft warns about possible delivery witho
     else Reflect.deleteProperty(globalThis, "confirm");
   });
   let closes = 0;
-  const ui = await panel({ ...initial, to: "", subject: "", body: "", sendUnknown: true }, () => {}, undefined, () => { closes++; });
+  const ui = await panel({ ...initial, to: [""], subject: "", body: "", sendUnknown: true }, () => {}, undefined, () => { closes++; });
   try {
     const discard = [...ui.container.querySelectorAll("button")].find((button) => button.getAttribute("aria-label") === "Delete draft")!;
     await ui.click(discard); assert.equal(closes, 0);

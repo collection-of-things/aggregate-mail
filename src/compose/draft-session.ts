@@ -13,7 +13,8 @@ export function composeContent(value: Compose): Compose {
     ...(value.invitation ? { invitation: structuredClone(value.invitation) } : {}),
     ...(value.cc !== undefined ? { cc: value.cc.slice() } : {}),
     ...(value.attachments !== undefined ? { attachments: value.attachments.map((item) => ({ ...item })) } : {}),
-    to: value.to,
+    to: Array.isArray(value.to) ? value.to.slice() : [value.to],
+    ...(value.bcc !== undefined ? { bcc: value.bcc.slice() } : {}),
     subject: value.subject,
     body: value.body,
     ...(value.html !== undefined ? { html: value.html } : {}),
@@ -63,8 +64,8 @@ export class DraftSession {
   private get needsSave(): boolean {
     if (this.stored) return !same(this.content, this.stored);
     const value = this.content;
-    return Boolean(value.to || value.subject || value.body || value.inReplyTo ||
-      value.threadId || value.references?.length || value.cc?.length || value.attachments?.length || value.sendUnknown);
+    return Boolean(value.to.some(Boolean) || value.subject || value.body || value.inReplyTo ||
+      value.threadId || value.references?.length || value.cc?.length || value.bcc?.length || value.attachments?.length || value.sendUnknown);
   }
 
   get dirty(): boolean {

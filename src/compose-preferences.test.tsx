@@ -31,11 +31,11 @@ test("new and reply drafts add one account signature while retaining content and
   assert.equal(draft.body, "\n\n-- \nFirst signature");
   assert.equal(draft.accountId, "first");
   const reply = initialCompose("second", preferences, {
-    to: "sender@example.test", subject: "Re: Original", body: "> Quoted original",
+    to: ["sender@example.test"], subject: "Re: Original", body: "> Quoted original",
     inReplyTo: "message-id", threadId: "thread-id", references: ["previous-id", "message-id"], sendUnknown: true,
   });
   assert.deepEqual(reply, {
-    accountId: "second", to: "sender@example.test", subject: "Re: Original", body: "> Quoted original\n\n-- \nSecond signature",
+    accountId: "second", to: ["sender@example.test"], subject: "Re: Original", body: "> Quoted original\n\n-- \nSecond signature",
     inReplyTo: "message-id", threadId: "thread-id", references: ["previous-id", "message-id"], sendUnknown: true,
   });
   assert.equal(initialCompose("second", preferences, reply).body, reply.body);
@@ -63,7 +63,7 @@ test("explicit template insertion preserves existing subject, body, signature an
   const inserted = insertComposeTemplate(draft, preferences.templates[0], preferences);
   assert.deepEqual(inserted, { ...draft, body: "> Quote\n\nTemplate body\n\n-- \nFirst signature" });
   assert.deepEqual(insertComposeTemplate(initialCompose("missing", preferences), preferences.templates[0], preferences), {
-    accountId: "missing", to: "", subject: "Template subject", body: "Template body",
+    accountId: "missing", to: [], subject: "Template subject", body: "Template body",
   });
   const edited = { ...draft, body: draft.body + " edited" };
   assert.equal(insertComposeTemplate(edited, preferences.templates[0], preferences).body, edited.body + "\n\nTemplate body");
@@ -206,7 +206,7 @@ test("composer template picker moves with arrows, inserts with Enter and closes 
   const key = (name: string) => new dom.window.KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true });
   try {
     await act(async () => root.render(<ComposePanel
-      draft={{ accountId: "test", to: "", subject: "", body: "" }} setDraft={(value) => { changed = value; }}
+      draft={{ accountId: "test", to: [], subject: "", body: "" }} setDraft={(value) => { changed = value; }}
       accounts={[{ id: "test", email: "from@example.test", provider: "imap" }]} busy={false}
       onClose={() => closed++} onDiscard={() => {}} onRetry={() => {}} onSaveCopy={() => {}}
       progress={{ phase: "saved", message: "Draft saved." }} onSend={() => {}}
@@ -287,7 +287,7 @@ test("mounted private settings reveal only the focused editor and enforce the te
 
 
 test("formatted templates and signature switches retain subject, reply metadata and preceding formatting", () => {
-  const draft = { accountId: "first", to: "to@example.test", subject: "Existing subject", body: "Hello\n\n-- \nFirst signature", html: "<strong>Hello</strong><br><br>-- <br>First signature", inReplyTo: "parent", sendUnknown: true };
+  const draft = { accountId: "first", to: ["to@example.test"], subject: "Existing subject", body: "Hello\n\n-- \nFirst signature", html: "<strong>Hello</strong><br><br>-- <br>First signature", inReplyTo: "parent", sendUnknown: true };
   const switched = changeComposeAccount(draft, "second", preferences);
   assert.equal(switched.subject, draft.subject);
   assert.match(switched.html!, /<strong>Hello<\/strong>/);

@@ -22,7 +22,8 @@ export const contentSchema = z.object({
       return true;
     } catch { return false; }
   }).optional(),
-  to: z.string().max(10000),
+  to: z.array(z.string().max(10000)).max(100).refine(values => values.join(",").length <= 10000, "Recipients exceed the draft field limit"),
+  bcc: z.array(z.string().max(320)).max(100).optional(),
   cc: z.array(z.string().max(320)).max(100).optional(),
   attachments: attachmentsSchema.optional(),
   subject: z.string().max(998),
@@ -34,7 +35,7 @@ export const contentSchema = z.object({
   sendUnknown: z.boolean().optional(),
 }).strict().refine(validComposeMarkup, "Formatted content must match its plain text alternative");
 const { html: _richHtml, ...plainDraftShape } = contentSchema.shape;
-export const plainContentSchema = z.object(plainDraftShape).strict();
+export const plainContentSchema = z.object({ ...plainDraftShape, to: z.union([plainDraftShape.to, z.string().max(10000).transform(value => [value])]) }).strict();
 const saveSchema = contentSchema.safeExtend({ revision: revisionSchema.max(Number.MAX_SAFE_INTEGER - 1) });
 const deleteSchema = z.object({
   revision: revisionSchema,
@@ -53,7 +54,7 @@ export function readDraft(accountId: string, id: string): Draft {
   draftIdSchema.parse(id);
   const draft = get("draft", id);
   if (!draft || draft.accountId !== accountId) throw new DraftError(404, "Draft not found.");
-  return draft;
+  return { ...draft, to: Array.isArray(draft.to) ? draft.to : [draft.to] };
 }
 export function listDrafts(accountId: string): DraftSummary[] {
   requireAccount(accountId);
@@ -84,7 +85,7 @@ export function saveDraft(accountId: string, id: string, value: unknown): Draft 
     const current = readDraft(accountId, id);
     if (current.revision !== revision) throw new DraftError(409, "Draft changed. Read it before saving again.");
     if (!isDeepStrictEqual(current.invitation, content.invitation)) throw new DraftError(409, "Calendar details cannot be changed in the composer. Prepare from the event again.");
-    if (current.invitation && (current.to !== content.to || !isDeepStrictEqual(current.cc, content.cc))) throw new DraftError(409, "Calendar recipients are bound to this reviewed invitation.");
+    if (current.invitation && (!isDeepStrictEqual(current.to, content.to) || !isDeepStrictEqual(current.cc, content.cc) || !isDeepStrictEqual(current.bcc, content.bcc))) throw new DraftError(409, "Calendar recipients are bound to this reviewed invitation.");
     if (current.sendUnknown && content.sendUnknown === false)
       throw new DraftError(409, "Unknown send status cannot be cleared by editing.");
     const draft: Draft = {

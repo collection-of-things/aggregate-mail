@@ -703,9 +703,13 @@ quiesce can begin, so they cannot leave admitted asynchronous draft work.
 | PUT `/:id` | Draft content plus current `revision` | Full snapshot with revision increased by one |
 | DELETE `/:id` | Current `revision`, plus `confirmUnknown: true` when needed | `{ ok: true }` |
 
-Draft content requires `to`, `subject` and `body` strings, including empty or
-unfinished values. Optional fields are `inReplyTo`, `threadId`, `references`
-and `sendUnknown`. Limits are 10,000 UTF-16 code units for `to`, 998 for subject
+Draft content requires a `to` array and `subject` and `body` strings, including
+empty or unfinished values. Optional recipient arrays are `cc` and `bcc`. Each
+recipient array has at most 100 entries. To text, including separating commas,
+is bounded to 10,000 UTF-16 code units; Cc/Bcc entries to 320 each. Legacy
+encrypted drafts with a single To string normalize on read without rewriting
+the record. Optional fields include `inReplyTo`, `threadId`, `references`
+and `sendUnknown`. Limits are 998 for subject
 and reply/reference strings, 100 for thread ID, 100 references and 1,000,000
 for body. The existing 2 MB HTTP JSON limit also applies. Unknown body fields
 and invalid revisions are rejected with 400. Sending retains its separate,
@@ -2536,3 +2540,35 @@ Browser API integration authenticates each request with either the desktop per-l
 Below 760px, Settings uses a native section picker while desktop retains the section rail. The picker uses the existing section navigation and save guards. Mobile Settings fills the available viewport, descriptions wrap, and form text remains at least 16px. Reply context stacks above the editor and remains independently scrollable. Touch controls, including the primary New Message action, target 44px and respect browser safe areas. Responsive CSS loads after application styles so compact desktop rules cannot override these sizes. The viewport requests content resizing for supported Android keyboards. `src/navigation.test.tsx` covers the phone picker, drawer and theme persistence with synthetic state; actual keyboard and screen geometry require device verification.
 
 Changelog and release notes follow [CONTRIBUTING.md](../CONTRIBUTING.md#changelog-and-release-notes). Versioned entries identify release changes; [legacy development notes](changelog-legacy.md) preserve the earlier unversioned history. The release owner verifies the published body matches the version section before declaring publication complete.
+
+## Forward and send recipient contract
+
+`POST /api/messages/:id/forward` prepares an encrypted draft from the cached
+message. It copies plain text (or cached preview), From/Date/Subject/To/Cc,
+and locally available attachments within send limits. Every omitted attachment
+is listed in the body. Sender HTML, remote resources, original threading and
+Bcc are not copied. Forward uses a new `Fwd:` subject and empty To. The reader,
+Commands menu and F shortcut expose the action. No provider fetch or send occurs.
+
+`POST /api/send` requires `accountId`, `to` (1..100 email addresses), `subject`
+and nonempty `body`. Optional `cc` and `bcc` each allow 0..100 addresses.
+Existing optional HTML, attachment, calendar and reply/thread fields remain.
+Drafts permit incomplete recipients. MCP draft inputs and plain send proposals
+accept the legacy single-address To form and normalize it to an array. Agent
+approval still creates a draft, never sends. CLI proposals follow that contract.
+
+SMTP MIME excludes Bcc; the nodemailer envelope includes To, Cc and Bcc. Gmail
+API raw MIME retains the Bcc header because Gmail derives recipients from MIME.
+Recipient-visible Bcc stripping is Gmail's responsibility and is unproven by
+synthetic tests. SMTP Sent copies use the same Bcc-free bytes as submission.
+Partial SMTP acceptance returns a sent warning without recipient addresses or
+provider details. Accepted recipients are never retried.
+See [ADR 0083](adr/0083-forward-and-bcc.md).
+
+Synthetic checks: `server/forward.test.ts`, `server/compose-recipients.test.ts`,
+`server/rich-send.test.ts`, `server/drafts.test.ts`, `server/workspace.test.ts`,
+`src/compose-layout.test.tsx`, `src/compose-recipients.test.tsx`,
+`src/draft-session.test.tsx` and `src/compose-send.test.tsx`. These cover local
+contracts and recovery. Installed UI, real providers and recipient delivery
+need separate acceptance. Frozen snapshots and unknown-send recovery retain
+the ADR 0038 sequence; there is no automatic resend.
