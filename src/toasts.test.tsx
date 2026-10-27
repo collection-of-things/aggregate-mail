@@ -77,7 +77,8 @@ test("toasts queue without dropping errors, deduplicate, redact, pause expiry an
     await tick(1); assert.equal(document.body.contains(first), false);
     await tick(10000); await tick(200); assert.equal(notices.toasts.length, 2);
     const dismissButton = document.querySelector<HTMLButtonElement>(".toast .toast-dismiss")!;
-    assert.equal(dismissButton.textContent, "Dismiss");
+    assert.equal(dismissButton.getAttribute("aria-label"), "Dismiss notification");
+    assert.equal(dismissButton.getAttribute("title"), "Dismiss notification");
     await act(async () => dismissButton.click());
     await act(async () => dismissButton.click());
     assert.equal(notices.toasts.length, 2, "Dismiss waits for the exit animation");
@@ -90,6 +91,8 @@ test("toasts queue without dropping errors, deduplicate, redact, pause expiry an
       notices.push("1 new unread email.", "info", "arrival:2");
     });
     assert.equal(notices.toasts.length, 3, "distinct arrivals survive text deduplication; repeated event stays silent");
+    assert.equal(document.querySelector(".toast-info .toast-title")!.textContent, "1 new unread email");
+    assert.equal(document.querySelector(".toast-info [role=status]")!.textContent, "1 new unread email", "the count is announced once without a generic Update heading");
     assert.equal(document.querySelector(".toast-heading span")!.textContent, "3 notifications");
     await act(async () => (document.querySelector(".toast-heading button") as HTMLButtonElement).click());
     assert.equal(document.querySelectorAll(".toast-slot.leaving").length, 3);

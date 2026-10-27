@@ -2,7 +2,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { notificationDefaults, type NotificationPreferences } from "../notifications";
 import { mailNotice, type NotificationMail } from "../../shared/notifications";
 import { PrivacyContext, Redact } from "./Privacy";
-import { Bell, Check, Info } from "./icons";
+import { Bell, Check, ChevronRight, Close, Info, Mail } from "./icons";
 
 export type Toast = { id: number; text: string; kind: "info" | "success" | "error"; eventId?: string; duration?: number; mail?: NotificationMail };
 
@@ -30,7 +30,8 @@ const exitMs = 200;
 
 function ToastItem({ toast, leaving, onDismiss, preferences, onOpen }: { toast: Toast; leaving: boolean; onDismiss: (id: number) => void; preferences: NotificationPreferences; onOpen?: (id: string) => void }) {
   const { on: privacy } = useContext(PrivacyContext);
-  const Icon = toast.kind === "error" ? Info : toast.kind === "success" ? Check : Bell;
+  const isMail = toast.kind === "info" && (Boolean(toast.mail) || toast.eventId?.startsWith("arrival:"));
+  const Icon = toast.kind === "error" ? Info : toast.kind === "success" ? Check : isMail ? Mail : Bell;
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const remaining = useRef(toast.duration ?? 6000);
@@ -41,18 +42,22 @@ function ToastItem({ toast, leaving, onDismiss, preferences, onOpen }: { toast: 
     return () => { clearTimeout(timer); remaining.current = Math.max(0, remaining.current - (Date.now() - started)); };
   }, [toast.id, toast.kind, toast.duration, leaving, hovered, focused, onDismiss]);
   const mail = toast.mail;
+  const text = mail ? mailNotice(mail, preferences, privacy) : toast.text;
+  const countOnly = isMail && /^\d+ new unread emails?\.$/.test(text);
   return <div className={leaving ? "toast-slot leaving" : "toast-slot"} inert={leaving}><div>
     <div className={`toast toast-${toast.kind}`} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       onFocus={() => setFocused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
-      <span className="toast-icon" aria-hidden="true"><Icon size={17} /></span>
+      <span className="toast-icon" aria-hidden="true"><Icon size={18} /></span>
       <div className="toast-body">
-        <strong className="toast-title">{toast.kind === "error" ? "Needs attention" : toast.kind === "success" ? "Done" : "Update"}</strong>
-        <div role={toast.kind === "error" ? "alert" : "status"} aria-atomic="true" className="toast-text">{mail ? mailNotice(mail, preferences, privacy) : <Redact text={toast.text} />}</div>
-        <div className="toast-actions">
-          {mail && preferences.openMail && onOpen && <button type="button" className="toast-open" onClick={() => { if (mail.id !== "sample") onOpen(mail.id); onDismiss(toast.id); }}>Open email</button>}
-          <button type="button" className="toast-dismiss" onClick={() => onDismiss(toast.id)}>Dismiss</button>
-        </div>
+        {countOnly ? <strong role="status" aria-atomic="true" className="toast-title toast-text">{text.slice(0, -1)}</strong> : <>
+          <strong className="toast-title">{toast.kind === "error" ? "Needs attention" : toast.kind === "success" ? "Done" : isMail ? "New email" : "Update"}</strong>
+          <div role={toast.kind === "error" ? "alert" : "status"} aria-atomic="true" className="toast-text">{mail ? text : <Redact text={text} />}</div>
+        </>}
+        {mail && preferences.openMail && onOpen && <div className="toast-actions">
+          <button type="button" className="toast-open" onClick={() => { if (mail.id !== "sample") onOpen(mail.id); onDismiss(toast.id); }}>Open email<ChevronRight size={14} /></button>
+        </div>}
       </div>
+      <button type="button" className="toast-dismiss" aria-label="Dismiss notification" title="Dismiss notification" onClick={() => onDismiss(toast.id)}><Close size={14} /></button>
     </div>
   </div></div>;
 }

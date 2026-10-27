@@ -1522,7 +1522,12 @@ each card; hiding a section preserves its state and approval guards. Projects
 use direct selection buttons. Row and selected-email actions show text when
 space permits and retain accessible labels when the narrow layout uses icons.
 The existing notification queue now shows type icons and headings plus Dismiss
-all. Dismissing changes only local notice visibility. Error expiry, privacy,
+all. Generic new-mail notices use the unread count as their single heading with
+a mail icon. Notices with enabled details keep a New email heading above the
+privacy-filtered text. Open email is an accent text action with a chevron;
+a separate top-right close button is labeled Dismiss notification. Notices use
+an opaque themed surface, compact spacing and visible keyboard focus outlines.
+Dismissing changes only local notice visibility. Error expiry, privacy,
 preference filtering and hover/focus pauses are unchanged. The stack scrolls within
 the viewport at bottom-right, bottom-center and top-right anchors, with internal
 padding for shadows. Notice slots and the count line retain their full height so
