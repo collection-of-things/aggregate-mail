@@ -28,6 +28,7 @@ import { ImapWatch, sameImapAccount, type ImapWatchFactory } from "./imap-watch.
 import { GmailWatch } from "./gmail-watch.js";
 import {
   updateMessage,
+  updateMessages,
   messageActionSchema,
   runMailWork,
   findMail,
@@ -784,6 +785,10 @@ app.post("/api/messages/:id/content", mailRequest(async (req, res) => {
     images: current.images ?? content.images, attachments: recoverEmbedded ? content.attachments ?? [] : current.attachments ?? content.attachments ?? [] };
   put("mail", mail.id, updated);
   res.json({ html: updated.html, images: updated.images, attachments: updated.attachments });
+}));
+app.post("/api/messages/batch", mailRequest(async (req, res) => {
+  assertNotSyncing();
+  res.json(await updateMessages(req.body, assertNotSyncing));
 }));
 app.patch("/api/messages/:id", async (req, res) => {
   const input = messageActionSchema.parse(req.body);

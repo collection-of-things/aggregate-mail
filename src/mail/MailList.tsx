@@ -10,6 +10,7 @@ import type { MenuAction } from "../ui/ContextMenu";
 import { Archive, Check, Clock, Inbox, More, Pin, Reply, Trash } from "../ui/icons";
 import { Avatar } from "./Avatar";
 import { relative, shortLabel } from "./format";
+import { BulkSelectionContext, selectionKey } from "./bulk-selection";
 import { accountLabel } from "../mail-ui";
 
 type RowLayout = "inline" | "stacked" | "brief" | "card";
@@ -45,11 +46,12 @@ export function MailList<T extends Mail>({
   onMenuKey: (event: KeyboardEvent<HTMLElement>, mail: T) => void;
   actions?: (mail: T) => RowAction[];
 }) {
+  const bulk = useContext(BulkSelectionContext);
   const { on: privacy } = useContext(PrivacyContext);
   return <>
     {showAccount && !narrow && <div className="mail-list-columns" aria-hidden="true"><span>Account</span><span>Status</span></div>}
     <MailListWindow messages={messages} selectedId={selectedId} focusSelection={focusSelection}
-    density={density} sort={sort} listRef={listRef} narrow={narrow} sizeByImportance={sizeByImportance}>{(m) => {
+    density={density} sort={sort} listRef={listRef} narrow={narrow} sizeByImportance={sizeByImportance}>{(m, index) => {
     const relevance = sizeByImportance ? m.relevance : 2;
     const layout: RowLayout = narrow
       ? "card"
@@ -80,13 +82,20 @@ export function MailList<T extends Mail>({
     const time = <time>{relative(m.date)}</time>;
     return (
       <MailPrivacy key={m.id} mail={m}>
-        <div className="mail-row">
+        <div className={`mail-row${bulk?.selected.has(selectionKey(m)) ? " bulk-selected" : ""}`}>
+          {bulk && <button type="button" role="checkbox" className="mail-select"
+            aria-label={`Select message ${index + 1}`} aria-checked={bulk.selected.has(selectionKey(m))}
+            disabled={bulk.disabled} onClick={event => bulk.toggle(m, event.shiftKey)}>
+            {bulk.selected.has(selectionKey(m)) ? "✓" : ""}
+          </button>}
           <button
             id={`mail-${m.id}`}
             className={`row r${relevance} ${layout}${current ? " selected" : ""}${m.unread ? " unread" : ""}`}
-            onClick={(event) => opening === "single" ?
-              (event.detail <= 1 && onOpen(m)) : onSelect(m.id)}
-            onDoubleClick={() => { if (opening === "double") onOpen(m); }}
+            onClick={(event) => {
+              if (event.shiftKey && bulk) { bulk.toggle(m, true); return; }
+              if (opening === "single") { if (event.detail <= 1) onOpen(m); } else onSelect(m.id);
+            }}
+            onDoubleClick={(event) => { if (!event.shiftKey && opening === "double") onOpen(m); }}
             onContextMenu={(event) => onMenu(event, m)}
             onKeyDown={(event) => onMenuKey(event, m)}
             aria-haspopup="menu"

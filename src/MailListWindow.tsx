@@ -102,7 +102,7 @@ export function MailListWindow<T extends Mail>({ messages, selectedId, focusSele
       list.scrollTo({ top: bottom - (list.clientHeight || 600), behavior });
     const active = document.activeElement;
     if (focusSelection && (active === document.body ||
-      (active instanceof HTMLElement && !!active.closest(".row, .message") &&
+      (active instanceof HTMLElement && !!active.closest(".mail-row, .row, .message") &&
         !active.closest("input, textarea, select, [contenteditable], [role=menu], [role=dialog]"))))
       document.getElementById(`mail-${selectedId}`)?.focus({ preventScroll: true });
     measure();

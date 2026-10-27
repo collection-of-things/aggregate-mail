@@ -228,3 +228,22 @@ test("web sessions detect Mac modifiers without the desktop bridge", () => {
     dom.window.close();
   }
 });
+
+
+test("adding selection preserves an existing custom X binding", () => {
+  const old = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  const dom = new JSDOM("", { url: "http://localhost" });
+  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: dom.window.localStorage });
+  try {
+    const legacy = copy(); legacy.shortcuts.next = { key: "x" };
+    const {selectMail: _selectMail, ...shortcuts} = legacy.shortcuts;
+    localStorage.setItem("emc2.interaction.v1", JSON.stringify({...legacy, shortcuts}));
+    const restored = read();
+    assert.equal(restored.shortcuts.next.key, "x");
+    assert.equal(validateShortcut("selectMail", restored.shortcuts.selectMail, restored), null);
+    assert.notEqual(shortcutLabel(restored.shortcuts.selectMail), "X");
+  } finally {
+    if (old) Object.defineProperty(globalThis, "localStorage", old); else Reflect.deleteProperty(globalThis, "localStorage");
+    dom.window.close();
+  }
+});

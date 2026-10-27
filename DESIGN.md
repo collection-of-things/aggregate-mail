@@ -477,3 +477,11 @@ immediate Undo-send ownership.
 Mark as unread and Move to Inbox appear in message actions and Commands. Shift+U
 and V are customizable defaults. Sent mail explains unavailable actions in
 Commands; marking an open message unread does not read it again.
+
+Bulk selection uses account and local message identity separately from opening.
+X toggles by default; custom shortcuts retain priority. Shift+arrows or Shift-click
+select ranges. Escape clears selection. Platform select-all selects the filtered
+list, including virtual rows, up to 200. Fields, dialogs and readers keep native
+select-all. View changes clear selection. The batch bar names the count and
+accounts; Trash confirms the captured count once. Per-message outcomes remain
+visible after selection clears, including partial and unknown results.
