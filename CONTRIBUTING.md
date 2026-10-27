@@ -32,6 +32,27 @@ task. Report vulnerabilities privately via
    per branch. Helpers work on non-overlapping scopes and return evidence. A
    human owner is accountable for agent output.
 
+## Keep git.cafe task state current
+
+Contributors using git.cafe, including people and agents, must update the
+issue's State when work starts, pauses, resumes, finishes or is canceled.
+Check the current state and owner before each transition. Use these states:
+
+| State | Use when |
+| --- | --- |
+| Triage | The report needs assessment or a scope decision. |
+| Backlog | The task is accepted but deferred. |
+| Todo | The task is ready to start and no one is actively working on it. |
+| In progress | Work has started, including verification and pending review or merge. |
+| Done | Required verification and acceptance passed, and the change is merged when merge is part of the task. |
+| Canceled | The owner or maintainer canceled the task or confirmed it is a duplicate. Link the retained task for duplicates. |
+
+On a pause, use Todo if the task remains ready, Backlog if deferred, or Triage
+if it needs reassessment. For a blocker or pending review, record the reason
+and next action in the task record; do not mark incomplete work Done.
+After a state update, read it back to confirm it was saved. If access or the
+update fails, report the gap and required transition without claiming success.
+
 ## Issues and labels
 
 Before filing an issue, read the matching template in

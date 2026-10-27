@@ -498,7 +498,9 @@ worktree steps in [CONTRIBUTING.md](../CONTRIBUTING.md). Before creating an
 issue or PR, search open and closed upstream issues and PRs, record the search
 and resolve matching work and ownership. Stop creation if the search is
 unavailable or incomplete. The issue or pull
-request is the task record for scope, owner, branches, checks and status. See
+request is the task record for scope, owner, branches, checks and status.
+Contributors using git.cafe must follow the
+[task-state rules](../CONTRIBUTING.md#keep-gitcafe-task-state-current). See
 [ADR 0007](adr/0007-contributor-coordination.md) for the reason for this process.
 
 ## Sidebar branch integration

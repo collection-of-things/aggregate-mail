@@ -9,6 +9,7 @@ They do not grant merge, release, credential or live-account authority.
 
 | Trigger | Procedure |
 | --- | --- |
+| Work tracked on git.cafe starts, pauses, resumes or ends | [Update task state](CONTRIBUTING.md#keep-gitcafe-task-state-current) |
 | Create an issue or PR | [Search existing work](#search-existing-work) |
 | Feature, bug fix or refactor | [Change code](#change-code) |
 | Renderer layout, interaction, styles or accessibility | Also [Change the interface](#change-the-interface) |

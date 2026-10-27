@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Require contributors using git.cafe to keep task State current through work, pauses, verification and completion.
+
 - Require agents to read the project instructions and task procedures before contributing; add SKILLS.md with change, review and verification steps, including an existing-issue/PR search and required template use before creation.
 - Organize Settings into Connections, Mail, Preferences and Advanced. Tighten control spacing and group keyboard shortcuts into compact, labeled columns while preserving existing bindings and preference behavior.
 
