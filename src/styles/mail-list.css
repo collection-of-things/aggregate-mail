@@ -451,3 +451,14 @@
 .search-help button { height: 22px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: var(--radius-control); color: var(--text); font-size: inherit; }
 
 .list-pane { container-type: inline-size; }
+
+.bulk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; border-bottom: 1px solid var(--line); }
+.bulk-result { padding: 8px; border-bottom: 1px solid var(--line); }
+.mail-row:has(.mail-select) > .row { padding-left: 30px; }
+.mail-select { position: absolute; z-index: 2; left: 5px; top: 4px; width: 20px; height: 20px; padding: 0; border: 1px solid var(--line-3); border-radius: 3px; background: var(--surface); color: var(--text); }
+.mail-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mail-row.bulk-selected > .row:not(:focus-visible) { background: var(--selected); }
+@media (hover: hover) and (pointer: fine) {
+  .mail-select { opacity: 0; }
+  .mail-row:hover .mail-select, .mail-row:focus-within .mail-select, .bulk-selected .mail-select { opacity: 1; }
+}

@@ -36,6 +36,7 @@ import { InboxTabs } from "./mail/InboxTabs";
 import { ListEmpty } from "./mail/ListEmpty";
 import { MailActions } from "./mail/MailActions";
 import { MailFilters, type PinnedScope } from "./mail/MailFilters";
+import { BulkMailSelection } from "./mail/BulkMailSelection";
 import { MailList } from "./mail/MailList";
 import { ProviderSearch } from "./mail/ProviderSearch";
 import { Workbench } from "./work/Workbench";
@@ -173,7 +174,8 @@ export function App() {
   // The shared unload guard also protects an event form with unsaved changes.
   const [eventDirty, setEventDirty] = useState(false);
   useEffect(() => { if (updateInstalling) setPalette(false); }, [updateInstalling]);
-  const toolbarBlocked = !!(scheduledOpen || teach || snooze || trashMail || shortcuts || labelMail || connecting || updateInstalling || settingsModal || workModal || quickSource || meetingMail);
+  const [bulkBlocking, setBulkBlocking] = useState(false);
+  const toolbarBlocked = !!(bulkBlocking || scheduledOpen || teach || snooze || trashMail || shortcuts || labelMail || connecting || updateInstalling || settingsModal || workModal || quickSource || meetingMail);
   const navigationBlocked = settings || !!compose || toolbarBlocked;
   const navigate = (patch: Partial<MailLocation>, search = false) => {
     if (toolbarBlocked) return false;
@@ -991,7 +993,7 @@ export function App() {
         else if (action === "compose") { event.preventDefault(); leaveCompose({ type: "new" }); }
         return;
       }
-      if (teach || snooze || trashMail || shortcuts || labelMail || connecting) return;
+      if (toolbarBlocked || teach || snooze || trashMail || shortcuts || labelMail || connecting) return;
       if (action === "back" || action === "forward") {
         event.preventDefault(); travel(action === "back" ? -1 : 1); return;
       }
@@ -1436,6 +1438,14 @@ export function App() {
                 tabIndex={-1}
               >
               <div key={paneKey} className={`pane ${pane.current.motion}`}>
+                <BulkMailSelection active={!opened} messages={opened ? [] : filtered} accounts={state.accounts}
+                  scope={JSON.stringify([page, view, tab, accountFilter, labelFilter, query, readFilter, relevanceFilter, sort, opened])}
+                  selectedId={selected?.id} onSelect={setSelectedId} api={api} reload={reload}
+                  toggleLabel={shortcut("selectMail")}
+                  selectionShortcut={event => matches(event, "selectMail", interaction, interactionPlatform()) ? "toggle" :
+                    interactionActions.some(({ id }) => matches(event, id, interaction, interactionPlatform())) ? null : "range"}
+                  disabled={!loaded || search.pending || busy || syncing || settings || !!compose || updateInstalling || !!contextMenu || palette || !!teach || !!snooze || !!trashMail || shortcuts || !!labelMail || !!connecting}
+                  onBlockingChange={setBulkBlocking}>
                 {reader && !split ? reader : filtered.length ? (
                   <MailList
                     messages={filtered}
@@ -1474,6 +1484,7 @@ export function App() {
                     onSync={() => void sync()}
                   />
                 )}
+                </BulkMailSelection>
                 {hasSearchDrafts && !opened && <DraftList accounts={state.accounts} api={api} accountFilter={accountFilter} query={query}
                   refreshKey={state.draftToken ?? state.draftCount} active={draftOpeningAllowed} onOpen={openSavedDraft} search={search} onDeleted={() => { void reload().catch(() => setNotice("Draft deleted, but refreshing the saved count failed. Refresh to check it.")); }} />}
               </div>

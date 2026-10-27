@@ -2680,3 +2680,20 @@ to the same local ID during sync. Shift+U and V are editable defaults, preservin
 U for return-to-list and B for snooze. Commands and message actions use the same
 eligibility checks. An open reader stays unread after the action.
 See [ADR 0095](adr/0095-single-message-unread-and-inbox.md).
+
+## Bulk mail triage
+
+`POST /api/messages/batch` accepts 1 to 200 unique `{id, accountId}` items and
+one existing operation: read, unread, archive, inbox, snooze, pin, unpin or trash.
+Each item runs sequentially through `updateMessage` and rechecks its account
+inside mail serialization. Results contain the same identity and done, failed
+or unknown status. Exceptions after provider work starts are unknown, never
+automatically retried. Missing responses become unknown in the renderer.
+
+The list's bulk selection is independent of its opened message. X is editable;
+existing custom bindings keep priority. Shift+arrows and Shift-click select a
+range. Platform select-all includes unmounted virtual rows in the current
+filtered list up to 200. Selection clears on view/filter changes and prunes
+missing or account-changed mail. Fields, dialogs and opened readers keep their
+keys. Trash confirms the captured count; results identify affected items with
+privacy-redacted subjects. See [ADR 0089](adr/0089-bulk-mail-selection.md).

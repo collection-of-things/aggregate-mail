@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_MAIL_BATCH, type MailBatchResponse } from "../shared/bulk-mail.js";
 import { all, get, account, put, remove } from "./store.js";
 import { providers, sendSchema, SentCopyError, updateGmailLabels, type SendInput } from "./providers.js";
 import { recordRecentRecipients } from "./contacts.js";
@@ -78,6 +79,7 @@ export async function updateMessage(
   id: string,
   input: z.infer<typeof messageActionSchema>,
   beforeExecution?: () => void,
+  providerStarted?: () => void,
 ) {
   return runMailWork(async () => {
     beforeExecution?.();
@@ -92,6 +94,7 @@ export async function updateMessage(
     if (input.action === "read" && !m.unread || input.action === "unread" && m.unread || input.action === "inbox" && !m.archived) return m;
     if (input.action === "trash") {
       const a = account(m.accountId);
+      providerStarted?.();
       await providers[a.provider].update(a, m, "trash");
       remove("mail", m.id);
       return m;
@@ -119,6 +122,7 @@ export async function updateMessage(
     let identity: void | { remoteId: string } = undefined;
     if (input.action === "read" || input.action === "unread" || input.action === "inbox" || input.action === "archive") {
       const a = account(m.accountId);
+      providerStarted?.();
       identity = await providers[a.provider].update(a, m, input.action);
     }
     const latest = findMail(id);
@@ -163,4 +167,36 @@ export async function sendMail(value: unknown, beforeExecution?: () => void) {
 // Delivery already succeeded, so a failed contact write must not turn it into a send error.
 function rememberRecipients(input: SendInput) {
   try { recordRecentRecipients(input.accountId, [...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])]); } catch { /* suggestions are optional */ }
+}
+
+export const mailBatchSchema = z.object({
+  items: z.array(z.object({ id: z.string().min(1).max(500), accountId: z.string().min(1).max(500) }).strict())
+    .min(1).max(MAX_MAIL_BATCH).refine(items => new Set(items.map(item => item.id)).size === items.length, "Choose each message once."),
+  operation: messageActionSchema.refine(input => ["read", "unread", "archive", "inbox", "snooze", "pin", "unpin", "trash"].includes(input.action), "Unsupported batch action."),
+}).strict();
+
+export function updateMessages(value: unknown, beforeExecution?: () => void): Promise<MailBatchResponse> {
+  const input = mailBatchSchema.parse(value);
+  return trackMailWork(async () => {
+    const results: MailBatchResponse["results"] = [];
+    for (const item of input.items) {
+      let providerAttempted = false;
+      try {
+        await updateMessage(item.id, input.operation, () => {
+          beforeExecution?.();
+          const mail = findMail(item.id);
+          if (mail.accountId !== item.accountId) throw new Error("Message account changed.");
+          if (mail.archived && input.operation.action === "snooze")
+            throw new Error("Archived mail cannot be snoozed. Move it to Inbox first.");
+          if (mail.direction === "sent" && !["pin", "unpin", "trash"].includes(input.operation.action))
+            throw new Error("This action is unavailable for Sent mail.");
+        }, () => { providerAttempted = true; });
+        results.push({ ...item, status: "done" });
+      } catch {
+        // Provider errors can follow a committed remote mutation. Never guess or retry.
+        results.push({ ...item, status: providerAttempted ? "unknown" : "failed" });
+      }
+    }
+    return { results };
+  });
 }

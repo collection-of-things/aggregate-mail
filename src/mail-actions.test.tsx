@@ -923,3 +923,21 @@ test("unread and Move to Inbox keep single-message targets and do not reread the
   assert.ok(app.mutations.filter(value => ["unread", "inbox"].includes(value.action)).every(value => value.id === "a:1:5"));
  } finally { await app.close(); }
 });
+
+
+test("App select-all selects closed-list mail without reading and leaves an open reader alone", async () => {
+  const app = await mount();
+  try {
+    const event = await app.key("a", undefined, { ctrlKey: true });
+    assert.equal(event.defaultPrevented, true);
+    const bar = app.container.querySelector('[aria-label="Select and triage messages"]')!;
+    assert.match(bar.textContent!, /[1-9] messages selected/);
+    assert.equal(app.mutations.length, 0);
+    await app.click(app.button("Clear selection", bar));
+    await app.open();
+    assert.equal(app.container.querySelector('[aria-label="Select and triage messages"]'), null);
+    const native = await app.key("a", undefined, { ctrlKey: true });
+    assert.equal(native.defaultPrevented, false);
+    assert.equal(app.mutations.filter(item => item.action === "read").length, 1);
+  } finally { await app.close(); }
+});
