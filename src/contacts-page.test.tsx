@@ -140,3 +140,44 @@ test("import requires a preview and confirmation, hides personal preview data, a
     assert.equal(document.querySelector('[aria-label="Import preview"]'), null);
   });
 });
+
+test("enabling privacy hides an unfocused contact search until focused", async () => {
+  await withDOM(async ({ document, render }) => {
+    const { api } = fakeApi();
+    const page = (on: boolean) => <PrivacyContext.Provider value={{ on, revealed: new Set(), toggle() {} }}><ContactsPage api={api} accounts={accounts} /></PrivacyContext.Provider>;
+    await render(page(false));
+    await fill(document, "Find contacts", "person@example.test");
+    await act(async () => { (document.activeElement as HTMLElement).blur(); });
+    await render(page(true));
+    const field = document.querySelector<HTMLInputElement>('input[type="search"]')!;
+    assert.equal(field.value, "");
+    assert.doesNotMatch(document.body.innerHTML, /person@example.test/);
+    await act(async () => { field.focus(); });
+    assert.equal(field.value, "person@example.test");
+  });
+});
+
+test("account removal clears cached contacts, edits and import previews while Contacts remains mounted", async () => {
+  await withDOM(async ({ document, render }) => {
+    const home: Account = { id: "home", email: "home@example.test", provider: "imap" };
+    const list: ContactList = { saved: [{ kind: "saved", id: "c1", accountId: "work", name: "Removed Person", email: "removed@example.test", updatedAt: 1 }], recent: [{ kind: "recent", id: "r1", accountId: "work", email: "removed-recent@example.test", lastSentAt: 1 }] };
+    const api: Api = async <T,>(url: string) => (url === "/contacts" ? structuredClone(list) : { added: 1, skipped: 0, duplicates: 0, sample: [{ name: "Preview Person", email: "preview@example.test" }] }) as T;
+    await render(<ContactsPage api={api} accounts={[...accounts, home]} />);
+    await click(button(document, "Edit contact 1"));
+    await render(<ContactsPage api={api} accounts={[home]} />);
+    assert.doesNotMatch(document.body.textContent!, /Removed Person|removed@example.test/);
+    assert.equal(document.querySelector(".contact-form"), null);
+    await click(button(document, "Recent recipients"));
+    assert.doesNotMatch(document.body.textContent!, /removed-recent@example.test/);
+    await render(<ContactsPage api={api} accounts={[...accounts, home]} />);
+    await click(button(document, "Import contacts"));
+    const file = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const bytes = new TextEncoder().encode('Name,Email\nPreview Person,preview@example.test');
+    Object.defineProperty(file, "files", { configurable: true, value: [{ name: "contacts.csv", size: bytes.length, arrayBuffer: async () => bytes.buffer }] });
+    await act(async () => { file.dispatchEvent(new window.Event("change", { bubbles: true })); });
+    assert.ok(document.querySelector('[aria-label="Import preview"]'));
+    await render(<ContactsPage api={api} accounts={[home]} />);
+    assert.equal(document.querySelector('[aria-label="Import preview"]'), null);
+    assert.doesNotMatch(document.body.innerHTML, /preview@example.test/);
+  });
+});

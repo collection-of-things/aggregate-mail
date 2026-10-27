@@ -12,6 +12,10 @@ type Editing = { kind: "new"; accountId: string; name: string; email: string } |
 
 // Lists, adds, edits and deletes saved contacts, and removes recent recipients.
 export function ContactsPage({ api, accounts, accountFilter = "all", busy = false }: { api: Api; accounts: readonly Account[]; accountFilter?: string; busy?: boolean }) {
+  return <ContactsContent key={JSON.stringify(accounts.map(account => account.id).sort())} api={api} accounts={accounts} accountFilter={accountFilter} busy={busy} />;
+}
+
+function ContactsContent({ api, accounts, accountFilter, busy }: { api: Api; accounts: readonly Account[]; accountFilter: string; busy: boolean }) {
   const { on: privacy } = useContext(PrivacyContext);
   const [contacts, setContacts] = useState<ContactList | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -21,9 +25,10 @@ export function ContactsPage({ api, accounts, accountFilter = "all", busy = fals
   const [status, setStatus] = useState("");
   const [section, setSection] = useState<"saved" | "recent" | "import">("saved");
   const [search, setSearch] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
   const lock = useRef(false);
   const disabled = busy || saving;
-  const inAccount = (item: { accountId: string }) => accountFilter === "all" || item.accountId === accountFilter;
+  const inAccount = (item: { accountId: string }) => accounts.some(account => account.id === item.accountId) && (accountFilter === "all" || item.accountId === accountFilter);
   const matches = (item: { email: string; name?: string }) => !search.trim() || `${item.name || ""} ${item.email}`.toLowerCase().includes(search.trim().toLowerCase());
   const load = async () => {
     setLoadError("");
@@ -89,7 +94,7 @@ export function ContactsPage({ api, accounts, accountFilter = "all", busy = fals
     </nav>
     <div className="settings-column">
       <header className="settings-section-heading"><span className="settings-section-context">Address book</span><h1>{sections.find(item => item.id === section)!.label}</h1><p>{descriptions[section]}</p></header>
-      {section !== "import" && <label className="contacts-search"><span className="visually-hidden">Find contacts</span><input type="search" placeholder="Find a name or email" value={search} onChange={event => setSearch(event.target.value)} /></label>}
+      {section !== "import" && <label className="contacts-search"><span className="visually-hidden">Find contacts</span><input type="search" placeholder="Find a name or email" value={privacy && !searchFocused ? "" : search} onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)} onChange={event => setSearch(event.target.value)} /></label>}
       {section === "import" && <ContactImportPanel key={accountFilter} api={api} accounts={accounts} accountFilter={accountFilter} busy={disabled} onImported={load} />}
       {section === "saved" && <section>
     <h2>Saved contacts</h2>

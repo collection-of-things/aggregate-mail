@@ -38,6 +38,8 @@ Repeat an import to add new addresses; existing names are not overwritten.
 After an uncertain response, preview again to see what remains. Imported
 contacts are encrypted with the existing local store and feed To, Cc and Bcc
 suggestions. Disconnecting the destination account removes its contacts.
+The Contacts page clears open edits and import previews when connected accounts
+change. Privacy hides the find query until you focus its field.
 
 The export you downloaded remains a personal-data file on your computer.
 Remove it when you no longer need it. Emc² does not retain that file or its name.
