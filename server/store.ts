@@ -375,6 +375,11 @@ export function get<K extends keyof Records>(kind: K, id: string): Records[K] | 
   const row = db.prepare("SELECT value FROM records WHERE kind=? AND id=?").get(kind, id);
   return row ? decrypt(String(row.value)) as Records[K] : undefined;
 }
+// Ciphertext changes on every write, so Undo rejects intervening writes and ABA.
+export function mailRecordVersion(id: string): string | undefined {
+  const row = db.prepare("SELECT value FROM records WHERE kind='mail' AND id=?").get(id);
+  return row ? digest(String(row.value)) : undefined;
+}
 // Keep revision checks and writes under the same SQLite writer lock.
 export function transaction<T>(work: () => T): T {
   db.exec("BEGIN IMMEDIATE");

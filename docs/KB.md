@@ -2729,3 +2729,20 @@ behavior. See [the reader decision](adr/0090-inline-conversation-reader.md).
 When inline conversation reading is combined with Forward, only the selected
 message receives the callback bound to the current action target. Other
 expanded messages must first use Select for actions.
+
+## Local mail Undo
+
+Single-message Pin/Unpin and Snooze/Return confirmations offer Undo. Commands
+keeps Undo last action available when confirmations are off and independently
+of the selected message. Batch, archive, trash and send actions have no Undo.
+Editor Ctrl/Cmd+Z remains native.
+
+PATCH `/api/messages/:id` may return `undo: {id, accountId, token}` for local
+actions. POST `/api/messages/:id/undo` accepts `{accountId, token}`. The signed
+receipt binds the original identities, prior local field and post-write encrypted
+row version. Serialization and a SQLite writer transaction check and restore
+atomically. Changed, replaced, replayed or restart-invalidated receipts return
+409 without writing. Any intervening rewrite, including sync or body refresh,
+can conservatively invalidate Undo. A lost response is not retried; refresh mail
+before acting again. No provider request is made by Undo.
+See [ADR 0091](adr/0091-local-mail-undo.md).

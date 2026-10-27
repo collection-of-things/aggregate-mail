@@ -506,3 +506,9 @@ uses cached references only. Each expanded message uses the allowlisted reader
 and its own privacy context. Collapse or another opening discards image consent;
 enabling privacy revokes consent in every expanded message. Inbox list grouping
 and bulk-selection behavior stay unchanged.
+
+Local Pin/Unpin and Snooze/Return confirmations offer an Undo button for their
+captured message. Commands exposes Undo last action even with confirmations off.
+No selected mail is required. Busy work disables Undo; stale state reports a
+refusal without changing mail. Provider actions and batch actions have no Undo.
+Composer undo keys retain their native meaning.

@@ -1,5 +1,6 @@
 import { needsEmbeddedContentRecovery } from "../shared/mail-content.js";
 import { browserGate, browserPort } from "./browser-preflight.js";
+import { LocalMailUndoConflict } from "./local-mail-undo.js";
 import { phonePasskeys } from "./phone-passkeys.js";
 import { phoneAccess, mountPhoneAccess } from "./phone-access.js";
 import { Outbox, outboxStatuses } from "./outbox.js";
@@ -29,6 +30,7 @@ import { GmailWatch } from "./gmail-watch.js";
 import {
   updateMessage,
   updateMessages,
+  undoMessage,
   messageActionSchema,
   runMailWork,
   findMail,
@@ -790,12 +792,24 @@ app.post("/api/messages/batch", mailRequest(async (req, res) => {
   assertNotSyncing();
   res.json(await updateMessages(req.body, assertNotSyncing));
 }));
+app.post("/api/messages/:id/undo", mailRequest(async (req, res) => {
+  const id = z.string().min(1).max(500).parse(req.params.id);
+  const input = z.object({ accountId: z.string().min(1).max(500), token: z.string().min(1).max(4096) }).strict().parse(req.body);
+  assertNotSyncing();
+  try { await undoMessage(id, input.accountId, input.token, assertNotSyncing); }
+  catch (error) {
+    if (error instanceof LocalMailUndoConflict) return res.status(409).json({ error: error.message });
+    throw error;
+  }
+  res.json({ ok: true });
+}));
 app.patch("/api/messages/:id", async (req, res) => {
   const input = messageActionSchema.parse(req.body);
   if (!get("mail", req.params.id))
     return res.status(404).json({ error: "Message not found." });
-  await updateMessage(req.params.id, input);
-  res.json({ ok: true });
+  let undo: import("../shared/local-mail-undo.js").LocalMailUndo | undefined;
+  await updateMessage(req.params.id, input, undefined, undefined, receipt => { undo = receipt; });
+  res.json({ ok: true, ...(undo ? { undo } : {}) });
 });
 app.post("/api/send", (req, res) => {
   res.status(202).json({ queued: true, entry: outbox.enqueue(req.body) });
