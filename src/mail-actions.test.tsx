@@ -12,7 +12,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-async function mount(preferences?: NotificationPreferences, revisionContract = false, nativeNotifications = false) {
+async function mount(preferences?: NotificationPreferences, revisionContract = false, nativeNotifications = false, localUndo = false) {
   const dom = new JSDOM("<!doctype html><div id='root'></div>", { url: "http://localhost/" });
   dom.window.HTMLElement.prototype.scrollTo = () => {};
   dom.window.HTMLElement.prototype.scrollIntoView = () => {};
@@ -73,6 +73,9 @@ async function mount(preferences?: NotificationPreferences, revisionContract = f
   const previousFetch = globalThis.fetch;
   const mutations: { id: string; action: string }[] = [];
   const drafts = new Map<string, Draft>();
+  const undoRequests: { id: string; accountId: string; token: string }[] = [];
+  const undoReceipts = new Map<string, { before: Mail; after: string }>();
+  let undoSequence = 0, loseUndo = false;
   let actionGate: Promise<void> | undefined;
   let rejectAction = false;
   let readGate: Promise<void> | undefined;
@@ -105,6 +108,18 @@ async function mount(preferences?: NotificationPreferences, revisionContract = f
       }
     } else if (url === "/api/sync") {
       data = { errors: [] };
+    } else if (options?.method === "POST" && url.endsWith("/undo")) {
+      const id = decodeURIComponent(url.split("/")[3]);
+      const input = JSON.parse(String(options.body)) as { accountId: string; token: string };
+      undoRequests.push({ id, ...input });
+      const receipt = undoReceipts.get(input.token);
+      const mail = state.messages.find(mail => mail.id === id && mail.accountId === input.accountId);
+      if (!receipt || !mail || receipt.before.id !== id || JSON.stringify(mail) !== receipt.after)
+        return { ok: false, status: 409, json: async () => ({ error: "Undo unavailable: email changed." }) } as Response;
+      state.messages = state.messages.map(value => value === mail ? receipt.before : value);
+      undoReceipts.delete(input.token);
+      if (loseUndo) throw new Error("Synthetic lost Undo response");
+      data = { ok: true };
     } else if (options?.method === "PATCH") {
       const id = decodeURIComponent(url.slice("/api/messages/".length));
       const { action, until } = JSON.parse(String(options.body)) as { action: string; until?: number };
@@ -118,6 +133,7 @@ async function mount(preferences?: NotificationPreferences, revisionContract = f
       const failed = (action === "read" && rejectRead) || (action === "trash" && rejectTrash);
       if (failed) return { ok: false, json: async () => ({ error: "Synthetic provider failure" }) } as Response;
       const mail = state.messages.find((mail) => mail.id === id)!;
+      const before = structuredClone(mail);
       if (action === "read") {
         mail.unread = false;
         mail.labelIds = mail.labelIds?.filter((label) => label !== "UNREAD");
@@ -129,7 +145,11 @@ async function mount(preferences?: NotificationPreferences, revisionContract = f
       else if (action === "unsnooze") mail.snoozedUntil = null;
       else if (action === "archive") mail.archived = true;
       else if (action === "trash") state.messages = state.messages.filter((mail) => mail.id !== id);
-      data = { ok: true };
+      if (localUndo && ["pin", "unpin", "snooze", "unsnooze"].includes(action)) {
+        const token = `synthetic-local-${++undoSequence}`;
+        undoReceipts.set(token, { before, after: JSON.stringify(mail) });
+        data = { ok: true, undo: { id, accountId: mail.accountId, token } };
+      } else data = { ok: true };
     } else if (url === "/api/compose-preferences" && options?.method === "PUT") {
       state.composePreferences = JSON.parse(String(options.body));
       data = state.composePreferences;
@@ -175,7 +195,8 @@ async function mount(preferences?: NotificationPreferences, revisionContract = f
   const toolbar = () => container.querySelector<HTMLElement>(".mail-actions")!;
   const dialog = () => container.querySelector<HTMLElement>('[role="dialog"]')!;
   return {
-    state, container, button, click, exit, key, row, rowMenu, trash, toolbar, dialog, mutations, drafts, stateRequests, configured, audioCommands,
+    state, container, button, click, exit, key, row, rowMenu, trash, toolbar, dialog, mutations, drafts, undoRequests,
+    loseUndo: () => { loseUndo = true; }, stateRequests, configured, audioCommands,
     resetGeneration: () => { generation = "replacement-generation"; },
     truncateState: (value: boolean) => { truncated = value; },
     notificationClick: async (id: string) => { await act(async () => notificationOpen?.(id)); },
@@ -521,15 +542,16 @@ test("commands pin cached mail, structured search finds it and arrival notices a
     await app.key("k", app.row(), { ctrlKey: true });
     await app.click([...app.dialog().querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.querySelector("span")?.textContent === "Unpin email")!);
     assert.equal(app.container.querySelectorAll(".row").length, 0);
+    assert.equal(app.container.querySelectorAll(".toast-success").length, 2, "pin and unpin are confirmed separately");
     app.state.unreadArrivals = 1;
     await app.refresh();
-    assert.equal(app.container.querySelectorAll(".toast-text").length, 1);
-    assert.match(app.container.querySelector(".toast-text")!.textContent!, /1 new unread email/);
+    assert.equal(app.container.querySelectorAll(".toast-info .toast-text").length, 1);
+    assert.match(app.container.querySelector(".toast-info .toast-text")!.textContent!, /1 new unread email/);
     app.state.unreadArrivals = 2;
     await app.refresh();
-    assert.equal(app.container.querySelectorAll(".toast-text").length, 2, "equal-sized distinct batches are both reported");
+    assert.equal(app.container.querySelectorAll(".toast-info .toast-text").length, 2, "equal-sized distinct batches are both reported");
     await app.refresh();
-    assert.equal(app.container.querySelectorAll(".toast-text").length, 2, "repeated snapshot is silent");
+    assert.equal(app.container.querySelectorAll(".toast-info .toast-text").length, 2, "repeated snapshot is silent");
   } finally { await app.close(); }
 });
 
@@ -939,5 +961,69 @@ test("App select-all selects closed-list mail without reading and leaves an open
     const native = await app.key("a", undefined, { ctrlKey: true });
     assert.equal(native.defaultPrevented, false);
     assert.equal(app.mutations.filter(item => item.action === "read").length, 1);
+  } finally { await app.close(); }
+});
+
+test("local Undo Commands work with confirmations off, retain target identity and consume a lost response without retry", async () => {
+  const app = await mount({ ...notificationDefaults, confirmations: false }, false, false, true);
+  const command = async () => {
+    await app.key("k", undefined, { ctrlKey: true });
+    const option = [...app.dialog().querySelectorAll<HTMLElement>('[role="option"]')].find(value => value.querySelector("span")?.textContent === "Undo last action")!;
+    assert.ok(option); return option;
+  };
+  try {
+    await app.key("s", app.row());
+    assert.equal(app.state.messages[0].pinned, true);
+    assert.equal(app.container.querySelector(".toast-success"), null);
+    await app.click(app.row("b:1:5"));
+    await app.click(await command());
+    assert.equal(app.state.messages[0].pinned, undefined);
+    assert.deepEqual(app.undoRequests.map(({ id, accountId }) => ({ id, accountId })), [{ id: "a:1:5", accountId: "a" }]);
+    await app.key("s", app.row("b:1:5"));
+    app.loseUndo();
+    await app.click(await command());
+    assert.equal(app.state.messages.find(mail => mail.id === "b:1:5")?.pinned, undefined, "response loss can follow committed Undo");
+    assert.match(app.container.querySelector('[role="alert"]')!.textContent!, /not confirmed.*not retried/);
+    const disabled = await command();
+    assert.equal(disabled.getAttribute("aria-disabled"), "true");
+    await app.click(disabled);
+    assert.equal(app.undoRequests.length, 2, "lost response is never resubmitted");
+    await app.key("Escape");
+    await app.key("c");
+    const editor = document.querySelector<HTMLElement>('[aria-label="Message body"]')!;
+    assert.ok(editor);
+    for (const modifier of [{ ctrlKey: true }, { metaKey: true }]) {
+      const event = await app.key("z", editor, modifier);
+      assert.equal(event.defaultPrevented, false, "composer retains native undo ownership");
+    }
+    assert.equal(app.undoRequests.length, 2);
+  } finally { await app.close(); }
+});
+
+test("local confirmation Undo captures its message, rejects stale changes and restores Snooze from its notice", async () => {
+  const app = await mount(undefined, false, false, true);
+  try {
+    await app.key("s", app.row());
+    const first = app.button("Undo", app.container.querySelector(".toast-success")!);
+    await app.click(app.row("b:1:5"));
+    await app.click(first);
+    assert.equal(app.state.messages[0].pinned, undefined);
+    assert.equal(app.undoRequests[0].id, "a:1:5");
+    await app.exit();
+    await app.key("s", app.row("b:1:5"));
+    const stale = [...app.container.querySelectorAll<HTMLButtonElement>(".toast-success button")].find(button => button.textContent === "Undo")!;
+    app.state.messages.find(mail => mail.id === "b:1:5")!.subject = "Changed after pin";
+    const snapshot = structuredClone(app.state.messages);
+    await app.click(stale);
+    assert.deepEqual(app.state.messages, snapshot);
+    assert.match(app.container.querySelector('[role="alert"]')!.textContent!, /email changed/);
+    await app.exit();
+    await app.click(app.button("Snooze", await app.rowMenu("b:1:5")));
+    await app.activate(app.button("In one hour", app.container.querySelector('[role="menu"][aria-label="Snooze email"]')!));
+    assert.ok(app.state.messages.find(mail => mail.id === "b:1:5")!.snoozedUntil);
+    const notice = [...app.container.querySelectorAll<HTMLElement>(".toast-success")].find(value => value.textContent?.includes("Email snoozed until"))!;
+    await app.click(app.button("Undo", notice));
+    assert.equal(app.state.messages.find(mail => mail.id === "b:1:5")!.snoozedUntil, null);
+    assert.equal(app.undoRequests.at(-1)?.accountId, "b");
   } finally { await app.close(); }
 });

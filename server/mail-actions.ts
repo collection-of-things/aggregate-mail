@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { LocalMailUndo } from "../shared/local-mail-undo.js";
+import { updateLocalMail, restoreLocalMail } from "./local-mail-undo.js";
 import { MAX_MAIL_BATCH, type MailBatchResponse } from "../shared/bulk-mail.js";
 import { all, get, account, put, remove } from "./store.js";
 import { providers, sendSchema, SentCopyError, updateGmailLabels, type SendInput } from "./providers.js";
@@ -80,17 +82,13 @@ export async function updateMessage(
   input: z.infer<typeof messageActionSchema>,
   beforeExecution?: () => void,
   providerStarted?: () => void,
+  captureUndo?: (receipt: LocalMailUndo) => void,
 ) {
   return runMailWork(async () => {
     beforeExecution?.();
     const m = findMail(id);
-    if (input.action === "pin" || input.action === "unpin") {
-      const updated = { ...m };
-      if (input.action === "pin") updated.pinned = true;
-      else delete updated.pinned;
-      put("mail", m.id, updated);
-      return updated;
-    }
+    if (input.action === "pin" || input.action === "unpin" || input.action === "snooze" || input.action === "unsnooze")
+      return updateLocalMail(id, input.action, "until" in input ? input.until : undefined, captureUndo);
     if (input.action === "read" && !m.unread || input.action === "unread" && m.unread || input.action === "inbox" && !m.archived) return m;
     if (input.action === "trash") {
       const a = account(m.accountId);
@@ -112,13 +110,6 @@ export async function updateMessage(
       put("mail", m.id, updated);
       return updated;
     }
-    if (
-      input.action === "snooze" &&
-      (!input.until ||
-        input.until < Date.now() ||
-        input.until > Date.now() + 366 * 86400000)
-    )
-      throw new Error("Choose a snooze time within the next year.");
     let identity: void | { remoteId: string } = undefined;
     if (input.action === "read" || input.action === "unread" || input.action === "inbox" || input.action === "archive") {
       const a = account(m.accountId);
@@ -133,12 +124,7 @@ export async function updateMessage(
       labelIds: removedLabel ? latest.labelIds?.filter((labelId) => labelId !== removedLabel) : input.action === "unread" || input.action === "inbox" ? [...new Set([...(latest.labelIds || []), input.action === "unread" ? "UNREAD" : "INBOX"])] : latest.labelIds,
       unread: input.action === "read" ? false : input.action === "unread" ? true : latest.unread,
       archived: input.action === "inbox" ? false : input.action === "archive" || latest.archived,
-      snoozedUntil:
-        input.action === "snooze"
-          ? input.until!
-          : input.action === "unsnooze"
-            ? null
-            : latest.snoozedUntil,
+      snoozedUntil: latest.snoozedUntil,
     };
     put("mail", m.id, updated);
     return updated;
@@ -199,4 +185,8 @@ export function updateMessages(value: unknown, beforeExecution?: () => void): Pr
     }
     return { results };
   });
+}
+
+export function undoMessage(id: string, accountId: string, token: string, beforeExecution?: () => void) {
+  return runMailWork(() => { beforeExecution?.(); return restoreLocalMail(id, accountId, token); });
 }

@@ -1,4 +1,5 @@
 import { OutboxNotices } from "./compose/OutboxNotices";
+import type { LocalMailUndo, LocalMailActionResponse } from "../shared/local-mail-undo";
 import { SearchToolbar } from "./shell/SearchToolbar";
 import { mailNotice } from "../shared/notifications";
 import { readNotifications, saveNotifications } from "./notifications";
@@ -317,6 +318,8 @@ export function App() {
   const [syncing, setSyncing] = useState(false);
   const [notifications, setNotifications] = useState(readNotifications);
   const { toasts, push: pushToast, dismiss: dismissToast } = useToasts(notifications);
+  const [lastUndo, setLastUndo] = useState<LocalMailUndo | null>(null);
+  const undoLock = useRef(false);
   const setNotice = useCallback((text: string) => { if (text) pushToast(text, "error"); }, [pushToast]);
   const [outboxRefresh, setOutboxRefresh] = useState(0);
   const outboxNotice = useCallback((text: string, kind: "info" | "error" = "info") => pushToast(text, kind), [pushToast]);
@@ -663,13 +666,15 @@ export function App() {
   const snoozedCount = state.messages.filter(
     (m) => m.direction !== "sent" && !m.archived && isSnoozed(m) && matchesLabel(m, activeLabel),
   ).length;
-  const perform = async (task: () => Promise<unknown>, success?: string) => {
+  const perform = async <T,>(task: () => Promise<T>, success?: string, localUndo?: (result: T) => LocalMailUndo | undefined) => {
     if (busy) return;
     setBusy(true);
     try {
-      await task();
+      const result = await task();
+      const undo = localUndo?.(result);
+      if (undo) setLastUndo(undo);
       if (success) {
-        pushToast(success, "success");
+        pushToast(success, "success", undo ? `undo:${undo.token}` : undefined, undefined, undo);
         try { await reload(); }
         catch { setNotice(`${success} Inbox refresh failed. Refresh the inbox separately.`); }
       } else await reload();
@@ -685,12 +690,26 @@ export function App() {
     until?: number,
   ) =>
     perform(() =>
-      api(`/messages/${encodeURIComponent(mail.id)}`, "PATCH", {
+      api<LocalMailActionResponse>(`/messages/${encodeURIComponent(mail.id)}`, "PATCH", {
         action,
         until,
       }),
-      action === "archive" ? "Email archived." : action === "unsnooze" ? "Email returned to inbox." : undefined,
+      action === "archive" ? "Email archived." : action === "unsnooze" ? "Email returned to inbox." :
+        action === "pin" ? "Email pinned." : action === "unpin" ? "Email unpinned." :
+        action === "snooze" ? "Email snoozed." : undefined,
+      result => result.undo,
     );
+  const undoLocalAction = async (receipt: LocalMailUndo) => {
+    if (busy || syncing || toolbarBlocked || undoLock.current) return;
+    undoLock.current = true;
+    setLastUndo(current => current?.token === receipt.token ? null : current);
+    try {
+      await perform(async () => {
+        try { await api(`/messages/${encodeURIComponent(receipt.id)}/undo`, "POST", { accountId: receipt.accountId, token: receipt.token }); }
+        catch (error) { throw new Error(`Undo was not confirmed and was not retried. Refresh mail before acting again. ${error instanceof Error ? error.message : ""}`); }
+      }, "Local action undone.");
+    } finally { undoLock.current = false; }
+  };
   const markRead = (mail: Mail) => {
     if (mail.direction === "sent") return;
     void markMailRead(mail, pendingReads.current, async () => {
@@ -1291,6 +1310,9 @@ export function App() {
         id: `mail-${id}`, label, group: "mail" as const, shortcut: key, disabled: true,
         disabledReason: "Select an email first", aliases: commandAliases[`mail-${id}`], run: () => undefined }));
   const commands: PaletteCommand[] = [
+    { id: "undo-local", label: "Undo last action", group: "navigation", disabled: !lastUndo || busy || syncing || toolbarBlocked,
+      disabledReason: !lastUndo ? "No local action to undo" : busy || syncing || toolbarBlocked ? "Another action is in progress" : undefined,
+      run: () => { if (lastUndo) void undoLocalAction(lastUndo); } },
     ...interactionActions.flatMap(({ id, label }) => id in paletteActions ? [{ id, label, group: "navigation" as const,
       shortcut: shortcut(id), aliases: commandAliases[id as keyof typeof paletteActions],
       run: paletteActions[id as keyof typeof paletteActions] }] : []),
@@ -1321,7 +1343,7 @@ export function App() {
         data-view={settings ? "settings" : view}
         style={{ "--text-scale": textScale } as React.CSSProperties}
       >
-        <ToastStack outbox={<OutboxNotices api={api} refreshKey={outboxRefresh} enabled={loaded} onScheduled={() => setScheduledOpen(true)} blocked={busy || updateInstalling || scheduledOpen || !!compose || settingsModal || workModal} onEdit={openOutboxDraft} onNotice={outboxNotice} onChanged={() => { void reload().catch(() => {}); }} />} toasts={toasts} onDismiss={dismissToast} position={notifications.position} preferences={notifications} onOpen={requestNotificationMail} />
+        <ToastStack outbox={<OutboxNotices api={api} refreshKey={outboxRefresh} enabled={loaded} onScheduled={() => setScheduledOpen(true)} blocked={busy || updateInstalling || scheduledOpen || !!compose || settingsModal || workModal} onEdit={openOutboxDraft} onNotice={outboxNotice} onChanged={() => { void reload().catch(() => {}); }} />} toasts={toasts} onDismiss={dismissToast} position={notifications.position} preferences={notifications} onOpen={requestNotificationMail} onUndo={receipt => void undoLocalAction(receipt)} undoDisabled={busy || syncing || toolbarBlocked} />
         {scheduledOpen && <Dialog title="Scheduled" onClose={() => setScheduledOpen(false)}>
           <p className="dialog-copy">Emc² must be running and online. Sleep, restart and missed offline schedules require review. Unknown outcomes are never retried automatically.</p>
           <OutboxNotices api={api} scheduledOnly enabled={loaded} blocked={busy || updateInstalling}
@@ -1735,14 +1757,16 @@ export function App() {
             busy={busy}
             onClose={closeSnooze}
             onSnooze={(until) => void perform(async () => {
-              await api(`/messages/${encodeURIComponent(snooze.mail.id)}`, "PATCH", { action: "snooze", until });
+              const result = await api<LocalMailActionResponse>(`/messages/${encodeURIComponent(snooze.mail.id)}`, "PATCH", { action: "snooze", until });
               setSnooze(null);
               if (selectedId === snooze.mailId) setOpened(false);
-            }, `Email snoozed until ${new Date(until).toLocaleString()}.`)}
+              return result;
+            }, `Email snoozed until ${new Date(until).toLocaleString()}.`, result => result.undo)}
             onUnsnooze={() => void perform(async () => {
-              await api(`/messages/${encodeURIComponent(snooze.mail.id)}`, "PATCH", { action: "unsnooze" });
+              const result = await api<LocalMailActionResponse>(`/messages/${encodeURIComponent(snooze.mail.id)}`, "PATCH", { action: "unsnooze" });
               setSnooze(null);
-            }, "Email returned to inbox.")}
+              return result;
+            }, "Email returned to inbox.", result => result.undo)}
           />
         )}
         {trashMail && (

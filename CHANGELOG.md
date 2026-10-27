@@ -14,6 +14,8 @@ unversioned history without treating it as a release record.
 - Forward cached mail as plain text, address multiple To recipients and add Bcc, with encrypted draft recovery and explicit attachment omissions ([#51](https://github.com/collection-of-things/aggregate-mail/issues/51)).
 - Read cached conversations inline, expand individual messages and choose an explicit message for actions. Keep history gaps visible and remote images blocked until activated for each opening. [#54](https://github.com/collection-of-things/aggregate-mail/issues/54)
 
+- Undo single-message Pin/Unpin and Snooze/Return from the confirmation or Commands. Changed mail is protected from stale Undo. [#69](https://github.com/collection-of-things/aggregate-mail/issues/69)
+
 - Select messages across accounts and triage up to 200 at once, with per-message outcomes and confirmed Trash. Ctrl/Cmd+A selects the current filtered list. [#52](https://github.com/collection-of-things/aggregate-mail/issues/52)
 
 - Mark mail unread or move archived mail back to Inbox from message actions, Commands or customizable shortcuts. [#53](https://github.com/collection-of-things/aggregate-mail/issues/53)
