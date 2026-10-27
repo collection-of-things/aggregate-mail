@@ -2388,6 +2388,9 @@ focus, always visible on touch. Confirm before deletion, including the existing
 unknown-send warning. Use the exact account, draft ID and saved revision; remove
 the row only after confirmed success. Retain failed rows with refresh guidance,
 refresh the sidebar count and return focus to the next row or Refresh.
+Rows reserve delete-button clearance at every width and pointer type so dates
+and attachment counts remain visible. Account labels and colour dots match the
+inbox; privacy-safe custom names remain visible while addresses stay hidden.
 
 ## Workspace proposal refresh memory
 

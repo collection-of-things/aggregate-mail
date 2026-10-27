@@ -591,13 +591,14 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
 .draft-list .draft-warning { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 
 .draft-list > ul > li { position: relative; }
+.draft-list .draft-row { padding-right: 54px; }
 .draft-row-delete { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; min-height: 30px; padding: 0; display: grid; place-items: center; border-radius: 6px; color: var(--text-3); background: var(--surface); opacity: 0; pointer-events: none; }
 .draft-row-delete:focus-visible { opacity: 1; pointer-events: auto; }
 @media (hover: hover) and (pointer: fine) {
   .draft-list li:hover .draft-row-delete:not(:disabled) { opacity: 1; pointer-events: auto; }
   .draft-row-delete:hover { color: var(--danger); background: var(--hover); }
 }
-@media (hover: none) { .draft-row-delete { opacity: 1; pointer-events: auto; } .draft-list .draft-row-meta { padding-right: 34px; } }
+@media (hover: none) { .draft-row-delete { opacity: 1; pointer-events: auto; } }
 
 /* The nonmodal composer shares navigation chrome while covered mail stays inert. */
 .dialog-backdrop.compose-backdrop { pointer-events: none; }
