@@ -4,6 +4,9 @@
 
 - Require a reason when closing an issue or PR, links to existing fixes or ongoing work, and comments on linked issues or PRs.
 
+- Correct contributor guidance for automatic patch releases and the `[skip release]` merge control.
+
+- Show separate receiving-account and sorting-status labels in All accounts, including compact rows. Match account dots to the sidebar, keep existing status meanings and remove provider overlays from sender icons. Narrow rows put account and status below the sender; privacy-safe labels also appear in screen-reader names.
 - Require the person merging to rebase onto the latest target branch and confirm current checks and approvals before merging.
 
 - Add a short agent task guide. Require duplicate searches and existing templates before filing issues or PRs, and current task State when using git.cafe. Clarify that personal context, tooling configuration and reference uploads stay out of the repository.
@@ -15,6 +18,7 @@
 - Clarify in-app new-mail notices with the unread count as the heading, a mail icon, a distinct Open email action and a labeled close control. Keep optional details, privacy masking, exact-email opening and notification timing unchanged.
 
 - Reduce cached-mail summary copying and unchanged-cursor work. Default storage compaction skips the database rewrite when there are no free pages, while retaining attachment inventory and all stored mail and drafts.
+- Show separate receiving-account and sorting-status labels in All accounts, including compact rows. Match account dots to the sidebar, keep existing status meanings and remove provider overlays from sender icons. Narrow rows put account and status below the sender; privacy-safe labels also appear in screen-reader names.
 - Start Google sign-in only from the app. Continue with Google and Connect Google Calendar now ask the desktop-authenticated service for a single-use, two-minute link, so other local programs can no longer connect their own Gmail account or flood pending sign-ins. Pending launches and OAuth states are capped at eight each.
 - Require a per-launch session link in the browser target (`npm run dev:web`, `npm run start:web`). The mail server prints the link at startup; opening it sets an HttpOnly, SameSite=Strict cookie, and `/api` requests without it or the desktop token are refused, so other local users and programs can no longer read mail or act through the browser target.
 - Find pinned mail from Filters or Commands, in the current view or in All cached, so pins that were archived or snoozed stay easy to reach. The selected account is kept, and a short note explains how Pin differs from Snooze and Track.

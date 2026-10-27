@@ -292,8 +292,6 @@
 .row.card .row-line strong { font-size: calc(12px * var(--text-scale, 1)); font-weight: 550; }
 .row.card .row-subject { font-size: calc(12px * var(--text-scale, 1)); }
 .row.card .row-preview { font-size: calc(11px * var(--text-scale, 1)); }
-.row-account { display: block; color: var(--text-3); font-size: calc(10px * var(--text-scale, 1)); margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row.r1.card .row-account { margin-top: 2px; }
 .draft-account-tabs { height: 42px; gap: 23px; padding-inline: 25px; }
 .draft-account-tabs button { font-size: calc(11px * var(--text-scale, 1)); }
 .draft-list { padding: 0; }

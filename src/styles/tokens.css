@@ -13,7 +13,11 @@
   --mail-row-card-low: 80px;
   --mail-row-card-medium: 100px;
   --mail-row-card-high: 100px;
-  --mail-row-card-compact: 52px;
+  --mail-row-card-compact: 72px;
+  --account-color-0: #5487d9;
+  --account-color-1: #419b91;
+  --account-color-2: #a18ac9;
+  --account-color-3: #ba9763;
   --mail-group-height: 30px;
   --subhead-height: 48px;
   --chrome: color-mix(in srgb, var(--surface) 60%, var(--bg));

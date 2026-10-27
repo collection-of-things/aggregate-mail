@@ -152,6 +152,7 @@ export function Sidebar({
                 {index < 9 && <kbd>{index + 1}</kbd>}
                 <ProviderIcon provider={account.provider} />
                 <span className="sidebar-name">
+                  <i className="account-dot" data-tone={index % 4} aria-hidden="true" />
                   {accountLabel(account, index, mail.privacy, mail.accounts)}
                 </span>
                 {account.error && (

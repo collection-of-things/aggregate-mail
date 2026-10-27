@@ -5,6 +5,58 @@
   display: flex;
   align-items: center;
 }
+.list-pane {
+  --account-column: clamp(64px, 12cqi, 110px);
+  --status-column: clamp(60px, 10cqi, 100px);
+}
+.mail-list-columns {
+  display: grid;
+  grid-template-columns: var(--account-column) var(--status-column);
+  justify-content: end;
+  gap: 12px;
+  padding: 8px 64px 6px 18px;
+  color: var(--text-3);
+  font-size: calc(10px * var(--text-scale, 1));
+}
+.row-meta {
+  display: grid;
+  grid-template-columns: var(--account-column) var(--status-column);
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+.row-meta-status { grid-template-columns: var(--status-column); }
+.row-account {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-3);
+  font-size: calc(11px * var(--text-scale, 1));
+  white-space: nowrap;
+}
+.row-account > span { overflow: hidden; text-overflow: ellipsis; }
+.account-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--account-color-0);
+}
+.account-dot[data-tone="1"] { background: var(--account-color-1); }
+.account-dot[data-tone="2"] { background: var(--account-color-2); }
+.account-dot[data-tone="3"] { background: var(--account-color-3); }
+.sidebar-name > .account-dot { margin-right: 6px; vertical-align: middle; }
+.row-status { min-width: 0; overflow: hidden; }
+.card .row-meta {
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  margin: 2px 0;
+  line-height: calc(16px * var(--text-scale, 1));
+}
+.card .row-meta-status { grid-template-columns: minmax(0, 1fr); }
+.card .row-status { text-align: right; }
 .mail-window { position: relative; overflow-anchor: none; }
 .mail-window-row { position: absolute; left: 0; width: 100%; display: flow-root; }
 .mail-window-date { position: absolute; left: 0; width: 100%; pointer-events: none; }
@@ -188,15 +240,14 @@
   padding-left: 158px;
 }
 .row-label {
-  flex-shrink: 0;
-  max-width: 120px;
-  margin-left: 10px;
+  display: block;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   font-size: calc(12px * var(--text-scale, 1));
-  color: var(--reason);
+  color: var(--text-3);
 }
+.row-label-attention { color: var(--reason); }
 .row time {
   flex-shrink: 0;
   min-width: 30px;

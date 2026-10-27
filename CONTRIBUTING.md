@@ -145,24 +145,27 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
 
 ## CI and releases
 
-- [Build installers and release](.github/workflows/release.yml) is the only
-  workflow. It runs only on an explicit manual dispatch selecting an existing
-  stable `v<major>.<minor>.<patch>` tag. The tag must resolve to the run commit
-  and match the source version. Creating or pushing the tag does not run it.
-- Pull requests, merge groups, branch pushes and schedules start no workflows.
-  Automatic patch releases, scheduled CodeQL, dependency review, dependency
-  auto-merge and Dependabot update configuration are removed. Review dependency
-  advisories, licenses and updates manually.
-- An authorized manual release runs actionlint, tests, strict builds and installer
-  creation for Windows x64, macOS arm64, macOS x64 and Linux x64. Windows and
-  macOS also run isolated startup checks. Every job uses a GitHub-hosted
-  runner; macOS x64 runs on the native Intel image and keeps its x64 Node
-  guard. See
-  [ADR 0063](docs/adr/0063-manual-release-only-actions.md).
-- Publishing waits for every platform job. It validates the complete installer
-  and updater manifest set, rejects artifact digest mismatches, generates
-  checksums and publishes only against the selected existing tag. Tags cannot
-  be moved or deleted. This workflow never creates a tag or version commit.
+- [Build installers and release](.github/workflows/release.yml) runs on eligible
+  pushes to `main` and manual dispatch on an existing stable version tag.
+  A main push can publish automatically. Include `[skip release]` in the PR
+  title when merging must not publish; squash merges use that title.
+  Documentation-only paths and commit subjects starting with `Release ` also
+  skip automatic publication. Keep merge and release authorization explicit.
+- Push runs choose the next unused patch version and create its tag only after
+  all four installer jobs pass. Manual dispatch requires an existing stable
+  `v<major>.<minor>.<patch>` tag resolving to the run commit and matching the
+  source version. Tag pushes alone do not start this workflow.
+- Release checks include actionlint, tests, strict builds and installers for
+  Windows x64, macOS arm64, macOS x64 and Linux x64. Windows and macOS run
+  isolated startup checks. Every job uses a GitHub-hosted runner; macOS x64
+  keeps its x64 Node guard. Tests run once on Linux.
+- Publishing waits for every platform job, validates the complete installer
+  and updater manifest set, rejects artifact digest mismatches and generates
+  checksums. Existing tags must match the run commit and cannot be moved or
+  deleted. The workflow creates no source version commit.
+- Pull-request CI is separate and opt-in. Skipped or absent checks are not
+  passing application verification. Review dependency advisories, licenses
+  and updates manually.
 - Repository protections and Actions enablement are separate settings. Deleting
   workflows does not remove required checks, merge-queue rules or approvals.
   A maintainer must reconcile any requirements for removed CI before merging;
