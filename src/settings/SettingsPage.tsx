@@ -94,6 +94,12 @@ export function SettingsPage({
   const current = settingsSections.find((item) => item.id === section)!;
   return (
     <main className="settings">
+      {onSection && <label className="settings-mobile-navigation">
+        <span>Settings section</span>
+        <select aria-label="Settings section" value={section} onChange={event => onSection(event.target.value as SettingsSection)}>
+          {settingsSections.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
+        </select>
+      </label>}
       {onSection && <nav className="settings-navigation" aria-label="Settings sections">
         {settingsGroupNames.map((group) => <div className="settings-navigation-group" key={group} role="group" aria-label={group}>
           <span className="settings-rail-label" aria-hidden="true">{group}</span>

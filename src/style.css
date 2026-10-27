@@ -13,8 +13,8 @@
 @import "./styles/mail-features.css";
 @import "./styles/compose-preferences.css";
 @import "./styles/motion.css";
-@import "./styles/responsive.css";
 @import "./update-notice.css";
 
 @import "./styles/work.css";
 @import "./styles/application.css";
+@import "./styles/responsive.css";

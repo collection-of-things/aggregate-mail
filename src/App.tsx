@@ -252,7 +252,9 @@ export function App() {
   const listFocusPending = useRef(false);
   // The sidebar stays open or closed between launches.
   const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem("sidebar") !== "closed");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const toggleSidebar = () => {
+    if (!roomy) { setMobileSidebarOpen(value => !value); return; }
     localStorage.setItem("sidebar", sidebarOpen ? "closed" : "open");
     setSidebarOpen(!sidebarOpen);
   };
@@ -275,8 +277,22 @@ export function App() {
   // the reader beside the list (mail then opens in place), then the sidebar.
   const roomy = useMedia("(min-width: 760px)");
   const splitRoom = useMedia("(min-width: 980px)");
-  const split = appearance.reading === "split" && splitRoom && opened;
-  const sidebarShown = sidebarOpen && roomy;
+  const split = appearance.reading === "split" && splitRoom;
+  const sidebarShown = roomy ? sidebarOpen : mobileSidebarOpen;
+  const fromSidebar = (action: () => unknown) => { action(); setMobileSidebarOpen(false); };
+  useEffect(() => {
+    if (roomy) { setMobileSidebarOpen(false); return; }
+    if (!mobileSidebarOpen) return;
+    document.querySelector<HTMLButtonElement>("#sidebar .sidebar-head button")?.focus();
+    const close = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      setMobileSidebarOpen(false);
+      requestAnimationFrame(() => document.getElementById("sidebar-toggle")?.focus());
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [roomy, mobileSidebarOpen]);
   const [textScale, setTextScale] = useState(() => {
     const value = Number(localStorage.getItem("emc2.text-scale"));
     return Number.isFinite(value) && value >= 0.8 && value <= 1.5 ? value : 1;
@@ -472,6 +488,25 @@ export function App() {
       .catch((error) => { complete = true; if (!controller.signal.aborted) setNotice(error.message); });
     return () => { complete = true; controller.abort(); ++loadRevision.current; };
   }, [api, reload, sync]);
+  useEffect(() => {
+    if (window.desktop) return;
+    let disposed = false;
+    const refresh = () => {
+      if (document.visibilityState === "hidden") return;
+      void reload().catch((error: unknown) => {
+        if (!disposed) setNotice(error instanceof Error ? error.message : "Inbox refresh failed. Try again.");
+      });
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    const timer = window.setInterval(refresh, 15_000);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [reload, setNotice]);
   useEffect(() => {
     if (window.desktop || !loaded || !state.accounts.length) return;
     const timer = setInterval(() => void sync(), 300000);
@@ -810,6 +845,7 @@ export function App() {
         usable(list.querySelector<HTMLElement>(".row:not(:disabled)")) ??
         list;
     }
+    if (!opened) return null;
     const pane = usable(document.querySelector<HTMLElement>(".reader-pane"));
     return pane
       ? usable(pane.querySelector<HTMLElement>(".message")) ?? usable(pane.querySelector<HTMLElement>(".reader-scroll")) ?? pane
@@ -1054,7 +1090,7 @@ export function App() {
     if (!drawsWindowControls) return null;
     return windowSide === "left" ? (pane === left ? "left" : null) : (pane === "main" ? "right" : null);
   };
-  const sidebarToggle = !sidebarOpen && roomy && (
+  const sidebarToggle = !sidebarShown && (
     <button data-compose-access
       className="icon"
       id="sidebar-toggle"
@@ -1227,6 +1263,7 @@ export function App() {
         <ToastStack toasts={toasts} onDismiss={dismissToast} position={notifications.position} preferences={notifications} onOpen={requestNotificationMail} />
         {palette && !updateInstalling && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
         <div className="frame" inert={settings || updateInstalling || palette}>
+          {!roomy && mobileSidebarOpen && <button type="button" className="mobile-sidebar-backdrop" aria-label="Close navigation" onClick={() => { setMobileSidebarOpen(false); requestAnimationFrame(() => document.getElementById("sidebar-toggle")?.focus()); }} />}
           <Sidebar
             open={sidebarShown}
             onToggle={toggleSidebar}
@@ -1235,21 +1272,21 @@ export function App() {
             settings={false}
             mail={{
               view,
-              onView: switchView,
+              onView: (next) => fromSidebar(() => switchView(next)),
               inboxCount: loaded ? inboxMail.length : undefined,
               snoozedCount: loaded ? snoozedCount : undefined,
               dueCount,
               accounts: state.accounts,
               accountFilter,
-              onAccount: (id) => navigate({ page: "mail", accountFilter: id, labelFilter: "all", selectedId: null, opened: false }),
+              onAccount: (id) => fromSidebar(() => navigate({ page: "mail", accountFilter: id, labelFilter: "all", selectedId: null, opened: false })),
               privacy,
               blocked: toolbarBlocked || (!!compose && busy),
               busy,
-              onAddAccount: () => compose ? leaveCompose({ type: "connect" }) : setConnecting("choose"),
-              onCompose: () => compose ? leaveCompose({ type: "new" }) : startCompose(),
-              onDrafts: () => switchView("drafts"),
+              onAddAccount: () => fromSidebar(() => compose ? leaveCompose({ type: "connect" }) : setConnecting("choose")),
+              onCompose: () => fromSidebar(() => compose ? leaveCompose({ type: "new" }) : startCompose()),
+              onDrafts: () => fromSidebar(() => switchView("drafts")),
               draftCount: state.draftCount,
-              onSettings: () => setSettings(true),
+              onSettings: () => fromSidebar(() => setSettings(true)),
               shortcut,
               syncing,
               lastSync: state.lastSync,
@@ -1259,7 +1296,7 @@ export function App() {
               onClose: () => setSettings(false),
             }}
           />
-          <div className="app-main">
+          <div className="app-main" inert={!roomy && mobileSidebarOpen}>
             <PaneHeader className="app-toolbar" corner={corner("main")} maximized={maximized} lead={sidebarToggle}>
               <div className="app-context" aria-label="Current view">
                 <span>{settings ? "Emc²" : workView ? "Workspace" : "Mail"}</span>

@@ -124,14 +124,15 @@ test("composer From hides account addresses in privacy mode", async () => {
 });
 
 test("compose shares its action-row height across the app and cleans up the observer", async () => {
-  const dom = new JSDOM('<div class="app" style="--text-scale:1.2"><div id="root"></div></div><div id="other" class="app" style="--app-footer-height:66px"></div>', { url: "http://localhost" });
-  let resize: (() => void) | undefined, disconnected = 0, rowHeight = 30;
+  const dom = new JSDOM('<div class="app" style="--text-scale:1.2"><header class="app-toolbar"></header><div id="root"></div></div><div id="other" class="app" style="--app-footer-height:66px"></div>', { url: "http://localhost" });
+  let resize: (() => void) | undefined, disconnected = 0, rowHeight = 30, toolbarBottom = 112;
   class FooterObserver { constructor(callback: () => void) { resize = callback; } observe() {} disconnect() { disconnected++; } }
   const globals = { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, ResizeObserver: FooterObserver, IS_REACT_ACT_ENVIRONMENT: true };
   const previous = new Map(Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, value });
   const bounds = dom.window.HTMLElement.prototype.getBoundingClientRect;
   dom.window.HTMLElement.prototype.getBoundingClientRect = function() {
+    if (this.classList.contains("app-toolbar")) return { x: 0, y: 0, top: 0, left: 0, right: 390, bottom: toolbarBottom, width: 390, height: toolbarBottom, toJSON() {} };
     return this.classList.contains("compose-actions") ? { x: 0, y: 0, top: 0, left: 0, right: 300, bottom: rowHeight, width: 300, height: rowHeight, toJSON() {} } : bounds.call(this);
   };
   const { createRoot } = await import("react-dom/client"); const root = createRoot(document.getElementById("root")!);
@@ -141,6 +142,9 @@ test("compose shares its action-row height across the app and cleans up the obse
       accounts={[{ id: "a", email: "from@example.test", provider: "imap" }]} busy={false} onClose={() => {}} onDiscard={() => {}} onRetry={() => {}} onSaveCopy={() => {}}
       progress={{ phase: "error", message: "Draft could not be saved. Your text is still here." }} onSend={() => {}} />));
     assert.equal(app.style.getPropertyValue("--app-footer-height"), "42px");
+    assert.equal(app.style.getPropertyValue("--compose-top"), "112px", "composer clears the complete wrapped toolbar");
+    toolbarBottom = 156; resize!();
+    assert.equal(app.style.getPropertyValue("--compose-top"), "156px", "composer follows toolbar resizing");
     assert.ok(document.querySelector('.draft-recovery-actions'));
     rowHeight = 58; resize!();
     assert.equal(app.style.getPropertyValue("--app-footer-height"), "70px", "wrapped status raises every footer track");
@@ -148,6 +152,7 @@ test("compose shares its action-row height across the app and cleans up the obse
     assert.equal(document.getElementById("other")!.style.getPropertyValue("--app-footer-height"), "66px");
     await act(async () => root.unmount());
     assert.equal(app.style.getPropertyValue("--app-footer-height"), "");
+    assert.equal(app.style.getPropertyValue("--compose-top"), "");
     assert.equal(app.style.getPropertyValue("--text-scale"), "1.2");
     assert.equal(disconnected, 1);
   } finally {

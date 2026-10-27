@@ -15,13 +15,21 @@
 
 - Organize Settings into Connections, Mail, Preferences and Advanced. Tighten control spacing and group keyboard shortcuts into compact, labeled columns while preserving existing bindings and preference behavior.
 - Load account and configuration status before the full mail cache, keep mail counts pending until complete, and offer a retry when cached mail cannot load.
+- Keep the side-by-side mail layout visible before opening an email and after closing it. F6 skips the empty reader; narrow windows still use one column.
+
+- Make phone Settings use a compact section picker, enlarge touch controls and form text, respect screen safe areas, and stack reply context above composition.
+
+- Let Agent review use the available pane width so its review controls do not leave an unused outer strip.
+
+- Refresh browser inbox state when a visible tab returns and every 15 seconds, including pages opened before any accounts existed.
+- Keep phone navigation available through a sidebar drawer and wrapping toolbar, with touch-sized custom-theme controls.
+- Reduce cached-mail summary copying and unchanged-cursor work. Skip default compaction rewrites when no free pages exist, preserving stored mail and drafts.
 
 - Clarify in-app new-mail notices with the unread count as the heading, a mail icon, a distinct Open email action and a labeled close control. Keep optional details, privacy masking, exact-email opening and notification timing unchanged.
 
 - Reduce cached-mail summary copying and unchanged-cursor work. Default storage compaction skips the database rewrite when there are no free pages, while retaining attachment inventory and all stored mail and drafts.
-- Show separate receiving-account and sorting-status labels in All accounts, including compact rows. Match account dots to the sidebar, keep existing status meanings and remove provider overlays from sender icons. Narrow rows put account and status below the sender; privacy-safe labels also appear in screen-reader names.
 - Start Google sign-in only from the app. Continue with Google and Connect Google Calendar now ask the desktop-authenticated service for a single-use, two-minute link, so other local programs can no longer connect their own Gmail account or flood pending sign-ins. Pending launches and OAuth states are capped at eight each.
-- Require a per-launch session link in the browser target (`npm run dev:web`, `npm run start:web`). The mail server prints the link at startup; opening it sets an HttpOnly, SameSite=Strict cookie, and `/api` requests without it or the desktop token are refused, so other local users and programs can no longer read mail or act through the browser target.
+- Replace the browser target’s terminal session link with an expiring authenticated browser gate. Desktop requests retain their per-launch token; unauthenticated API requests remain refused.
 - Find pinned mail from Filters or Commands, in the current view or in All cached, so pins that were archived or snoozed stay easy to reach. The selected account is kept, and a short note explains how Pin differs from Snooze and Track.
 - Add a searchable template picker to the composer: type to filter by name and content, arrows to move, Enter to insert the highlighted template and Escape to close only the picker. Insertion still appends before an unchanged signature and fills only an empty subject.
 - Reschedule a snooze from the reader: the snoozed return-time line gains Return to inbox and Change time actions. The snooze menu's custom field opens on the current return time and each preset shows its full local date and time.
