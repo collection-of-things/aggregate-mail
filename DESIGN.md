@@ -485,3 +485,24 @@ list, including virtual rows, up to 200. Fields, dialogs and readers keep native
 select-all. View changes clear selection. The batch bar names the count and
 accounts; Trash confirms the captured count once. Per-message outcomes remain
 visible after selection clears, including partial and unknown results.
+
+## Inline conversation reader
+
+Read the existing account-scoped conversation as a chronological stack. Only the
+opened message starts expanded; each collapsed line shows sender, date and
+preview. Enter or click toggles a message. Up/Down and Home/End move between
+message headings; Left/Right collapse or expand. Modified keys retain their
+existing shortcuts and native text-selection behavior.
+
+The opened message is marked Selected for actions. Select for actions uses the
+existing opening operation, including mark-read, to change the toolbar target.
+Each message retains its own pointer and keyboard context menu. Expanding or
+moving focus alone does not mark mail read. Snooze return/change-time, reply-all,
+labels and follow-up tools stay attached to the selected message.
+
+Show cached counts and service-reported missing references without inventing a
+total. Gmail offers the existing explicit fetch capped at 100 messages; IMAP
+uses cached references only. Each expanded message uses the allowlisted reader
+and its own privacy context. Collapse or another opening discards image consent;
+enabling privacy revokes consent in every expanded message. Inbox list grouping
+and bulk-selection behavior stay unchanged.

@@ -864,8 +864,8 @@ export function App() {
     { id: "meeting", label: "Schedule meeting", disabled: busy || navigationBlocked, description: busy ? "Another action is in progress" : navigationBlocked ? "Not available right now" : undefined, run: () => openMeeting(mail) },
     { id: "teach", label: "Teach sorting", key: shortcut("teach"), disabled: busy || syncing, description: busyReason, separator: true, run: () => setTeach(mail) },
   ];
-  const showMailMenu = (event: ReactMouseEvent<HTMLElement> | ReactKeyboardEvent<HTMLElement>, mail: Mail) => {
-    setSelectedId(mail.id);
+  const showMailMenu = (event: ReactMouseEvent<HTMLElement> | ReactKeyboardEvent<HTMLElement>, mail: Mail, select = true) => {
+    if (select) setSelectedId(mail.id);
     const request = mailMenuRequest(event, mail.id);
     const native = window.desktop?.mailMenu;
     if (!native) { setContextMenu(request); return; }
@@ -874,10 +874,10 @@ export function App() {
       { x: Math.round(request.x), y: Math.round(request.y) })
       .then((chosen) => actions.find((action) => action.id === chosen)?.run());
   };
-  const mailMenuKey = (event: ReactKeyboardEvent<HTMLElement>, mail: Mail) => {
+  const mailMenuKey = (event: ReactKeyboardEvent<HTMLElement>, mail: Mail, select = true) => {
     if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
       event.stopPropagation();
-      showMailMenu(event, mail);
+      showMailMenu(event, mail, select);
     }
   };
   // Where F6 lands in each window region; null skips a hidden region or one
@@ -1212,8 +1212,8 @@ export function App() {
       onLabels={() => setLabelMail(selected)}
       onUnsnooze={() => void changeMessage(selected, "unsnooze")}
       onChangeTime={(event) => showSnooze(selected, event)}
-      onMenu={showMailMenu}
-      onMenuKey={mailMenuKey}
+      onMenu={(event, mail) => showMailMenu(event, mail, false)}
+      onMenuKey={(event, mail) => mailMenuKey(event, mail, false)}
     />
   );
   const historyControls = (

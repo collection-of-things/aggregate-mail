@@ -188,7 +188,7 @@ test("Today opens a source and conversation inline, preserves account, filters, 
     assert.equal(row.getAttribute("aria-pressed"), "true"); assert.equal(document.activeElement?.className, "message");
     assert.equal(ui.sidebar("reader@example.test").getAttribute("aria-pressed"), "true");
     assert.equal(ui.requests.filter((call) => call.method === "PATCH" && call.url === "/messages/mail-a").length, 1);
-    await ui.click(ui.button("Show cached conversation")); await ui.click(ui.button("Sent · Private Reader sent-a"));
+    await ui.click(ui.button("Select for actions", ui.container.querySelector('[data-message-id="sent-a"]')!));
     assert.equal(ui.container.querySelector("h1")?.textContent, "Today"); assert.ok(ui.container.querySelector(".message")?.textContent?.includes("sent-a"));
     assert.ok(ui.container.querySelector('[aria-label="Commitment details"]')?.textContent?.includes("Deliver brief"));
     const control = ui.button("Refresh workspace"); control.focus(); await ui.refresh(); assert.equal(document.activeElement, control, "refresh does not steal focus");
@@ -267,7 +267,7 @@ test("Projects shows email rows and open tasks, reads inline and restores focus 
     assert.ok(decisions.isConnected, "decision edits stay mounted while reading source mail");
     assert.equal(ui.container.querySelector("h1")?.textContent, "Projects");
     assert.ok(ui.container.querySelector(".today-mail .message"));
-    await ui.click(ui.button("Show cached conversation")); await ui.click(ui.button("Sent · Private Reader sent-a"));
+    await ui.click(ui.button("Select for actions", ui.container.querySelector('[data-message-id="sent-a"]')!));
     assert.equal(ui.container.querySelector("h1")?.textContent, "Projects");
     await ui.click(ui.button("Close email")); assert.equal(document.activeElement, rows[0]);
     assert.equal(ui.container.querySelector(".project-context")?.hasAttribute("hidden"), false);
@@ -417,7 +417,7 @@ test("Today privacy masks private source text and attributes, and image consent 
     await ui.click(ui.container.querySelector<HTMLButtonElement>(".work-select")!);
     assert.equal(ui.container.querySelector('.message img[src="https://images.example.test/photo.png"]'), null);
     await ui.click(ui.button("Show images")); assert.ok(ui.container.querySelector('.message img[src="https://images.example.test/photo.png"]'));
-    await ui.click(ui.button("Show cached conversation")); await ui.click(ui.button("Sent · Private Reader sent-a"));
+    await ui.click(ui.button("Select for actions", ui.container.querySelector('[data-message-id="sent-a"]')!));
     assert.equal(ui.container.querySelector('.message img[src="https://images.example.test/sent.png"]'), null);
     assert.ok(ui.container.innerHTML.includes("Private Reader"), "the synthetic private alias is present before masking");
     await ui.click(ui.button("Hide personal information"));
@@ -586,5 +586,32 @@ test("Schedule meeting prefills an email's subject and people, saves one Emc² e
     await ui.click([...ui.container.querySelectorAll<HTMLButtonElement>(".calendar-agenda button")].find((node) => node.textContent?.includes("Snoozed"))!);
     assert.ok(ui.container.querySelector('[aria-label="Calendar reading pane"] .message h1')?.textContent?.includes("mail-b"));
     assert.equal(ui.container.querySelector(".pane-title")?.textContent, "Calendar", "snoozed mail no longer leaves Calendar");
+  } finally { await ui.close(); }
+});
+
+test("inline conversation context and explicit selection target one message without bulk actions or commitment changes", async () => {
+  const item = commitment("brief"); const ui = await mount([item]);
+  try {
+    await ui.click(ui.container.querySelector<HTMLButtonElement>(".work-select")!);
+    const card = ui.container.querySelector<HTMLElement>('[data-message-id="sent-a"]')!;
+    const header = card.querySelector<HTMLButtonElement>(".conversation-toggle")!;
+    await act(async () => {
+      header.focus();
+      header.dispatchEvent(new ui.dom.window.KeyboardEvent("keydown", { key: "F10", shiftKey: true, bubbles: true, cancelable: true }));
+    });
+    const menu = ui.container.querySelector('[role="menu"]');
+    assert.ok(menu, "focused conversation message opens its menu");
+    const pin = [...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+      .find(node => node.firstChild?.textContent?.trim() === "Pin email");
+    assert.ok(pin, "Pin email menu item, excluding its shortcut hint");
+    await ui.click(pin);
+    assert.deepEqual(ui.requests.filter(call => call.body.action === "pin").map(call => call.url), ["/messages/sent-a"]);
+    assert.match(ui.container.querySelector('[data-message-id="mail-a"]')!.textContent!, /Selected for actions/);
+    await ui.click(ui.button("Select for actions", ui.container.querySelector('[data-message-id="sent-a"]')!));
+    assert.match(ui.container.querySelector('[data-message-id="sent-a"]')!.textContent!, /Selected for actions/);
+    await act(async () => document.activeElement!.dispatchEvent(new ui.dom.window.KeyboardEvent("keydown", { key: "s", bubbles: true, cancelable: true })));
+    assert.deepEqual(ui.requests.filter(call => call.body.action === "pin").map(call => call.url), ["/messages/sent-a", "/messages/sent-a"]);
+    assert.equal(ui.requests.some(call => call.url === "/messages/batch"), false);
+    assert.deepEqual(ui.workspace.commitments, [item]);
   } finally { await ui.close(); }
 });

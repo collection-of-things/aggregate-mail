@@ -5,7 +5,7 @@ import { customLabels } from "../mail-ui";
 import { Address, MailPrivacy, Redact } from "../ui/Privacy";
 import { Mail as MailIcon } from "../ui/icons";
 import { Avatar } from "./Avatar";
-import { ConversationEvidence } from "./ConversationEvidence";
+import { ConversationReader } from "./ConversationReader";
 import { OfferTimes } from "../work/OfferTimes";
 import { InvitationPanel } from "../work/InvitationActions";
 import { ReaderContent } from "./MessageContent";
@@ -26,7 +26,7 @@ function readerDate(date: number) {
  * An opened email: subject, then one sender line with the recipient beneath
  * and the date at the right, Gmail labels, and the body with its image consent.
  */
-export function Reader({ mail, provider, labels, busy, api, onLabels, onMenu, onMenuKey, onOpen, onChanged, onReplyAll, onForward, onOpenDraft, onUnsnooze, onChangeTime, state }: {
+function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onMenuKey, onOpen, onChanged, onReplyAll, onForward, onOpenDraft, onUnsnooze, onChangeTime, state }: {
   mail: Mail;
   state?: State;
   provider?: Provider;
@@ -87,10 +87,24 @@ export function Reader({ mail, provider, labels, busy, api, onLabels, onMenu, on
         {onReplyAll && <div className="message-labels"><button type="button" className="link" disabled={busy} onClick={onReplyAll}>Reply all</button></div>}
         {state && onOpenDraft && <OfferTimes key={`offers:${mail.id}`} mail={mail} state={state} api={api} onOpenDraft={onOpenDraft} />}
         </footer>
-        {onOpen && onChanged && <ConversationEvidence key={`conversation:${mail.id}`} mail={mail} gmail={provider === "gmail"} api={api} onOpen={onOpen} onChanged={onChanged}/>}
       </article>
     </MailPrivacy>
   );
+}
+
+// Only the selected message receives callbacks that close over the App action target.
+export function Reader(props: Parameters<typeof SingleReader>[0]) {
+  if (!props.onOpen || !props.onChanged) return <SingleReader {...props} />;
+  return <ConversationReader key={JSON.stringify([props.mail.accountId, props.mail.id])}
+    mail={props.mail} gmail={props.provider === "gmail"} api={props.api} busy={props.busy}
+    onChanged={props.onChanged} onSelect={props.onOpen} onMenu={props.onMenu} onMenuKey={props.onMenuKey}
+    renderMessage={(mail) => <SingleReader {...props} mail={mail}
+      provider={mail.id === props.mail.id ? props.provider : undefined}
+      onReplyAll={mail.id === props.mail.id ? props.onReplyAll : undefined}
+      onForward={mail.id === props.mail.id ? props.onForward : undefined}
+      onUnsnooze={mail.id === props.mail.id ? props.onUnsnooze : undefined}
+      onChangeTime={mail.id === props.mail.id ? props.onChangeTime : undefined}
+      state={mail.id === props.mail.id ? props.state : undefined} />} />;
 }
 
 /** The reading pane before an email is opened. */

@@ -249,3 +249,10 @@ article.message {
 .attachment-size { color: var(--text-3); }
 .attachment-preview { margin-top: 10px; }
 .attachment-preview canvas { max-width: 100%; height: auto; display: block; margin-top: 8px; background: white; }
+
+.conversation-reader { min-width: 0; }
+.conversation-coverage { color: var(--text-3); }
+.conversation-message { border-top: 1px solid var(--line); padding-block: 8px; }
+.conversation-toggle { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; width: 100%; text-align: left; background: transparent; color: inherit; border: 0; padding: 6px; cursor: pointer; }
+.conversation-toggle:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+.conversation-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 80px; }
