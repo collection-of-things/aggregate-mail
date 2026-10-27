@@ -112,7 +112,7 @@ export function Sidebar({
           </SlidingNav>
           {(["workspace", "mail"] as const).map((group) => <SlidingNav key={group} activeKey={settings ? null : mail.view} label={group === "workspace" ? "Workspace views" : "Mail views"} className="sidebar-group">
             <Heading id={group} folded={folded.has(group)} onFold={fold}>{group === "workspace" ? "Workspace" : "Mail"}</Heading>
-            {!folded.has(group) && sidebarViews.filter(({ view }) => ["actions", "calendar", "projects", "agents"].includes(view) === (group === "workspace")).map(({ view, Icon }) => {
+            {!folded.has(group) && sidebarViews.filter(({ view }) => ["actions", "calendar", "projects", "agents", "contacts"].includes(view) === (group === "workspace")).map(({ view, Icon }) => {
               const total = view === "actions" ? mail.dueCount ?? null : view === "snoozed" ? mail.snoozedCount : view === "inbox" ? mail.inboxCount : null;
               if (view === "snoozed" && total === 0 && mail.view !== "snoozed") return null;
               return (

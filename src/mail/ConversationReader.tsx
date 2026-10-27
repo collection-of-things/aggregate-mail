@@ -89,7 +89,7 @@ export function ConversationReader({ mail, gmail, api, busy, onChanged, onSelect
     {ordered.map((item, index) => {
       const open = expanded[item.id] ?? (item.id === mail.id);
       return <MailPrivacy mail={item} key={item.id}><section className="conversation-message" data-message-id={item.id}>
-        <div className="conversation-header">
+        {ordered.length > 1 && <div className="conversation-header">
           <button type="button" className="conversation-toggle" aria-expanded={open} aria-controls={`${region}-${index}`}
             onContextMenu={event => onMenu?.(event, item)}
             onClick={() => setExpanded(current => ({ ...current, [item.id]: !open }))}
@@ -116,7 +116,8 @@ export function ConversationReader({ mail, gmail, api, busy, onChanged, onSelect
             <span className="conversation-state">{item.id === mail.id && <strong><span className="visually-hidden">Selected for actions</span><span aria-hidden="true">Active</span></strong>}{item.unread && <span>Unread</span>}</span>
           </button>
           {item.id !== mail.id && <button type="button" className="link conversation-select" disabled={busy} onClick={() => onSelect(item)}>Select for actions</button>}
-        </div>
+        </div>}
+        {ordered.length === 1 && <span className="visually-hidden">Selected for actions</span>}
         {open && <div id={`${region}-${index}`}>{renderMessage(item)}</div>}
       </section></MailPrivacy>;
     })}

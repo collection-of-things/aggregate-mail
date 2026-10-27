@@ -39,6 +39,8 @@ for (const gmail of [true, false]) test(`${gmail ? "Gmail" : "IMAP"} inline stac
     assert.ok(details.textContent!.includes("Sent coverage is bounded"));
     assert.deepEqual(cards().map(node => node.dataset.messageId), [older.id, base.id, latest.id]);
     assert.deepEqual(toggles().map(node => node.getAttribute('aria-expanded')), ["false", "true", "false"]);
+    assert.equal(container.querySelector<HTMLDetailsElement>('.conversation-details')!.open, false);
+    assert.ok(container.querySelector('.conversation-details')!.compareDocumentPosition(cards()[0]) & dom.window.Node.DOCUMENT_POSITION_PRECEDING);
     assert.match(container.textContent!, /Older or Sent messages may be missing/);
     assert.match(container.textContent!, /Sent coverage is bounded/);
     if (!gmail) assert.match(container.textContent!, /cached Message-ID references only/);
@@ -231,6 +233,7 @@ test("equal dates sort by id and an empty valid cache still retains the opened m
     empty = true; await ui.render(message("a:9"));
     assert.equal(ui.container.querySelectorAll(".conversation-message").length, 1);
     assert.match(ui.container.textContent!, /Selected for actions/);
+    assert.equal(ui.container.querySelectorAll(".conversation-toggle").length, 0, "a single email has no redundant heading");
   } finally { await ui.close(); }
 });
 

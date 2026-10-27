@@ -5,7 +5,7 @@ import { JSDOM } from "jsdom";
 import type { ContactList, SavedContact } from "../shared/contacts";
 import type { Account } from "../shared/types";
 import type { Api } from "./api";
-import { ContactsSettings } from "./settings/ContactsSettings";
+import { ContactsPage } from "./contacts/ContactsPage";
 import { PrivacyContext } from "./ui/Privacy";
 
 const accounts: Account[] = [{ id: "work", email: "work@example.test", provider: "imap" }];
@@ -60,12 +60,14 @@ const button = (document: Document, name: string) =>
   [...document.querySelectorAll("button")].find((item) => item.textContent === name || item.getAttribute("aria-label") === name)!;
 const click = (element: HTMLElement) => act(async () => { element.click(); });
 
-test("Settings lists, adds, edits and deletes contacts and removes recent recipients", async () => {
+test("Contacts page lists, adds, edits and deletes contacts and removes recent recipients", async () => {
   await withDOM(async ({ document, render }) => {
     const { api, calls } = fakeApi();
-    await render(<ContactsSettings api={api} accounts={accounts} />);
+    await render(<ContactsPage api={api} accounts={accounts} />);
     assert.match(document.body.textContent!, /No saved contacts\./);
+    await click(button(document, "Recent recipients"));
     assert.match(document.body.textContent!, /recent@example\.test/);
+    await click(button(document, "Saved contacts"));
 
     await click(button(document, "Add contact"));
     await fill(document, "Name", "Ada Synthetic");
@@ -83,27 +85,58 @@ test("Settings lists, adds, edits and deletes contacts and removes recent recipi
 
     await click(button(document, "Delete contact 1"));
     assert.ok(calls.includes("DELETE /contacts/c1"));
+    await click(button(document, "Recent recipients"));
     await click(button(document, "Remove recent recipient 1"));
     assert.ok(calls.includes("DELETE /contacts/recent/r1"));
-    assert.match(document.body.textContent!, /No saved contacts\./);
     assert.match(document.body.textContent!, /No recent recipients\./);
+    await click(button(document, "Saved contacts"));
+    assert.match(document.body.textContent!, /No saved contacts\./);
   });
 });
 
-test("privacy mode hides contact names and addresses in Settings", async () => {
+test("privacy mode hides contact names and addresses on the Contacts page", async () => {
   await withDOM(async ({ document, render }) => {
     const { api } = fakeApi();
     const privacy = (node: ReactNode) => <PrivacyContext.Provider value={{ on: true, revealed: new Set(), toggle() {} }}>{node}</PrivacyContext.Provider>;
-    await render(<ContactsSettings api={api} accounts={accounts} />);
+    await render(<ContactsPage api={api} accounts={accounts} />);
     await click(button(document, "Add contact"));
     await fill(document, "Name", "Ada Synthetic");
     await fill(document, "Email address", "ada@example.test");
     await act(async () => { document.querySelector("form")!.requestSubmit(); });
     await click(button(document, "Edit contact 1"));
     (document.activeElement as HTMLElement | null)?.blur();
-    await render(privacy(<ContactsSettings api={api} accounts={accounts} />));
+    await render(privacy(<ContactsPage api={api} accounts={accounts} />));
     for (const text of ["Ada Synthetic", "ada@example.test", "recent@example.test", "work@example.test"])
       assert.equal(document.body.innerHTML.includes(text), false, `${text} is hidden`);
-    assert.ok(document.querySelectorAll(".veiled").length >= 3);
+    assert.ok(document.querySelectorAll(".veiled").length >= 2);
+  });
+});
+
+test("import requires a preview and confirmation, hides personal preview data, and recovers from failure", async () => {
+  await withDOM(async ({ document, render }) => {
+    const calls: string[] = [];
+    let fail = true;
+    const api: Api = async <T,>(url: string) => {
+      calls.push(url);
+      if (url === "/contacts") return { saved: [], recent: [] } as T;
+      if (url === "/contacts/import" && fail) throw new Error("Synthetic failure");
+      return { added: 1, skipped: 2, duplicates: 1, sample: [{ name: "Private Person", email: "private@example.test" }] } as T;
+    };
+    await render(<PrivacyContext.Provider value={{ on: true, revealed: new Set(), toggle() {} }}><ContactsPage api={api} accounts={accounts} /></PrivacyContext.Provider>);
+    await click(button(document, "Import contacts"));
+    const file = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const bytes = new TextEncoder().encode('Name,Email\nPrivate Person,private@example.test');
+    Object.defineProperty(file, "files", { configurable: true, value: [{ name: "contacts.csv", size: bytes.length, arrayBuffer: async () => bytes.buffer }] });
+    await act(async () => { file.dispatchEvent(new window.Event("change", { bubbles: true })); });
+    assert.ok(calls.includes("/contacts/import/preview"));
+    assert.equal(calls.includes("/contacts/import"), false);
+    assert.doesNotMatch(document.body.innerHTML, /Private Person|private@example.test/);
+    assert.match(document.body.textContent!, /1 ready to import/);
+    await click(button(document, "Import 1 contacts"));
+    assert.match(document.body.textContent!, /Import could not be confirmed/);
+    fail = false;
+    await click(button(document, "Import 1 contacts"));
+    assert.match(document.body.textContent!, /Imported 1 contact/);
+    assert.equal(document.querySelector('[aria-label="Import preview"]'), null);
   });
 });

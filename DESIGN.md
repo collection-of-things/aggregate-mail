@@ -66,7 +66,7 @@ above tasks and conversations, with project decisions in its context pane.
 Opening a source retains the existing inline reader and return behavior.
 Calendar places the selected day agenda beside the month when space permits.
 Agent review separates exact proposals from review context and permission
-management. Settings keeps all ten sections in its own rail. Dialogs share
+management. Settings keeps its own section rail. Dialogs share
 the same compact type, grouped forms and footer actions.
 
 ## Shared controls
@@ -494,14 +494,17 @@ preview. Enter or click toggles a message. Up/Down and Home/End move between
 message headings; Left/Right collapse or expand. Modified keys retain their
 existing shortcuts and native text-selection behavior.
 
-The opened message is marked Selected for actions. Select for actions uses the
+The opened message in a multi-message stack is marked Active, with Selected for
+actions available to assistive technology. A single email has no duplicate
+conversation heading. Select for actions uses the
 existing opening operation, including mark-read, to change the toolbar target.
 Each message retains its own pointer and keyboard context menu. Expanding or
 moving focus alone does not mark mail read. Snooze return/change-time, reply-all,
 labels and follow-up tools stay attached to the selected message.
 
-Show cached counts and service-reported missing references without inventing a
-total. Gmail offers the existing explicit fetch capped at 100 messages; IMAP
+Keep cached counts, service-reported missing references and keyboard guidance
+in collapsed Conversation details below the messages, without inventing a total.
+Errors remain visible. Gmail offers the existing explicit fetch capped at 100 messages; IMAP
 uses cached references only. Each expanded message uses the allowlisted reader
 and its own privacy context. Collapse or another opening discards image consent;
 enabling privacy revokes consent in every expanded message. Inbox list grouping
@@ -512,3 +515,15 @@ captured message. Commands exposes Undo last action even with confirmations off.
 No selected mail is required. Busy work disables Undo; stale state reports a
 refusal without changing mail. Provider actions and batch actions have no Undo.
 Composer undo keys retain their native meaning.
+
+
+## Contacts
+
+Contacts opens as a main Workspace view. Saved contacts, Recent recipients and
+Import contacts use the Settings section rail, headings and grouped controls.
+On narrow windows, the section selector replaces the rail. Account filters stay
+in the sidebar; Find contacts searches names and addresses in the current list.
+Import presents three steps: export from a provider, choose a destination
+account, then preview and confirm. Preview names and addresses use the existing
+privacy controls. Counts explain new, existing and skipped addresses. Success
+appears only after the service confirms the write.

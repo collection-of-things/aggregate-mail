@@ -64,6 +64,8 @@
   .settings .settings-mobile-navigation { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 14px; border-bottom: 1px solid var(--line); }
   .settings-mobile-navigation > span { flex-shrink: 0; font-size: calc(12px * var(--text-scale, 1)); color: var(--text-3); }
   .settings-mobile-navigation select { flex: 1; min-width: 0; width: 100%; min-height: 44px; }
+  .contacts-page { grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 0; }
+  .contacts-page .settings-column { padding: 0 14px 24px; }
   .settings-dialog .settings { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .settings-dialog .settings-column { padding: 18px 14px max(24px, env(safe-area-inset-bottom)); }
   .settings-section-heading p { white-space: normal; overflow: visible; }

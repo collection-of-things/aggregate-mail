@@ -64,6 +64,39 @@ test("local contacts: encrypted account-scoped storage, sent recipients and sugg
       assert.deepEqual((await list()).saved, []);
     });
 
+    await t.test("imports preview without writes, deduplicate per account, and retain existing names", async () => {
+      const input = { accountId: "work", format: "csv", content: 'Name,E-mail 1 - Value\nImported Person,imported@example.test\nDuplicate,IMPORTED@example.test\nInvalid,not-an-address' };
+      assert.equal((await fetch(`${origin}/api/contacts/import`, { method: "POST", headers: desktop, body: JSON.stringify(input) })).status, 403);
+      const before = (await list()).saved.length;
+      const preview = await request("/contacts/import/preview", "POST", input);
+      assert.equal(preview.status, 200);
+      assert.equal((await preview.json()).added, 1);
+      assert.equal((await list()).saved.length, before);
+      const imported = await request("/contacts/import", "POST", input);
+      assert.equal(imported.status, 200);
+      assert.equal((await imported.json()).skipped, 2);
+      assert.equal((await list()).saved.length, before + 1);
+      const again = await request("/contacts/import", "POST", { ...input, content: 'Name,Email\nChanged,IMPORTED@example.test' });
+      assert.equal((await again.json()).duplicates, 1);
+      assert.equal((await list()).saved.find(item => item.email === "imported@example.test")!.name, "Imported Person");
+      assert.ok((await suggest("imported", "work")).some(item => item.email === "imported@example.test"));
+      assert.equal((await request("/contacts/import", "POST", { ...input, accountId: "missing" })).status, 404);
+      const malformed = await request("/contacts/import", "POST", { ...input, content: 'private-sensitive-value' });
+      assert.equal(malformed.status, 400);
+      assert.doesNotMatch(await malformed.text(), /private-sensitive-value/);
+      const home = await request("/contacts/import", "POST", { ...input, accountId: "home" });
+      assert.equal((await home.json()).added, 1);
+      const count = (await list()).saved.length;
+      const overflow = await request("/contacts/import", "POST", { ...input, content: 'Name,Email\n' + Array.from({ length: 1000 }, (_, index) => `Person ${index},import-${index}@example.test`).join('\n') });
+      assert.equal(overflow.status, 409);
+      assert.equal((await list()).saved.length, count, "over-limit imports write nothing");
+      for (const suffix of ["", "-wal"]) {
+        const filename = path.join(directory, `mail.sqlite${suffix}`);
+        if (existsSync(filename)) assert.equal(readFileSync(filename).includes(Buffer.from("imported@example.test")), false);
+      }
+      for (const contact of (await list()).saved) await request(`/contacts/${contact.id}`, "DELETE");
+    });
+
     await t.test("only accepted sends add recent recipients, excluding connected accounts", async () => {
       delivery = async () => { throw new Error("Synthetic rejection"); };
       assert.equal((await send("rejected@example.test")).status, 400);
