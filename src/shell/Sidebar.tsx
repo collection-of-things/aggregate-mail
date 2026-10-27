@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { accountStatus } from "../account-status";
+import { Fragment, useState, type ReactNode } from "react";
 import type { Account } from "../../shared/types";
 import { accountLabel } from "../mail-ui";
 import { ProviderIcon } from "../mail/Avatar";
@@ -60,6 +61,7 @@ export function Sidebar({
     onDrafts: () => void;
     draftCount?: number;
     onSettings: () => void;
+    onAccountSettings?: (id: string) => void;
     shortcut: (action: "compose" | "settings") => string;
     syncing: boolean;
     lastSync: number | null;
@@ -141,7 +143,7 @@ export function Sidebar({
               </button>
             )}
             {!folded.has("accounts") && mail.accounts.map((account, index) => (
-              <button
+              <Fragment key={account.id}><button
                 key={account.id}
                 title={accountLabel(account, index, mail.privacy, mail.accounts)}
                 className={mail.accountFilter === account.id ? "active" : undefined}
@@ -155,10 +157,13 @@ export function Sidebar({
                   <i className="account-dot" data-tone={index % 4} aria-hidden="true" />
                   {accountLabel(account, index, mail.privacy, mail.accounts)}
                 </span>
-                {account.error && (
-                  <i className="error-dot" aria-label="Needs attention" />
-                )}
               </button>
+              {(account.error || account.syncFailure || account.syncWarning || account.syncStatus) && <button type="button" className="account-warning" disabled={mail.blocked}
+                aria-label={`${accountLabel(account, index, mail.privacy, mail.accounts)}: ${accountStatus(account)} Open account settings.`}
+                onClick={() => mail.onAccountSettings?.(account.id)}>
+                <i className="error-dot" aria-hidden="true" /><span>{accountStatus(account)}</span>
+              </button>}
+              </Fragment>
             ))}
             {!folded.has("accounts") && (
               <button className="sidebar-add" disabled={mail.blocked || mail.busy}

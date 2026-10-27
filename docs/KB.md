@@ -2755,3 +2755,15 @@ atomically. Changed, replaced, replayed or restart-invalidated receipts return
 can conservatively invalidate Undo. A lost response is not retried; refresh mail
 before acting again. No provider request is made by Undo.
 See [ADR 0091](adr/0091-local-mail-undo.md).
+
+## Accessible account warnings
+
+Sidebar account warnings are separate keyboard-reachable buttons. Their names
+include the privacy-safe account label and fixed status text. Activation opens
+Settings, Accounts and focuses the affected account row without retrying.
+Settings names queued/running sync, connection failure and cleanup warning states
+without rendering raw provider errors or failure codes in text or tooltips.
+Connected means a connection exists, not that all provider history is cached.
+The global sync time remains global. Retry connection remains an explicit action.
+Synthetic coverage: `src/account-status.test.tsx` and account-warning cases in
+`src/navigation.test.tsx`.
