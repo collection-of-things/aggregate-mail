@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { notificationDefaults, type NotificationPreferences } from "../notifications";
 import { mailNotice, type NotificationMail } from "../../shared/notifications";
 import { PrivacyContext, Redact } from "./Privacy";
@@ -62,7 +62,7 @@ function ToastItem({ toast, leaving, onDismiss, preferences, onOpen }: { toast: 
   </div></div>;
 }
 
-export function ToastStack({ toasts, onDismiss, position = "bottom-right", preferences = notificationDefaults, onOpen }: { preferences?: NotificationPreferences; onOpen?: (id: string) => void; toasts: Toast[]; onDismiss: (id: number) => void; position?: NotificationPreferences["position"] }) {
+export function ToastStack({ outbox, toasts, onDismiss, position = "bottom-right", preferences = notificationDefaults, onOpen }: { outbox?: ReactNode; preferences?: NotificationPreferences; onOpen?: (id: string) => void; toasts: Toast[]; onDismiss: (id: number) => void; position?: NotificationPreferences["position"] }) {
   // Dismissed notices stay mounted while they fade and their slot collapses.
   const [leaving, setLeaving] = useState<ReadonlySet<number>>(new Set());
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
@@ -79,6 +79,7 @@ export function ToastStack({ toasts, onDismiss, position = "bottom-right", prefe
   }, [onDismiss]);
   const queued = toasts.length - 4;
   return <section className={`toast-stack toast-stack-${position}`} aria-label="Notifications">
+    {outbox}
     {toasts.length > 1 && <div className="toast-heading">
       <span>{toasts.length} notifications</span>
       {queued > 0 && <span className="toast-pending" role="status">{queued} more {queued === 1 ? "notification" : "notifications"}</span>}

@@ -1,6 +1,7 @@
 import { browserGate, browserPort } from "./browser-preflight.js";
 import { phonePasskeys } from "./phone-passkeys.js";
 import { phoneAccess, mountPhoneAccess } from "./phone-access.js";
+import { Outbox, outboxStatuses } from "./outbox.js";
 import { notificationMail, type MailArrival, type NotificationMail } from "../shared/notifications.js";
 import { isDeepStrictEqual } from "node:util";
 import { EventEmitter } from "node:events";
@@ -25,7 +26,6 @@ import { oauth, providers, presets, validateImap, listGmailLabels, syncError } f
 import { ImapWatch, sameImapAccount, type ImapWatchFactory } from "./imap-watch.js";
 import { GmailWatch } from "./gmail-watch.js";
 import {
-  sendMail,
   updateMessage,
   messageActionSchema,
   runMailWork,
@@ -48,6 +48,8 @@ import { loadConfiguration, saveConfiguration } from "./config.js";
 
 loadConfiguration();
 const desktopEvents = new EventEmitter();
+const outbox = new Outbox(() => desktopEvents.emit("mail-changed"));
+export function holdPendingOutbox() { return outbox.hold(); }
 const app = express();
 if (browserGate) app.use(browserGate);
 const appUrl = process.env.APP_URL || (browserGate ? browserGate.localOrigin : "http://127.0.0.1:5173");
@@ -125,6 +127,7 @@ app.use("/api", (req, res, next) => {
     !req.path.startsWith("/calendar/") &&
     !req.path.startsWith("/contacts") &&
     !req.path.startsWith("/send") &&
+    !req.path.startsWith("/outbox") &&
     req.path !== "/mcp" &&
     req.path !== "/storage/compact" &&
     !(req.method === "PATCH" && /^\/accounts\/[^/]+$/.test(req.path)) &&
@@ -231,6 +234,7 @@ app.get("/api/compose-preferences", (_req, res) => {
 });
 app.put("/api/compose-preferences", (req, res) => {
   const input = z.object({
+    undoSendSeconds: z.union([z.literal(0), z.literal(5), z.literal(10), z.literal(30)]).optional(),
     templates: z.array(z.object({
       id: z.string().min(1).max(80),
       name: z.string().trim().min(1).max(80),
@@ -244,6 +248,7 @@ app.put("/api/compose-preferences", (req, res) => {
   const ids = new Set(all("account").map((a) => a.id));
   if (Object.keys(input.signatures).some((id) => !ids.has(id)))
     return res.status(400).json({ error: "Choose a connected account for each signature." });
+  if (input.undoSendSeconds === undefined) input.undoSendSeconds = get("compose", "preferences")?.undoSendSeconds;
   put("compose", "preferences", input);
   res.json(input);
 });
@@ -545,6 +550,9 @@ app.post("/api/accounts/:id/reconnect", (req, res) => {
 app.delete("/api/accounts/:id", (req, res) => {
   transaction(() => {
     account(req.params.id);
+    if (all("outbox").some(entry => entry.accountId === req.params.id && entry.state === "submitting"))
+      throw new Error("Wait for this account's send to finish before removing it.");
+    for (const entry of all("outbox")) if (entry.accountId === req.params.id) remove("outbox", entry.id);
     remove("account", req.params.id);
     const preferences = all("compose")[0];
     if (preferences && Object.hasOwn(preferences.signatures, req.params.id)) {
@@ -780,8 +788,21 @@ app.patch("/api/messages/:id", async (req, res) => {
   await updateMessage(req.params.id, input);
   res.json({ ok: true });
 });
-app.post("/api/send", async (req, res) => {
-  res.json(await sendMail(req.body));
+app.post("/api/send", (req, res) => {
+  res.status(202).json({ queued: true, entry: outbox.enqueue(req.body) });
+});
+app.get("/api/outbox", (_req, res) => { res.json(outboxStatuses()); });
+app.post("/api/outbox/:id/send", async (req, res) => {
+  await outbox.submit(z.uuid().parse(req.params.id));
+  res.json({ ok: true });
+});
+app.post("/api/outbox/:id/edit", (req, res) => {
+  res.json(outbox.edit(z.uuid().parse(req.params.id)));
+});
+app.delete("/api/outbox/:id", (req, res) => {
+  const input = z.object({ confirmUnknown: z.boolean().optional() }).strict().parse(req.body);
+  outbox.discard(z.uuid().parse(req.params.id), input.confirmUnknown);
+  res.json({ ok: true });
 });
 app.delete("/api/rules/:id", (req, res) => {
   const removed = all("rule").find((rule) => rule.id === req.params.id);
@@ -835,6 +856,7 @@ export function startServer(
     let automaticMaintenance: StorageMaintenance | undefined;
     const server = app.listen(port, "127.0.0.1", () => {
       mailServerStopping = false;
+      outbox.start();
       imapWatch = new ImapWatch((a) => {
         if (all("account").some((current) => sameImapAccount(current, a)))
           void requestSync([a.id], true);
@@ -866,6 +888,7 @@ export function startServer(
     server.once("close", () => {
       phoneService?.close();
       mailServerStopping = true;
+      outbox.close();
       automaticMaintenance?.close();
       imapWatch?.close();
       imapWatch = undefined;
@@ -883,6 +906,7 @@ export async function quiesceMail(timeout: number) {
 }
 async function drainMail(timeout: number) {
   // Block admission before closing watchers, including already queued sync and MCP sends.
+  outbox.hold();
   const drained = quiesceMailWork(timeout);
   imapWatch?.close();
   gmailWatch?.close();

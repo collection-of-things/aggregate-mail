@@ -581,8 +581,11 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
         const { accountId: _accountId, ...content } = proposed.payload;
         const draft = await (await fetch(`${base}/api/accounts/a/drafts/${receipt.receipt.draftId}`, { headers: settingsHeaders })).json();
         for (const [key, value] of Object.entries(content)) assert.deepEqual(draft[key], value, key);
-        const fromUi = await fetch(`${base}/api/send`, { method: "POST", headers: settingsHeaders, body: JSON.stringify(proposed.payload) });
-        assert.equal(fromUi.status, 200);
+        const fromUi = await fetch(`${base}/api/send`, { method: "POST", headers: settingsHeaders, body: JSON.stringify({ payload: proposed.payload, sourceDraftId: draft.id, sourceRevision: draft.revision }) });
+        assert.equal(fromUi.status, 202);
+        assert.equal(sent.length, 0, "User Send first queues without provider submission");
+        const queued = await fromUi.json() as { entry: { id: string } };
+        assert.equal((await fetch(`${base}/api/outbox/${queued.entry.id}/send`, { method: "POST", headers: settingsHeaders, body: "{}" })).status, 200);
         assert.deepEqual(sent[0], proposed.payload);
       },
     );

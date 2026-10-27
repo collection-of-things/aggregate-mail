@@ -66,3 +66,11 @@ qsgWf9eTSH3hwijq.mp4. Full machine transcript in .reference/transcript.txt. Gmai
 ## Brand Commitments
 
 Use a macOS-style interface in light and dark with a collapsible full-height sidebar, per-pane headers, selectable themes and accents, optional OS-material transparency, calm near-neutral working panes, a reading pane beside the list, and short, smooth state transitions. Keep compact inbox density available, and preserve keyboard navigation and reduced-motion support. No decorative cards, pills, or slogans. No live browser testing, per user instruction.
+
+## Undo send
+
+User Send queues an encrypted local snapshot with a configurable Off, 5, 10
+(default) or 30 second delay. Undo restores the exact draft before submission.
+The app must be running to send. Restarted pending mail requires review, and
+unknown outcomes require checking the provider before an explicitly confirmed
+resend. There is no recall after provider acceptance. Send later is separate.

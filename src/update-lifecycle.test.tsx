@@ -41,8 +41,9 @@ test("mounted App drains its send promise and retains the real unload guard for 
         updatedAt: Date.now(), sendUnknown: !!content.sendUnknown };
       return new Response(JSON.stringify(saved));
     }
+    if (url === "/api/outbox") return Response.json([]);
     if (url === "/api/send") {
-      assert.equal(saved?.sendUnknown, true, "Uncertainty must be saved before send admission");
+      assert.equal(saved?.sendUnknown, false, "Queue admission starts from an acknowledged draft");
       sends++; return send;
     }
     throw new Error("Unexpected synthetic request");

@@ -36,7 +36,12 @@ test("local contacts: encrypted account-scoped storage, sent recipients and sugg
   const list = async () => await (await request("/contacts")).json() as ContactList;
   const suggest = async (query: string, accountId: string) =>
     await (await request(`/contacts/suggestions?${new URLSearchParams({ query, accountId })}`)).json() as ContactSuggestion[];
-  const send = (to: string, cc?: string[], accountId = "work") => request("/send", "POST", { accountId, to: [to], ...(cc ? { cc } : {}), ...message });
+  const { sendMail } = await import("./mail-actions.js");
+  // Contact recording follows provider acceptance, independently of UI queueing.
+  const send = async (to: string, cc?: string[], accountId = "work") => {
+    try { await sendMail({ accountId, to: [to], ...(cc ? { cc } : {}), ...message }); return new Response(null, { status: 200 }); }
+    catch { return new Response(null, { status: 400 }); }
+  };
   let delivery: () => Promise<void> = async () => {};
   t.mock.method(providers.imap, "send", async () => delivery());
   try {
@@ -90,7 +95,11 @@ test("local contacts: encrypted account-scoped storage, sent recipients and sugg
     });
 
     await t.test("recent recipients keep the newest 200 per account", async () => {
-      for (let index = 0; index < 205; index++) await send(`bulk-${index}@example.test`);
+      for (let index = 0; index < 205; index++) {
+        await send(`bulk-${index}@example.test`);
+        // Let HTTP keepalive and outbox timers progress during synchronous storage work.
+        await new Promise<void>(resolve => setImmediate(resolve));
+      }
       const recent = (await list()).recent.filter(({ accountId }) => accountId === "work");
       assert.equal(recent.length, 200);
       assert.equal(recent[0].email, "bulk-204@example.test");
@@ -124,7 +133,7 @@ test("local contacts: encrypted account-scoped storage, sent recipients and sugg
       assert.deepEqual(store.all("recentRecipient"), []);
     });
   } finally {
-    server.close();
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     store.closeStore();
     rmSync(directory, { recursive: true, force: true });
   }

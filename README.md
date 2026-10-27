@@ -95,6 +95,12 @@ processes. Browser and desktop profiles stay separate; MCP still requires its
 own loopback-only opt-in and bearer permissions. Interactive browser, phone,
 installed-app and real-provider acceptance remain separate checks.
 
+Undo send holds outgoing mail in an encrypted local outbox for 10 seconds by
+default. Change the delay in the composer's Undo delay control. Undo restores the exact draft
+before submission. Emc² must be running to send. Restarted pending mail needs
+review, and unknown outcomes are never retried automatically. There is no recall
+after provider acceptance.
+
 ## Contents
 
 - [Install](#install)

@@ -456,3 +456,12 @@ Enter applies the validated link without submitting email; Escape cancels only
 link entry. Selected text, plain alternatives and safe URL rules are retained.
 
 The composer From selector uses the shared themed dropdown: a 30px trigger, compact account rows, arrow/Home/End selection, Enter to confirm and Escape or Tab to dismiss. Private mode omits account addresses. Account switching retains the existing signature and saved-copy behavior.
+
+Undo send uses persistent, generic Outbox notices in the notification stack,
+with a countdown, keyboard-reachable Undo and polite status announcements.
+Ctrl/Cmd+Z restores the latest pending send only outside editors and dialogs;
+native text undo and modal keyboard ownership take precedence. Recovery offers
+Send now, Edit and Discard for held pending mail. Unknown outcomes say to check
+the provider and require duplicate-risk confirmation before another Send.
+The composer's Undo delay control offers Off, 5, 10 (default) and 30 seconds. No mail content
+appears in Outbox notices. There is no recall after provider acceptance.

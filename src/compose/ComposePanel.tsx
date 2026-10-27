@@ -20,10 +20,11 @@ export const unknownSendNotice =
 
 export async function sendCompose(
   draft: Compose,
-  { lock, prepare, send, complete, reload, setDraft, setBusy, setNotice, confirm }: {
+  { lock, prepare, send, complete, reload, setDraft, setBusy, setNotice, confirm, uncertain }: {
     lock: { current: boolean };
     prepare: () => Promise<void>;
-    send: (draft: Compose) => Promise<{ ok?: boolean; warning?: string }>;
+    send: (draft: Compose) => Promise<{ ok?: boolean; queued?: boolean; warning?: string }>;
+    uncertain?: () => void;
     complete: () => Promise<void>;
     reload: () => Promise<unknown>;
     setDraft: Dispatch<SetStateAction<Compose | null>>;
@@ -47,14 +48,21 @@ export async function sendCompose(
       setNotice("Draft save could not be confirmed. No send was attempted. Keep this window open and check the draft save status.");
       return;
     }
-    let result: { warning?: string };
+    let result: { warning?: string; queued?: boolean };
     try {
       const accepted = await send(draft);
-      if (accepted.ok !== true) throw new Error("Unconfirmed send");
+      if (accepted.ok !== true && accepted.queued !== true) throw new Error("Unconfirmed send");
       result = accepted;
     } catch {
+      uncertain?.();
       setDraft((current) => current ? { ...current, sendUnknown: true } : current);
       setNotice(unknownSendNotice);
+      return;
+    }
+    if (result.queued) {
+      setDraft(null);
+      setNotice("Email queued on this device. Use Undo in the Outbox before submission.");
+      try { await reload(); } catch { setNotice("Email queued. Inbox refresh failed. Review the Outbox before sending again."); }
       return;
     }
     let sentNotice = result.warning || "Email sent.";
@@ -87,6 +95,7 @@ export function ComposePanel({
   progress,
   onSend,
   preferences = emptyComposePreferences,
+  onUndoDelay,
   onAttachmentTask,
   source,
   api,
@@ -104,6 +113,7 @@ export function ComposePanel({
   progress: DraftProgress;
   onSend: () => void;
   preferences?: ComposePreferences;
+  onUndoDelay?: (seconds: NonNullable<ComposePreferences["undoSendSeconds"]>) => void;
   onAttachmentTask?: (task: Promise<void>) => void;
 }) {
   const { on: privacy } = useContext(PrivacyContext);
@@ -252,6 +262,11 @@ export function ComposePanel({
           {attachmentError && <p role="alert">{attachmentError}</p>}
           {loadingFiles && <p role="status">Reading attachments…</p>}
           <ComposePreferenceControls draft={draft} preferences={preferences} busy={busy || loadingFiles} onChange={setDraft} />
+          {onUndoDelay && <div className="compose-undo-delay"><span>Undo delay</span><Dropdown label="Undo send delay"
+            value={String(preferences.undoSendSeconds ?? 10)} disabled={busy || loadingFiles}
+            options={[{ value: "0", label: "Off" }, ...[5, 10, 30].map(seconds => ({ value: String(seconds), label: `${seconds} seconds` }))]}
+            onChange={value => onUndoDelay(Number(value) as NonNullable<ComposePreferences["undoSendSeconds"]>)} />
+            <span>Cancel before submission. No recall after acceptance.</span></div>}
         </div>
         {draft.sendUnknown && (
           <p className="dialog-copy" role="status">{unknownSendNotice}</p>

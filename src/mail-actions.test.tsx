@@ -82,7 +82,8 @@ async function mount(preferences?: NotificationPreferences, revisionContract = f
   globalThis.fetch = async (input, options) => {
     const url = String(input);
     let data: unknown = {};
-    if (url.startsWith("/api/state")) {
+    if (url === "/api/outbox") data = [];
+    else if (url.startsWith("/api/state")) {
       stateRequests.push(url);
       if (rejectRefresh) throw new Error("Synthetic refresh failure");
       data = { ...(stateGate ? await stateGate.promise : structuredClone(state)), csrf: "synthetic" };

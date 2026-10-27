@@ -75,6 +75,7 @@ type Records = {
   draft: Draft;
   contact: import("../shared/contacts.js").SavedContact;
   recentRecipient: import("../shared/contacts.js").RecentRecipient;
+  outbox: import("./outbox.js").OutboxRecord;
 };
 export type StoredAccount = Account & {
   hasSynced?: boolean;
@@ -464,7 +465,7 @@ export function compactStore(options: { cleanupOrphans?: boolean; vacuum?: boole
   let removedAttachments = 0;
   let cleanupSkipped: "unknown-record-kind" | "incomplete-mail-metadata" | "incomplete-attachment-metadata" | undefined;
   if (options.cleanupOrphans) transaction(() => {
-    const knownKinds: (keyof Records)[] = ["availability", "calendarOffer", "calendarOperation", "commitment", "googleCalendar", "googleCalendarWindow", "calendarEvent", "project", "decision", "coverage", "proposal", "agent", "agentProvider", "attachment", "config", "maintenance", "compose", "account", "mail", "mailSummary", "label", "rule", "meta", "mcp", "draft", "contact", "recentRecipient"];
+    const knownKinds: (keyof Records)[] = ["outbox", "availability", "calendarOffer", "calendarOperation", "commitment", "googleCalendar", "googleCalendarWindow", "calendarEvent", "project", "decision", "coverage", "proposal", "agent", "agentProvider", "attachment", "config", "maintenance", "compose", "account", "mail", "mailSummary", "label", "rule", "meta", "mcp", "draft", "contact", "recentRecipient"];
     if (db.prepare("SELECT DISTINCT kind FROM records").all().some(row => !knownKinds.includes(String(row.kind) as keyof Records))) {
       cleanupSkipped = "unknown-record-kind";
       return;

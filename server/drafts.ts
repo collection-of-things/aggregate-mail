@@ -82,6 +82,8 @@ export function createDraftInTransaction(accountId: string, value: unknown, invi
 export function saveDraft(accountId: string, id: string, value: unknown): Draft {
   const { revision, ...content } = saveSchema.parse(value);
   return transaction(() => {
+    if (all("outbox").some(entry => entry.sourceDraftId === id))
+      throw new DraftError(409, "Review this draft in the Outbox before editing or deleting it.");
     const current = readDraft(accountId, id);
     if (current.revision !== revision) throw new DraftError(409, "Draft changed. Read it before saving again.");
     if (!isDeepStrictEqual(current.invitation, content.invitation)) throw new DraftError(409, "Calendar details cannot be changed in the composer. Prepare from the event again.");
@@ -99,6 +101,8 @@ export function saveDraft(accountId: string, id: string, value: unknown): Draft 
 export function deleteDraft(accountId: string, id: string, value: unknown) {
   const input = deleteSchema.parse(value);
   transaction(() => {
+    if (all("outbox").some(entry => entry.sourceDraftId === id))
+      throw new DraftError(409, "Review this draft in the Outbox before editing or deleting it.");
     const current = readDraft(accountId, id);
     if (current.revision !== input.revision) throw new DraftError(409, "Draft changed. Read it before deleting.");
     if (current.sendUnknown && !input.confirmUnknown)

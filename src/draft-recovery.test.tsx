@@ -52,9 +52,9 @@ test("mounted drafts use encrypted HTTP persistence, recover edits and guard unc
     const route = String(input);
     if (route === "/api/sync") return new Response(JSON.stringify({ errors: [] }));
     if (route === "/api/send") {
-      const sent = JSON.parse(String(init?.body));
+      const sent = JSON.parse(String(init?.body)).payload;
       const saved = store.all("draft").find((draft) => draft.accountId === sent.accountId);
-      assert.equal(saved?.sendUnknown, true, "Uncertainty is committed before send admission");
+      assert.equal(saved?.sendUnknown, !!sent.sendUnknown, "The saved snapshot precedes outbox admission");
       assert.equal(saved?.body, sent.body, "The committed snapshot is the exact frozen send content");
       sends++;
       if (sendMode === "pending") return new Promise<Response>((_resolve, reject) => { rejectSend = reject; });
@@ -169,8 +169,7 @@ test("mounted drafts use encrypted HTTP persistence, recover edits and guard unc
     assert.equal(sends, 0, "A failed prepare cannot submit a send");
     await click(button("Retry save"));
     await settle(() => /Draft saved/.test(container.textContent!) && !button("Send").disabled);
-    assert.equal(store.all("draft")[0].sendUnknown, true, "Failed send preparation keeps conservative uncertainty");
-    await submit(); assert.equal(sends, 0, "Declined duplicate confirmation does not send");
+    assert.equal(store.all("draft")[0].sendUnknown, false, "Failed preparation makes no provider attempt");
     approve = true;
     await submit();
     await settle(() => sends === 1);

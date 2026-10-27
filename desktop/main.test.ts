@@ -38,6 +38,10 @@ await build({
         export class Updates {
           constructor(deps) { globalThis.testUpdateChanged = () => deps.publish({ phase: 'idle' }); }
           async command() {
+            if (config.outboxQuitCase) setTimeout(() => {
+              app.quit();
+              if (config.outboxQuitCase === 'cancel') setTimeout(() => app.exit(0), 30);
+            }, 0);
             if (config.quitDisposal) setTimeout(() => {
               setTimeout(() => { console.error('Quit remained cancelled after native dispatch unwound.'); app.exit(2); }, 500);
               app.quit();
@@ -121,7 +125,10 @@ await build({
             if (config.quitDisposal) nativeQuitting = true;
             let prevented = false;
             for (const handler of handlers.get('before-quit') || []) handler({ preventDefault() { prevented = true; } });
-            if (prevented) return;
+            if (prevented) {
+              if (config.quitDisposal) setImmediate(() => { nativeQuitting = false; audit('quit:unwound'); });
+              return;
+            }
             if (config.quitDisposal && lastWindow && !lastWindow.isDestroyed()) {
               lastWindow.close();
               if (config.closedWindowCallbacks) setImmediate(() => {
@@ -163,7 +170,7 @@ await build({
         };
         export const dialog = {
           showErrorBox(_title, message) { console.error('dialog:' + message); },
-          showMessageBoxSync() { prompts++; return config.chromeCase === 'accept' || config.quitShortcutCase === 'accept' || config.opencodeReplace === 'accept' ? 1 : 0; }
+          showMessageBoxSync(options) { if (options.message === 'Pending mail has not been sent.') { audit('outbox:prompt'); return config.outboxQuitCase === 'accept' ? 1 : 0; } prompts++; return config.chromeCase === 'accept' || config.quitShortcutCase === 'accept' || config.opencodeReplace === 'accept' ? 1 : 0; }
         }, ipcMain = { on(channel, handler) { ipcHandlers.set(channel, handler); }, handle(channel, handler) { ipcHandlers.set(channel, handler); } }, shell = {}, nativeTheme = { themeSource: "system" };
         export const nativeImage = {
           createFromPath(imagePath) {
@@ -388,7 +395,7 @@ await build({
           return { ok: !!options, status: options ? 200 : 403 };
         };
       ` : `
-        import { readFileSync, existsSync } from 'node:fs';
+        import { readFileSync, existsSync, appendFileSync } from 'node:fs';
         import { createDecipheriv } from 'node:crypto';
         import path from 'node:path';
         const key = Buffer.from(process.env.MAIL_DATA_KEY, 'base64');
@@ -405,6 +412,11 @@ await build({
           console.log('backend: opened');
           return { close() {} };
         }
+        const config = JSON.parse(process.env.TEST_STARTUP);
+        const audit = value => { if (config.audit) appendFileSync(config.audit, JSON.stringify({helper:false, value}) + '\\n'); };
+        export function holdPendingOutbox() { audit('outbox:held'); return config.outboxQuitCase ? 1 : 0; }
+        export async function quiesceMail() { audit('outbox:draining'); await new Promise(resolve => setTimeout(resolve, 10)); audit('outbox:drained'); }
+        export function resumeMail() { audit('outbox:resumed'); }
         export async function syncMail() { return { errors: [] }; }
       `,
     }));
@@ -1008,3 +1020,16 @@ for (const platform of ["linux", "darwin", "win32"]) for (const quitShortcutCase
   }
   preserved(saved.profile, saved);
  });
+
+for (const outboxQuitCase of ["cancel", "accept"]) test(`ordinary quit holds pending outbox and respects ${outboxQuitCase}`, () => {
+  const current = fixture("Emc²"), audit = path.join(current.appData, "outbox-quit-audit");
+  const result = launch(current.appData, { outboxQuitCase, audit }, [], false);
+  assert.equal(result.status, 0, result.stderr);
+  const events = readFileSync(audit, "utf8").trim().split("\n").map(line => JSON.parse(line).value);
+  assert.ok(events.indexOf("outbox:held") < events.indexOf("outbox:prompt"));
+  if (outboxQuitCase === "accept") {
+    assert.ok(events.indexOf("outbox:prompt") < events.indexOf("outbox:draining"));
+    assert.ok(events.includes("outbox:drained"));
+  } else assert.equal(events.includes("outbox:draining"), false);
+  preserved(current.profile, current);
+});
