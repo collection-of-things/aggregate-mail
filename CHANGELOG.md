@@ -10,6 +10,10 @@ unversioned history without treating it as a release record.
 
 - Keep draft dates clear of the Delete draft button and show the inbox's account labels and colour dots, including privacy-safe names when personal text is hidden. [#115](https://github.com/collection-of-things/aggregate-mail/issues/115)
 
+### Documentation
+
+- Make pull requests easier to scan with explicit problem and result fields, before/after evidence, rollback and affected scope. Keep verification, ownership and review in collapsed blocks, and document stack merging with verification and review for each layer. [#128](https://github.com/collection-of-things/aggregate-mail/pull/128)
+
 ## 0.2.16 - 2026-10-27
 
 ### Added
