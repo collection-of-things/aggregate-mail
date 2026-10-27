@@ -2391,3 +2391,5 @@ stale draft openings must not replace the current search or compose session.
 Verification is tracked in [task #42](https://github.com/collection-of-things/aggregate-mail/issues/42).
 Synthetic results, native interaction, installed-app acceptance and provider
 coverage are separate evidence.
+
+Automatic browser sync starts only after the full cached-mail snapshot loads. Bootstrap status alone does not start it; a failed initial read keeps it paused until a successful retry. Regression coverage: `src/bootstrap.test.tsx`.

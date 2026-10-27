@@ -471,10 +471,10 @@ export function App() {
     return () => { complete = true; controller.abort(); ++loadRevision.current; };
   }, [api, reload, sync]);
   useEffect(() => {
-    if (window.desktop || !state.accounts.length) return;
+    if (window.desktop || !loaded || !state.accounts.length) return;
     const timer = setInterval(() => void sync(), 300000);
     return () => clearInterval(timer);
-  }, [state.accounts.length, sync]);
+  }, [loaded, state.accounts.length, sync]);
   useEffect(
     () =>
       window.desktop?.onAccountConnected((error) => {
