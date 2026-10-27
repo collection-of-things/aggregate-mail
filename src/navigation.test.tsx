@@ -2763,3 +2763,34 @@ test("account warning opens the affected private account without reconnecting on
     assert.equal(app.mutations.length, 0);
   } finally { await app.close(); }
 });
+
+test("persistent density agrees between Appearance, shortcut and Commands", async () => {
+  const app = await mount();
+  let saved = "";
+  const density = () => app.container.querySelector('[role="radiogroup"][aria-labelledby="density-label"]')!;
+  try {
+    await app.click(app.button("Settings"));
+    await app.click(app.button("Appearance"));
+    assert.ok(density(), "Appearance exposes density");
+    assert.equal(density().querySelector('[aria-checked="true"]')?.textContent, "Comfortable");
+    await app.click(app.button("Compact"));
+    assert.equal(app.storage.getItem("emc2.density"), "compact");
+    await app.click(app.button("Close settings"));
+    await act(async () => app.window.document.body.focus());
+    await app.key("d");
+    assert.equal(app.storage.getItem("emc2.density"), "comfortable");
+    await app.click(app.button("Commands"));
+    const command = [...app.container.querySelectorAll<HTMLButtonElement>(".command-option")].find(button => button.textContent?.includes("Comfortable / Compact"))!;
+    assert.ok(command);
+    await app.click(command);
+    assert.equal(app.storage.getItem("emc2.density"), "compact");
+    await app.click(app.button("Settings"));
+    await app.click(app.button("Appearance"));
+    assert.equal(density().querySelector('[aria-checked="true"]')?.textContent, "Compact");
+    saved = app.storage.getItem("emc2.density")!;
+    assert.equal(app.mutations.length, 0);
+  } finally { await app.close(); }
+  const restarted = await mount(false, (_state, storage) => storage.setItem("emc2.density", saved));
+  try { assert.ok(restarted.container.querySelector(".list.compact")); }
+  finally { await restarted.close(); }
+});

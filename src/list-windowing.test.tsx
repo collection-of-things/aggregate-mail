@@ -62,7 +62,8 @@ async function mount(count = 3000, pageOffset = 0) {
       const top = pageOffset + offset + parseFloat(this.closest<HTMLElement>(".mail-window-row")!.style.top) -
         (document.querySelector<HTMLElement>(".list")?.scrollTop || 0);
       const rowHeight = props.narrow ? (props.density === "compact" ? 72 : mail.relevance > 1 ? 100 : 80) : props.density === "compact" ? 24 : mail.relevance === 3 ? 48 : mail.relevance === 2 ? 34 : 28;
-      return { top, bottom: top + rowHeight, height: rowHeight } as DOMRect;
+      const scale = parseFloat(dom.window.getComputedStyle(document.querySelector(".list")!).getPropertyValue("--text-scale")) || 1;
+      return { top, bottom: top + rowHeight * scale, height: rowHeight * scale } as DOMRect;
     }
     return nativeRect.call(this);
   };
@@ -280,5 +281,25 @@ test("split cards retain every message across density and pane layout changes", 
     assert.equal(app.windowHeight(), 3000 * 24);
     await app.scroll(app.list().scrollHeight);
     assert.ok(app.row(2999), "returning to the wide list retains the tail");
+  } finally { await app.close(); }
+});
+
+test("density changes retain the selected row in the viewport at default and large text sizes", async () => {
+  const app = await mount(300, 100);
+  try {
+    await app.select(150);
+    for (const scale of [1, 1.5]) {
+      app.list().style.setProperty("--text-scale", String(scale));
+      await app.resize(480);
+      for (const density of ["compact", "comfortable"] as const) {
+        app.props.density = density;
+        await app.render();
+        const selected = app.row(150).getBoundingClientRect();
+        const viewport = app.list().getBoundingClientRect();
+        assert.equal(app.props.selectedId, "synthetic:150");
+        assert.ok(selected.top >= viewport.top, `${density} at ${scale}: selection starts in view`);
+        assert.ok(selected.bottom <= viewport.bottom, `${density} at ${scale}: selection ends in view`);
+      }
+    }
   } finally { await app.close(); }
 });

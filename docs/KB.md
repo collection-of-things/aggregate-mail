@@ -2767,3 +2767,17 @@ Connected means a connection exists, not that all provider history is cached.
 The global sync time remains global. Retry connection remains an explicit action.
 Synthetic coverage: `src/account-status.test.tsx` and account-warning cases in
 `src/navigation.test.tsx`.
+
+## Visible persistent mail density
+
+Settings, Appearance exposes Comfortable and Compact spacing beside Reading pane.
+It shares App's density state with Commands and the configured density shortcut.
+Explicit changes save `emc2.density` on this device; startup reads the saved value
+without writing it. A failed save keeps the session value and shows a notice.
+Density changes spacing independently of importance sizing and text scale.
+The virtual list retains existing wide and narrow row-height tokens, including
+72px compact cards. Density and text-scale changes scroll the selected row into
+view without taking focus from Settings or editors. Passive scrolling and mail
+refreshes retain their existing behavior. Synthetic coverage is in
+`src/list-windowing.test.tsx` and the persistent-density case in
+`src/navigation.test.tsx`.

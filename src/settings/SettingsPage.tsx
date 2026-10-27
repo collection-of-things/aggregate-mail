@@ -46,6 +46,8 @@ export function SettingsPage({
   onSection,
   assistants,
   accountTarget,
+  density,
+  onDensity,
   appearance,
   scheme,
   onAppearance,
@@ -79,6 +81,8 @@ export function SettingsPage({
   onSection?: (section: SettingsSection) => void;
   assistants?: ReactNode;
   accountTarget?: string;
+  density?: "comfortable" | "compact";
+  onDensity?: (value: "comfortable" | "compact") => void;
   appearance: Appearance;
   scheme: Scheme;
   onAppearance: (value: Appearance) => boolean;
@@ -311,7 +315,7 @@ export function SettingsPage({
           </details>
         </section>}
         {section === "appearance" && <section>
-          <AppearanceSettings value={appearance} scheme={scheme} onChange={onAppearance} onPreview={onThemePreview} onModalChange={onModalChange} />
+          <AppearanceSettings density={density} onDensity={onDensity} value={appearance} scheme={scheme} onChange={onAppearance} onPreview={onThemePreview} onModalChange={onModalChange} />
           {window.desktop && window.desktop.platform !== "darwin" ? (
             <>
               <h2>Window controls</h2>

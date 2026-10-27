@@ -19,7 +19,9 @@ type ThemeDialog =
 const noPreview = () => {};
 
 /** Mode, theme, accent, transparency and reading layout, grouped as System Settings groups them. */
-export function AppearanceSettings({ value, scheme, onChange, onPreview = noPreview, onModalChange }: {
+export function AppearanceSettings({ value, scheme, onChange, onPreview = noPreview, onModalChange, density = "comfortable", onDensity }: {
+  density?: "comfortable" | "compact";
+  onDensity?: (value: "comfortable" | "compact") => void;
   value: Appearance;
   scheme: Scheme;
   onChange: (value: Appearance) => boolean;
@@ -180,6 +182,11 @@ export function AppearanceSettings({ value, scheme, onChange, onPreview = noPrev
           <Segmented labelledBy="reading-label" value={value.reading} choices={readingLayouts}
             onChange={(reading) => onChange({ ...value, reading })} />
         </div>
+        {onDensity && <div className="settings-row stacked">
+          <span id="density-label">Density</span>
+          <Segmented labelledBy="density-label" value={density} choices={[{ id: "comfortable", label: "Comfortable" }, { id: "compact", label: "Compact" }]} onChange={onDensity} />
+          <p className="note">Density changes spacing. Importance sizing changes row height by relevance.</p>
+        </div>}
         <label className="settings-row"><span>Size rows by importance</span><input type="checkbox" role="switch" checked={value.sizeByImportance}
           onChange={(event) => onChange({ ...value, sizeByImportance: event.target.checked })} /></label>
       </div>
