@@ -10,6 +10,7 @@ export function BrowserSession({ children }: { children: ReactNode }) {
     let disposed = false;
     let revoked = false;
     let revision = 0;
+    let build = document.querySelector<HTMLMetaElement>('meta[name="emc2-build"]')?.content;
     const lock = () => { revoked = true; revision++; setAllowed(false); setVisible(false); };
     const check = async () => {
       if (revoked || disposed) return;
@@ -21,6 +22,11 @@ export function BrowserSession({ children }: { children: ReactNode }) {
         if (!response.ok || state.authenticated !== true) { lock(); return; }
         setAllowed(true);
         setVisible(document.visibilityState !== "hidden");
+        const version = response.headers.get("X-Emc2-Build");
+        if (version && /^[a-f0-9]{64}$/.test(version)) {
+          if (build && build !== version) window.dispatchEvent(new window.CustomEvent("emc2-update-ready", { detail: version }));
+          else build = version;
+        }
       } catch { if (!disposed && current === revision) lock(); }
     };
     const visibility = () => { setVisible(false); if (document.visibilityState !== "hidden") void check(); };

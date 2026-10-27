@@ -1,5 +1,5 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import express from "express";
 
@@ -135,7 +135,17 @@ ${unlocked ? '<p><a href="/">Open inbox</a></p>' : '<label for="password">Passwo
     next();
   });
   router.use(authRouter);
-  router.get("/auth/session", (req, res) => res.json({ authenticated: authenticated(req, false) }));
+  router.get("/auth/session", (req, res) => {
+    const admitted = authenticated(req, false);
+    if (admitted) {
+      try {
+        const html = readFileSync(path.join(process.env.MAIL_STATIC_DIR || path.resolve("dist"), "index.html"), "utf8");
+        const id = html.match(/<meta name="emc2-build" content="([a-f0-9]{64})">/)?.[1];
+        if (id) res.set("X-Emc2-Build", id);
+      } catch { /* Development may not have built assets yet. */ }
+    }
+    res.json({ authenticated: admitted });
+  });
   router.get("/auth/client.js", (_req, res) => res.type("application/javascript").send(
     'fetch("/auth/session", { cache: "no-store" }).then(r => r.json()).then(s => { if (!s.authenticated && typeof BroadcastChannel !== "undefined") { const channel = new BroadcastChannel("emc2-browser-access"); channel.postMessage("locked"); channel.close(); } }).catch(() => {});',
   ));

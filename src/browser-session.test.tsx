@@ -11,9 +11,12 @@ test("browser lock removes retained mail and drafts; visibility and offline chec
   let interval: (() => void) | undefined;
   let channel: { onmessage?: (event: { data: string }) => void; close(): void } | undefined;
   let checks = 0;
+  let updates = 0;
+  const meta = dom.document.createElement("meta"); meta.name = "emc2-build"; meta.content = "a".repeat(64); dom.document.head.append(meta);
+  dom.addEventListener("emc2-update-ready", event => { assert.equal((event as unknown as CustomEvent).detail, "b".repeat(64)); updates++; });
   const globals = {
     window: dom, document: dom.document, IS_REACT_ACT_ENVIRONMENT: true,
-    fetch: async () => { checks++; if (failed) throw new Error("synthetic offline"); return Response.json({ authenticated: accepted }); },
+    fetch: async () => { checks++; if (failed) throw new Error("synthetic offline"); return Response.json({ authenticated: accepted }, { headers: { "X-Emc2-Build": "b".repeat(64) } }); },
     BroadcastChannel: class { onmessage?: (event: { data: string }) => void; constructor() { channel = this; } close() {} },
     setInterval: (callback: () => void) => { interval = callback; return 1; }, clearInterval: () => {},
   };
@@ -31,6 +34,7 @@ test("browser lock removes retained mail and drafts; visibility and offline chec
   const render = async (key: string) => { await act(async () => root.render(<BrowserSession key={key}><PrivateContent /></BrowserSession>)); };
   try {
     await render("channel");
+    assert.equal(updates, 1, "detect a host update even before this tab's first status check");
     assert.match(container.textContent || "", /retained mail/);
     await act(async () => channel?.onmessage?.({ data: "locked" }));
     assert.equal(container.querySelector("section"), null);

@@ -58,6 +58,13 @@ test("attachments download every format, preview only on demand, and clear previ
     await render(true, "b:2");
     assert.equal(dom.window.document.querySelector("img"), null);
     assert.ok(revoked.length);
+    let finishDownload: (response: Response) => void = () => {};
+    const pendingDownload = new Promise<Response>(resolve => { finishDownload = resolve; });
+    globalThis.fetch = async () => pendingDownload;
+    await click("Download attachment 1");
+    assert.equal(dom.window.document.querySelector('li[aria-busy="true"]') !== null, true);
+    await act(async () => { finishDownload(new Response(new Uint8Array([1, 2, 3, 4]))); });
+    assert.equal(dom.window.document.querySelector('li[aria-busy="true"]'), null);
   } finally {
     await act(async () => root.unmount());
     globalThis.fetch = originalFetch;

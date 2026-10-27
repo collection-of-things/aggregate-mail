@@ -53,12 +53,13 @@ import { accountLabel, customLabels, textSizeShortcut, filterMail, matchesLabel,
 import { reuseMailState } from "./mail-state";
 import { MailSearchApiContext, useMailSearch } from "./use-mail-search";
 import { replySource, useMailBody } from "./mail-body";
-import { useMailNavigation, type MailLocation } from "./navigation";
+import { useMailNavigation, rememberBrowserUpdateLocation, type MailLocation } from "./navigation";
 import { collectPrivateNames, redactPrivateText } from "./privacy";
 import { SettingsPage } from "./settings/SettingsPage";
 import { PaneHeader, type Corner } from "./shell/PaneHeader";
 import { Sidebar } from "./shell/Sidebar";
 import { UpdateNotice } from "./shell/UpdateNotice";
+import { BrowserUpdateNotice, type BrowserWrites } from "./shell/BrowserUpdateNotice";
 import { ContextMenu, mailMenuRequest, type MenuAction } from "./ui/ContextMenu";
 import { Dialog } from "./ui/Dialog";
 import { MailPrivacy, PrivacyContext, Redact } from "./ui/Privacy";
@@ -353,21 +354,35 @@ export function App() {
   const syncLock = useRef(false);
   const sendLock = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const browserWrites = useRef<BrowserWrites>({ pending: 0, uncertain: false });
+  const [, setWriteRevision] = useState(0);
   const api = useCallback(
     async <T,>(url: string, method = "GET", body?: unknown, signal?: AbortSignal): Promise<T> => {
-      const res = await fetch(`/api${url}`, {
-        method,
-        signal,
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": csrf.current,
-        },
-        body: body === undefined ? undefined : JSON.stringify(body),
-      });
-      if (res.status === 401 && !window.desktop) window.dispatchEvent(new Event("emc2-browser-locked"));
-      const data = (await res.json()) as T & { error?: string };
-      if (!res.ok) throw new ApiError(res.status, data.error || "Request failed. Try again.");
-      return data;
+      const writing = !["GET", "HEAD"].includes(method.toUpperCase());
+      if (writing) { browserWrites.current.pending++; setWriteRevision(value => value + 1); }
+      try {
+        const res = await fetch(`/api${url}`, {
+          method,
+          signal,
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrf.current,
+          },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        });
+        if (res.status === 401 && !window.desktop) window.dispatchEvent(new Event("emc2-browser-locked"));
+        const data = (await res.json()) as T & { error?: string; state?: string; sendUnknown?: boolean; results?: { status?: string }[] };
+        if (writing && (data?.state === "unknown" || data?.sendUnknown === true ||
+          Array.isArray(data?.results) && data.results.some(result => result?.status === "unknown"))) browserWrites.current.uncertain = true;
+        if (!res.ok) throw new ApiError(res.status, data.error || "Request failed. Try again.");
+        return data;
+      } catch (error) {
+        // An interrupted write can have succeeded on the host. Never reload or replay it automatically.
+        if (writing && (!(error instanceof ApiError) || error.status >= 500)) browserWrites.current.uncertain = true;
+        throw error;
+      } finally {
+        if (writing) { browserWrites.current.pending--; setWriteRevision(value => value + 1); }
+      }
     },
     [],
   );
@@ -1360,6 +1375,12 @@ export function App() {
           <OutboxNotices api={api} scheduledOnly enabled={loaded} blocked={busy || updateInstalling}
             onEdit={openScheduledDraft} onNotice={outboxNotice} onChanged={() => { setOutboxRefresh(current => current + 1); void reload().catch(() => {}); }} />
         </Dialog>}
+
+        <BrowserUpdateNotice
+          blocked={scheduledOpen || !loaded || busy || syncing || navigationBlocked || workView || view === "drafts" || eventDirty || composeSaving || !!palette || !!contextMenu || !!pendingReads.current.size || sendLock.current || syncLock.current || trashLock.current || (!!composeDraft && JSON.stringify(composeDraft) !== JSON.stringify(state.composePreferences ?? emptyComposePreferences))}
+          writes={browserWrites}
+          onReload={() => { rememberBrowserUpdateLocation(navigation.location); window.location.reload(); }}
+        />
         {palette && !updateInstalling && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
         <div className="frame" inert={settings || updateInstalling || palette || scheduledOpen}>
           {!roomy && mobileSidebarOpen && <button type="button" className="mobile-sidebar-backdrop" aria-label="Close navigation" onClick={() => { setMobileSidebarOpen(false); requestAnimationFrame(() => document.getElementById("sidebar-toggle")?.focus()); }} />}
