@@ -1023,6 +1023,11 @@ test("Settings keeps mail navigation, uses a section rail and shows one section 
     await app.click(settings);
     assert.ok(app.container.querySelector('[aria-label="Mail views"]'), "mail navigation remains visible");
     assert.equal(app.container.querySelectorAll(".settings-navigation button").length, 11);
+    const rail = app.container.querySelector('.settings-navigation')!;
+    assert.deepEqual([...rail.querySelectorAll('[role="group"]')].map(group => group.getAttribute('aria-label')),
+      ["Connections", "Mail", "Preferences", "Advanced"]);
+    assert.equal(new Set([...rail.querySelectorAll('button')].map(button => button.textContent)).size, 11,
+      "each existing section remains reachable once");
     assert.equal(app.container.querySelector(".settings select"), null);
     assert.ok(app.container.querySelector("[data-interaction-settings]"));
     await app.click(app.button("Appearance"));

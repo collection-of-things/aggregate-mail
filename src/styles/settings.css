@@ -309,9 +309,30 @@
   white-space: pre-wrap;
   user-select: text;
 }
-[data-interaction-settings] .settings-row :is(input, select) { width: 160px; height: 30px; padding: 0 10px; }
-[data-interaction-settings] > p { margin: 8px 2px 0; font-size: calc(12px * var(--text-scale, 1)); }
+/* Compact shortcut fields keep their existing capture and validation behavior. */
+.settings-navigation-group { display: grid; align-content: start; gap: 2px; min-width: 0; }
+.settings-section-context { display: block; margin-bottom: 6px; color: var(--text-3); font-size: calc(10px * var(--text-scale, 1)); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+[data-interaction-settings] > p { margin: 8px 0 0; font-size: calc(12px * var(--text-scale, 1)); }
 [data-interaction-settings] [role="status"]:empty { display: none; }
+.settings [data-interaction-settings] .interaction-opening { padding: 0 0 22px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+.interaction-opening > div { min-width: 0; }
+.settings .interaction-opening .note { max-width: 34ch; margin: 4px 0 0; font-size: calc(12px * var(--text-scale, 1)); }
+.interaction-shortcuts-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.settings .interaction-shortcuts-heading h2 { margin: 0; color: var(--text); }
+.interaction-shortcuts-heading .link { font-size: calc(12px * var(--text-scale, 1)); color: var(--link); }
+.interaction-shortcut-groups { display: grid; gap: 20px 24px; margin-top: 20px; }
+.interaction-shortcut-group { min-width: 0; }
+.interaction-shortcut-group h3 { margin: 0 0 6px; font-size: calc(12px * var(--text-scale, 1)); font-weight: 500; color: var(--text-3); }
+.settings .interaction-shortcut-group .settings-row { min-height: 36px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.interaction-shortcut-group .settings-row:last-child { border-bottom: 0; }
+.interaction-shortcut-group label { min-width: 0; overflow-wrap: anywhere; }
+.interaction-shortcut-group input { flex-shrink: 0; min-width: 32px; max-width: 100%; height: 27px; padding: 0 7px; text-align: center; font: calc(12px * var(--text-scale, 1)) ui-monospace, monospace; border-radius: 5px; }
+.interaction-fixed-shortcuts { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
+.interaction-fixed-shortcuts summary { cursor: pointer; }
+@container (min-width: 820px) {
+  .interaction-shortcut-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .interaction-shortcut-group:first-child { grid-row: span 2; }
+}
 /* Settings, Appearance: theme previews, accent swatches and Transparency. */
 .theme-choices {
   display: grid;
@@ -535,7 +556,7 @@
 .settings-dialog > .dialog-title > .icon { order: 2; flex-shrink: 0; }
 .settings-dialog .settings-pane { border: 0; }
 .settings-dialog .settings {
-  grid-template-columns: 180px minmax(0, 1fr);
+  grid-template-columns: 200px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
 }
@@ -547,7 +568,7 @@
   overscroll-behavior: contain;
   padding: 16px 10px;
 }
-.settings-dialog .settings-navigation button { height: auto; overflow-wrap: anywhere; }
+.settings-dialog .settings-navigation button { width: 100%; height: auto; overflow-wrap: anywhere; }
 .settings-dialog .settings-column {
   min-height: 0;
   overflow-y: auto;

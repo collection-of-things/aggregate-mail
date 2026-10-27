@@ -386,6 +386,11 @@ and draft-review flow. See [ADR 0048](docs/adr/0048-v2-persistent-navigation.md)
 
 Keep history arrows beside persistent search, with compact headers below.
 Settings owns assistant setup; Agent review owns proposed actions and activity.
+Group the Settings rail into Connections, Mail, Preferences and Advanced. Keep
+section descriptions readable without truncation and control rows compact.
+Keyboard and mouse uses labeled key-sized capture fields in Navigation, Mail
+actions and App groups, in two columns on wide Settings panes and one on narrow
+panes. Preserve text scaling, focus outlines and independent rail/content scroll.
 Settings section changes start at the top. Unsaved templates and signatures
 survive section changes and closing Settings for the current app session.
 Use a full mail-style Drafts list and an anchored Snooze menu. Calendar includes

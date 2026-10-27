@@ -24,7 +24,7 @@ import { BrandingSection } from "./BrandingSection";
 import { ConfigurationForm } from "./ConnectionForm";
 import { InteractionSettings } from "./InteractionSettings";
 import { McpSection } from "./McpSection";
-import { settingsSections, type SettingsSection } from "./sections";
+import { settingsGroup, settingsGroupNames, settingsSections, type SettingsSection } from "./sections";
 
 export function SettingsPage({
   state,
@@ -94,14 +94,16 @@ export function SettingsPage({
   return (
     <main className="settings">
       {onSection && <nav className="settings-navigation" aria-label="Settings sections">
-        <span className="settings-rail-label">Preferences</span>
-        {settingsSections.map(({ id, label, Icon }) => <button key={id} type="button"
-          aria-current={section === id ? "page" : undefined} onClick={() => onSection(id)}>
-          <Icon color="currentColor" size={15} />{label}
-        </button>)}
+        {settingsGroupNames.map((group) => <div className="settings-navigation-group" key={group} role="group" aria-label={group}>
+          <span className="settings-rail-label" aria-hidden="true">{group}</span>
+          {settingsSections.filter(({ id }) => settingsGroup(id) === group).map(({ id, label, Icon }) => <button key={id} type="button"
+            aria-current={section === id ? "page" : undefined} onClick={() => onSection(id)}>
+            <Icon color="currentColor" size={15} />{label}
+          </button>)}
+        </div>)}
       </nav>}
       <div className="settings-column" ref={scrollPane}>
-        <header className="settings-section-heading"><h1>{current.label}</h1><p>{current.description}</p></header>
+        <header className="settings-section-heading"><span className="settings-section-context">{settingsGroup(section)}</span><h1>{current.label}</h1><p>{current.description}</p></header>
         {section === "interaction" && <section>
           <InteractionSettings value={interaction} onChange={onInteraction} />
         </section>}
