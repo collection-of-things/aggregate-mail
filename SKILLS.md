@@ -15,7 +15,7 @@ working on this project. Use the references that match the task.
 | Change Android | Follow [docs/android.md](docs/android.md). |
 | Change the website | Follow [website/AGENTS.md](website/AGENTS.md). |
 | Change documentation | Check links, commands and facts. Use direct wording and remove repeated rules and filler. |
-| Close a PR | Follow the [closure requirements](CONTRIBUTING.md#pull-requests): comment with the reason, link the fix or ongoing work, and cross-reference linked PRs. |
+| Close an issue or PR | Follow the [closure requirements](CONTRIBUTING.md#closing-issues-and-pull-requests): comment with the reason, link the fix or ongoing work, and cross-reference linked issues or PRs. |
 | Merge a PR | Follow the [merge requirements](CONTRIBUTING.md#pull-requests) for an updated branch, passing checks and current approval. |
 | Verify or deliver changes | Follow [verification](CONTRIBUTING.md#verify) and [PR requirements](CONTRIBUTING.md#pull-requests). Report observed results and anything unverified. |
 
