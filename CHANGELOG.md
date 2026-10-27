@@ -13,6 +13,8 @@ unversioned history without treating it as a release record.
 
 ### Documentation
 
+- Give issue reports explicit scope, acceptance criteria and verification plans so contributors and agents can work from observable requirements. Separate planned checks from evidence, add missing bug-report environments and add privacy confirmations to feature requests.
+
 - Make pull requests easier to scan with explicit problem and result fields, before/after evidence, rollback and affected scope. Keep verification, ownership and review in collapsed blocks, and document stack merging with verification and review for each layer. Related proposal: [#128](https://github.com/collection-of-things/aggregate-mail/pull/128)
 
 ## 0.2.16 - 2026-10-27

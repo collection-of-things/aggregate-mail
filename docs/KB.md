@@ -580,6 +580,13 @@ remain, with unavailable source evidence, so disconnect does not erase work.
 
 ## Contribution guides
 
+Issue forms capture the problem, expected result, scope, acceptance criteria,
+verification plan and related work. Bug reports also identify the version,
+platform, app surface, installation method and provider. Unknown details stay
+explicit; optional evidence records observed results separately from planned
+checks. Public submissions exclude private data and route vulnerabilities to
+SECURITY.md.
+
 Agents must read [AGENTS.md](../AGENTS.md) for project rules and
 [SKILLS.md](../SKILLS.md) for task-specific references.
 [CONTRIBUTING.md](../CONTRIBUTING.md) covers ownership, duplicate searches,

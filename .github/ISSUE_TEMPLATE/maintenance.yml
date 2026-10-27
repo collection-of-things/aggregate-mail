@@ -1,41 +1,61 @@
 name: Maintenance task
-description: Track documentation, dependency or other repository maintenance.
+description: Define repository work, its scope and completion checks.
 title: "[Maintenance]: "
 labels: ["chore"]
 body:
   - type: markdown
     attributes:
       value: |
-        Follow [CONTRIBUTING.md](https://github.com/collection-of-things/aggregate-mail/blob/main/CONTRIBUTING.md)
-        for ownership and scope. Use the private path in
-        [SECURITY.md](https://github.com/collection-of-things/aggregate-mail/blob/main/SECURITY.md)
-        for vulnerabilities.
+        Follow [CONTRIBUTING.md](https://github.com/collection-of-things/aggregate-mail/blob/main/CONTRIBUTING.md) for ownership and scope.
+        Report vulnerabilities through [SECURITY.md](https://github.com/collection-of-things/aggregate-mail/blob/main/SECURITY.md).
+        Write Unknown for details you cannot establish.
   - type: textarea
     id: task
     attributes:
-      label: Task and reason
-      description: What should change, and why?
+      label: Problem
+      description: What is outdated, broken or expensive to maintain?
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Result
+      description: What should change?
     validations:
       required: true
   - type: textarea
     id: scope
     attributes:
       label: Scope and owner
-      description: List owned paths, task owner, base branch and feature branch.
+      description: List owned paths, task owner, base branch and feature branch. State what must stay unchanged; mark unassigned or unknown details explicitly.
     validations:
       required: true
   - type: textarea
-    id: related-work
+    id: acceptance
     attributes:
-      label: Related issues or pull requests
-      description: Link relevant open or closed work, or state that you searched by problem and affected area.
+      label: Acceptance criteria
+      description: List observable conditions that would make this task complete.
     validations:
       required: true
   - type: textarea
     id: checks
     attributes:
-      label: Checks and proof
-      description: Name the required checks and how results will be tied to the changed revision.
+      label: Verification plan
+      description: Name checks to run and how their results will identify the changed revision. Write Unknown if investigation is needed; planned checks are not passing proof.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: For work already checked, include the command or target, result and revision. Leave empty until observed; remove private data.
+    validations:
+      required: false
+  - type: textarea
+    id: related-work
+    attributes:
+      label: Related work
+      description: Link relevant issues, PRs and dependencies, or state what you searched.
     validations:
       required: true
   - type: checkboxes
