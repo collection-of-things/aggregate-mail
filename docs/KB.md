@@ -2781,3 +2781,20 @@ view without taking focus from Settings or editors. Passive scrolling and mail
 refreshes retain their existing behavior. Synthetic coverage is in
 `src/list-windowing.test.tsx` and the persistent-density case in
 `src/navigation.test.tsx`.
+
+## Browser build updates
+
+`npm run build:web` stamps the built HTML with a public, deterministic asset
+identity. Admitted `/auth/session` responses expose it in `X-Emc2-Build` with
+`no-store`; the renderer compares it with the loaded HTML, including its first
+status check. The update notice defers reload for active mail editing, Settings,
+work views, saved-draft lists, hidden tabs, pending writes, attachment downloads
+and previews, and uncertain outcomes.
+Bulk action results containing an unknown outcome also suspend notice-triggered
+refresh for the page session, preserving the per-message outcome for review.
+Navigation survives only the update reload through a validated, one-use,
+two-minute tab-local record. No mail bodies or drafts enter that record.
+Host installation and persistent sign-in remain separate. Synthetic proof:
+`src/browser-update.test.tsx`, `src/browser-session.test.tsx`, the browser-update
+case in `src/navigation.test.tsx`, `server/browser-access.test.ts` and
+`scripts/browser-build.test.mjs`.

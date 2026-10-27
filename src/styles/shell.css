@@ -7,6 +7,20 @@
   overflow: hidden;
 }
 
+.browser-update-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--text);
+}
+.browser-update-notice > span { flex: 1 1 180px; }
+.browser-update-notice button { min-height: 32px; padding: 4px 10px; }
+
 /* Each pane carries its own 52px header; together they form the window's caption. */
 .pane-head,
 .sidebar-head {

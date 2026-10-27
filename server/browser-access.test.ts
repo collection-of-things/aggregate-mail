@@ -179,3 +179,33 @@ test("tailnet sessions use Secure host cookies, bind origins and cannot revive a
     assert.equal((await call("/auth", "GET", new URL(remote).host)).status, 403);
   } finally { await new Promise<void>((resolve) => server.close(() => resolve())); }
 });
+
+test("only admitted browsers receive the current public build identity without caching", async () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "emc2-browser-build-"));
+  const previous = process.env.MAIL_STATIC_DIR; process.env.MAIL_STATIC_DIR = directory;
+  const gate = browserAccess(password, "http://127.0.0.1:5173");
+  const app = express();
+  app.get("/synthetic-session", (req, res) => { gate.issueSession(req, res); res.end(); });
+  app.use(gate);
+  const server = app.listen(0, "127.0.0.1"); await once(server, "listening");
+  const address = server.address(); assert.ok(address && typeof address !== "string");
+  const origin = `http://127.0.0.1:${address.port}`;
+  try {
+    writeFileSync(path.join(directory, "index.html"), `<meta name="emc2-build" content="${"a".repeat(64)}">`);
+    assert.equal((await fetch(`${origin}/auth/session`)).headers.get("x-emc2-build"), null);
+    const login = await fetch(`${origin}/synthetic-session`);
+    const cookie = login.headers.get("set-cookie")!.split(";")[0];
+    const response = await fetch(`${origin}/auth/session`, { headers: { Cookie: cookie } });
+    assert.equal(response.headers.get("x-emc2-build"), "a".repeat(64));
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await response.json(), { authenticated: true });
+    writeFileSync(path.join(directory, "index.html"), `<meta name="emc2-build" content="${"b".repeat(64)}">`);
+    assert.equal((await fetch(`${origin}/auth/session`, { headers: { Cookie: cookie } })).headers.get("x-emc2-build"), "b".repeat(64));
+    rmSync(path.join(directory, "index.html"));
+    assert.equal((await fetch(`${origin}/auth/session`, { headers: { Cookie: cookie } })).headers.get("x-emc2-build"), null);
+  } finally {
+    if (previous === undefined) delete process.env.MAIL_STATIC_DIR; else process.env.MAIL_STATIC_DIR = previous;
+    server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

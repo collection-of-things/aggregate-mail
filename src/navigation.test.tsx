@@ -36,7 +36,7 @@ test("window opacity applies immediately, persists and disables with transparenc
   } finally { await restarted.close(); }
 });
 
-async function mount(native = false, setup?: (state: State, storage: Storage) => void, bridge: Partial<NonNullable<Window["desktop"]>> | boolean = {}, fixtureDrafts: Draft[] = [], viewportWidth?: number) {
+async function mount(native = false, setup?: (state: State, storage: Storage) => void, bridge: Partial<NonNullable<Window["desktop"]>> | boolean = {}, fixtureDrafts: Draft[] = [], viewportWidth?: number, keepLocation = false) {
   const dom = new JSDOM("<!doctype html><div id='root'></div>", { url: "http://localhost/" });
   dom.window.HTMLElement.prototype.scrollTo = function (options?: ScrollToOptions | number, y?: number) {
     this.scrollTop = typeof options === "number" ? y || 0 : options?.top ?? this.scrollTop;
@@ -189,7 +189,7 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
   };
   closeMountedApp = close;
   await act(async () => root.render(<App />));
-    await act(async () => { const inbox = [...container.querySelectorAll<HTMLButtonElement>(".sidebar button")].find((button) => button.textContent?.trim().startsWith("Inbox")); inbox?.click(); });
+  if (!keepLocation) await act(async () => { const inbox = [...container.querySelectorAll<HTMLButtonElement>(".sidebar button")].find((button) => button.textContent?.trim().startsWith("Inbox")); inbox?.click(); });
   const button = (label: string): HTMLButtonElement => {
     if (label === "Filter accounts") return accountButtons().find(item => item.getAttribute("aria-pressed") === "true")!;
     const found = [...container.querySelectorAll<HTMLButtonElement>(".settings-navigation button"), ...container.querySelectorAll<HTMLButtonElement>("button")].find((button) =>
@@ -2793,4 +2793,68 @@ test("persistent density agrees between Appearance, shortcut and Commands", asyn
   const restarted = await mount(false, (_state, storage) => storage.setItem("emc2.density", saved));
   try { assert.ok(restarted.container.querySelector(".list.compact")); }
   finally { await restarted.close(); }
+});
+
+
+test("browser update banner protects editors and work views and restores the selected mail", async () => {
+  let savedNavigation = "";
+  for (const mode of ["idle", "compose", "settings", "work", "drafts"] as const) {
+    const app = await mount(false, undefined, {}, [], 1200);
+    Object.defineProperty(app.window.document, "visibilityState", { configurable: true, value: "visible" });
+    let reloads = 0;
+    try {
+      if (mode !== "work") await app.click(app.button("Inbox"));
+      else await app.click(app.button("Today"));
+      if (mode === "compose") await app.click(app.button("New message"));
+      if (mode === "settings") await app.click(app.button("Settings"));
+      if (mode === "drafts") await app.click(app.button("Drafts"));
+      if (mode === "idle") await app.open("a:1");
+      await act(async () => app.window.dispatchEvent(new app.window.CustomEvent("emc2-update-ready", { detail: "a".repeat(64) })));
+      const original = globalThis.window;
+      const proxy = new Proxy(original, { get(target, key) { return key === "location" ? { reload: () => { reloads++; } } : Reflect.get(target, key); } });
+      try {
+        Object.defineProperty(globalThis, "window", { configurable: true, value: proxy });
+        await app.click(app.button("Update now"));
+      } finally { Object.defineProperty(globalThis, "window", { configurable: true, value: original }); }
+      assert.equal(reloads, mode === "idle" ? 1 : 0, mode);
+      if (mode === "idle") {
+        const saved = JSON.parse(app.window.sessionStorage.getItem("emc2.browser-update-location")!);
+        assert.equal(saved.location.view, "inbox");
+        assert.equal(saved.location.selectedId, "a:1"); assert.equal(saved.location.opened, true);
+        savedNavigation = JSON.stringify(saved);
+      }
+      if (mode === "compose") assert.ok(app.container.querySelector(".compose-dialog"));
+    } finally { await app.close(); }
+  }
+  const restored = await mount(false, () => window.sessionStorage.setItem("emc2.browser-update-location", savedNavigation), {}, [], 1200, true);
+  try { assert.equal(restored.title(), "Alpha"); assert.equal(restored.window.sessionStorage.getItem("emc2.browser-update-location"), null); }
+  finally { await restored.close(); }
+});
+
+test("browser updates cannot interrupt pending reads or reload after an uncertain write", async () => {
+  for (const mode of ["pending", "uncertain", "reported-unknown", "batch-unknown"] as const) {
+    const app = await mount(false, undefined, {}, [], 1200);
+    Object.defineProperty(app.window.document, "visibilityState", { configurable: true, value: "visible" });
+    const fetchBefore = globalThis.fetch;
+    try {
+      if (mode === "pending") app.holdRead();
+      else globalThis.fetch = async (input, options) => {
+        if (options?.method === "PATCH") {
+          if (mode === "reported-unknown") return Response.json({ state: "unknown" });
+          if (mode === "batch-unknown") return Response.json({ results: [{ id: "a:1", accountId: "a", status: "unknown" }] });
+          throw new TypeError("Synthetic disconnected write");
+        }
+        return fetchBefore(input, options);
+      };
+      await app.open("a:1");
+      await act(async () => app.window.dispatchEvent(new app.window.CustomEvent("emc2-update-ready", { detail: "a".repeat(64) })));
+      assert.equal(app.button("Update now").disabled, true);
+      if (mode === "pending") {
+        await app.finishRead();
+        await act(async () => { await new Promise(resolve => setTimeout(resolve, 1100)); });
+        assert.equal(app.button("Update now").disabled, false, "busy indicator clears on its next activity check");
+      }
+      else assert.match(app.container.querySelector(".browser-update-notice")?.textContent || "", /unknown outcome/);
+    } finally { globalThis.fetch = fetchBefore; await app.close(); }
+  }
 });

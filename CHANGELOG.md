@@ -28,9 +28,13 @@ unversioned history without treating it as a release record.
 
 - Show exact cached-search filters and sort order. Empty results can widen the search without losing the query or account; Back restores the previous scope. [#61](https://github.com/collection-of-things/aggregate-mail/issues/61)
 
+- Notify browser users when the host has a new web build. Update when idle or choose Update now or Later; active editors and pending or uncertain writes prevent refresh. Restore the mail view and selected message afterward. Related to [#109](https://github.com/collection-of-things/aggregate-mail/issues/109).
+
 ### Fixed
 
 - Keep inline conversation Forward actions bound to the selected message ([#124](https://github.com/collection-of-things/aggregate-mail/pull/124)).
+
+- Keep browser update refresh paused when bulk mail actions report an unknown outcome.
 
 - Keep formatted email tables readable and show supported embedded images in their original position after Show images, including recovery of older cached imports ([#133](https://github.com/collection-of-things/aggregate-mail/issues/133)).
 

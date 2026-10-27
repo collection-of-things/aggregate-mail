@@ -10,6 +10,20 @@ It requires Node 24.x and installed dependencies. Build once with
 `http://127.0.0.1:3001`. This build does not package or compile Electron.
 The local service must remain running.
 
+After the host installs a new web build, an open browser checks for it every ten
+seconds and on returning to the tab. An **Update ready** notice offers **Update
+now** and **Later**. The client refreshes after 30 seconds without interaction
+when a mail view is ready and no editor, pending request or uncertain write
+blocks it. Attachment downloads and open previews also pause updates. Later
+pauses automatic refresh for that build. Finish editors and
+return to a mail view to update. The current mail view and selected message are
+restored within the same tab. Unknown write outcomes require checking their
+result before manually refreshing; the client never retries them to update.
+
+This refresh loads a build already installed on the host. It does not download
+releases or change the existing browser sign-in lifetime. Older clients need
+one manual reload to adopt update detection.
+
 Before starting, supply these environment variables through your local secret
 manager or protected launch environment. Do not put secrets in shell history,
 URLs, source files or shared launch scripts:

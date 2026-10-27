@@ -86,7 +86,7 @@ function Attachment({ mailId, file, index }: { mailId: string; file: MailAttachm
       if (active.current && current === request.current) setBusy(false);
     }
   };
-  return <li>
+  return <li aria-busy={busy}>
     <div className="attachment-row"><span className="attachment-name"><Redact text={file.filename || `Attachment ${index + 1}`} /> <span className="attachment-size">({Math.ceil(file.size / 1024)} KB)</span></span>
       {file.unavailable ? <span>Unavailable within the import limit</span> : <div className="attachment-actions">
         {canPreview && <button className="button" type="button" disabled={busy} aria-label={`${preview ? "Hide preview" : "Preview attachment"} ${index + 1}`} aria-expanded={Boolean(preview)} onClick={() => { if (preview) { setPreview(undefined); setUrl(undefined); } else void load(true); }}>{preview ? "Hide preview" : "Preview"}</button>}
