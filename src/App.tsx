@@ -184,7 +184,8 @@ export function App() {
   useEffect(() => { if (updateInstalling) setPalette(false); }, [updateInstalling]);
   const [bulkBlocking, setBulkBlocking] = useState(false);
   const [savedViewEdit, setSavedViewEdit] = useState<SavedViewEdit | null>(null);
-  const toolbarBlocked = !!(savedViewEdit || bulkBlocking || scheduledOpen || teach || snooze || trashMail || shortcuts || labelMail || connecting || updateInstalling || settingsModal || workModal || quickSource || meetingMail);
+  const [reviewingUnsubscribe, setReviewingUnsubscribe] = useState(false);
+  const toolbarBlocked = !!(savedViewEdit || reviewingUnsubscribe || bulkBlocking || scheduledOpen || teach || snooze || trashMail || shortcuts || labelMail || connecting || updateInstalling || settingsModal || workModal || quickSource || meetingMail);
   const navigationBlocked = settings || !!compose || toolbarBlocked;
   const navigate = (patch: Partial<MailLocation>, search = false) => {
     if (toolbarBlocked) return false;
@@ -1252,6 +1253,7 @@ export function App() {
       state={state}
       mail={selected}
       onOpenDraft={openCompose}
+      onReviewingUnsubscribe={setReviewingUnsubscribe}
       provider={selectedAccount?.provider}
       labels={state.labels}
       busy={busy || syncing}

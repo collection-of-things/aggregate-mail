@@ -1,4 +1,5 @@
 /* Dialogs, compose and their option lists. */
+.unsubscribe-destination { overflow-wrap: anywhere; }
 .draft-recovery-actions { display: flex; gap: 16px; margin-top: 10px; flex-wrap: wrap; }
 .saved-drafts { list-style: none; padding: 0; margin: 12px 0 0; }
 .saved-drafts li + li { border-top: 1px solid var(--line); }
