@@ -5,7 +5,7 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import type { Mail } from "../shared/types";
 import { textSizeShortcut, filterMail, markMailRead, matchesLabel, selectedMail } from "./mail-ui";
-import { defaults, interactionActions, matches } from "./interaction";
+import { defaults, interactionActions, interactionPlatform, matches } from "./interaction";
 
 const source = ts.createSourceFile("App.tsx", readFileSync(new URL("./App.tsx", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const app = source.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === "App");
@@ -69,7 +69,7 @@ function reader(opened = true, accountFilter = "a", selectedId: string | null = 
     quickSource: null, meetingMail: null, view: "inbox", busy: false, updateInstalling: false, draftPicker: false, contextMenu: false, palette: false, settings: false, workView: false, compose: false, teach: false,
     snooze: false, trashMail: false, trashLock: { current: false }, shortcuts: false, labelMail: false, connecting: false,
     HTMLElement: Element, Error, textSizeShortcut, filterMail, markMailRead, tabOf: () => "primary", search: { matches: () => true },
-    interaction: defaults, interactionActions, matches, window: { desktop: { platform: "darwin" } },
+    gmailPrefix: { current: { key: "", at: 0 } }, interaction: defaults, interactionActions, interactionPlatform, matches, window: { desktop: { platform: "darwin" } },
     archive: (_mail: Mail) => {}, startCompose: (_mail?: Mail) => {}, showSnooze: (_mail: Mail) => {}, setTeach: (_mail: Mail) => {},
     markRead: (_mail: Mail) => {}, openMail: (_mail: Mail) => {},
     openReaderMail: (mail: Mail) => scope.openMail(mail), navigationBlocked: false, settingsModal: false, workModal: false,
@@ -171,7 +171,7 @@ test("editors, modifiers, settings and dialogs guard navigation and account shor
 });
 
 for (const view of ["actions", "projects", "calendar"]) test(`${view} mail-action shortcuts require an opened source and retain input, modal and busy guards`, () => {
-  for (const key of ["r", "e", "s", "m"]) {
+  for (const key of ["r", "e", "b", "m"]) {
     const { scope: opened, key: invoke } = reader();
     opened.workView = true; opened.view = view;
     const admitted: string[] = [];
