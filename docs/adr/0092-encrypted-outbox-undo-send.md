@@ -1,4 +1,4 @@
-# ADR 0088: Encrypted local outbox and Undo send
+# ADR 0092: Encrypted local outbox and Undo send
 
 Date: 2026-10-26
 Status: Implementation decision; native acceptance remains separate.

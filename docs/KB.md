@@ -1310,7 +1310,7 @@ node --import tsx --test src/compose-send.test.tsx server/send-provider.test.ts
 [Renderer regressions](../src/compose-send.test.tsx) execute the compose submission function, form event handlers and rendered status text. A loopback HTTP server records a submission and drops its response, then verifies canceled and confirmed resends. Tests cover uncertainty through edits, shared pointer/keyboard form handling, validation, close prompts, overlapping submissions and refresh failure. [Provider regressions](../server/send-provider.test.ts) run the real provider and shared send operation with synthetic SMTP and IMAP adapters. They cover accepted SMTP, Sent-copy and cleanup warnings, invalid input and SMTP failure without an IMAP connection. These tests do not drive a native window, verify browser event dispatch or prove real mail delivery.
 
 User Send now commits an encrypted local outbox entry before any provider call
-([ADR 0088](adr/0088-encrypted-outbox-undo-send.md)). The composer's Undo delay control offers
+([ADR 0092](adr/0092-encrypted-outbox-undo-send.md)). The composer's Undo delay control offers
 Off, 5, 10 (default) or 30 seconds. Pending mail has a countdown and an Undo
 button. Ctrl/Cmd+Z undoes the latest pending send outside editors and dialogs;
 Tab reaches the same action. Undo restores the exact source draft, including
