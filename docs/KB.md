@@ -491,12 +491,13 @@ remain, with unavailable source evidence, so disconnect does not erase work.
 
 ## Contribution guides
 
-[AGENTS.md](../AGENTS.md) defines the project map, change boundaries, mail privacy safeguards and verification requirements for agents. [CONTRIBUTING.md](../CONTRIBUTING.md) provides setup, focused-change and pull-request steps for people and AI contributors. Read these before changing the repository.
-
-Before shared work starts or resumes, follow the issue search, ownership and
-worktree steps in [CONTRIBUTING.md](../CONTRIBUTING.md). The issue or pull
-request is the task record for scope, owner, branches, checks and status. See
-[ADR 0007](adr/0007-contributor-coordination.md) for the reason for this process.
+Agents must read [AGENTS.md](../AGENTS.md) for project rules and
+[SKILLS.md](../SKILLS.md) for task-specific references.
+[CONTRIBUTING.md](../CONTRIBUTING.md) covers ownership, duplicate searches,
+issue and PR templates, git.cafe State, verification, rebase-before-merge and
+delivery. Follow it
+before starting or resuming work. See [ADR 0007](adr/0007-contributor-coordination.md)
+for the coordination rationale.
 
 ## Sidebar branch integration
 

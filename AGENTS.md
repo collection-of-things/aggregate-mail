@@ -4,7 +4,15 @@ Higher-priority user and environment instructions win. This file grants no
 merge, release or credential authority. Setup, verification, CI, branches and
 pull requests are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Read first
+## Start every task
+
+- Read [SKILLS.md](SKILLS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+- Confirm the task scope and inspect the branch and working tree. Preserve
+  unrelated changes and follow instructions in the target directory.
+- Read the sources for the affected area below. Report conflicting
+  instructions or missing authority before taking the affected action.
+
+## Read for the affected area
 
 - [PRODUCT.md](PRODUCT.md) for scope; [DESIGN.md](DESIGN.md) before interface changes.
 - [docs/KB.md](docs/KB.md) for repository facts and verification recipes.
@@ -89,9 +97,10 @@ encrypted SQLite. The installed app needs no separate browser, terminal or Node.
   read/archive tools change mailbox state even with sending off.
 - A Sent-copy warning can follow successful delivery. Never retry a send
   because copying to Sent failed.
-- Keep credentials, tokens, mailbox data, personal details, private hostnames,
-  machine paths and session records out of source, fixtures, logs, screenshots,
-  commit metadata, PRs, task records and release attachments.
+- Keep credentials, mailbox data, personal details, private conversation
+  context, personal tooling configuration and reference uploads out of the
+  repository and public task records. This includes private hostnames,
+  machine paths, session records, logs, screenshots and commit metadata.
 - The repository is public. Commit only as a GitHub noreply address
   (`<id>+<login>@users.noreply.github.com`) for author, committer and every
   `Co-authored-by` trailer. Before pushing, run

@@ -1,18 +1,24 @@
 # Contributing to Emc²
 
 For people and AI contributors. Project map, change rules and mail privacy
-rules are in [AGENTS.md](AGENTS.md). Report vulnerabilities privately via
+rules are in [AGENTS.md](AGENTS.md). Before starting, AI contributors must
+read it and [SKILLS.md](SKILLS.md), then follow the procedures that match the
+task. Report vulnerabilities privately via
 [SECURITY.md](SECURITY.md), never in public issues.
 
 ## Coordinate before starting
 
 1. Find the canonical upstream from metadata and remotes; a fork's `origin`
    may not be it. If you cannot inspect upstream, stop and report the gap.
-2. Search open and closed issues and PRs by problem and area. Read comments,
-   assignees, linked PRs and changed files.
-3. Reuse an active item if its owner agrees. Do not reopen rejected work.
-4. Record each new task in an issue first. A small isolated docs fix may use
-   its PR as the record.
+2. Before creating an issue or PR, search open and closed upstream issues
+   and PRs for the same problem or change. Read matching discussions and
+   check ownership. Record matches or that none were found. If the search
+   cannot be completed, stop creation and report the gap.
+3. Reuse matching work with its owner's agreement. Do not create duplicates,
+   reopen rejected work or repeat a completed fix.
+4. Create a new issue only if none covers the task. A small isolated docs fix
+   may use its PR as the record. Link an existing issue from a new PR, and
+   confirm no existing PR covers the change.
 5. In that one issue or PR, record scope, owned paths, base and feature branch,
    owner, linked PR, required checks and status.
 6. Before editing, resuming or pushing, confirm the current owner. Get the
@@ -23,9 +29,18 @@ rules are in [AGENTS.md](AGENTS.md). Report vulnerabilities privately via
    per branch. Helpers work on non-overlapping scopes and return evidence. A
    human owner is accountable for agent output.
 
+## Keep git.cafe task state current
+
+Anyone using git.cafe must keep the issue's State current. Set In progress
+when work starts and Done only after required checks and acceptance, including
+merge when required. Update State when work pauses, resumes or is canceled.
+Record blockers and confirm updates were saved. Report failed updates.
+
 ## Issues and labels
 
-Use the templates in `.github/ISSUE_TEMPLATE/` and apply one type label:
+Use the matching [issue template](.github/ISSUE_TEMPLATE/) for web, CLI and
+API submissions. Keep its sections and fill required fields. Mark fields
+that do not apply; do not invent evidence. Apply one type label:
 
 | Label | Use for |
 | --- | --- |
@@ -165,11 +180,18 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
 
 ## Pull requests
 
-- Fill in [the PR template](.github/PULL_REQUEST_TEMPLATE.md): task record,
-  ownership, verification and review.
+- Use [the PR template](.github/PULL_REQUEST_TEMPLATE.md) for web, CLI and API
+  submissions. Keep its headings and checklist, fill the fields, and mark
+  missing proof or fields that do not apply. Check only verified items.
 - Explain the problem, resulting behavior and checks; include repro steps for
   bugs and list remaining proof gaps.
 - Keep the diff in the agreed scope; use synthetic data in captures.
+- Whoever merges must first fetch the latest target branch and rebase the PR
+  branch onto it. Resolve conflicts and push the updated branch before merging.
+- All required checks must pass on the updated revision, including documented
+  local checks when hosted CI is absent. Do not merge with failed, pending,
+  missing or stale required results. If the target branch advances, update
+  again and refresh affected verification and review.
 - Before merge, a reviewer other than the author reviews the current base,
-  head and full diff. Required checks and approvals pass; blocking feedback is
+  head and full diff. Required approvals must be current and blocking feedback
   resolved. Assignment is not approval or merge authority.
