@@ -1,32 +1,34 @@
-## What this changes
+## Summary
 
-<!-- Link the task record: Closes #123. State the problem and resulting behavior. -->
+<!-- Closes #N. Then the smallest view that makes the change clear: pseudocode, a call tree, component tree, file tree, Mermaid diagram or diff sketch. Keep prose brief. -->
 
-## Changelog
+**Changelog:** <!-- Link the CHANGELOG.md entry and its user-visible effect, or say why none is needed. Release preparation includes versioned notes since the last published tag. -->
 
-<!-- Link the CHANGELOG.md entry and explain its user-visible effect. If no entry is needed, state why. Release preparation must include versioned notes since the last published tag. -->
+## Stack
 
-## Ownership and scope
+<!-- Delete this section for a single PR. List every PR from the bottom up and mark this one in bold. -->
 
-- Task owner:
-- Delivery owner (one writer):
-- Owned paths:
-- Base branch and feature branch:
-- Related issue or pull request:
-- Coordination search completed; current owner confirmed:
+1. #000 Title (base `main`)
+2. **#000 Title (this PR)**
 
-## How it was verified
+## Evidence
 
-<!-- List each command or target, platform, result, and revision. Mark missing proof unknown. -->
+- **Before:** <!-- screenshot, output or failing test -->
+  **After:** <!-- screenshot, output or passing test -->
 
-- [ ] For application changes, `npm test` and `npm run build` pass; list the checks that apply to this change.
+<details>
+<summary>Verification</summary>
+
+<!-- Each command or target, platform, result and revision. Mark missing proof unknown. -->
+
+- [ ] For application changes, `npm test` and `npm run build` pass.
 - [ ] No mail content, addresses, account names, credentials or local paths in the diff, fixtures, logs or screenshots.
 - [ ] Documentation that this change makes wrong is updated in the same pull request.
 
-## Review
+</details>
 
-- Independent reviewer:
-- Reviewed base and head revisions:
-- Required checks and approvals:
-- Blocking feedback resolved:
-- Native, live-account or release proof still needed, if applicable:
+## Merge Danger
+
+**Door:** <!-- one-way or two-way -->
+
+**Blast Radius:** <!-- one word, then what could break -->

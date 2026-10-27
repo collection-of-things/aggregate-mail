@@ -8,8 +8,14 @@ task. Report vulnerabilities privately via
 
 ## Coordinate before starting
 
-1. Find the canonical upstream from metadata and remotes; a fork's `origin`
-   may not be it. If you cannot inspect upstream, stop and report the gap.
+1. The canonical repository is
+   [git.cafe/collection-of-devs/aggregate-mail](https://git.cafe/collection-of-devs/aggregate-mail),
+   remote `origin`, used by the core team.
+   [GitHub collection-of-things/aggregate-mail](https://github.com/collection-of-things/aggregate-mail),
+   remote `github`, syncs both ways with it and carries releases, the update
+   feed and stars. Open issues and PRs on either; they appear on both. Search
+   one of them for existing work. If you cannot inspect upstream, stop and
+   report the gap.
 2. Before creating an issue or PR, search open and closed upstream issues
    and PRs for the same problem or change. Read matching discussions and
    check ownership. Record matches or that none were found. If the search
@@ -221,10 +227,20 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
 ## Pull requests
 
 - Use [the PR template](.github/PULL_REQUEST_TEMPLATE.md) for web, CLI and API
-  submissions. Keep its headings and checklist, fill the fields, and mark
-  missing proof or fields that do not apply. Check only verified items.
-- Explain the problem, resulting behavior and checks; include repro steps for
-  bugs and list remaining proof gaps.
+  submissions. The main body shows what changed, before and after evidence,
+  and merge danger, short enough to review at a glance. Check only verified
+  items.
+- Put verification detail (commands, exit codes, revisions, remaining proof
+  gaps) in the template's collapsed Verification block or a PR comment.
+  Include repro steps for bugs.
+- Split several related changes into a stack: one PR per change, each based on
+  the branch below it and the bottom one on `main`. A PR holds as many commits
+  as its change needs. Every PR in the stack lists all layers.
+- Open a stack on whichever host you use. On GitHub, push each branch and run
+  `gh pr create --base <branch below>` for each layer. On git.cafe, do the
+  same with `cafe pr create --base <branch below>`, then `cafe stack link` the
+  PRs bottom to top. `cafe stack submit` makes one PR per commit, so use it
+  only when that is the intended split.
 - Keep the diff in the agreed scope; use synthetic data in captures.
 - Whoever merges must first fetch the latest target branch and rebase the PR
   branch onto it. Resolve conflicts and push the updated branch before merging.
