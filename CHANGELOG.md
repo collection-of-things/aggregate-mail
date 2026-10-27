@@ -13,8 +13,8 @@ No changes recorded yet.
 ### Added
 
 - Open Emc² on a phone through private Tailscale HTTPS. Pair with a one-use QR invitation, approve the matching code on the host, and unlock with a passkey. Revoke phone access from Settings. [#84](https://github.com/collection-of-things/aggregate-mail/pull/84)
-- Customize single-key shortcuts and two-key Gmail-style sequences in Settings. New defaults include O to open, S to pin, B to snooze, A to reply all and G sequences for mail views. Existing saved bindings are preserved. [#112](https://github.com/collection-of-things/aggregate-mail/pull/112)
-- Control mouse side-button history and choose single-click or double-click opening in Settings. [#112](https://github.com/collection-of-things/aggregate-mail/pull/112)
+- Add customizable two-key Gmail-style sequences and new shortcut defaults, including O to open, S to pin, B to snooze, A to reply all and G sequences for mail views. Retain single-key customization and existing saved bindings. [#112](https://github.com/collection-of-things/aggregate-mail/pull/112)
+- Enable or disable mouse side-button history in Settings. Existing single-click and double-click opening preferences remain available. [#112](https://github.com/collection-of-things/aggregate-mail/pull/112)
 
 ### Changed
 
