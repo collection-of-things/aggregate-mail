@@ -10,6 +10,10 @@ unversioned history without treating it as a release record.
 
 - Keep draft dates clear of the Delete draft button and show the inbox's account labels and colour dots, including privacy-safe names when personal text is hidden. [#115](https://github.com/collection-of-things/aggregate-mail/issues/115)
 
+### Documentation
+
+- Shorten the pull request template to Summary, Stack, Evidence and Merge Danger, with verification, ownership and review in collapsed blocks. Name git.cafe as the canonical repository, synced both ways with GitHub, and describe one-PR-per-change stacks on either host.
+
 ## 0.2.16 - 2026-10-27
 
 ### Added

@@ -228,11 +228,13 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
 
 - Use [the PR template](.github/PULL_REQUEST_TEMPLATE.md) for web, CLI and API
   submissions. The main body shows what changed, before and after evidence,
-  and merge danger, short enough to review at a glance. Check only verified
-  items.
+  and merge danger, short enough to review at a glance. Keep its headings,
+  collapsed blocks and checklist, fill the fields, and mark missing proof or
+  fields that do not apply. Check only verified items.
 - Put verification detail (commands, exit codes, revisions, remaining proof
   gaps) in the template's collapsed Verification block or a PR comment.
-  Include repro steps for bugs.
+  Include repro steps for bugs. Record ownership and scope and review in their
+  collapsed blocks.
 - Split several related changes into a stack: one PR per change, each based on
   the branch below it and the bottom one on `main`. A PR holds as many commits
   as its change needs. Every PR in the stack lists all layers.

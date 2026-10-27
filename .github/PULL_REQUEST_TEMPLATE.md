@@ -27,6 +27,29 @@
 
 </details>
 
+<details>
+<summary>Ownership and scope</summary>
+
+- Task owner:
+- Delivery owner (one writer):
+- Owned paths:
+- Base branch and feature branch:
+- Related issue or pull request:
+- Coordination search completed; current owner confirmed:
+
+</details>
+
+<details>
+<summary>Review</summary>
+
+- Independent reviewer:
+- Reviewed base and head revisions:
+- Required checks and approvals:
+- Blocking feedback resolved:
+- Native, live-account or release proof still needed, if applicable:
+
+</details>
+
 ## Merge Danger
 
 **Door:** <!-- one-way or two-way -->
