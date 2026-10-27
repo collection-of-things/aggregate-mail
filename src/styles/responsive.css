@@ -48,6 +48,7 @@
   .app :is(input, select, textarea), .compose-dialog .compose-form :is(input, select, textarea), .app .compose-rich-body { font-size: max(16px, calc(14px * var(--text-scale, 1))); }
   .app :is(.icon, .tool) { min-width: 44px; min-height: 44px; height: 44px; }
   .app .sidebar button, .app .settings button, .dialog .form-actions button { min-height: 44px; }
+  .app .sidebar-primary > .primary-button.new-message:first-of-type { height: 44px; min-height: 44px; }
   .sidebar-footer { height: auto; min-height: 56px; padding-bottom: env(safe-area-inset-bottom); }
   .sidebar-footer .sidebar-settings { width: 44px; height: 44px; }
   .sidebar-footer .sync { min-height: 44px; }
