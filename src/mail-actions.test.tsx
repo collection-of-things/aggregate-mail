@@ -674,7 +674,7 @@ test("mounted Notifications settings honor persisted choices, preview, changes, 
     assert.ok(app.container.querySelector(".toast-stack-bottom-right"));
     await app.click(app.button("Close settings"));
     app.state.unreadArrivals = 3; await app.refresh();
-    assert.ok([...app.container.querySelectorAll(".toast-info")].some((toast) => toast.textContent?.includes("1 new unread email.")));
+    assert.ok([...app.container.querySelectorAll(".toast-info")].some((toast) => toast.textContent?.includes("1 new unread email")));
     for (const dismiss of [...app.container.querySelectorAll<HTMLButtonElement>(".toast-info button")]) await app.click(dismiss);
     await app.exit();
     await app.click(app.button("Settings"));
@@ -710,7 +710,7 @@ test("App routes persisted and changed durations to mounted preview notices", as
     await tick(1); await tick(200); assert.equal(app.container.querySelector(".toast-info"), null);
     await changeDuration("0"); await app.click(app.button("Preview notification"));
     await tick(100000); assert.ok(app.container.querySelector(".toast-info"));
-    await app.click(app.button("Dismiss"));
+    await app.click(app.button("Dismiss notification"));
     await tick(200); assert.equal(app.container.querySelector(".toast-info"), null);
   } finally { await app.close(); context.mock.timers.reset(); }
 });
@@ -839,7 +839,7 @@ test("delayed pruned snapshots keep removed details out of toasts and preserve s
       const toasts = app.container.querySelectorAll<HTMLElement>(".toast-info");
       assert.equal(toasts.length, 2);
       assert.doesNotMatch([...toasts].map((toast) => toast.outerHTML).join(""), /Removed sender|Removed subject|Removed preview/);
-      const generic = [...toasts].find((toast) => toast.querySelector(".toast-text")?.textContent === "1 new unread email.")!;
+      const generic = [...toasts].find((toast) => toast.querySelector(".toast-text")?.textContent === "1 new unread email")!;
       assert.ok(generic);
       assert.equal(generic.querySelector(".toast-open"), null, "count fallback has no stale target");
       const exact = [...toasts].find((toast) => toast.textContent?.includes("Surviving sender"))!;
