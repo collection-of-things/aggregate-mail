@@ -584,9 +584,11 @@ Agents must read [AGENTS.md](../AGENTS.md) for project rules and
 [SKILLS.md](../SKILLS.md) for task-specific references.
 [CONTRIBUTING.md](../CONTRIBUTING.md) covers ownership, duplicate searches,
 issue and PR templates and closure reasons, fix links, git.cafe State,
-verification, rebase-before-merge and
-delivery. Follow it
-before starting or resuming work. See [ADR 0007](adr/0007-contributor-coordination.md)
+verification, rebase-before-merge and delivery. The PR template keeps the
+problem, result, before/after evidence and merge risk visible, with verification,
+ownership and review in collapsed blocks. PR stacks list every layer and merge
+from the bottom up with updated verification and independent review.
+Follow the guide before starting or resuming work. See [ADR 0007](adr/0007-contributor-coordination.md)
 for the coordination rationale.
 
 ## Sidebar branch integration

@@ -221,10 +221,25 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
 ## Pull requests
 
 - Use [the PR template](.github/PULL_REQUEST_TEMPLATE.md) for web, CLI and API
-  submissions. Keep its headings and checklist, fill the fields, and mark
-  missing proof or fields that do not apply. Check only verified items.
+  submissions. Keep its headings, collapsed blocks and checklist, fill the
+  fields, and mark missing proof or fields that do not apply. Delete Stack
+  for a single PR. Check only verified items.
 - Explain the problem, resulting behavior and checks; include repro steps for
-  bugs and list remaining proof gaps.
+  bugs and before/after evidence. Add a diagram or sketch when helpful.
+  Record each applicable command or target, platform, exit status or observed
+  result, tested revision and remaining proof gaps in Verification. Keep
+  ownership and review details in their collapsed blocks.
+- State rollback steps, any lasting effects that a revert cannot undo, and
+  who or what could be affected in Merge risk.
+- Split related changes into a stack when they need separate PRs: one PR per
+  change, each based on the branch below it and the bottom one on `main`.
+  Each PR may contain multiple commits and must list every layer from bottom
+  to top, marking the current PR.
+- Merge stacks from the bottom up. After a layer merges, rebase the remaining
+  changes onto the updated target and retarget PRs as needed, preserving each
+  layer's scope. Refresh affected verification and independent review for the
+  current base, head and full diff before merging each layer. The merge gates
+  below apply to every layer.
 - Keep the diff in the agreed scope; use synthetic data in captures.
 - Whoever merges must first fetch the latest target branch and rebase the PR
   branch onto it. Resolve conflicts and push the updated branch before merging.
