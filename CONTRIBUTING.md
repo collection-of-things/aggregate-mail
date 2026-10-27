@@ -200,6 +200,24 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
   manual workflow dispatch require explicit release authorization.
 - Never commit generated output or local app data.
 
+## Changelog and release notes
+
+- Every user-visible change adds a short entry under `Unreleased` in
+  [CHANGELOG.md](CHANGELOG.md). Explain the resulting behavior and user benefit;
+  link the issue or PR. Do not use commit subjects as the whole explanation.
+- Group entries under Added, Changed, Fixed, Security or Documentation as needed.
+  Combine duplicate entries. Preserve meaningful limits and compatibility notes.
+- Before a release, compare with the previous published tag. Move only new
+  changes into a dated version section, newest first, and leave `Unreleased`
+  available for the next change. Do not carry already-released changes forward.
+- The release owner uses that version section for the published release body
+  and reads it back after publication. For an automatically published release,
+  replace the generated PR-title list with the approved version notes using
+  `gh release edit <tag> --notes-file <file>`. Verify the saved text and links
+  before reporting the release complete.
+- Keep test receipts and internal implementation notes in the PR or relevant
+  repository docs. They do not replace user-facing release notes.
+
 ## Pull requests
 
 - Use [the PR template](.github/PULL_REQUEST_TEMPLATE.md) for web, CLI and API

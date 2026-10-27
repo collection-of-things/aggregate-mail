@@ -2,6 +2,10 @@
 
 <!-- Link the task record: Closes #123. State the problem and resulting behavior. -->
 
+## Changelog
+
+<!-- Link the CHANGELOG.md entry and explain its user-visible effect. If no entry is needed, state why. Release preparation must include versioned notes since the last published tag. -->
+
 ## Ownership and scope
 
 - Task owner:
