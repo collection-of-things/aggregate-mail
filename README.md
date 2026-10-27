@@ -11,7 +11,7 @@ An installable desktop email client for Windows, with a macOS build target, base
 - [Inbox](#inbox)
 - [Search and compose tools](#search-and-compose-tools)
 - [MCP](#mcp)
-- [Keyboard](#keyboard)
+- [Keyboard and mouse](#keyboard-and-mouse)
 - [Local storage](#local-storage)
 - [Development](#development)
 - [CI](#ci)
