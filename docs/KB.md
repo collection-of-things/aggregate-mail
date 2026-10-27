@@ -2007,6 +2007,34 @@ Regression cases are in `server/config.test.ts` and
 `server/storage-maintenance.test.ts`. Native, power-loss and installed acceptance
 remain separate from synthetic source verification.
 
+Default explicit compaction now skips vacuum when the post-cleanup SQLite
+freelist is empty. Internal `vacuum: true` callers retain forced partial-page
+repacking. Automatic maintenance thresholds are unchanged. Summary reads copy
+the envelope and mutable metadata children; an unchanged valid cursor avoids
+scanning the complete metadata map. Neither change rewrites mail or changes the
+storage format or API contract. See [ADR 0086](adr/0086-startup-copies-and-page-reclamation.md).
+
+`server/startup-storage.test.ts` checks metadata isolation and healthy compaction
+alongside account-scoped search, cursors, ciphertext, keys and draft preservation.
+For matched synthetic startup measurements, run
+`node --import tsx scripts/benchmark-web-startup.ts` through the bounded runner
+with 3072 MiB and a 420-second deadline. It owns and removes a fresh temporary
+profile and defaults to 34,000 messages across four accounts. Its HTTP timing
+measures a warm server snapshot on loopback; cold metadata initialization,
+serialization and compaction are reported separately. Keep runtime receipts
+outside the repository. It does not measure browser paint or network latency.
+
+`server/state-response.ts` is a separate, unmounted transport candidate. It
+negotiates gzip above 16 KiB, keeps tiny deltas plain, preserves decoded JSON,
+and uses a separate stored status member so CSRF never enters the compressed
+message dictionary. `server/state-response.test.ts` exercises negotiation,
+decoded equality, auth ordering, disconnects and serialization failures using
+an ephemeral synthetic HTTP service. Route integration and browser/proxy
+acceptance remain separate work. `scripts/benchmark-state-transport.ts` measures
+wire bytes, loopback time, decode time and process CPU on synthetic envelopes;
+run it through the bounded runner with 2048 MiB and a 120-second deadline.
+
+
 `server/mime-limits.ts` caps raw messages at 8 MiB, Gmail responses at 12 MiB,
 MIME header size at 64 KiB and parser children at 128. Two parsers may run, with
 a bounded waiting queue. Decoded content validation follows parsing; it does

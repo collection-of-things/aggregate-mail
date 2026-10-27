@@ -70,7 +70,7 @@ if (!process.env.EMC2_MATERIALIZATION_CHILD) {
     const url = `http://127.0.0.1:${address.port}/api/state`;
     const headers = { "X-Desktop-Token": "synthetic-session", Connection: "close" };
     const parse = JSON.parse;
-    const clone = structuredClone;
+    const push = Array.prototype.push;
     const emit = http.ServerResponse.prototype.emit;
     const serverEmit = http.Server.prototype.emit;
     const requestContext = new AsyncLocalStorage<string>();
@@ -104,8 +104,9 @@ if (!process.env.EMC2_MATERIALIZATION_CHILD) {
         }
         return Reflect.apply(emit, this, [event, ...args]);
       } as typeof emit;
-      globalThis.structuredClone = ((value: unknown, ...args: unknown[]) => {
-        const result = Reflect.apply(clone, globalThis, [value, ...args]);
+      // Observe produced summaries independently of the metadata-copy algorithm.
+      Array.prototype.push = function(this: unknown[], value: unknown, ...args: unknown[]) {
+        const result = Reflect.apply(push, this, [value, ...args]);
         if (value && typeof value === "object" && "contentVersion" in value) {
           if (requestContext.getStore() === "/api/state") {
             decoded++;
@@ -113,7 +114,7 @@ if (!process.env.EMC2_MATERIALIZATION_CHILD) {
           } else if (requestContext.getStore() === "/api/state?probe=live") liveDecoded++;
         }
         return result;
-      }) as typeof structuredClone;
+      } as typeof push;
       abandoned = http.get(url, { headers }); abandoned.on("error", () => {});
       // Keep a live caller while the first closes during initialization or decode.
       live = getLive();
@@ -137,7 +138,7 @@ if (!process.env.EMC2_MATERIALIZATION_CHILD) {
       assert.equal(cursor.mailCursor, data.mailCursor); assert.equal(cursor.mailMode, "delta"); assert.deepEqual(cursor.messages, []);
       assert.equal((await (await fetch(url, { headers })).json()).messages.length, 513, "later clients can still bootstrap");
     } finally {
-      clearTimeout(deadline); globalThis.structuredClone = clone; http.ServerResponse.prototype.emit = emit; http.Server.prototype.emit = serverEmit;
+      clearTimeout(deadline); Array.prototype.push = push; http.ServerResponse.prototype.emit = emit; http.Server.prototype.emit = serverEmit;
       abandoned?.destroy(); server.closeAllConnections();
       await new Promise<void>(resolve => server.close(() => resolve())); store.closeStore();
     }

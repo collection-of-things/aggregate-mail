@@ -270,7 +270,8 @@ async function changedMail<T>(cursor: string | undefined, captureStatus: (() => 
     const since = Number(previousRevision);
     const delta = extra === undefined && previousGeneration === generation && /^\d+$/.test(previousRevision || "") && Number.isSafeInteger(since) && since >= historyFloor && since <= mailRevision;
     const mailCursor = `${generation}:${mailRevision}`;
-    const rows = new Map([...current].filter(([, row]) => !delta || row.revision > since));
+    const rows = !delta ? new Map(current) : since === mailRevision ? new Map<string, MailRow>()
+      : new Map([...current].filter(([, row]) => row.revision > since));
     const removedMailIds = delta ? [...mailHistory].filter(([id, revision]) => revision > since && !current.has(id)).map(([id]) => id) : [];
     captureStatus?.();
     return { mailCursor, mailMode: delta ? "delta" : "snapshot", removedMailIds, messages: await decode(rows, signal) };
@@ -286,7 +287,14 @@ export async function mailSummaryChanges(cursor?: string, captureStatus?: () => 
     let i = 0;
     for (const row of rows.values()) {
       signal?.throwIfAborted();
-      summaries.push(structuredClone(row.summary));
+      // Summary metadata has only these four mutable children. Copy them without
+      // the general structured-clone traversal, keeping callers isolated.
+      const summary = { ...row.summary };
+      if (summary.labelIds) summary.labelIds = [...summary.labelIds];
+      if (summary.references) summary.references = [...summary.references];
+      if (summary.mailbox) summary.mailbox = { ...summary.mailbox };
+      if (summary.attachments) summary.attachments = summary.attachments.map(attachment => ({ ...attachment }));
+      summaries.push(summary);
       if (++i % 32 === 0) await yieldMail();
     }
     signal?.throwIfAborted();
@@ -484,7 +492,10 @@ export function compactStore(options: { cleanupOrphans?: boolean; vacuum?: boole
   });
   // SQLite's own transaction makes a failed/interrupted VACUUM recoverable. Cleanup
   // is a separate committed transaction because VACUUM cannot run inside one.
-  const vacuumed = options.vacuum === "if-needed" ? storageNeedsVacuum(storageStats()) : options.vacuum !== false;
+  // An empty freelist has no already-free pages to reclaim. Explicit force
+  // still permits repacking partially filled pages; automatic thresholds are unchanged.
+  const vacuumed = options.vacuum === "if-needed" ? storageNeedsVacuum(storageStats())
+    : options.vacuum === true || (options.vacuum === undefined && storageStats().freePages > 0);
   if (vacuumed) db.exec("VACUUM");
   checkpoint();
   if (options.cleanupOrphans && options.inventoryAt !== undefined)
