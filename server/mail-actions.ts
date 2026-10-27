@@ -188,5 +188,5 @@ export function updateMessages(value: unknown, beforeExecution?: () => void): Pr
 }
 
 export function undoMessage(id: string, accountId: string, token: string, beforeExecution?: () => void) {
-  return runMailWork(() => { beforeExecution?.(); return restoreLocalMail(id, accountId, token); });
+  return runMailWork(async () => { beforeExecution?.(); return restoreLocalMail(id, accountId, token); });
 }

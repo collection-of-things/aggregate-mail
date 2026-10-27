@@ -793,9 +793,10 @@ app.post("/api/messages/batch", mailRequest(async (req, res) => {
   res.json(await updateMessages(req.body, assertNotSyncing));
 }));
 app.post("/api/messages/:id/undo", mailRequest(async (req, res) => {
+  const id = z.string().min(1).max(500).parse(req.params.id);
   const input = z.object({ accountId: z.string().min(1).max(500), token: z.string().min(1).max(4096) }).strict().parse(req.body);
   assertNotSyncing();
-  try { await undoMessage(req.params.id, input.accountId, input.token, assertNotSyncing); }
+  try { await undoMessage(id, input.accountId, input.token, assertNotSyncing); }
   catch (error) {
     if (error instanceof LocalMailUndoConflict) return res.status(409).json({ error: error.message });
     throw error;
