@@ -5,7 +5,7 @@ import { defaults, interactionActions, shortcutFromEvent, shortcutLabel, validat
 const shortcutGroupNames = ["Navigation", "Mail actions", "App"] as const;
 function shortcutGroup(id: string) {
   if (id.startsWith("go") || ["next", "previous", "open", "important", "other", "search", "back", "forward", "returnToList"].includes(id)) return "Navigation";
-  if (["compose", "reply", "done", "snooze", "teach", "pin", "read", "replyAll"].includes(id)) return "Mail actions";
+  if (["compose", "reply", "done", "snooze", "teach", "pin", "read", "unread", "inbox", "replyAll"].includes(id)) return "Mail actions";
   return "App";
 }
 

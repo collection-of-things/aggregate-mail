@@ -30,7 +30,7 @@ function Tool({ label, text = label, title, Icon, disabled, busy, onClick }: {
  */
 export function MailActions({
   mail, opened, reading, busy, syncing, snoozed, trashUnavailable, shortcut,
-  onRead, onReply, onArchive, onTrash, onSnooze, onUnsnooze, onClose,
+  onRead, onUnread, onInbox, onReply, onArchive, onTrash, onSnooze, onUnsnooze, onClose,
   onPrevious, onNext, previousDisabled, nextDisabled, onPin, onTrack, onSchedule,
 }: {
   mail: Mail;
@@ -42,6 +42,8 @@ export function MailActions({
   trashUnavailable?: string;
   shortcut: (action: "done" | "snooze" | "reply" | "read" | "pin") => string;
   onRead: () => void;
+  onUnread?: () => void;
+  onInbox?: () => void;
   onReply: () => void;
   onArchive: () => void;
   onTrash: () => void;
@@ -62,6 +64,7 @@ export function MailActions({
       <div className="tool-group">
         <Tool label="Archive" title={`Archive in your provider (${shortcut("done")})`} Icon={Archive}
           disabled={busy || syncing || mail.archived || mail.direction === "sent"} onClick={onArchive} />
+        {onInbox && mail.archived && <Tool label="Move to Inbox" Icon={Inbox} disabled={busy || syncing || mail.direction === "sent"} onClick={onInbox} />}
         <Tool label="Move to Trash" text="Trash" title={trashUnavailable || "Move to Trash"} Icon={Trash}
           disabled={busy || syncing || !!trashUnavailable} onClick={onTrash} />
         {snoozed ? (
@@ -74,6 +77,7 @@ export function MailActions({
       <div className="tool-group">
         <Tool label="Reply" title={`Reply (${shortcut("reply")})`} Icon={Reply} disabled={busy} onClick={onReply} />
         <Tool label={readLabel} text="Read" title={`${readLabel} (${shortcut("read")})`} Icon={Check} disabled={mail.direction === "sent" || !mail.unread || reading} busy={reading} onClick={onRead} />
+        {onUnread && <Tool label="Mark as unread" text="Unread" Icon={Check} disabled={busy || syncing || mail.direction === "sent" || mail.unread || reading} onClick={onUnread} />}
         {onTrack && <Tool label="Track work" text="Track" Icon={Calendar} disabled={busy} onClick={onTrack} />}
         {onSchedule && <Tool label="Schedule meeting" text="Meeting" Icon={CalendarPlus} disabled={busy} onClick={onSchedule} />}
         {onPin && <Tool label={mail.pinned ? "Unpin email" : "Pin email"} text={mail.pinned ? "Unpin" : "Pin"} title={`${mail.pinned ? "Unpin email" : "Pin email for reference"} (local to this app, ${shortcut("pin")})`} Icon={Pin}

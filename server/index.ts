@@ -665,10 +665,11 @@ async function syncAccount(
   const saveBatch: NonNullable<Parameters<typeof providers.gmail.list>[2]> = (batch) => {
     if (!currentAccount()) return;
     const changed: [string, Mail][] = [];
-    for (const m of batch) {
+    for (const incoming of batch) {
+      const previous = existing.get(incoming.id);
+      const m = previous ? { ...incoming, id: previous.id } : incoming;
       if (received.has(m.id)) continue;
       received.add(m.id);
-      const previous = existing.get(m.id);
       const saved = {
         ...m,
         ...(previous

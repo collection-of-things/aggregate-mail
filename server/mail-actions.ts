@@ -52,7 +52,7 @@ export function runMailWork<T>(task: () => Promise<T>): Promise<T> {
 export const messageActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.enum(["pin", "unpin"]) }).strict(),
   z.object({
-    action: z.enum(["read", "archive", "snooze", "unsnooze", "trash"]),
+    action: z.enum(["read", "unread", "inbox", "archive", "snooze", "unsnooze", "trash"]),
     until: z
       .number()
       .int()
@@ -89,7 +89,7 @@ export async function updateMessage(
       put("mail", m.id, updated);
       return updated;
     }
-    if (input.action === "read" && !m.unread) return m;
+    if (input.action === "read" && !m.unread || input.action === "unread" && m.unread || input.action === "inbox" && !m.archived) return m;
     if (input.action === "trash") {
       const a = account(m.accountId);
       await providers[a.provider].update(a, m, "trash");
@@ -116,17 +116,19 @@ export async function updateMessage(
         input.until > Date.now() + 366 * 86400000)
     )
       throw new Error("Choose a snooze time within the next year.");
-    if (input.action === "read" || input.action === "archive") {
+    let identity: void | { remoteId: string } = undefined;
+    if (input.action === "read" || input.action === "unread" || input.action === "inbox" || input.action === "archive") {
       const a = account(m.accountId);
-      await providers[a.provider].update(a, m, input.action);
+      identity = await providers[a.provider].update(a, m, input.action);
     }
     const latest = findMail(id);
     const removedLabel = input.action === "read" ? "UNREAD" : input.action === "archive" ? "INBOX" : null;
     const updated = {
       ...latest,
-      labelIds: removedLabel ? latest.labelIds?.filter((labelId) => labelId !== removedLabel) : latest.labelIds,
-      unread: input.action === "read" ? false : latest.unread,
-      archived: input.action === "archive" || latest.archived,
+      ...(identity || {}),
+      labelIds: removedLabel ? latest.labelIds?.filter((labelId) => labelId !== removedLabel) : input.action === "unread" || input.action === "inbox" ? [...new Set([...(latest.labelIds || []), input.action === "unread" ? "UNREAD" : "INBOX"])] : latest.labelIds,
+      unread: input.action === "read" ? false : input.action === "unread" ? true : latest.unread,
+      archived: input.action === "inbox" ? false : input.action === "archive" || latest.archived,
       snoozedUntil:
         input.action === "snooze"
           ? input.until!

@@ -1189,7 +1189,7 @@ test("desktop mail rows use a native context menu and run the chosen action", as
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(app.container.querySelector('[role="menu"]'), null, "no drawn menu on the desktop");
     assert.deepEqual(menus[0].items.map((item) => item.label),
-      ["Open", "Mark as read", "Pin email", "Reply", "Reply all", "Forward message", "Archive", "Snooze", "Move to Trash", "Track work", "Schedule meeting", "Teach sorting"]);
+      ["Open", "Mark as read", "Mark as unread", "Move to Inbox", "Pin email", "Reply", "Reply all", "Forward message", "Archive", "Snooze", "Move to Trash", "Track work", "Schedule meeting", "Teach sorting"]);
     assert.deepEqual(menus[0].items.filter((item) => item.separator).map((item) => item.id), ["reply", "archive", "teach"]);
     assert.ok(app.mutations.some((url) => url.endsWith(encodeURIComponent("a:1"))), "the chosen action ran");
   } finally { await app.close(); }
