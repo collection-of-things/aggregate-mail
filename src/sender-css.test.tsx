@@ -24,6 +24,7 @@ test("sender CSS rejects active features, private attribute selectors, escapes a
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
+import { readFileSync } from "node:fs";
 import { FormattedMail } from "./mail/FormattedMail";
 import { redactPrivateText } from "./privacy";
 
@@ -37,7 +38,7 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
   const root = createRoot(dom.window.document.getElementById('root')!);
   const html = '<style>body{color:#111;background-color:#fff}.summary {color:#123456;background-color:white;width:600px} .photo{width:120px} #undefined{color:red} @media (max-width:600px){.summary{width:100%}}</style><p class="summary">Hello Morgan Example</p><img class="photo" src="https://images.example.test/public.png"><img src="https://images.example.test/Morgan%20Example.png">';
   const update = async (id: string, privacy: boolean, showImages: boolean, scale = 1) => {
-    await act(async () => root.render(<div className="app" style={{ "--text-scale": scale } as import("react").CSSProperties}><FormattedMail mailId={id} html={html} showImages={showImages} privacy={privacy} privateNames={['Morgan Example']}
+    await act(async () => root.render(<div className="app message-body" style={{ "--text-scale": scale } as import("react").CSSProperties}><FormattedMail mailId={id} html={html} showImages={showImages} privacy={privacy} privateNames={['Morgan Example']}
       renderText={(text) => privacy ? redactPrivateText(text, ['Morgan Example']) : text}
       redactText={(text) => privacy ? redactPrivateText(text, ['Morgan Example']) : text} /></div>));
   };
@@ -45,9 +46,20 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
   const handler = (event: KeyboardEvent) => { if (event.key === 'Escape' || event.key === 'Enter') { keys++; event.preventDefault(); } };
   dom.window.addEventListener('keydown', handler);
   try {
+    const readerStyle = dom.window.document.createElement('style');
+    readerStyle.textContent = readFileSync(new URL('./styles/reader.css', import.meta.url), 'utf8');
+    dom.window.document.head.append(readerStyle);
     await update('one', false, false);
     let frame = dom.window.document.querySelector('iframe')!;
     assert.ok(frame, 'sender styles use a separate document');
+    const body = dom.window.document.querySelector('.message-body')!;
+    assert.equal(body.querySelector('.formatted-mail'), null, 'formatted content has moved into the frame');
+    assert.equal(dom.window.getComputedStyle(body).maxWidth, '100%', 'isolated mail keeps the full reader width after portal mount');
+    const plain = dom.window.document.createElement('div'); plain.className = 'message-body';
+    dom.window.document.body.append(plain);
+    assert.ok(['65ch', '520px'].includes(dom.window.getComputedStyle(plain).maxWidth), 'plain text retains its readable line length');
+    plain.remove();
+    readerStyle.remove();
     assert.equal(frame.getAttribute('sandbox'), 'allow-same-origin');
     assert.equal(frame.hasAttribute('srcdoc'), false);
     assert.equal(dom.window.document.querySelector('style'), null, 'sender CSS never enters host document');
