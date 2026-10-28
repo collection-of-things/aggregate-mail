@@ -21,7 +21,7 @@ export function IsolatedMail({ css, children, fallback }: { css: string; childre
     if (!element || !doc?.body) { setFailed(true); return; }
     try {
       const Sheet = (doc.defaultView as unknown as { CSSStyleSheet: typeof CSSStyleSheet }).CSSStyleSheet;
-      if (Sheet.prototype.replaceSync) {
+      if (typeof Sheet.prototype.replaceSync === 'function') {
         const sheet = new Sheet(); sheet.replaceSync(css + controls); doc.adoptedStyleSheets = [sheet];
       } else {
         // DOM test environments and older engines. A blocked stylesheet keeps

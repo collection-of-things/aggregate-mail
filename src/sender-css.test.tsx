@@ -17,6 +17,7 @@ test("sender CSS rejects active features, private attribute selectors, escapes a
   assert.match(result.css, /color:red/);
   assert.doesNotMatch(result.css, /https|url|import|font-face|position|z-index|none|hidden|opacity|content|private|visited|escaped|font-size/);
   assert.equal(content.mailStylesheet('<style>' + 'x'.repeat(content.MAIL_HTML_LIMIT) + '</style>').css, '');
+  assert.equal(content.mailStylesheet('<style>private-name {color:red}</style>').css, '', 'unknown tag selectors cannot carry sender metadata');
 });
 
 import { act } from "react";
@@ -72,6 +73,51 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
   } finally {
     await act(async () => root.unmount());
     dom.window.removeEventListener('keydown', handler);
+    dom.window.close();
+    for (const [key, descriptor] of saved) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);
+    }
+  }
+});
+
+test("embedded image responses cannot cross message bindings and release owned blobs", async () => {
+  const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'https://app.example.test' });
+  const pending: { url: string; resolve: (response: Response) => void }[] = [];
+  const saved = new Map<string, PropertyDescriptor | undefined>();
+  for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document,
+    IS_REACT_ACT_ENVIRONMENT: true, fetch: (url: string) => new Promise<Response>(resolve => pending.push({ url, resolve })) })) {
+    saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+    Object.defineProperty(globalThis, key, { value, configurable: true });
+  }
+  const oldCreate = URL.createObjectURL, oldRevoke = URL.revokeObjectURL;
+  const revoked: string[] = [];
+  let blobs = 0;
+  URL.createObjectURL = () => `blob:synthetic-${++blobs}`;
+  URL.revokeObjectURL = url => { revoked.push(url); };
+  const root = createRoot(dom.window.document.getElementById('root')!);
+  const html = '<style>.body{color:blue}</style><p class="body">Cached</p><img src="cid:logo">';
+  const attachments = [{ id: 'logo', contentId: 'logo', contentType: 'image/png', filename: 'logo.png', size: 3 }];
+  const update = async (id: string) => {
+    await act(async () => root.render(<FormattedMail mailId={id} html={html} attachments={attachments}
+      showImages privacy={false} renderText={text => text} redactText={text => text} />));
+  };
+  const image = () => dom.window.document.querySelector('iframe')!.contentDocument!.querySelector('img');
+  try {
+    await update('one');
+    await update('two');
+    assert.match(pending[0].url, /messages\/one\/attachments\/logo$/);
+    assert.match(pending[1].url, /messages\/two\/attachments\/logo$/);
+    await act(async () => pending[0].resolve(new Response(new Uint8Array([1, 2, 3]))));
+    assert.equal(image(), null, 'late response from old message is ignored');
+    await act(async () => pending[1].resolve(new Response(new Uint8Array([4, 5, 6]))));
+    assert.equal(image()?.getAttribute('src'), 'blob:synthetic-1');
+    await update('three');
+    assert.equal(image(), null, 'old blob never appears under the new message id');
+    assert.deepEqual(revoked, ['blob:synthetic-1']);
+    await act(async () => root.unmount());
+  } finally {
+    await act(async () => root.unmount());
+    URL.createObjectURL = oldCreate; URL.revokeObjectURL = oldRevoke;
     dom.window.close();
     for (const [key, descriptor] of saved) {
       if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);

@@ -197,10 +197,16 @@ export function mailStylesheet(html: string) {
   ).map(([name, value]) => `${name.replace(/[A-Z]/g, letter => '-' + letter.toLowerCase())}:${value}`).join(';');
   const selector = (raw: string) => {
     if (raw.length > 500 || !/^[a-zA-Z0-9_.#*\s,>+~-]+$/.test(raw) || !raw.trim()) return null;
-    return raw.trim().replace(/([.#])([a-zA-Z_][\w-]*)/g, (key: string, prefix: string) => {
+    let valid = true;
+    const result = raw.trim().replace(/([.#]?)([a-zA-Z_][\w-]*)/g, (key: string, prefix: string, name: string) => {
+      if (!prefix) {
+        if (!allowedTags.has(name.toLowerCase()) && name !== 'body' && name !== 'html') valid = false;
+        return name.toLowerCase();
+      }
       if (!identifiers.has(key)) identifiers.set(key, `sender-${identifiers.size}`);
       return prefix + identifiers.get(key);
     });
+    return valid ? result : null;
   };
   function block(input: string, nested = false): string {
     let css = '', at = 0;
