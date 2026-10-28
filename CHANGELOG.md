@@ -31,6 +31,7 @@ unversioned history without treating it as a release record.
 ### Added
 
 - About and storage shows the running version and update status. Browser sessions show a short build ID and can check whether they match the host; desktop sessions use the existing stable-release checker ([#143](https://github.com/collection-of-things/aggregate-mail/issues/143)).
+- Linux web hosting can stage and verify published stable releases, drain before switching, and restore the previous compatible build after failed startup. Failed releases require an explicit retry. Service and timer templates are provided; live activation remains held ([#109](https://github.com/collection-of-things/aggregate-mail/issues/109)).
 
 ### Fixed
 

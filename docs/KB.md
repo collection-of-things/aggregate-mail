@@ -3148,3 +3148,30 @@ release. Missing metadata, failed checks and unauthenticated responses cannot
 claim freshness. A changed build uses the existing guarded browser update
 notice; Settings must close before refreshing. Desktop sessions read and check
 the existing update bridge without downloading or installing from Settings.
+
+## Stable-release web host updater
+
+The Linux deployment controller is `scripts/web-deploy.mjs`. The operator keeps
+a reviewed copy outside the release directories and installs the templates in
+`scripts/systemd/` only after activation approval. The controller selects only
+the canonical repository's latest published stable release, rejects downgrades
+and moved tags, stamps isolated package/lock versions using the existing release
+contract, installs dependencies, runs serial tests and the web build, and
+probes an isolated encrypted synthetic browser before stopping the live service.
+Build children use a separate HOME and an allowlisted environment without mail
+credentials. Resource controls are checked against the actual updater cgroup.
+
+Managed startup validates the public release receipt and browser asset identity,
+requires profile/configuration paths outside the deployment root, and handles
+SIGUSR2 through the existing mail drain. The local `/auth` probe reports only
+the public deployed revision. Source switching preserves a previous symlink and
+a pending record. Failed startup restores the previous compatible source;
+interrupted switching requires explicit recovery. Failed revisions need an
+explicit retry. Package `webDeployment.profile` generations must match for
+automatic source rollback; this does not roll back database contents.
+
+See [operator setup and recovery](web-updates.md) and
+[ADR 0104](adr/0104-stable-release-web-deployments.md). Synthetic coverage:
+`scripts/web-deploy.test.mjs`, `scripts/browser-shutdown.test.mjs` and
+`scripts/web-startup.test.mjs`. Live service/timer enablement, OS credential-store
+access and native phone proof remain separate, held operator acceptance.

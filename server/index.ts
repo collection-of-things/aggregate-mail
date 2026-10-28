@@ -63,6 +63,13 @@ const outbox = new Outbox(() => desktopEvents.emit("mail-changed"));
 export function setOutboxOnlineCheck(check: () => boolean) { outbox.setOnlineCheck(check); }
 export function holdPendingOutbox() { return outbox.hold(); }
 const app = express();
+// Public source identity is available only on the managed host's loopback probe.
+if (process.env.MAIL_WEB_MANAGED === "1") app.use((req, res, next) => {
+  if (req.path === "/auth" && req.headers.host === `127.0.0.1:${browserPort}` &&
+      req.socket.remoteAddress === "127.0.0.1" && /^[a-f0-9]{40}$/.test(process.env.MAIL_WEB_REVISION || ""))
+    res.set("X-Emc2-Revision", process.env.MAIL_WEB_REVISION);
+  next();
+});
 if (browserGate) app.use(browserGate);
 const appUrl = process.env.APP_URL || (browserGate ? browserGate.localOrigin : "http://127.0.0.1:5173");
 const allowedOrigins = new Set([
@@ -1011,7 +1018,7 @@ export function resumeMail() {
   imapWatch?.reconcile(all("account"));
   gmailWatch?.reconcile(all("account"));
 }
-if (!process.env.MAIL_DESKTOP_TOKEN)
+if (!process.env.MAIL_DESKTOP_TOKEN && process.env.MAIL_WEB_MANAGED !== "1")
   void startServer(browserPort)
     .then(() => console.log(`Mail server listening at http://127.0.0.1:${browserPort}`))
     .catch((error) => {
