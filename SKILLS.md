@@ -11,6 +11,7 @@ working on this project. Use the references that match the task.
 | Change a user workflow | Select checks from [docs/user-journeys.md](docs/user-journeys.md). |
 | Change the interface | Follow [DESIGN.md](DESIGN.md), [UX feedback](docs/ux-feedback-2026-10-12.md) and [.impeccable/design.json](.impeccable/design.json). |
 | Change mail, storage, authentication or MCP | Follow [mail and privacy rules](AGENTS.md#mail-and-privacy) and the affected [ADRs](docs/adr/). Use synthetic data and isolated profiles from [docs/KB.md](docs/KB.md). |
+| Change the version display or update status | Reuse the About and storage facts-row layout and existing update checks. Follow [version and update status](docs/KB.md#about-version-and-update-status) for the package version, browser host comparison and unknown states; verify with `src/about-version.test.tsx`. |
 | Change desktop packaging, Keychain, migration or updates | Read the area-specific ADRs named in [AGENTS.md](AGENTS.md#change-rules) and its [reading list](AGENTS.md#read-for-the-affected-area). |
 | Change Android | Follow [docs/android.md](docs/android.md). |
 | Change the website | Follow [website/AGENTS.md](website/AGENTS.md). |

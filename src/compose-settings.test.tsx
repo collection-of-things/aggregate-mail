@@ -240,8 +240,9 @@ test("native window explanation is Darwin-only and About retains storage and des
     Object.defineProperty(window, "desktop", { configurable: true, value: { platform: "linux", credentialFallback: "linux-local" } });
     await render(settings("about"));
     assert.deepEqual([...document.querySelectorAll("dt")].map((term) => term.textContent),
-      ["Storage", "Sync", "Closing", "Notifications", "Archive", "Snooze", "Disconnect"]);
-    assert.match(document.querySelector("dd")!.textContent!, /local key and file permissions only/);
+      ["Version", "Updates", "Storage", "Sync", "Closing", "Notifications", "Archive", "Snooze", "Disconnect"]);
+    const storage = [...document.querySelectorAll("dt")].find((term) => term.textContent === "Storage")!.nextElementSibling;
+    assert.match(storage!.textContent!, /local key and file permissions only/);
     assert.match(document.body.textContent!, /including messages that may already have been sent/);
     assert.match(document.body.textContent!, /Your provider mailbox stays intact/);
     assert.match(document.body.textContent!, /when enabled and allowed by the system/);

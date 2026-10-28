@@ -28,6 +28,10 @@ unversioned history without treating it as a release record.
 - Restore visible shared-button styling for custom-theme actions, including Create theme and Import theme.
 - Give Projects, Agent review and All cached distinct sidebar icons so they are easier to distinguish from Contacts, Inbox and Drafts.
 
+### Added
+
+- About and storage shows the running version and update status. Browser sessions show a short build ID and can check whether they match the host; desktop sessions use the existing stable-release checker ([#143](https://github.com/collection-of-things/aggregate-mail/issues/143)).
+
 ### Documentation
 
 - Clarify canonical contribution targets, stack dependencies, latest-target rebases,
