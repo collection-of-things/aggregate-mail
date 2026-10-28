@@ -2938,6 +2938,7 @@ cookies. No new host pairing is needed. See [ADR 0097](adr/0097-persistent-paire
 
 Regression checks include `server/browser-trust.test.ts`,
 `server/phone-passkeys.test.ts` and `src/browser-session.test.tsx`.
+
 ## Encrypted workspace backup
 
 Settings, About and storage mounts `WorkspaceBackup`. The desktop bridge has
@@ -2950,7 +2951,7 @@ KDF operations are serialized and tracked by the update drain. Sync/update
 availability is checked again after decryption before merging.
 
 The format, exclusions and merge rules are recorded in
-[ADR 0085](adr/0100-encrypted-workspace-backup.md). Import validates the manifest,
+[ADR 0100](adr/0100-encrypted-workspace-backup.md). Import validates the manifest,
 requires a single-use preview receipt and writes through `store.transaction`.
 Templates/signatures merge within the existing compose record. Uncached flags
 use encrypted `workspaceMailState` records and apply once when the exact mail

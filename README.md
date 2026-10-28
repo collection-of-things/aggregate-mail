@@ -485,6 +485,7 @@ mail and drafts. Hidden tabs conceal content and recheck access on return.
 The access page broadcasts explicit locking to other tabs on the same origin.
 Checks of session status do not renew request-idle expiry. Browser-session loss
 can discard unsaved edits; it never sends mail or retries an uncertain send.
+
 ## Encrypted workspace backups
 
 In the desktop app, open **Settings → About and storage → Encrypted workspace
