@@ -6,7 +6,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { build } from "esbuild";
 import { bundleDigest, type Run } from "./mac-source-update.js";
-import { binaryWorkspacePrefix, replaceBinaryAndLaunch, validateBinaryReplacement, verifyBinaryBundle, type BinaryReplacement } from "./mac-binary-replacement.js";
+import { binaryRuntimeDigest, binaryWorkspacePrefix, replaceBinaryAndLaunch, validateBinaryReplacement, verifyBinaryBundle, type BinaryReplacement } from "./mac-binary-replacement.js";
 
 const candidate = { version: "0.2.11", arch: "arm64" as const }, quarantine = "0083;123abc;Emc2;";
 type Launch = NonNullable<Parameters<typeof replaceBinaryAndLaunch>[3]>;
@@ -28,7 +28,8 @@ async function fixture() {
     if (command.endsWith("plutil")) return ({ CFBundleIdentifier: "dev.screen.aggregate-mail", CFBundleShortVersionString: candidate.version, CFBundleExecutable: "Emc²" } as Record<string, string>)[args[1]];
     throw Error("Unexpected native command");
   };
-  const request: BinaryReplacement = { parent: process.pid, installed, home: root, workspace, candidate, quarantine, profile, digest: await bundleDigest(stage) };
+  const request: BinaryReplacement = { parent: process.pid, installed, home: root, workspace, candidate, quarantine, profile,
+    digest: await bundleDigest(stage), installedDigest: await bundleDigest(installed) };
   return { root, installed, profile, workspace, stage, request, run, calls, cleanup: () => rm(root, { recursive: true, force: true }) };
 }
 
@@ -36,12 +37,27 @@ test("binary helper validates private sibling workspace, exact candidate, quaran
   const f = await fixture();
   try {
     if (process.platform !== "win32") assert.deepEqual(await validateBinaryReplacement(f.request, process.pid), f.request);
-    for (const changes of [{ parent: process.pid + 1 }, { workspace: f.root }, { digest: "bad" }, { quarantine: "" },
+    for (const changes of [{ parent: process.pid + 1 }, { workspace: f.root }, { digest: "bad" }, { installedDigest: undefined },
+      { installedDigest: "a".repeat(128) }, { quarantine: "" },
       { candidate: { ...candidate, arch: "ia32" } }, { candidate: { ...candidate, url: "foreign" } }, { profile: "relative" }, { extra: true }])
       await assert.rejects(validateBinaryReplacement({ ...f.request, ...changes }, process.pid));
     if (process.platform !== "win32") {
       await chmod(f.workspace, 0o755); await assert.rejects(validateBinaryReplacement(f.request, process.pid));
     }
+  } finally { await f.cleanup(); }
+});
+
+test("helper binds the running bundle and rejects a target changed after its readiness check", async () => {
+  const f = await fixture();
+  try {
+    assert.equal(await binaryRuntimeDigest(path.join(f.installed, "Contents/MacOS/Emc²")), f.request.installedDigest);
+    await assert.rejects(binaryRuntimeDigest(path.join(f.installed, "Contents/MacOS/foreign")));
+    if (process.platform !== "win32") await validateBinaryReplacement(f.request, process.pid);
+    await writeFile(path.join(f.installed, "old"), "a newer app arrived after readiness");
+    await assert.rejects(replaceBinaryAndLaunch(f.request, f.run, undefined, () => { assert.fail("must not launch"); }));
+    assert.equal(await readFile(path.join(f.installed, "old"), "utf8"), "a newer app arrived after readiness");
+    assert.equal(await bundleDigest(f.stage), f.request.digest);
+    assert.ok(!(await readdir(f.workspace)).includes("previous.app"));
   } finally { await f.cleanup(); }
 });
 

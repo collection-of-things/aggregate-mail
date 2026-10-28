@@ -32,6 +32,10 @@ unversioned history without treating it as a release record.
 
 - About and storage shows the running version and update status. Browser sessions show a short build ID and can check whether they match the host; desktop sessions use the existing stable-release checker ([#143](https://github.com/collection-of-things/aggregate-mail/issues/143)).
 
+### Fixed
+
+- Allow macOS updates from a read-only launch copy when exactly one canonical, writable Applications installation matches the running bundle. Recheck its digest before replacement without changing quarantine or Gatekeeper.
+
 ### Documentation
 
 - Clarify canonical contribution targets, stack dependencies, latest-target rebases,

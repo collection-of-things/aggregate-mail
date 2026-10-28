@@ -5,7 +5,7 @@ import { chmod, cp, mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, wr
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { MacInstallerUpdate, macInstallerCandidate, verifyDmg, type MacInstallerCandidate, type MacInstallerInstallation } from "./mac-installer-update.js";
+import { MacInstallerUpdate, macInstallerCandidate, macInstallerTarget, verifyDmg, type MacInstallerCandidate, type MacInstallerInstallation } from "./mac-installer-update.js";
 import { bundleDigest, type Run } from "./mac-source-update.js";
 
 const bytes = Buffer.from("synthetic disk image, never mounted");
@@ -103,9 +103,9 @@ async function binaryFixture(mode = "success") {
   update = new MacInstallerUpdate(candidate, installation, run, (command, args, options) => {
     assert.equal(command, installation.runtime); assert.equal(options.env?.ELECTRON_RUN_AS_NODE, "1");
     assert.equal(args[0], path.join(options.cwd!.toString(), "replace.cjs"));
-    return spawn(process.execPath, ["-e", 'process.on("message",v=>{if(v==="commit")process.send("armed");else process.send("ready")});process.on("disconnect",()=>process.exit(0))'], { stdio: ["ignore", "ignore", "ignore", "ipc"] });
+    return spawn(process.execPath, ["-e", 'process.on("message",v=>{if(v==="commit")process.send("armed");else{require("node:fs").writeFileSync(process.argv[1],JSON.stringify(v));process.send("ready")}});process.on("disconnect",()=>process.exit(0))', path.join(dir, "helper-request.json")], { stdio: ["ignore", "ignore", "ignore", "ipc"] });
   });
-  return { dir, installed, helper, installation, update, calls, quarantines, get file() { return file; }, get quit() { return quit; },
+  return { dir, installed, helper, installation, update, run, calls, quarantines, get file() { return file; }, get quit() { return quit; },
     cleanup: async () => { await update.dispose(); await rm(dir, { recursive: true, force: true }); } };
 }
 
@@ -125,6 +125,80 @@ test("download prepares a verified app for automatic replacement without opening
     assert.ok((await readdir(f.dir)).some(name => name.startsWith(".Installed.app.update-")), "armed stage is retained for helper");
     assert.ok(!(await readdir(f.dir)).some(name => name.startsWith("Emc2-update-")), "download is cleaned after handoff");
   } finally { await f.cleanup(); }
+});
+
+test("a read-only running copy stages beside its identical writable Applications installation", { skip: process.platform === "win32" || process.getuid?.() === 0 }, async (t) => {
+  for (const mode of ["handoff", "changed-target"]) await t.test(mode, async () => {
+  const f = await binaryFixture();
+  const applications = path.join(f.dir, "Applications"), target = path.join(applications, "Emc².app");
+  try {
+    await mkdir(applications);
+    await cp(f.installed, target, { recursive: true });
+    await chmod(f.installed, 0o555);
+    await f.update.download();
+    assert.equal(f.installation.installed, f.installed, "selection must not mutate configuration reused by Check");
+    assert.equal((await macInstallerTarget(f.installation, new AbortController().signal)).installed, target);
+    const stage = [...f.quarantines.keys()].find(file => file.endsWith("staged.app"))!;
+    assert.equal(path.dirname(path.dirname(stage)), applications);
+    await f.update.verify();
+    if (mode === "handoff") {
+      await f.update.install();
+      const request = JSON.parse(await readFile(path.join(f.dir, "helper-request.json"), "utf8"));
+      assert.equal(request.installed, target);
+      assert.equal(request.installedDigest, await bundleDigest(f.installed));
+      assert.equal(f.quit, true);
+    } else {
+      await writeFile(path.join(target, "old"), "another installation arrived");
+      await assert.rejects(f.update.install());
+      assert.equal(f.quit, false);
+      assert.equal(await readFile(path.join(target, "old"), "utf8"), "another installation arrived");
+    }
+    assert.equal(await readFile(path.join(f.installed, "old"), "utf8"), "previous app");
+  } finally { await chmod(f.installed, 0o755); await f.cleanup(); }
+  });
+});
+
+test("installed-target discovery rejects absent, changed, ambiguous and noncanonical counterparts", { skip: process.platform === "win32" || process.getuid?.() === 0 }, async (t) => {
+  for (const mode of ["missing", "changed", "ambiguous", "bundle-symlink", "parent-symlink", "cancelled", "wrong-runtime"]) await t.test(mode, async () => {
+    const f = await binaryFixture();
+    const applications = path.join(f.dir, "Applications"), other = path.join(f.dir, "OtherApplications");
+    const target = path.join(applications, "Emc².app");
+    try {
+      await mkdir(applications); await mkdir(other);
+      if (mode !== "missing") await cp(f.installed, target, { recursive: true });
+      if (mode === "changed") await writeFile(path.join(target, "old"), "different version or architecture");
+      if (mode === "ambiguous") await cp(f.installed, path.join(other, "Emc².app"), { recursive: true });
+      if (mode === "bundle-symlink") {
+        await rm(target, { recursive: true }); await symlink(f.installed, target);
+      }
+      const locations = [applications, other];
+      if (mode === "parent-symlink") {
+        const alias = path.join(f.dir, "AliasApplications"); await symlink(applications, alias); locations.splice(0, 2, alias);
+      }
+      await chmod(f.installed, 0o555);
+      const installation = mode === "wrong-runtime" ? { ...f.installation, runtime: path.join(target, "Contents/MacOS/Emc²") } : f.installation;
+      await assert.rejects(macInstallerTarget(installation, mode === "cancelled" ? AbortSignal.abort() : new AbortController().signal, locations));
+      assert.equal(f.calls.length, 0, "target discovery performs no downloads, trust changes or mail operations");
+    } finally { await chmod(f.installed, 0o755); await f.cleanup(); }
+  });
+});
+
+test("Check can retry after a read-only fallback and failed download using the same installation configuration", { skip: process.platform === "win32" || process.getuid?.() === 0 }, async () => {
+  const f = await binaryFixture();
+  const applications = path.join(f.dir, "Applications");
+  const failed = new MacInstallerUpdate(candidate, f.installation, async (command, args, ...rest) => {
+    if (command.endsWith("curl") && args.includes("--output")) throw Error("synthetic transient download failure");
+    return f.run(command, args, ...rest);
+  });
+  let retry: MacInstallerUpdate | undefined;
+  try {
+    await mkdir(applications); await cp(f.installed, path.join(applications, "Emc².app"), { recursive: true });
+    await chmod(f.installed, 0o555);
+    await assert.rejects(failed.download()); await failed.dispose();
+    retry = new MacInstallerUpdate(candidate, f.installation, f.run);
+    await retry.download(); await retry.verify();
+    assert.equal(f.installation.installed, f.installed);
+  } finally { await failed.dispose(); await retry?.dispose(); await chmod(f.installed, 0o755); await f.cleanup(); }
 });
 
 test("download failures, signature rejection and cancellation detach and clean without quitting", async () => {
