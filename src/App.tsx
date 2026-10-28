@@ -55,6 +55,7 @@ import { MailSearchApiContext, useMailSearch } from "./use-mail-search";
 import { replySource, useMailBody } from "./mail-body";
 import { useMailNavigation, rememberBrowserUpdateLocation, type MailLocation } from "./navigation";
 import { collectPrivateNames, redactPrivateText } from "./privacy";
+import { ContactsPage } from "./contacts/ContactsPage";
 import { SettingsPage } from "./settings/SettingsPage";
 import { PaneHeader, type Corner } from "./shell/PaneHeader";
 import { Sidebar } from "./shell/Sidebar";
@@ -104,7 +105,9 @@ export function App() {
   const settings = page === "settings";
   const [accountSettingsTarget, setAccountSettingsTarget] = useState<string>();
   const inlineWorkView = view === "actions" || view === "projects" || view === "calendar";
+  const contactsView = view === "contacts";
   const workView = view === "actions" || view === "calendar" || view === "projects" || view === "agents";
+  const nonMailView = workView || contactsView;
   const ViewIcon = settings ? SettingsIcon : sidebarViews.find((item) => item.view === view)?.Icon ?? MailIcon;
   const setSettings = (next: boolean | ((current: boolean) => boolean)) => {
     const value = typeof next === "function" ? next(settings) : next;
@@ -603,7 +606,7 @@ export function App() {
   const closeSearch = () => {
     if (toolbarBlocked) return;
     setSearching(false);
-    if (!settings && !workView && query) navigation.visit({ query: "", opened: false });
+    if (!settings && !nonMailView && query) navigation.visit({ query: "", opened: false });
   };
   const switchView = (next: View) => {
     if (next !== view)
@@ -936,6 +939,7 @@ export function App() {
     if (region === "search")
       return usable(searchRef.current && !searchRef.current.disabled ? searchRef.current : null);
     if (region === "list") {
+      if (contactsView) return usable(document.querySelector<HTMLElement>('.contacts-page input[type="search"], .contacts-page section button:not(:disabled)'));
       const list = usable(listRef.current);
       if (!list) return null;
       return usable(selected ? document.getElementById(`mail-${selected.id}`) : null) ??
@@ -1055,7 +1059,7 @@ export function App() {
       }
       if (target instanceof HTMLElement && target.closest("#sidebar")) return;
       const draftControl = target instanceof HTMLElement && !!target.closest(".draft-list, .draft-tab-bar");
-      const inbox = !draftControl && !settings && !workView && view !== "drafts";
+      const inbox = !draftControl && !settings && !nonMailView && view !== "drafts";
       const mailActions = !draftControl && (inbox || !settings && inlineWorkView && opened && !busy);
       if (inbox && ["PageDown", "PageUp"].includes(event.key) &&
         !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
@@ -1285,11 +1289,11 @@ export function App() {
     density: () => setDensity((value) => value === "comfortable" ? "compact" : "comfortable"),
   };
   const findPinned = (scope: PinnedScope) => {
-    navigate({ page: "mail", ...(scope === "all" ? { view: "all" as const } : {}), query: "is:pinned", selectedId: null, opened: false });
+    navigate({ page: "mail", ...(scope === "all" || contactsView ? { view: "all" as const } : {}), query: "is:pinned", selectedId: null, opened: false });
     setSearching(true);
     setFiltersOpen(false);
   };
-  const paletteViews = ["actions", "calendar", "projects", "agents", "sent", "all"] as const;
+  const paletteViews = ["actions", "calendar", "projects", "agents", "contacts", "sent", "all"] as const;
   type PaletteId =
     | keyof typeof paletteActions
     | `view-${(typeof paletteViews)[number]}`
@@ -1328,7 +1332,7 @@ export function App() {
     { id: "meeting", label: "Schedule meeting" },
     { id: "teach", label: "Teach sorting", key: shortcut("teach") },
   ];
-  const mailCommands = selected
+  const mailCommands = selected && !contactsView
     ? mailMenuActions(selected).map(({ id, label, key, disabled, description, run }) => ({
         id: `mail-${id}`, label, group: "mail" as const, shortcut: key, disabled,
         disabledReason: description, aliases: commandAliases[`mail-${id}`], run }))
@@ -1377,7 +1381,7 @@ export function App() {
         </Dialog>}
 
         <BrowserUpdateNotice
-          blocked={scheduledOpen || !loaded || busy || syncing || navigationBlocked || workView || view === "drafts" || eventDirty || composeSaving || !!palette || !!contextMenu || !!pendingReads.current.size || sendLock.current || syncLock.current || trashLock.current || (!!composeDraft && JSON.stringify(composeDraft) !== JSON.stringify(state.composePreferences ?? emptyComposePreferences))}
+          blocked={scheduledOpen || !loaded || busy || syncing || navigationBlocked || nonMailView || view === "drafts" || eventDirty || composeSaving || !!palette || !!contextMenu || !!pendingReads.current.size || sendLock.current || syncLock.current || trashLock.current || (!!composeDraft && JSON.stringify(composeDraft) !== JSON.stringify(state.composePreferences ?? emptyComposePreferences))}
           writes={browserWrites}
           onReload={() => { rememberBrowserUpdateLocation(navigation.location); window.location.reload(); }}
         />
@@ -1423,23 +1427,23 @@ export function App() {
           <div className="app-main" inert={!roomy && mobileSidebarOpen}>
             <PaneHeader className="app-toolbar" corner={corner("main")} maximized={maximized} lead={sidebarToggle}>
               <div className="app-context" aria-label="Current view">
-                <span>{settings ? "Emc²" : workView ? "Workspace" : "Mail"}</span>
+                <span>{settings ? "Emc²" : nonMailView ? "Workspace" : "Mail"}</span>
                 <ChevronRight size={12} color="currentColor" />
                 <ViewIcon size={16} color="currentColor" />
                 <strong>{settings ? "Settings" : viewNames[view]}</strong>
               </div>
               {!settings && historyControls}
-              <SearchToolbar inputRef={searchRef} scopeKey={JSON.stringify([page, view, accountFilter, labelFilter, readFilter, relevanceFilter, opened])} query={settings || workView ? "" : query}
+              <SearchToolbar inputRef={searchRef} scopeKey={JSON.stringify([page, view, accountFilter, labelFilter, readFilter, relevanceFilter, opened])} query={settings || nonMailView ? "" : query}
                 label="Search cached mail and saved drafts"
-                invalid={!settings && !workView && !!search.error} disabled={toolbarBlocked} commandsDisabled={toolbarBlocked || (!!compose && busy)} shortcut={shortcut("search")} onFocus={() => setSearching(true)}
+                invalid={!settings && !nonMailView && !!search.error} disabled={toolbarBlocked} commandsDisabled={toolbarBlocked || (!!compose && busy)} shortcut={shortcut("search")} onFocus={() => setSearching(true)}
                 onChange={(value) => {
                   setSearching(true);
                   if (toolbarBlocked) return;
-                  const entering = !!value.trim() && (!query.trim() || settings || workView);
+                  const entering = !!value.trim() && (!query.trim() || settings || nonMailView);
                   navigation.visit({ page: "mail", ...(entering ? { view: "all", accountFilter: "all", readFilter: "all", relevanceFilter: "all", labelFilter: "all" } : {}), query: value, opened: false, selectedId: null }, true);
                 }} onClear={closeSearch} onCommands={() => compose ? leaveCompose({ type: "commands" }) : setPalette(true)} />
               <div className="pane-tools">
-                {!settings && view !== "drafts" && !workView && <MailFilters
+                {!settings && view !== "drafts" && !nonMailView && <MailFilters
                   open={filtersOpen}
                   active={filtersActive}
                   location={navigation.location}
@@ -1457,12 +1461,14 @@ export function App() {
               </div>
               <div className="update-spacer" aria-hidden="true" />
             </PaneHeader>
-            <div hidden={!searching || settings || workView} className="search-help">
+            <div hidden={!searching || settings || nonMailView} className="search-help">
               <span id="mail-search-help" role={search.error ? "alert" : "status"} aria-live="polite" aria-atomic="true">{search.error || (search.pending ? "Searching cached mail and saved drafts…" : `${filtered.length} mail results${showSearchDrafts ? `, ${search.drafts.filter(draft => accountFilter === "all" || draft.accountId === accountFilter).length} saved drafts` : ""}. ${mailSearchScope(navigation.location, state.accounts, activeLabel, privacy, showSearchDrafts)}`)}</span>
-              <ProviderSearch api={api} query={query} account={searchAccount} accountName={searchAccount ? accountLabel(searchAccount, state.accounts.indexOf(searchAccount), privacy, state.accounts) : ""} blocked={toolbarBlocked || busy} visible={!settings && !workView && view !== "drafts" && !search.error && !search.pending} reload={reload} />
+              <ProviderSearch api={api} query={query} account={searchAccount} accountName={searchAccount ? accountLabel(searchAccount, state.accounts.indexOf(searchAccount), privacy, state.accounts) : ""} blocked={toolbarBlocked || busy} visible={!settings && !nonMailView && view !== "drafts" && !search.error && !search.pending} reload={reload} />
               <details><summary>Search help</summary><p>Use from:, to:, subject:, body:, account:, is:unread, is:pinned, before:YYYY-MM-DD or after:YYYY-MM-DD. Unquoted words allow one typo. Searches imported mail and saved drafts on this device, including Sent, Archive and Snoozed. Provider history may be incomplete. With one account selected, searching older mail asks the provider for up to 100 more matches: Gmail uses Gmail search, IMAP searches Archive (or All Mail) and Sent, and account: and is:pinned apply only on this device.</p></details>
             </div>
-        {view === "drafts" ? (
+        {contactsView ? (
+          <div className="contacts-pane" inert={!!compose}><ContactsPage key={accountFilter} api={api} accounts={state.accounts} accountFilter={accountFilter} busy={busy} /></div>
+        ) : view === "drafts" ? (
           <main className="drafts-pane" inert={!!compose}>
             <h1 className="pane-title visually-hidden">Drafts</h1>
             <DraftList accounts={state.accounts} api={api} accountFilter={accountFilter} query={query}

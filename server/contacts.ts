@@ -3,16 +3,11 @@ import express from "express";
 import { z } from "zod";
 import type { ContactList, ContactSuggestion, RecentRecipient, SavedContact } from "../shared/contacts.js";
 import { all, get, put, remove, transaction } from "./store.js";
+import { contactSchema, contactImportSchema, parseContactImport } from "./contact-import.js";
 
 export const MAX_SAVED_CONTACTS_PER_ACCOUNT = 1000;
 export const MAX_RECENT_RECIPIENTS_PER_ACCOUNT = 200;
 const MAX_SUGGESTIONS = 8;
-const contactSchema = z.object({
-  name: z.string()
-    .refine((value) => !/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(value), "Use a single-line name without control characters.")
-    .trim().max(200),
-  email: z.email().max(320),
-}).strict();
 const createSchema = contactSchema.extend({ accountId: z.string().min(1).max(200) }).strict();
 const suggestionSchema = z.object({ query: z.string().max(320), accountId: z.string().max(200) }).strict();
 
@@ -132,6 +127,27 @@ export function mountContacts(app: express.Express) {
     const { query, accountId } = suggestionSchema.parse(req.query);
     res.json(suggestContacts(query, accountId));
   });
+  const importContacts = (value: unknown, commit: boolean) => {
+    const input = contactImportSchema.parse(value);
+    let parsed: ReturnType<typeof parseContactImport>;
+    try { parsed = parseContactImport(input.content, input.format); }
+    catch { throw new ContactError(400, "Could not read this contact file. Use a UTF-8 Google, Yahoo or Outlook CSV, or a vCard file, up to 512 KB and 5000 addresses."); }
+    return transaction(() => {
+      requireAccount(input.accountId);
+      const existing = all("contact").filter(contact => contact.accountId === input.accountId);
+      const addresses = new Set(existing.map(contact => contact.email.toLowerCase()));
+      const fresh = parsed.contacts.filter(contact => !addresses.has(contact.email.toLowerCase()));
+      if (existing.length + fresh.length > MAX_SAVED_CONTACTS_PER_ACCOUNT)
+        throw new ContactError(409, "This import exceeds the 1000-contact limit for this account. Choose a smaller export or remove contacts first.");
+      if (commit) for (const entry of fresh) {
+        const contact: SavedContact = { kind: "saved", id: randomUUID(), accountId: input.accountId, ...entry, updatedAt: Date.now() };
+        put("contact", contact.id, contact);
+      }
+      return { added: fresh.length, skipped: parsed.skipped, duplicates: parsed.contacts.length - fresh.length, sample: fresh.slice(0, 5) };
+    });
+  };
+  router.post("/import/preview", (req, res) => { res.json(importContacts(req.body, false)); });
+  router.post("/import", (req, res) => { res.json(importContacts(req.body, true)); });
   router.post("/", (req, res) => { res.status(201).json(createContact(req.body)); });
   router.put<{ id: string }>("/:id", (req, res) => { res.json(updateContact(req.params.id, req.body)); });
   router.delete<{ id: string }>("/:id", (req, res) => { deleteRecord("contact", req.params.id); res.json({ ok: true }); });

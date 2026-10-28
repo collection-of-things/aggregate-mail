@@ -1,4 +1,9 @@
 /* Settings: one section at a time in a single column. */
+.contacts-pane { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.contacts-search { display: block; margin: 0 0 16px; }
+.contacts-search input { width: 100%; min-height: 32px; }
+.contacts-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.contact-import-preview ul { margin-block: 12px; padding-left: 20px; overflow-wrap: anywhere; }
 /* Stored connection settings: name what is on disk without printing secrets. */
 .stored {
   display: flex;

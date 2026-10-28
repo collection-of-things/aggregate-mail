@@ -42,6 +42,7 @@ function reader(opened = true, accountFilter = "a", selectedId: string | null = 
   const requests: unknown[][] = [];
   const scope = {
     toolbarBlocked: false,
+    get nonMailView() { return this.workView || this.view === "contacts"; },
     opened, accountFilter, selectedId, recent: [] as string[], notice: "",
     state: { accounts: [{ id: "a" }, { id: "b" }], messages: [a, b, other] },
     activeLabel: undefined as Parameters<typeof matchesLabel>[1],

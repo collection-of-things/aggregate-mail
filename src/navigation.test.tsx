@@ -161,6 +161,7 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
       if (mail) mail.unread = false;
     }
     return { ok: true, json: async () => url === "/api/state" ? { ...state, csrf: "synthetic" } :
+      url === "/api/contacts" ? { saved: [], recent: [] } :
       url === "/api/workspace" ? { commitments: [], projects: [], decisions: [], proposals: [], coverage: [] } :
       url === "/api/agent/grants" ? [] : url === "/api/mcp" ? {enabled:false,allowSending:false,token:null} :
       url === "/api/sync" ? { errors: [] } : {} } as Response;
@@ -1032,11 +1033,11 @@ test("Settings keeps mail navigation, uses a section rail and shows one section 
     assert.equal(settings.getAttribute("aria-label"), "Settings");
     await app.click(settings);
     assert.ok(app.container.querySelector('[aria-label="Mail views"]'), "mail navigation remains visible");
-    assert.equal(app.container.querySelectorAll(".settings-navigation button").length, 12);
+    assert.equal(app.container.querySelectorAll(".settings-navigation button").length, 11);
     const rail = app.container.querySelector('.settings-navigation')!;
     assert.deepEqual([...rail.querySelectorAll('[role="group"]')].map(group => group.getAttribute('aria-label')),
       ["Connections", "Mail", "Preferences", "Advanced"]);
-    assert.equal(new Set([...rail.querySelectorAll('button')].map(button => button.textContent)).size, 12,
+    assert.equal(new Set([...rail.querySelectorAll('button')].map(button => button.textContent)).size, 11,
       "each existing section remains reachable once");
     assert.equal(app.container.querySelector(".settings-column select"), null);
     assert.ok(app.container.querySelector("[data-interaction-settings]"));
@@ -2597,7 +2598,8 @@ test("phone Settings section picker switches panels without changing saved mail"
     await app.click(app.button("Settings"));
     const picker = app.container.querySelector<HTMLSelectElement>('select[aria-label="Settings section"]')!;
     assert.ok(picker);
-    assert.equal(picker.options.length, 12);
+    assert.equal(picker.options.length, 11);
+    assert.equal(Array.from(picker.options).some(option => option.value === "contacts"), false);
     assert.ok(Array.from(picker.options).some(option => option.value === "phone-access"));
     const change = async (section: string) => {
       await act(async () => { picker.value = section; picker.dispatchEvent(new app.window.Event("change", { bubbles: true })); });
@@ -2857,4 +2859,28 @@ test("browser updates cannot interrupt pending reads or reload after an uncertai
       else assert.match(app.container.querySelector(".browser-update-notice")?.textContent || "", /unknown outcome/);
     } finally { globalThis.fetch = fetchBefore; await app.close(); }
   }
+});
+
+
+test("Contacts opens as a main view, stays outside Settings and cannot trigger mail shortcuts", async () => {
+  const app = await mount();
+  try {
+    await app.click(app.button("Contacts"));
+    assert.equal(app.container.querySelector('#sidebar button[aria-current="page"]')?.textContent?.trim(), "Contacts");
+    assert.ok(app.container.querySelector('main[aria-label="Contacts"]'));
+    assert.equal(app.container.querySelector('.mail-view'), null);
+    assert.equal(app.container.querySelector('[aria-label="Filters"]'), null);
+    await app.click(app.button("Import contacts"));
+    assert.match(app.container.querySelector('main[aria-label="Contacts"]')!.textContent!, /Destination account/);
+    await act(async () => { app.window.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "e", bubbles: true })); });
+    assert.deepEqual(app.mutations, []);
+    await app.click(app.button("Commands"));
+    const archive = [...app.container.querySelectorAll('[role="option"]')].find(item => item.querySelector("span")?.textContent === "Archive")!;
+    assert.equal(archive.getAttribute("aria-disabled"), "true");
+    await app.click(app.button("Close dialog"));
+    await app.click(app.button("Settings"));
+    assert.equal(app.container.querySelector('.settings-dialog .settings-navigation')?.textContent?.includes("Contacts"), false);
+    await app.click(app.button("Close settings"));
+    assert.ok(app.container.querySelector('main[aria-label="Contacts"]'));
+  } finally { await app.close(); }
 });

@@ -4,7 +4,7 @@ import type { SettingsSection } from "./settings/sections";
 
 export type MailLocation = {
   page: "mail" | "settings";
-  view: "actions" | "calendar" | "projects" | "agents" | "inbox" | "snoozed" | "archive" | "sent" | "all" | "drafts";
+  view: "actions" | "calendar" | "projects" | "agents" | "contacts" | "inbox" | "snoozed" | "archive" | "sent" | "all" | "drafts";
   tab: InboxTab;
   settingsSection: SettingsSection;
   accountFilter: string;

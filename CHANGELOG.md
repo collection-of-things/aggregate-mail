@@ -6,6 +6,14 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Added
+
+- Open Contacts from the sidebar, find saved people or recent recipients, and import Google, Yahoo, Outlook-compatible CSV or UTF-8 vCard exports. Preview before saving; existing contacts stay intact and imported addresses appear in recipient suggestions. No developer account or paid service is required ([#138](https://github.com/collection-of-things/aggregate-mail/issues/138)).
+
+### Changed
+
+- A single email opens without a duplicate conversation heading; message actions and errors remain available ([#138](https://github.com/collection-of-things/aggregate-mail/issues/138)).
+
 ### Fixed
 
 - Keep conversation history diagnostics in collapsed details, space message headers into readable rows, and show one applicable read-state action in each mail row ([#138](https://github.com/collection-of-things/aggregate-mail/issues/138)).

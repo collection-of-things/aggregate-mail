@@ -157,25 +157,26 @@ test("stage, image and quarantine tampering stop handoff before quit", async () 
   }
 });
 
-test("only a successfully started exact running app and profile can retire its prior backup", async () => {
-  for (const mode of ["success", "uncertain", "wrong-digest", "wrong-profile"]) {
-    const f = await binaryFixture();
-    const workspace = await mkdtemp(path.join(f.dir, ".Installed.app.update-")); await chmod(workspace, 0o700);
-    await mkdir(path.join(workspace, "previous.app")); await writeFile(path.join(workspace, "previous.app/keep"), "prior app");
-    await writeFile(path.join(workspace, "result.json"), JSON.stringify({ kind: "mac-binary-update", format: 1,
-      state: mode === "uncertain" ? "launch-uncertain-retained-backup" : "launch-dispatched", installed: f.installed,
-      version: f.installation.version, arch: candidate.arch, digest: mode === "wrong-digest" ? "a".repeat(128) : await bundleDigest(f.installed),
-      profile: mode === "wrong-profile" ? path.join(f.dir, "other-profile") : null }), { mode: 0o600 });
-    try {
-      if (mode === "success") {
-        await f.update.download(); assert.ok(!(await readdir(f.dir)).includes(path.basename(workspace)));
-      } else {
-        await assert.rejects(f.update.download(), error => (error as { reason?: string }).reason === "installer-target");
-        assert.equal(await readFile(path.join(workspace, "previous.app/keep"), "utf8"), "prior app");
-        assert.ok(f.calls.some(call => call.command.endsWith("open") && call.args[0] === "-R"));
-      }
-    } finally { await f.cleanup(); }
-  }
+for (const mode of ["success", "uncertain", "wrong-digest", "wrong-profile"])
+test(`only a successfully started exact running app and profile can retire its prior backup (${mode})`, {
+  skip: mode === "success" && typeof process.getuid !== "function" ? "Requires POSIX ownership and permission bits" : false,
+}, async () => {
+  const f = await binaryFixture();
+  const workspace = await mkdtemp(path.join(f.dir, ".Installed.app.update-")); await chmod(workspace, 0o700);
+  await mkdir(path.join(workspace, "previous.app")); await writeFile(path.join(workspace, "previous.app/keep"), "prior app");
+  await writeFile(path.join(workspace, "result.json"), JSON.stringify({ kind: "mac-binary-update", format: 1,
+    state: mode === "uncertain" ? "launch-uncertain-retained-backup" : "launch-dispatched", installed: f.installed,
+    version: f.installation.version, arch: candidate.arch, digest: mode === "wrong-digest" ? "a".repeat(128) : await bundleDigest(f.installed),
+    profile: mode === "wrong-profile" ? path.join(f.dir, "other-profile") : null }), { mode: 0o600 });
+  try {
+    if (mode === "success") {
+      await f.update.download(); assert.ok(!(await readdir(f.dir)).includes(path.basename(workspace)));
+    } else {
+      await assert.rejects(f.update.download(), error => (error as { reason?: string }).reason === "installer-target");
+      assert.equal(await readFile(path.join(workspace, "previous.app/keep"), "utf8"), "prior app");
+      assert.ok(f.calls.some(call => call.command.endsWith("open") && call.args[0] === "-R"));
+    }
+  } finally { await f.cleanup(); }
 });
 
 test("a quit exception waits for the armed helper to close before cleanup and restoration", async () => {

@@ -135,7 +135,23 @@ Local contacts (ADR 0084) are encrypted, account-scoped store records served
 from `/api/contacts`. Recent recipients are recorded in `sendMail` only after
 the provider accepts a send. `RecipientInput` completes the address after the
 last comma, so one component serves single-address and comma-separated fields.
-Settings > Contacts lists, adds, edits and deletes them.
+Contacts opens from the Workspace sidebar and Commands, outside Settings.
+Its Saved contacts, Recent recipients and Import contacts sections reuse the
+Settings rail, grouped forms and narrow-screen section selector. Sidebar
+account filters apply to the contact lists; Find contacts filters names and
+addresses locally. Imported entries use the same saved-contact records and
+recipient suggestions. No account migration is needed.
+
+`POST /api/contacts/import/preview` validates an account-bound UTF-8 CSV or vCard
+without writing. `POST /api/contacts/import` reparses the submitted file and saves
+all new entries in one transaction. Both inherit session, origin, CSRF and
+update guards. Files are bounded to 512 KiB and 5000 addresses; saved contacts
+remain limited to 1000 per account. Duplicate addresses are case-insensitive
+within the destination account and never overwrite existing names. Invalid and
+repeated addresses are counted as skipped. Only names and addresses are retained;
+no raw file, filename, photo, link, formula or provider credential is stored.
+An over-limit import writes nothing. See [contact imports](contacts-import.md)
+and [ADR 0098](adr/0098-contacts-page-and-imports.md).
 
 Plain unquoted search words of 4 to 32 letters allow one insertion, deletion,
 substitution or adjacent transposition within a word. Quoted phrases, field
