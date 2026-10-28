@@ -126,15 +126,15 @@ export function AppearanceSettings({ value, scheme, onChange, onPreview = noPrev
             ))}
           </div>
           <div className="theme-actions theme-library-actions">
-            <button type="button" className="btn" disabled={full} onClick={() => create(selected)}>Create theme</button>
-            <button type="button" className="btn" disabled={full} onClick={() => setDialog({ kind: "import" })}>Import theme</button>
+            <button type="button" className="button" disabled={full} onClick={() => create(selected)}>Create theme</button>
+            <button type="button" className="button" disabled={full} onClick={() => setDialog({ kind: "import" })}>Import theme</button>
           </div>
           {full && <p className="note">32 custom themes saved. Delete one to make room.</p>}
           {selected && <div className="theme-actions theme-library-actions" aria-label="Selected theme actions">
-            <button type="button" className="btn" onClick={() => setDialog({ kind: "editor", theme: selected, editing: true })}>Edit theme</button>
-            <button type="button" className="btn" disabled={full} onClick={() => create(selected)}>Duplicate theme</button>
-            <button type="button" className="btn" onClick={() => exportTheme(selected)}>Export theme</button>
-            <button type="button" className="btn" onClick={() => setDialog({ kind: "delete", theme: selected })}>Delete theme</button>
+            <button type="button" className="button" onClick={() => setDialog({ kind: "editor", theme: selected, editing: true })}>Edit theme</button>
+            <button type="button" className="button" disabled={full} onClick={() => create(selected)}>Duplicate theme</button>
+            <button type="button" className="button" onClick={() => exportTheme(selected)}>Export theme</button>
+            <button type="button" className="button" onClick={() => setDialog({ kind: "delete", theme: selected })}>Delete theme</button>
           </div>}
           <p className="note">Custom themes include light and dark palettes and their own accent. Saved on this device.</p>
           {error && <p className="theme-error" role="alert">{error}</p>}
@@ -208,8 +208,8 @@ export function AppearanceSettings({ value, scheme, onChange, onPreview = noPrev
         <p className="dialog-copy">Delete this custom theme from this device? The app will use the Black or White theme.</p>
         {error && <p className="theme-error" role="alert">{error}</p>}
         <div className="theme-actions">
-          <button type="button" className="btn" onClick={close}>Cancel</button>
-          <button type="button" className="btn" onClick={() => {
+          <button type="button" className="button" onClick={close}>Cancel</button>
+          <button type="button" className="button" onClick={() => {
             const customThemes = value.customThemes.filter((theme) => theme.id !== dialog.theme.id);
             if (onChange({ ...value, theme: value.theme === dialog.theme.id ? "black" : value.theme, customThemes })) close();
             else setError("This theme could not be deleted on this device. Try again.");

@@ -97,8 +97,8 @@ export function ThemeEditor({ initial, scheme: initialScheme, editing, onSave, o
           : "Background and accent generate matching colors for this palette. Use Advanced to fine-tune them."}</p>
         {error && <p className="theme-error" role="alert">{error}</p>}
         <div className="theme-actions">
-          <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn primary">Save theme</button>
+          <button type="button" className="button" onClick={onClose}>Cancel</button>
+          <button type="submit" className="button">Save theme</button>
         </div>
       </form>
     </Dialog>
@@ -149,8 +149,8 @@ export function ImportTheme({ onImport, onClose }: {
         </label>
         {error && <p className="theme-error" role="alert">{error}</p>}
         <div className="theme-actions">
-          <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn primary" disabled={reading || !text.trim()}>{reading ? "Reading file…" : "Import theme"}</button>
+          <button type="button" className="button" onClick={onClose}>Cancel</button>
+          <button type="submit" className="button" disabled={reading || !text.trim()}>{reading ? "Reading file…" : "Import theme"}</button>
         </div>
       </form>
     </Dialog>

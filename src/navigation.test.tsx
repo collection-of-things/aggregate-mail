@@ -1017,6 +1017,27 @@ test("Unread reader navigation keeps the opened message as an ordering anchor", 
   }
 });
 
+test("sidebar destinations have distinct decorative navigation glyphs", async () => {
+  const app = await mount(false, (state) => { state.messages[0].snoozedUntil = Date.now() + 86400000; });
+  try {
+    const labels = ["Today", "Calendar", "Projects", "Agent review", "Contacts", "Inbox", "Snoozed", "Archive", "Sent", "All cached", "Drafts"];
+    const glyphs = labels.map((label) => {
+      const button = app.button(label);
+      assert.ok(button.closest("#sidebar"), `${label} belongs in the sidebar`);
+      const svg = button.querySelector("svg");
+      assert.ok(svg, `${label} has an icon`);
+      assert.equal(svg.getAttribute("width"), "16");
+      assert.equal(svg.getAttribute("height"), "16");
+      assert.equal(svg.getAttribute("stroke"), "currentColor");
+      assert.equal(svg.getAttribute("color"), "currentColor");
+      assert.equal(svg.getAttribute("aria-hidden"), "true");
+      assert.equal(svg.getAttribute("focusable"), "false");
+      return svg.innerHTML;
+    });
+    assert.equal(new Set(glyphs).size, labels.length, "each sidebar destination has a distinct rendered glyph");
+  } finally { await app.close(); }
+});
+
 test("sidebar toggle stays first in its header, hides the panel and survives a restart", async () => {
   const app = await mount();
   try {

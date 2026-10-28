@@ -86,6 +86,14 @@ export function Mail(props: IconProps) {
   return <Outline {...props}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 6 9 7 9-7" /></Outline>;
 }
 
+export function MailStack(props: IconProps) {
+  return <Outline {...props}><path d="M6 3h12M4 6h16" /><rect x="2" y="9" width="20" height="12" rx="2" /><path d="m2 10 10 6 10-6" /></Outline>;
+}
+
+export function Folder(props: IconProps) {
+  return <Outline {...props}><path d="M3 7V5a2 2 0 0 1 2-2h5l2 4h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2ZM3 7h9" /></Outline>;
+}
+
 export function SidebarIcon(props: IconProps) {
   return <Outline {...props}><rect x="3" y="4" width="18" height="16" rx="3" /><path d="M9 4v16" /></Outline>;
 }
