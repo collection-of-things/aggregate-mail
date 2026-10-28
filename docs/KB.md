@@ -662,7 +662,15 @@ issue and PR templates and closure reasons, fix links, git.cafe State,
 verification, rebase-before-merge and delivery. The PR template keeps the
 problem, result, before/after evidence and merge risk visible, with verification,
 ownership and review in collapsed blocks. PR stacks list every layer and merge
-from the bottom up with updated verification and independent review.
+from the bottom up with explicit parent/dependency records and updated verification
+and independent review. The canonical GitHub target is
+`collection-of-things/aggregate-mail`; git.cafe equivalents use separate IDs.
+Completion requires verified merged acceptance, closure reasons and reciprocal
+fixing-PR/issue links on both hosts, with state readback rather than assumed sync.
+Before push/file and merge, fetch/rebase the latest target. Verification receipts
+identify the exact base, head, tree, diff and relevant inputs; combined stacks
+require the full synthetic suite and strict build. Repository commit and PR
+procedures override generic personal skill defaults within user and safety limits.
 Follow the guide before starting or resuming work. See [ADR 0007](adr/0007-contributor-coordination.md)
 for the coordination rationale.
 

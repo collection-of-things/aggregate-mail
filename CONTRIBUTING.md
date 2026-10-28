@@ -8,8 +8,13 @@ task. Report vulnerabilities privately via
 
 ## Coordinate before starting
 
-1. Find the canonical upstream from metadata and remotes; a fork's `origin`
-   may not be it. If you cannot inspect upstream, stop and report the gap.
+1. The canonical GitHub repository is
+   [collection-of-things/aggregate-mail](https://github.com/collection-of-things/aggregate-mail).
+   Confirm metadata and remotes before writing; a fork's `origin` may differ.
+   [git.cafe](https://git.cafe/collection-of-devs/aggregate-mail) has separate
+   issue and PR identifiers. Resolve linked equivalents by URL and scope,
+   never by matching numbers. If you cannot inspect the target, stop and
+   report the gap.
 2. Before creating an issue or PR, search open and closed upstream issues
    and PRs for the same problem or change. Read matching discussions and
    check ownership. Record matches or that none were found. If the search
@@ -28,6 +33,11 @@ task. Report vulnerabilities privately via
 7. One task per feature branch and worktree, one delivery owner, one writer
    per branch. Helpers work on non-overlapping scopes and return evidence. A
    human owner is accountable for agent output.
+
+Repository commit, PR and template procedures take precedence over generic
+personal skill defaults. Explicit user instructions and safety rules still win.
+Use private tools locally; shared contributions must remain portable and must
+exclude private skills, configuration, machine paths and session context.
 
 ## Keep git.cafe task state current
 
@@ -62,6 +72,19 @@ and a link back. If the fix already exists or is being implemented elsewhere,
 link to the fixing commit or PR and state whether it is merged or still in
 progress. Confirm the comments are posted before closing.
 
+For a completed fix, first verify that the fixing PR merged, the merged content
+covers the issue's acceptance criteria, and the required evidence is current.
+Comment on the issue with the completion reason, fixing PR URL and remaining
+proof limits. Comment on the fixing PR with a reciprocal issue link and reason.
+Do this even if a closing keyword already closed the issue automatically.
+
+Resolve any linked GitHub and git.cafe equivalents by their full URLs and
+acceptance scope. Reconcile comments, closure and git.cafe State on both hosts;
+do not assume automatic synchronization. Read back each saved comment and
+state. If a counterpart cannot be resolved or a host is unavailable, report the
+gap and leave that reconciliation pending. Stop before closing unfinished or
+partially covered scope; describe remaining work in the existing task record.
+
 ## Set up
 
 Node 24.22.1 or a newer 24.x (see `.nvmrc`) and npm. From the repository root:
@@ -82,8 +105,8 @@ per-launch token. Never commit secrets. Other environment variables
 
 ## Branches and commits
 
-- Branch from current `main` as `<type>/<topic>`, using `feat`, `fix`, `docs`,
-  `chore` or `test`.
+- Fetch canonical `main` before preparing the task branch. Branch from it as
+  `<type>/<topic>`, using `feat`, `fix`, `docs`, `chore` or `test`.
 - Imperative commit subjects; `feat:`, `fix:` or `test:` prefixes are common.
 - Never start a subject with `Release `; it is reserved for manual version
   commits.
@@ -238,19 +261,30 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
 - Split related changes into a stack when they need separate PRs: one PR per
   change, each based on the branch below it and the bottom one on `main`.
   Each PR may contain multiple commits and must list every layer from bottom
-  to top, marking the current PR.
+  to top, marking the current PR. Name its immediate parent branch and PR,
+  dependency issues and acceptance criteria, and bottom-first merge order.
+  Record `none` for a standalone PR's parent and dependencies.
 - Merge stacks from the bottom up. After a layer merges, rebase the remaining
   changes onto the updated target and retarget PRs as needed, preserving each
   layer's scope. Refresh affected verification and independent review for the
   current base, head and full diff before merging each layer. The merge gates
   below apply to every layer.
 - Keep the diff in the agreed scope; use synthetic data in captures.
-- Whoever merges must first fetch the latest target branch and rebase the PR
-  branch onto it. Resolve conflicts and push the updated branch before merging.
+- Before pushing or filing, fetch the current target and rebase the task branch
+  onto it. Before every merge, fetch and rebase again, even if the forge reports
+  the branch mergeable. Resolve conflicts without dropping foreign work and
+  push the updated branch before merging. After a parent merges, fetch its
+  updated target and reconcile the remaining stack bottom first.
 - All required checks must pass on the updated revision, including documented
   local checks when hosted CI is absent. Do not merge with failed, pending,
   missing or stale required results. If the target branch advances, update
-  again and refresh affected verification and review.
+  again and refresh affected verification and review. Bind receipts to the
+  exact target/base SHA, head SHA, tree and complete diff identity, plus relevant
+  source, dependency and configuration inputs, command, result and log location.
+  Reuse a passing check only when its relevant inputs match; a new session alone
+  does not invalidate it. A changed base, head or diff requires current review.
+  Verify the combined stack with the full synthetic suite and strict build;
+  isolated layer checks alone do not prove the integration.
 - Before merge, a reviewer other than the author reviews the current base,
   head and full diff. Required approvals must be current and blocking feedback
   resolved. Assignment is not approval or merge authority.

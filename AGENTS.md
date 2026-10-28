@@ -7,6 +7,9 @@ pull requests are in [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Start every task
 
 - Read [SKILLS.md](SKILLS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+  Repository commit and PR procedures override generic personal skill defaults;
+  explicit user instructions and safety rules still win. Keep private skills
+  and session context local.
 - Confirm the task scope and inspect the branch and working tree. Preserve
   unrelated changes and follow instructions in the target directory.
 - Read the sources for the affected area below. Report conflicting
@@ -125,5 +128,9 @@ encrypted SQLite. The installed app needs no separate browser, terminal or Node.
   fails, stop and report the evidence.
 - Update CHANGELOG.md and the relevant doc. Current facts go in docs/KB.md;
   new decisions go in numbered `docs/adr/` records. Never rewrite accepted ADRs.
+- Follow [PR requirements](CONTRIBUTING.md#pull-requests) for stack dependencies,
+  latest-target fetch/rebase and exact-current-input verification and review.
+  After a fix merges, follow [closure requirements](CONTRIBUTING.md#closing-issues-and-pull-requests)
+  for completion reasons, reciprocal fixing-PR links and cross-forge reconciliation.
 - Report revision, checks run, results and unverified areas. A commit or PR
   is not runtime proof.
