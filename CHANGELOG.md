@@ -12,7 +12,8 @@ unversioned history without treating it as a release record.
 
 ### Changed
 
-- Move conversation history explanations below messages into collapsed details. A single email opens without a duplicate conversation heading; message actions and errors remain available ([#138](https://github.com/collection-of-things/aggregate-mail/issues/138)).
+- A single email opens without a duplicate conversation heading; message actions and errors remain available ([#138](https://github.com/collection-of-things/aggregate-mail/issues/138)).
+
 ### Fixed
 
 - Keep conversation history diagnostics in collapsed details, space message headers into readable rows, and show one applicable read-state action in each mail row ([#138](https://github.com/collection-of-things/aggregate-mail/issues/138)).
