@@ -59,7 +59,9 @@ export function IsolatedMail({ css, children, fallback }: { css: string; childre
     observer?.observe(target!); resize();
     const Observer = (element.ownerDocument.defaultView as Window & typeof globalThis).MutationObserver;
     const themeObserver = new Observer(() => inheritTheme(element, target!));
-    themeObserver.observe(element.ownerDocument.documentElement, { attributes: true, attributeFilter: ['style', 'class', 'data-theme'] });
+    // Preferences live on .app; other theme values can come from any ancestor.
+    for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement)
+      themeObserver.observe(ancestor, { attributes: true, attributeFilter: ['style', 'class', 'data-theme'] });
     doc.addEventListener('load', resize, true);
     doc.defaultView!.addEventListener('keydown', keydown);
     return () => { observer?.disconnect(); themeObserver.disconnect(); doc.removeEventListener('load', resize, true); doc.defaultView?.removeEventListener('keydown', keydown); };

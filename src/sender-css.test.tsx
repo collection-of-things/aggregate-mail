@@ -28,7 +28,7 @@ import { FormattedMail } from "./mail/FormattedMail";
 import { redactPrivateText } from "./privacy";
 
 test("isolated reader binds document, privacy, image consent and keyboard lifetime to the current opening", async () => {
-  const dom = new JSDOM('<!doctype html><main><div id="root"></div></main>', { url: 'https://app.example.test' });
+  const dom = new JSDOM('<!doctype html><main class="app" style="--text-scale:1"><div id="root"></div></main>', { url: 'https://app.example.test' });
   const saved = new Map<string, PropertyDescriptor | undefined>();
   for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true })) {
     saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
@@ -64,6 +64,8 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
     assert.doesNotMatch(frame.contentDocument!.body.innerHTML, /summary/);
     await act(async () => { dom.window.document.documentElement.style.color = 'rgb(10, 20, 30)'; });
     assert.equal(frame.contentDocument!.body.style.getPropertyValue('--reader-foreground'), 'rgb(10, 20, 30)', 'unstyled text follows host theme changes');
+    await act(async () => { dom.window.document.querySelector<HTMLElement>('.app')!.style.setProperty('--text-scale', '1.5'); });
+    assert.equal(frame.contentDocument!.body.style.getPropertyValue('--text-scale'), '1.5', 'open mail follows preference changes on .app');
     const event = new (frame.contentWindow as Window & typeof globalThis).KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
     frame.contentDocument!.body.dispatchEvent(event);
     assert.equal(keys, 1);

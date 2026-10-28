@@ -3203,5 +3203,6 @@ the event. Synthetic parser and mounted lifecycle checks are in
 separate proof. See [ADR 0102](adr/0102-isolated-sender-styles.md).
 
 Isolated sender styles use the host foreground as a low-priority default.
-Sender font sizes and the body default follow `--text-scale`; unhandled Enter
+Sender font sizes and the body default follow `--text-scale`, including changes
+on `.app` while mail stays open; unhandled Enter
 on plain content reaches host shortcuts, while interactive controls keep activation.
