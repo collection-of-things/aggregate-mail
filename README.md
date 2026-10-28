@@ -20,6 +20,10 @@ return to a mail view to update. The current mail view and selected message are
 restored within the same tab. Unknown write outcomes require checking their
 result before manually refreshing; the client never retries them to update.
 
+For Linux host updates from published stable releases, see
+[stable-release web updates](docs/web-updates.md). Deployment templates are
+provided; live activation requires the deployment owner to clear its hold.
+
 This refresh loads a build already installed on the host. It does not download
 releases or change the existing browser sign-in lifetime. Older clients need
 one manual reload to adopt update detection.

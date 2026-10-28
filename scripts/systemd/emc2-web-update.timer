@@ -1,0 +1,11 @@
+[Unit]
+Description=Check for published stable Emc2 web releases
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=15min
+RandomizedDelaySec=60s
+Unit=emc2-web-update.service
+
+[Install]
+WantedBy=timers.target

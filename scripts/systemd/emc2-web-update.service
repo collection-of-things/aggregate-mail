@@ -1,0 +1,15 @@
+[Unit]
+Description=Emc2 published stable-release web update
+
+[Service]
+Type=oneshot
+ExecStart=@NODE@ %h/.local/lib/emc2-web/web-deploy.mjs update
+Environment=PATH=@NODE_BIN@:/usr/local/bin:/usr/bin:/bin
+Environment=MAIL_WEB_PORT=3001
+UMask=0077
+MemoryMax=3G
+MemorySwapMax=0
+TasksMax=256
+TimeoutStartSec=20min
+TimeoutStopSec=10s
+KillMode=control-group

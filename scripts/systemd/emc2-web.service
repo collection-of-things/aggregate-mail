@@ -1,0 +1,19 @@
+[Unit]
+Description=Emc2 protected browser service
+ConditionPathExists=%h/.local/share/emc2-web/current/.web-deployment.json
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.local/share/emc2-web/current
+ExecStart=@NODE@ --import tsx scripts/start-browser.mjs
+Environment=MAIL_WEB_MANAGED=1
+EnvironmentFile=%h/.config/emc2/web.env
+UMask=0077
+KillSignal=SIGUSR2
+KillMode=mixed
+SendSIGKILL=no
+TimeoutStopSec=45s
+Restart=no
+
+[Install]
+WantedBy=default.target
