@@ -6,7 +6,15 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
-- Keep isolated formatted email at the full available message width after mounting, instead of applying the narrower plain-text line limit.
+## 0.2.20 - 2026-10-28
+
+### Fixed
+
+- Keep isolated formatted email at the full available message width after mounting, instead of applying the narrower plain-text line limit ([#157](https://github.com/collection-of-things/aggregate-mail/pull/157)).
+
+### Documentation
+
+- Update the MIT license attribution.
 
 ## 0.2.19 - 2026-10-28
 
