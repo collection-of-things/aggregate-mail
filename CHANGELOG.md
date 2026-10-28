@@ -6,6 +6,8 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+## 0.2.18 - 2026-10-28
+
 ### Added
 
 - Save cached-mail searches and filters as encrypted named views. Open, rename or delete them from Commands; reopening restores the account, mailbox, query, filters and sort. Names and unfocused search text stay hidden in privacy mode ([#57](https://git.cafe/collection-of-devs/aggregate-mail/issues/57)).
