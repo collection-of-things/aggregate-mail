@@ -2936,6 +2936,12 @@ test("saved search views restore query, account, filters and sort through keyboa
     assert.equal(app.button("Relevance filter").textContent, "Medium relevance");
     assert.equal(app.button("Sort mail").textContent, "Oldest");
     await app.click(app.button("Filters"));
+    await app.click(app.button("Contacts"));
+    assert.ok(app.container.querySelector('main[aria-label="Contacts"]'));
+    assert.equal(app.container.querySelector(".save-view-button"), null);
+    await command("Open Private saved query");
+    assert.equal(app.container.querySelector('main[aria-label="Contacts"]'), null);
+    assert.equal(search.value, "subject:first");
     await command("Rename Private saved query");
     const rename = app.container.querySelector<HTMLInputElement>('[aria-label="Rename saved view"] input')!;
     await app.input(rename, "Renamed search");
