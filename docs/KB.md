@@ -3175,3 +3175,29 @@ See [operator setup and recovery](web-updates.md) and
 `scripts/web-deploy.test.mjs`, `scripts/browser-shutdown.test.mjs` and
 `scripts/web-startup.test.mjs`. Live service/timer enablement, OS credential-store
 access and native phone proof remain separate, held operator acceptance.
+
+
+## Isolated sender styles
+
+The formatted reader extracts up to 32,000 bytes of sender style rules from
+bounded HTML. It keeps at most 128 tag/class/id rules and one level of min/max
+width media queries. Declarations pass through the existing resource-free
+mail-style grammar. Attribute/pseudo selectors, external styles and fonts,
+resource URLs, script, positioning and text-hiding rules remain unsupported.
+Class and ID selectors become opaque document-local tokens before rendering.
+
+Mail with supported rules uses a blank sandboxed iframe with only same-origin
+host access. The host portals the existing sanitized React tree into it; it
+never injects sender HTML or enables scripts, forms, popups or top navigation.
+The host installs sanitized CSS through the document stylesheet API without
+relaxing request CSP. The cached/themed fallback remains if style installation
+is unavailable. Mail without supported styles keeps the existing themed reader.
+
+Cross-leaf text redaction, link checks and remote/CID image consent stay in the
+existing formatter. Each document is replaced on message, HTML, privacy or
+image-consent changes. Embedded blob results are bound to exact message and
+attachment metadata. Resize observers and key listeners are removed on cleanup;
+reader shortcuts forward only after the document's own controls can consume
+the event. Synthetic parser and mounted lifecycle checks are in
+`src/sender-css.test.tsx`; native layout and physical keyboard acceptance are
+separate proof. See [ADR 0102](adr/0102-isolated-sender-styles.md).

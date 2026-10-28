@@ -1,7 +1,8 @@
 import { Fragment, createElement, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { imageSource, type MailAttachment } from "../../shared/types";
-import { embeddedImageTypes, mailLink, mailStyle, parseMailContent, privateMailLink, type MailContentNode } from "../../shared/mail-content";
+import { embeddedImageTypes, mailLink, mailStyle, mailStylesheet, parseMailContent, privateMailLink, type MailContentNode } from "../../shared/mail-content";
 import { segmentPrivateParts, type PrivacySegment } from "../privacy";
+import { IsolatedMail } from "./IsolatedMail";
 
 type Props = {
   mailId?: string;
@@ -19,7 +20,9 @@ type Props = {
 // Parent owns opening-specific consent and text redaction. Hooks: formatted-mail,
 // formatted-mail-fallback, formatted-mail-image and formatted-mail-image-placeholder.
 export function FormattedMail({ mailId, attachments = [], html, showImages, renderText, redactText, privacy, privateNames = [], fallbackText = "", fallback }: Props) {
-  const nodes = useMemo(() => typeof html === "string" ? parseMailContent(html) : null, [html]);
+  const stylesheet = useMemo(() => mailStylesheet(html || ""), [html]);
+  const isolated = !!stylesheet.css;
+  const nodes = useMemo(() => typeof html === "string" ? parseMailContent(html, isolated) : null, [html, isolated]);
   const textParts = nodes ? contentParts(nodes) : [];
   const privateParts = privacy ? segmentPrivateParts(textParts, privateNames) : undefined;
   const embeddedFiles = new Map<string, MailAttachment>();
@@ -59,11 +62,13 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
     // Quotes take the app's own inset and bar, so nested replies keep their width.
     if (tag === "blockquote") for (const property of Object.keys(style) as (keyof CSSProperties)[])
       if (/^(margin|padding|border)/.test(property)) delete style[property];
-    delete style.color;
-    style.backgroundColor = "transparent";
-    if (style.borderColor) style.borderColor = "var(--line)";
-    for (const property of ["border", "borderTop", "borderRight", "borderBottom", "borderLeft"] as const) {
-      if (style[property]) style[property] = String(style[property]).replace(/^(\d+(?:\.\d+)?px (?:solid|dashed|dotted) ).+$/, "$1var(--line)");
+    if (!isolated) {
+      delete style.color;
+      style.backgroundColor = "transparent";
+      if (style.borderColor) style.borderColor = "var(--line)";
+      for (const property of ["border", "borderTop", "borderRight", "borderBottom", "borderLeft"] as const) {
+        if (style[property]) style[property] = String(style[property]).replace(/^(\d+(?:\.\d+)?px (?:solid|dashed|dotted) ).+$/, "$1var(--line)");
+      }
     }
     if (tag === "img") {
       // An empty box at the image's size keeps the sender layout; small icon
@@ -85,6 +90,10 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
         <ImagePlaceholder key={key} style={style} reason="Unsupported image." />;
     }
     const props: Record<string, unknown> = { key, style };
+    if (isolated) {
+      props.className = (a.class || "").split(/\s+/).map(name => stylesheet.identifiers.get('.' + name)).filter(Boolean).join(' ') || undefined;
+      props.id = stylesheet.identifiers.get('#' + a.id);
+    }
     let element = tag === "font" ? "span" : tag === "center" ? "div" : tag;
     if (tag === "a") {
       const href = mailLink(a.href || "");
@@ -93,6 +102,9 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
         // Card-style links set no decoration; plain links keep an underline.
         style.textDecoration ??= "underline";
         Object.assign(props, { href, target: "_blank", rel: "noopener noreferrer", referrerPolicy: "no-referrer" });
+        if (isolated) props.onClick = (event: { preventDefault: () => void }) => {
+          event.preventDefault(); window.open(href, "_blank", "noopener,noreferrer");
+        };
       }
       else element = "span";
     }
@@ -116,10 +128,12 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
     return createElement(element, props, content);
   };
   const formatted = !!nodes && !!(textParts.join("").trim() || hasImage(nodes, attachments));
-  return <div className={formatted ? "formatted-mail" : "formatted-mail formatted-mail-fallback"}
+  const body = <div className={formatted ? "formatted-mail" : "formatted-mail formatted-mail-fallback"}
     style={{ maxWidth: "100%", minWidth: 0, overflow: "auto", overflowWrap: formatted ? "break-word" : "anywhere", contain: "layout paint", isolation: "isolate", whiteSpace: formatted ? "normal" : "pre-wrap" }}>
     {formatted ? nodes.map(render) : fallback ?? renderText(fallbackText)}
   </div>;
+  return isolated && formatted ? <IsolatedMail key={JSON.stringify([mailId, html, privacy, showImages])} css={stylesheet.css}
+    fallback={<div className="formatted-mail formatted-mail-fallback">{fallback ?? renderText(fallbackText || textParts.join(''))}</div>}>{body}</IsolatedMail> : body;
 }
 
 // Holds a blocked image's place at its own size (24px when unsized); the reason
@@ -142,14 +156,15 @@ function embeddedAttachment(source: string, attachments: readonly MailAttachment
 type EmbeddedSource = { src?: string; failed?: boolean };
 // One fetch/blob per unique referenced attachment, shared by all image occurrences.
 function useEmbeddedImages(mailId: string | undefined, files: readonly MailAttachment[]) {
-  const [sources, setSources] = useState<Record<string, EmbeddedSource>>({});
   // The value key avoids re-fetches when parent renders recreate the same metadata.
   const fileKey = JSON.stringify(files.map(({ id, size, contentType }) => ({ id, size, contentType })));
+  const binding = JSON.stringify([mailId, fileKey]);
+  const [state, setState] = useState<{ binding: string; sources: Record<string, EmbeddedSource> }>({ binding, sources: {} });
   useEffect(() => {
     let active = true;
     const urls: string[] = [];
     const controller = new AbortController();
-    setSources({});
+    setState({ binding, sources: {} });
     if (mailId) for (const file of files) void (async () => {
       const response = await fetch(`/api/messages/${encodeURIComponent(mailId)}/attachments/${encodeURIComponent(file.id)}`, { signal: controller.signal });
       if (!response.ok) throw new Error("Embedded image unavailable");
@@ -158,11 +173,11 @@ function useEmbeddedImages(mailId: string | undefined, files: readonly MailAttac
       if (!active) return;
       const src = URL.createObjectURL(new Blob([bytes], { type: file.contentType.toLowerCase() }));
       urls.push(src);
-      setSources((current) => ({ ...current, [file.id]: { src } }));
-    })().catch(() => { if (active) setSources((current) => ({ ...current, [file.id]: { failed: true } })); });
+      setState((current) => ({ binding, sources: { ...current.sources, [file.id]: { src } } }));
+    })().catch(() => { if (active) setState((current) => ({ binding, sources: { ...current.sources, [file.id]: { failed: true } } })); });
     return () => { active = false; controller.abort(); urls.forEach((url) => URL.revokeObjectURL(url)); };
-  }, [mailId, fileKey]);
-  return sources;
+  }, [mailId, fileKey, binding]);
+  return state.binding === binding ? state.sources : {};
 }
 
 function FormattedImage({ src, alt, style }: { src: string; alt: string; style: CSSProperties }) {

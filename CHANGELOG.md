@@ -37,6 +37,8 @@ unversioned history without treating it as a release record.
 
 - Allow macOS updates from a read-only launch copy when exactly one canonical, writable Applications installation matches the running bundle. Recheck its digest before replacement without changing quarantine or Gatekeeper.
 
+- Preserve supported sender colors, class-based columns and responsive width rules in an isolated email document. Scripts, remote styles and fonts remain blocked; privacy and per-opening image consent still apply ([#135](https://github.com/collection-of-things/aggregate-mail/issues/135)).
+
 ### Documentation
 
 - Clarify canonical contribution targets, stack dependencies, latest-target rebases,
@@ -44,6 +46,7 @@ unversioned history without treating it as a release record.
   links across GitHub and git.cafe. Repository contribution procedures take
   precedence over generic personal skill defaults.
 - Add README instructions for saved search views, Contacts imports and reviewed unsubscribe actions, and update the product capability summary.
+
 
 ## 0.2.18 - 2026-10-28
 
