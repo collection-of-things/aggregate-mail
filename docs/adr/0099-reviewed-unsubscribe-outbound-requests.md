@@ -1,4 +1,4 @@
-# ADR 0097: Reviewed unsubscribe and outbound requests
+# ADR 0099: Reviewed unsubscribe and outbound requests
 
 Date: 2026-10-28
 Status: Implemented for review for issue #58; installed acceptance pending.

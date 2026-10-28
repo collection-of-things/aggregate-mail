@@ -46,7 +46,7 @@ the system browser controls its subsequent requests and redirects.
 Headers are sender-supplied, with no DKIM authentication claim. Unknown request
 outcomes are explained and never retried automatically. This does not manage
 subscriptions or change local mail/category state. Details and limits are in
-[ADR 0097](adr/0097-reviewed-unsubscribe-outbound-requests.md).
+[ADR 0099](adr/0099-reviewed-unsubscribe-outbound-requests.md).
 Synthetic parsing, service and mounted reader checks live in
 `server/unsubscribe.test.ts` and `src/unsubscribe.test.tsx`. Real unsubscribe
 delivery, provider-header availability and installed browser handoff require
