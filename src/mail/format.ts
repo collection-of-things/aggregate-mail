@@ -1,6 +1,6 @@
 import type { MailLocation } from "../navigation";
 import { inboxTabs, type InboxTab } from "../../shared/inbox-tabs";
-import { Archive, Bell, Clock, Inbox, Megaphone, Newspaper, Receipt, Users, Check, Reply, Calendar } from "../ui/icons";
+import { Archive, Bell, Clock, Inbox, Megaphone, Newspaper, Receipt, Users, Check, Reply, Calendar, Folder, Cpu, MailStack } from "../ui/icons";
 
 export type View = MailLocation["view"];
 export const viewOrder: View[] = ["actions", "calendar", "projects", "agents", "contacts", "inbox", "snoozed", "archive", "sent", "all", "drafts"];
@@ -8,14 +8,14 @@ export const viewOrder: View[] = ["actions", "calendar", "projects", "agents", "
 export const sidebarViews = [
   { view: "actions", Icon: Check },
   { view: "calendar", Icon: Calendar },
-  { view: "projects", Icon: Users },
-  { view: "agents", Icon: Users },
+  { view: "projects", Icon: Folder },
+  { view: "agents", Icon: Cpu },
   { view: "contacts", Icon: Users },
   { view: "inbox", Icon: Inbox },
   { view: "snoozed", Icon: Clock },
   { view: "archive", Icon: Archive },
   { view: "sent", Icon: Reply },
-  { view: "all", Icon: Inbox },
+  { view: "all", Icon: MailStack },
 ] as const;
 
 export const viewNames: Record<View, string> = {

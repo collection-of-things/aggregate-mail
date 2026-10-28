@@ -6,6 +6,11 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Fixed
+
+- Restore visible shared-button styling for custom-theme actions, including Create theme and Import theme.
+- Give Projects, Agent review and All cached distinct sidebar icons so they are easier to distinguish from Contacts, Inbox and Drafts.
+
 ## 0.2.18 - 2026-10-28
 
 ### Added

@@ -1730,6 +1730,17 @@ until the state response supplies a count, then shows zero when empty.
 
 ## V2 persistent navigation and Settings
 
+Custom-theme library, editor, import and delete actions use the shared `button`
+class for their visible fill, border and spacing. The obsolete `btn` class has
+no styles and must not be used for these controls.
+
+Primary sidebar destinations use distinct outline glyphs. Projects uses a
+folder, Agent review a CPU, Contacts people and All cached stacked mail.
+Inbox retains its tray and Drafts its envelope. Icons inherit currentColor,
+render at 16px and stay hidden from assistive technology and keyboard focus.
+`src/navigation.test.tsx` checks the rendered destinations for glyph uniqueness
+and this SVG contract.
+
 The sidebar remains visible in Settings, with its Settings action at the bottom.
 `SettingsPage` owns a ten-section rail and per-section explanations. Section IDs
 are unchanged. Visible `Segmented` controls replace Settings dropdowns and BYOK
