@@ -7,7 +7,7 @@ import type { MailLocation } from "../navigation";
 import { collectPrivateNames, redactPrivateText } from "../privacy";
 import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
 import type { MenuAction } from "../ui/ContextMenu";
-import { Archive, Check, Clock, Inbox, More, Pin, Reply, Trash } from "../ui/icons";
+import { Archive, Check, Clock, Inbox, Mail as MailIcon, More, Pin, Reply, Trash } from "../ui/icons";
 import { Avatar } from "./Avatar";
 import { relative, shortLabel } from "./format";
 import { BulkSelectionContext, selectionKey } from "./bulk-selection";
@@ -15,7 +15,7 @@ import { accountLabel } from "../mail-ui";
 
 type RowLayout = "inline" | "stacked" | "brief" | "card";
 type RowAction = Omit<MenuAction, "run"> & { run: (event: MouseEvent<HTMLButtonElement>) => void };
-const rowIcons = { unread: Check, inbox: Inbox, read: Check, snooze: Clock, unsnooze: Inbox, reply: Reply, archive: Archive, pin: Pin, trash: Trash };
+const rowIcons = { unread: MailIcon, inbox: Inbox, read: Check, snooze: Clock, unsnooze: Inbox, reply: Reply, archive: Archive, pin: Pin, trash: Trash };
 
 /**
  * Mail rows under sticky date headings. Wide lists keep sender and subject on
@@ -138,6 +138,7 @@ export function MailList<T extends Mail>({
           </button>
           <div className="row-actions" role="group" aria-label="Email actions">
             {actions?.(m).filter((action) => action.id in rowIcons &&
+              !(action.id === "read" && !m.unread) && !(action.id === "unread" && m.unread) &&
               !(action.id === "snooze" && m.snoozedUntil && m.snoozedUntil > Date.now())).map((action) => {
               const Icon = rowIcons[action.id as keyof typeof rowIcons];
               return <button key={action.id} type="button" aria-label={action.label}

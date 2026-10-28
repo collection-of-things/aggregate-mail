@@ -32,6 +32,11 @@ for (const gmail of [true, false]) test(`${gmail ? "Gmail" : "IMAP"} inline stac
   const cards = () => [...container.querySelectorAll<HTMLElement>('.conversation-message')];
   try {
     await render();
+    const details = container.querySelector<HTMLDetailsElement>(".conversation-details");
+    assert.ok(details, "history diagnostics belong in a disclosure");
+    assert.equal(details.open, false, "diagnostics start collapsed");
+    assert.ok(details.querySelector(".conversation-coverage"));
+    assert.ok(details.textContent!.includes("Sent coverage is bounded"));
     assert.deepEqual(cards().map(node => node.dataset.messageId), [older.id, base.id, latest.id]);
     assert.deepEqual(toggles().map(node => node.getAttribute('aria-expanded')), ["false", "true", "false"]);
     assert.match(container.textContent!, /Older or Sent messages may be missing/);

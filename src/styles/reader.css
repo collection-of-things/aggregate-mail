@@ -252,7 +252,21 @@ article.message {
 
 .conversation-reader { min-width: 0; }
 .conversation-coverage { color: var(--text-3); }
-.conversation-message { border-top: 1px solid var(--line); padding-block: 8px; }
-.conversation-toggle { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; width: 100%; text-align: left; background: transparent; color: inherit; border: 0; padding: 6px; cursor: pointer; }
-.conversation-toggle:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
-.conversation-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 80px; }
+.conversation-details { margin: 12px 20px 20px; color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); overflow-wrap: anywhere; }
+.conversation-details summary { cursor: pointer; padding-block: 6px; }
+.conversation-details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.conversation-details p { margin-block: 8px; }
+.conversation-error { margin: 12px 20px; }
+.conversation-message { border-top: 1px solid var(--line); }
+.conversation-message:first-child { border-top: 0; }
+.conversation-header { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; padding: 10px 20px; }
+.conversation-toggle { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px 12px; flex: 1 1 240px; min-width: 0; text-align: left; background: transparent; color: inherit; border: 0; padding: 4px 0; cursor: pointer; }
+.conversation-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.conversation-sender, .conversation-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.conversation-sender { font-weight: 600; }
+.conversation-toggle time, .conversation-state { color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
+.conversation-toggle time { text-align: right; }
+.conversation-snippet { color: var(--text-2); font-size: calc(12px * var(--text-scale, 1)); }
+.conversation-state { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.conversation-state strong { font-weight: 500; color: var(--text-2); }
+.conversation-select { padding: 6px 0; font-size: calc(11px * var(--text-scale, 1)); }

@@ -135,3 +135,12 @@ test('the rendered row layout and the windowing height agree for every sizing co
   }finally{await ui.close();}
  }
 });
+
+for (const unread of [true, false]) test(`row offers only the applicable read-state action: unread=${unread}`, () => {
+ const html = renderToStaticMarkup(<MailList messages={[{...mail, unread}]} selectedId={undefined} density="comfortable" narrow={false} sort="newest" opening="double" accounts={[]} listRef={{current:null}} focusSelection={false} onOpen={()=>{}} onSelect={()=>{}} onMenu={()=>{}} onMenuKey={()=>{}} actions={() => [
+  {id:'read', label:'Mark as read', disabled:!unread, run(){}},
+  {id:'unread', label:'Mark as unread', disabled:unread, run(){}},
+ ]} />);
+ assert.equal(html.includes('aria-label="Mark as read"'), unread);
+ assert.equal(html.includes('aria-label="Mark as unread"'), !unread);
+});
