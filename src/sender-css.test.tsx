@@ -18,6 +18,7 @@ test("sender CSS rejects active features, private attribute selectors, escapes a
   assert.doesNotMatch(result.css, /https|url|import|font-face|position|z-index|none|hidden|opacity|content|private|visited|escaped|font-size/);
   assert.equal(content.mailStylesheet('<style>' + 'x'.repeat(content.MAIL_HTML_LIMIT) + '</style>').css, '');
   assert.equal(content.mailStylesheet('<style>private-name {color:red}</style>').css, '', 'unknown tag selectors cannot carry sender metadata');
+  assert.equal(content.mailStylesheet('<style>#1234567890 {color:red}</style>').css, '', 'unsupported numeric identifiers cannot retain sender metadata');
 });
 
 import { act } from "react";

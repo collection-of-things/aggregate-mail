@@ -197,6 +197,7 @@ export function mailStylesheet(html: string) {
   ).map(([name, value]) => `${name.replace(/[A-Z]/g, letter => '-' + letter.toLowerCase())}:${value}`).join(';');
   const selector = (raw: string) => {
     if (raw.length > 500 || !/^[a-zA-Z0-9_.#*\s,>+~-]+$/.test(raw) || !raw.trim()) return null;
+    if (raw.trim().split(/[\s,>+~]+/).some(part => !/^(?:[a-zA-Z][\w-]*|\*)?(?:[.#][a-zA-Z_][\w-]*)*$/.test(part))) return null;
     let valid = true;
     const result = raw.trim().replace(/([.#]?)([a-zA-Z_][\w-]*)/g, (key: string, prefix: string, name: string) => {
       if (!prefix) {
