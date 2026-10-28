@@ -59,6 +59,9 @@ export function IsolatedMail({ css, children, fallback }: { css: string; childre
     observer?.observe(target!); resize();
     const Observer = (element.ownerDocument.defaultView as Window & typeof globalThis).MutationObserver;
     const themeObserver = new Observer(() => inheritTheme(element, target!));
+    // React can replace this subscription before queued mutations arrive.
+    // Every subscription starts from the current inherited snapshot.
+    inheritTheme(element, target!);
     // Preferences live on .app; other theme values can come from any ancestor.
     for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement)
       themeObserver.observe(ancestor, { attributes: true, attributeFilter: ['style', 'class', 'data-theme'] });

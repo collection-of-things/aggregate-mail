@@ -28,7 +28,7 @@ import { FormattedMail } from "./mail/FormattedMail";
 import { redactPrivateText } from "./privacy";
 
 test("isolated reader binds document, privacy, image consent and keyboard lifetime to the current opening", async () => {
-  const dom = new JSDOM('<!doctype html><main class="app" style="--text-scale:1"><div id="root"></div></main>', { url: 'https://app.example.test' });
+  const dom = new JSDOM('<!doctype html><main><div id="root"></div></main>', { url: 'https://app.example.test' });
   const saved = new Map<string, PropertyDescriptor | undefined>();
   for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true })) {
     saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
@@ -36,10 +36,10 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
   }
   const root = createRoot(dom.window.document.getElementById('root')!);
   const html = '<style>body{color:#111;background-color:#fff}.summary {color:#123456;background-color:white;width:600px} .photo{width:120px} #undefined{color:red} @media (max-width:600px){.summary{width:100%}}</style><p class="summary">Hello Morgan Example</p><img class="photo" src="https://images.example.test/public.png"><img src="https://images.example.test/Morgan%20Example.png">';
-  const update = async (id: string, privacy: boolean, showImages: boolean) => {
-    await act(async () => root.render(<FormattedMail mailId={id} html={html} showImages={showImages} privacy={privacy} privateNames={['Morgan Example']}
+  const update = async (id: string, privacy: boolean, showImages: boolean, scale = 1) => {
+    await act(async () => root.render(<div className="app" style={{ "--text-scale": scale } as import("react").CSSProperties}><FormattedMail mailId={id} html={html} showImages={showImages} privacy={privacy} privateNames={['Morgan Example']}
       renderText={(text) => privacy ? redactPrivateText(text, ['Morgan Example']) : text}
-      redactText={(text) => privacy ? redactPrivateText(text, ['Morgan Example']) : text} />));
+      redactText={(text) => privacy ? redactPrivateText(text, ['Morgan Example']) : text} /></div>));
   };
   let keys = 0;
   const handler = (event: KeyboardEvent) => { if (event.key === 'Escape' || event.key === 'Enter') { keys++; event.preventDefault(); } };
@@ -66,6 +66,9 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
     assert.equal(frame.contentDocument!.body.style.getPropertyValue('--reader-foreground'), 'rgb(10, 20, 30)', 'unstyled text follows host theme changes');
     await act(async () => { dom.window.document.querySelector<HTMLElement>('.app')!.style.setProperty('--text-scale', '1.5'); });
     assert.equal(frame.contentDocument!.body.style.getPropertyValue('--text-scale'), '1.5', 'open mail follows preference changes on .app');
+    await update('one', false, false, 1.25);
+    assert.equal(dom.window.document.querySelector('iframe'), frame, 'React scale update keeps the same opening');
+    assert.equal(frame.contentDocument!.body.style.getPropertyValue('--text-scale'), '1.25', 'React rerender refreshes inherited values even when queued mutations are discarded');
     const event = new (frame.contentWindow as Window & typeof globalThis).KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
     frame.contentDocument!.body.dispatchEvent(event);
     assert.equal(keys, 1);
