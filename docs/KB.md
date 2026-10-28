@@ -3128,3 +3128,14 @@ establish installed dialogs, native portability or live-provider behavior.
 Refusing busy attachment work before admission is a preflight failure, not
 unknown delivery. Scheduled sends release their byte holds without contacting
 the provider; errors after submission keep existing uncertainty handling.
+
+## About version and update status
+
+Settings, About and storage displays the bundled package version. Browser
+sessions also show the first eight characters of their stamped build ID and
+compare the full ID with the authenticated, uncached host session response.
+A matching build means current on that host, not necessarily the latest public
+release. Missing metadata, failed checks and unauthenticated responses cannot
+claim freshness. A changed build uses the existing guarded browser update
+notice; Settings must close before refreshing. Desktop sessions read and check
+the existing update bridge without downloading or installing from Settings.

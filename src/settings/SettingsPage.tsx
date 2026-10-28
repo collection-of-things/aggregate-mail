@@ -15,6 +15,7 @@ import { redactPrivateText } from "../privacy";
 import { ProviderChoices, type ImapProvider } from "../dialogs/ConnectDialog";
 import { ProviderIcon } from "../mail/Avatar";
 import { relevanceNames } from "../mail/format";
+import { AboutVersion } from "./AboutVersion";
 import { aboutStorageSentence } from "../shell/CredentialFallbackNotice";
 import { PrivacyContext, Redact } from "../ui/Privacy";
 import { Segmented } from "../ui/Segmented";
@@ -361,6 +362,7 @@ export function SettingsPage({
         {section === "about" && <WorkspaceBackup api={api} perform={perform} busy={busy} />}
         {section === "about" && <section>
           <dl className="settings-facts settings-group">
+            <AboutVersion />
             <div><dt>Storage</dt><dd>{aboutStorageSentence(window.desktop?.credentialFallback)}.</dd></div>
             <div><dt>Sync</dt><dd>IMAP watches for changes. Gmail checks every 15 seconds, with periodic full sync for recovery.</dd></div>
             <div><dt>Closing</dt><dd>Closing the desktop window keeps it running in the tray. Use Quit in the tray menu to exit.</dd></div>
