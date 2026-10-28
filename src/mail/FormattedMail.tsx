@@ -4,6 +4,8 @@ import { embeddedImageTypes, mailLink, mailStyle, mailStylesheet, parseMailConte
 import { segmentPrivateParts, type PrivacySegment } from "../privacy";
 import { IsolatedMail } from "./IsolatedMail";
 
+type Presentation = { className?: string; id?: string };
+
 type Props = {
   mailId?: string;
   attachments?: readonly MailAttachment[];
@@ -70,30 +72,30 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
         if (style[property]) style[property] = String(style[property]).replace(/^(\d+(?:\.\d+)?px (?:solid|dashed|dotted) ).+$/, "$1var(--line)");
       }
     }
+    const presentation: Presentation = isolated ? {
+      className: (a.class || "").split(/\s+/).map(name => stylesheet.identifiers.get('.' + name)).filter(Boolean).join(' ') || undefined,
+      id: a.id ? stylesheet.identifiers.get('#' + a.id) : undefined,
+    } : {};
     if (tag === "img") {
       // An empty box at the image's size keeps the sender layout; small icon
       // cells would otherwise wrap the reason one letter per line.
-      if (!showImages) return <ImagePlaceholder key={key} style={style} reason="Image blocked. Use Show images to load it." />;
+      if (!showImages) return <ImagePlaceholder {...presentation} key={key} style={style} reason="Image blocked. Use Show images to load it." />;
       const cid = /^cid:(.+)$/i.exec(a.src || "")?.[1];
       const embedded = embeddedAttachment(a.src || "", attachments);
       if (cid && privacy && privateMailLink(a.src, redactText))
-        return <ImagePlaceholder key={key} style={style} reason="Image unavailable while personal information is hidden." />;
+        return <ImagePlaceholder {...presentation} key={key} style={style} reason="Image unavailable while personal information is hidden." />;
       if (embedded && mailId) {
         const source = embeddedSources[embedded.id];
-        return source?.src ? <FormattedImage key={`${key}:${source.src}`} src={source.src} alt={redactText(a.alt || "").slice(0, 500)} style={style} /> :
-          <ImagePlaceholder key={key} style={style} reason={source?.failed ? "Embedded image could not be loaded." : "Loading embedded image…"} />;
+        return source?.src ? <FormattedImage {...presentation} key={`${key}:${source.src}`} src={source.src} alt={redactText(a.alt || "").slice(0, 500)} style={style} /> :
+          <ImagePlaceholder {...presentation} key={key} style={style} reason={source?.failed ? "Embedded image could not be loaded." : "Loading embedded image…"} />;
       }
       const src = imageSource(a.src || "");
       if (privacy && (privateMailLink(a.src || "", redactText) || (src && privateMailLink(src, redactText))))
-        return <ImagePlaceholder key={key} style={style} reason="Image unavailable while personal information is hidden." />;
-      return src ? <FormattedImage key={`${key}:${src}`} src={src} alt={redactText(a.alt || "").slice(0, 500)} style={style} /> :
-        <ImagePlaceholder key={key} style={style} reason="Unsupported image." />;
+        return <ImagePlaceholder {...presentation} key={key} style={style} reason="Image unavailable while personal information is hidden." />;
+      return src ? <FormattedImage {...presentation} key={`${key}:${src}`} src={src} alt={redactText(a.alt || "").slice(0, 500)} style={style} /> :
+        <ImagePlaceholder {...presentation} key={key} style={style} reason="Unsupported image." />;
     }
-    const props: Record<string, unknown> = { key, style };
-    if (isolated) {
-      props.className = (a.class || "").split(/\s+/).map(name => stylesheet.identifiers.get('.' + name)).filter(Boolean).join(' ') || undefined;
-      props.id = stylesheet.identifiers.get('#' + a.id);
-    }
+    const props: Record<string, unknown> = { key, style, ...presentation };
     let element = tag === "font" ? "span" : tag === "center" ? "div" : tag;
     if (tag === "a") {
       const href = mailLink(a.href || "");
@@ -138,8 +140,8 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
 
 // Holds a blocked image's place at its own size (24px when unsized); the reason
 // is a label and tooltip because a small icon cell cannot fit it as text.
-function ImagePlaceholder({ style, reason }: { style: CSSProperties; reason: string }) {
-  return <span className="formatted-mail-image-placeholder" role="img" aria-label={reason} title={reason}
+function ImagePlaceholder({ style, reason, className, id }: { style: CSSProperties; reason: string } & Presentation) {
+  return <span id={id} className={["formatted-mail-image-placeholder", className].filter(Boolean).join(" ")} role="img" aria-label={reason} title={reason}
     style={{ width: style.width ?? 24, height: style.height ?? 24, maxHeight: style.maxHeight }} />;
 }
 
@@ -180,17 +182,17 @@ function useEmbeddedImages(mailId: string | undefined, files: readonly MailAttac
   return state.binding === binding ? state.sources : {};
 }
 
-function FormattedImage({ src, alt, style }: { src: string; alt: string; style: CSSProperties }) {
+function FormattedImage({ src, alt, style, ...presentation }: { src: string; alt: string; style: CSSProperties } & Presentation) {
   const [status, setStatus] = useState("loading");
   // `display: contents` keeps the image in the sender's line, so its own
   // vertical-align and float apply as they would in a mail client.
   return <span className="formatted-mail-image" style={{ display: "contents" }}>
-    {status !== "error" && <img src={src} alt={alt} referrerPolicy="no-referrer" decoding="async" loading="lazy"
+    {status !== "error" && <img {...presentation} src={src} alt={alt} referrerPolicy="no-referrer" decoding="async" loading="lazy"
       // With a width, auto height keeps the shape when max-width narrows it;
       // icons sized only by height keep that height.
       style={{ ...style, maxWidth: "100%", height: style.width || !style.height ? "auto" : style.height }}
       onLoad={() => setStatus("loaded")} onError={() => setStatus("error")} />}
-    {status === "error" && <ImagePlaceholder style={style} reason="Image could not be loaded." />}
+    {status === "error" && <ImagePlaceholder {...presentation} style={style} reason="Image could not be loaded." />}
   </span>;
 }
 

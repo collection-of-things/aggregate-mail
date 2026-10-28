@@ -34,7 +34,7 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
     Object.defineProperty(globalThis, key, { value, configurable: true });
   }
   const root = createRoot(dom.window.document.getElementById('root')!);
-  const html = '<style>.summary {color:#123456;background-color:white;width:600px} @media (max-width:600px){.summary{width:100%}}</style><p class="summary">Hello Morgan Example</p><img src="https://images.example.test/public.png"><img src="https://images.example.test/Morgan%20Example.png">';
+  const html = '<style>.summary {color:#123456;background-color:white;width:600px} .photo{width:120px} #undefined{color:red} @media (max-width:600px){.summary{width:100%}}</style><p class="summary">Hello Morgan Example</p><img class="photo" src="https://images.example.test/public.png"><img src="https://images.example.test/Morgan%20Example.png">';
   const update = async (id: string, privacy: boolean, showImages: boolean) => {
     await act(async () => root.render(<FormattedMail mailId={id} html={html} showImages={showImages} privacy={privacy} privateNames={['Morgan Example']}
       renderText={(text) => privacy ? redactPrivateText(text, ['Morgan Example']) : text}
@@ -52,6 +52,7 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
     assert.equal(dom.window.document.querySelector('style'), null, 'sender CSS never enters host document');
     assert.equal(frame.contentDocument!.querySelector('p')?.textContent, 'Hello Morgan Example');
     assert.equal(frame.contentDocument!.querySelectorAll('img').length, 0);
+    assert.equal(frame.contentDocument!.querySelector('p')?.hasAttribute('id'), false, 'absent ids cannot match a sender selector');
     assert.doesNotMatch(frame.contentDocument!.body.innerHTML, /summary/);
     const event = new (frame.contentWindow as Window & typeof globalThis).KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
     frame.contentDocument!.body.dispatchEvent(event);
@@ -64,6 +65,7 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
     await update('one', true, true);
     frame = dom.window.document.querySelector('iframe')!;
     assert.equal(frame.contentDocument!.querySelectorAll('img').length, 1, 'only consented nonprivate image is admitted');
+    assert.match(frame.contentDocument!.querySelector('img')?.className || '', /^sender-\d+$/, 'image class rules survive consent activation');
     assert.equal(frame.contentDocument!.querySelector('img')?.getAttribute('referrerpolicy'), 'no-referrer');
     await update('two', false, false);
     assert.equal(frame.isConnected, false, 'message changes discard old content and consent presentation');
