@@ -33,7 +33,18 @@ export function PhoneAccessSettings({ api, onCopied }: { api: Api; onCopied: (me
   };
   return <section aria-busy={busy}>
     <h2>Private browser access</h2>
-    <p className="note">Keep Emc² running on this host. Connect your phone to the same Tailscale network, choose Connect phone and scan the QR code. Approve the matching code here, then save a passkey on your phone.</p>
+    <p className="note">Connect once, then open your inbox with your phone’s screen lock.</p>
+    <ol className="note">
+      <li>Keep the browser host running and connect both devices to Tailscale.</li>
+      <li>Enable phone access here, then choose Connect phone.</li>
+      <li>Scan the QR from another screen, or open the setup link on your phone.</li>
+      <li>Compare the code, approve here and save the passkey on your phone.</li>
+    </ol>
+    {status && !status.supported && <div className="settings-group">
+      <h3>Start the browser host first</h3>
+      <p className="note">Phone access uses the protected browser host, not the desktop app. Start it using the Local browser access instructions in the README, then open its localhost address and unlock with your recovery passphrase. Return to Settings → Phone access there.</p>
+      <p className="note">The browser host has a separate encrypted profile. Your desktop accounts do not move automatically.</p>
+    </div>}
     <p role="status">{busy ? "Checking phone access…" : status?.message}</p>
     {error && <p role="alert">{error}</p>}
     {status?.url && status.state === "ready" && !busy && <div className="settings-group">

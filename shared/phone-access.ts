@@ -9,6 +9,6 @@ export type PhoneAccessStatus = {
 };
 
 export type PairedPhone = { id: string; name: string; createdAt: number };
-export type PhonePairing = { id: string; expiresAt: number; phase: "waiting" | "claimed" | "approved" | "complete"; code?: string; qr?: string };
+export type PhonePairing = { id: string; expiresAt: number; phase: "waiting" | "claimed" | "approved" | "complete"; code?: string; qr?: string; url?: string };
 export type PhoneDevices = { devices: PairedPhone[]; pairing?: PhonePairing };
-export type PhoneCredential = PairedPhone & { origin: string; publicKey: string; counter: number; userId: string; transports?: string[] };
+export type PhoneCredential = PairedPhone & { origin: string; publicKey: string; counter: number; userId: string; transports?: string[]; browserTokens?: string[] };

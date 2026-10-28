@@ -38,7 +38,7 @@ test("Settings shows QR only outside Privacy, approves the matching code and rev
       if (route.endsWith("/approve")) phase = "approved";
       if (route.endsWith("/revoke")) devices = [];
       if (route.endsWith("/cancel")) phase = undefined;
-      return { devices, ...(phase ? { pairing: { id: "synthetic-pairing", phase, expiresAt: Date.now() + 120000, code: phase === "waiting" ? undefined : "123456", ...(route.endsWith("/connect") ? { qr: "data:image/png;base64,c3ludGhldGlj" } : {}) } } : {}) } as T;
+      return { devices, ...(phase ? { pairing: { id: "synthetic-pairing", phase, expiresAt: Date.now() + 120000, code: phase === "waiting" ? undefined : "123456", ...(route.endsWith("/connect") ? { qr: "data:image/png;base64,c3ludGhldGlj", url: "https://mail.synthetic-tailnet.ts.net:8444/auth/pair#synthetic-invitation" } : {}) } } : {}) } as T;
     };
     const previous = Object.getOwnPropertyDescriptor(globalThis, "confirm");
     Object.defineProperty(globalThis, "confirm", { configurable: true, value: () => true });
@@ -48,9 +48,11 @@ test("Settings shows QR only outside Privacy, approves the matching code and rev
       await render(ui(false));
       await act(async () => button("Connect phone").click());
       assert.ok(document.querySelector('img[alt="Scan to connect this phone"]'));
+      assert.equal(document.querySelector('a')?.getAttribute("href"), "https://mail.synthetic-tailnet.ts.net:8444/auth/pair#synthetic-invitation");
       await render(ui(true));
       assert.equal(document.querySelector("img"), null);
       assert.ok(!document.body.innerHTML.includes("c3ludGhldGlj"));
+      assert.ok(!document.body.innerHTML.includes("synthetic-invitation"));
       phase = "claimed";
       await act(async () => button("Refresh phones").click());
       assert.ok(!document.body.innerHTML.includes("123456"));

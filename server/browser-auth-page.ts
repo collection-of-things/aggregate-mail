@@ -1,0 +1,17 @@
+// These pages load before the application and must not depend on private assets.
+export function browserAuthPage(title: string, content: string) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="color-scheme" content="light dark"><title>${title}</title><link rel="stylesheet" href="/auth/style.css"></head><body><main><header><a class="brand" href="/auth">Emc²</a><span>Private browser access</span></header>${content}<footer>Only devices you approve can open your inbox.</footer></main><script src="/auth/passkey.js" defer></script><script src="/auth/client.js" defer></script></body></html>`;
+}
+
+export const browserAuthStyles = `
+:root{color-scheme:light dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;background:#f5f5f7;color:#17171a;font-synthesis:none;--muted:#606067;--line:#d8d8de;--surface:#fff;--accent:#245bd6}
+*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:32px max(24px,env(safe-area-inset-right)) 32px max(24px,env(safe-area-inset-left));font-size:16px;line-height:1.55}
+main{width:100%;max-width:420px}header{display:flex;align-items:center;gap:16px;margin-bottom:48px}header span{font-size:12px;color:var(--muted);border-left:1px solid var(--line);padding-left:16px}.brand{font-size:25px;font-weight:700;letter-spacing:-1px;text-decoration:none;color:inherit}
+h1{font-size:32px;line-height:1.15;letter-spacing:-1px;font-weight:650;margin:0 0 16px}p{margin:0 0 24px;color:var(--muted)}a{color:var(--accent);text-underline-offset:4px}button,.primary{display:block;width:100%;min-height:48px;border:1px solid transparent;border-radius:12px;background:var(--accent);color:#fff;font-family:inherit;font-size:16px;font-weight:600;line-height:1.4;padding:13px 18px;cursor:pointer;text-align:center;text-decoration:none}
+button:disabled{opacity:.55;cursor:default}button:hover:not(:disabled),.primary:hover{filter:brightness(1.08)}:focus-visible{outline:3px solid var(--accent);outline-offset:4px}input{display:block;width:100%;min-height:48px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:inherit;font:inherit;margin:8px 0 20px}label{font-weight:600;font-size:14px}
+#passkey-status{margin:20px 0;min-height:24px}#pair-code:empty{display:none}#pair-code{padding:18px;border-block:1px solid var(--line);font-size:24px;letter-spacing:3px;color:inherit;text-align:center;font-variant-numeric:tabular-nums}
+.steps{padding-left:24px;color:var(--muted);font-size:15px}.steps li{padding-left:4px;margin:12px 0}.secondary{display:block;text-align:center;margin-top:24px;font-size:14px}details{border-top:1px solid var(--line);padding-top:24px;margin-top:28px}summary{cursor:pointer;font-weight:600}details p{margin:16px 0;font-size:14px}.hint,footer{font-size:12px;color:var(--muted)}.hint{margin-top:24px}footer{margin-top:48px;border-top:1px solid var(--line);padding-top:20px}[role=alert]{color:#b72c30}
+@media(prefers-color-scheme:dark){:root{background:#111113;color:#f4f4f6;--muted:#a2a2aa;--line:#333338;--surface:#1c1c20;--accent:#8ab0ff}button,.primary{color:#10141e}[role=alert]{color:#ffaaaa}}
+@media(max-width:480px){body{place-items:start center;padding-top:max(40px,env(safe-area-inset-top))}header{margin-bottom:40px}h1{font-size:30px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+`;

@@ -1,7 +1,9 @@
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import express from "express";
+import type { PhoneCredential } from "../shared/phone-access.js";
+import { browserAuthPage, browserAuthStyles } from "./browser-auth-page.js";
 
 export function browserConfiguration(env: NodeJS.ProcessEnv, root = process.cwd()) {
   const password = env.MAIL_WEB_PASSWORD;
@@ -47,9 +49,14 @@ export function tailnetOrigin(value: string) {
 }
 const idleLifetime = 30 * 60_000;
 const totalLifetime = 8 * 60 * 60_000;
+// Browsers cap persistent cookies at 400 days. Active use renews this cookie.
+const deviceCookieLifetime = 400 * 24 * 60 * 60_000;
+const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
+type PairedBrowserStore = { list: () => PhoneCredential[]; save: (credential: PhoneCredential) => void };
 
 export function browserAccess(password: string, origin: string, now = Date.now) {
   const router = express.Router();
+  let pairedBrowsers: PairedBrowserStore | undefined;
   let remoteOrigin: string | undefined;
   let remoteProofUntil = 0;
   let remoteGeneration = 0;
@@ -84,49 +91,63 @@ export function browserAccess(password: string, origin: string, now = Date.now) 
     const token = cookies[0].slice(cookieName.length + 1);
     if (!/^[a-f0-9]{64}$/.test(token)) return;
     const session = sessions.get(token);
-    if (session && session.origin === requestOrigin) return { token, session };
+    if (session && session.origin === requestOrigin) return { token, session, persistent: false };
+    if (requestOrigin?.startsWith("https:")) {
+      const credential = pairedBrowsers?.list().find(value => value.origin === requestOrigin && value.browserTokens?.includes(tokenHash(token)));
+      if (credential) return { token, persistent: true, session: { origin: requestOrigin, credentialId: credential.id, created: 0, touched: 0 } };
+    }
   };
   const authenticated = (req: express.Request, touch = true) => {
     const current = sessionFor(req);
     if (!current) return false;
-    if (touch) current.session.touched = now();
+    if (touch && current.persistent) {
+      const { name, options } = cookie(req);
+      req.res?.cookie(name, current.token, { ...options, maxAge: deviceCookieLifetime });
+    } else if (touch) current.session.touched = now();
     return true;
   };
   const issueSession = (req: express.Request, res: express.Response, credentialId?: string) => {
     expireRemoteSession();
     const requestOrigin = originFor(req);
     if (!requestOrigin) throw new Error("Origin unavailable");
-    // Password logins still rotate other password sessions; each paired phone is independent.
-    for (const [token, session] of sessions) if (session.credentialId === credentialId) sessions.delete(token);
-    if (sessions.size >= 16) sessions.delete(sessions.keys().next().value!);
     const token = randomBytes(32).toString("hex");
-    sessions.set(token, { origin: requestOrigin, credentialId, created: now(), touched: now() });
     const { name, options } = cookie(req);
-    res.cookie(name, token, { ...options, maxAge: totalLifetime });
+    if (credentialId && pairedBrowsers && requestOrigin.startsWith("https:")) {
+      const credential = pairedBrowsers.list().find(value => value.id === credentialId && value.origin === requestOrigin);
+      if (!credential) throw new Error("Paired credential unavailable");
+      const previous = sessionFor(req);
+      const hashes = (credential.browserTokens || []).filter(value => !previous?.persistent || value !== tokenHash(previous.token));
+      if (hashes.length >= 8) throw new Error("Too many trusted browsers for this passkey. Remove this device to reconnect.");
+      pairedBrowsers.save({ ...credential, browserTokens: [...hashes, tokenHash(token)] });
+      res.cookie(name, token, { ...options, maxAge: deviceCookieLifetime });
+    } else {
+      // Recovery-password sessions remain local and short-lived.
+      for (const [value, session] of sessions) if (session.credentialId === credentialId) sessions.delete(value);
+      if (sessions.size >= 16) sessions.delete(sessions.keys().next().value!);
+      sessions.set(token, { origin: requestOrigin, credentialId, created: now(), touched: now() });
+      res.cookie(name, token, { ...options, maxAge: totalLifetime });
+    }
     return requestOrigin;
   };
   const authRouter = express.Router();
   const page = (res: express.Response, unlocked = false, error = "") => {
     const local = originFor(res.req) === origin && res.req.headers.host === new URL(origin).host;
-    return res.type("html").send(`<!doctype html>
-<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Unlock Emc²</title>
-<body><main><h1>${unlocked ? "Emc² is unlocked" : "Unlock Emc²"}</h1>
-<p>${unlocked ? "Lock this browser session when you finish." : "Unlock with a passkey, or use your host recovery passphrase."}</p>
-${unlocked || local ? "" : '<button type="button" id="passkey-unlock">Unlock with passkey</button><p id="passkey-status" role="status"></p><p>First visit? Scan Connect phone in Settings on your host.</p>'}
+    const title = unlocked ? "Emc² is unlocked" : "Unlock Emc²";
+    return res.type("html").send(browserAuthPage(title, `<h1>${title}</h1>
+<p>${unlocked ? "Your inbox is ready on this browser." : local ? "Enter your host recovery passphrase to open your inbox and connect a phone." : "Use your passkey to open your inbox with your screen lock."}</p>
+${unlocked || local ? "" : '<button type="button" id="passkey-unlock">Unlock with passkey</button><p id="passkey-status" role="status" aria-live="polite"></p><button type="button" id="passkey-connect">Connect this device</button><details id="first-time"><summary>Connect a new device</summary><ol class="steps"><li>Connect this device to your Tailscale network.</li><li>On your host, open Settings → Phone access → Connect phone.</li><li>Scan the QR with your camera, or open the setup link on this device.</li><li>Compare the code, approve on the host, then save your passkey.</li></ol><p>Already connected? Use the same browser or password manager where you saved your passkey.</p></details>'}
 ${error ? `<p role="alert">${error}</p>` : ""}
 ${unlocked || local ? `<form method="post" action="/auth/${unlocked ? "lock" : "login"}">
-${unlocked ? '<p><a href="/">Open inbox</a></p>' : '<label for="password">Password</label> <input id="password" name="password" type="password" minlength="16" maxlength="256" autocomplete="current-password" required autofocus>'}
+${unlocked ? '<p><a class="primary" href="/">Open inbox</a></p>' : '<label for="password">Recovery passphrase</label><input id="password" name="password" type="password" minlength="16" maxlength="256" autocomplete="current-password" required autofocus>'}
 <button type="submit">${unlocked ? "Lock inbox" : "Unlock inbox"}</button></form>` : ""}
-<p>Sessions lock after 30 minutes without a request and after eight hours total. To lock now, open <a href="/auth">Browser access</a>.</p>
-<script src="/auth/passkey.js" defer></script>
-<script src="/auth/client.js" defer></script></main></body></html>`);
+<p class="hint">${local ? "Host recovery sessions lock after 30 minutes without activity or eight hours total." : "This browser stays connected until you lock it, remove the device or clear its site data."} <a href="/auth">Browser access</a></p>`));
   };
   router.use((req, res, next) => {
     res.set({
       "Cache-Control": "no-store",
       "Referrer-Policy": "no-referrer",
       "X-Content-Type-Options": "nosniff",
-      "Content-Security-Policy": "default-src 'none'; script-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+      "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
     });
     const requestOrigin = originFor(req);
     res.set("X-Emc2-Browser", "1");
@@ -134,6 +155,7 @@ ${unlocked ? '<p><a href="/">Open inbox</a></p>' : '<label for="password">Passwo
       return res.status(403).type("text").send("Local origin required.");
     next();
   });
+  router.get("/auth/style.css", (_req, res) => res.type("css").send(browserAuthStyles));
   router.use(authRouter);
   router.get("/auth/session", (req, res) => {
     const admitted = authenticated(req, false);
@@ -176,7 +198,10 @@ ${unlocked ? '<p><a href="/">Open inbox</a></p>' : '<label for="password">Passwo
   router.post("/auth/lock", (req, res) => {
     if (!authenticated(req)) return res.status(401).type("text").send("Unlock the inbox first.");
     const current = sessionFor(req);
-    if (current) sessions.delete(current.token);
+    if (current?.persistent) {
+      const credential = pairedBrowsers?.list().find(value => value.id === current.session.credentialId);
+      if (credential) pairedBrowsers!.save({ ...credential, browserTokens: credential.browserTokens?.filter(value => value !== tokenHash(current.token)) });
+    } else if (current) sessions.delete(current.token);
     const { name, options } = cookie(req);
     res.clearCookie(name, options);
     res.redirect(303, "/auth");
@@ -196,9 +221,13 @@ ${unlocked ? '<p><a href="/">Open inbox</a></p>' : '<label for="password">Passwo
   });
   return Object.assign(router, {
     originFor, authRouter, authenticated, issueSession,
+    trustPairedBrowsers(store: PairedBrowserStore) { pairedBrowsers = store; },
     phoneEpoch() { expireRemoteSession(); return remoteGeneration; },
     phoneOrigin() { expireRemoteSession(); return remoteOrigin && now() < remoteProofUntil ? remoteOrigin : undefined; },
-    revokeCredential(id: string) { for (const [token, session] of sessions) if (session.credentialId === id) sessions.delete(token); },
+    revokeCredential(id: string) {
+      const credential = pairedBrowsers?.list().find(value => value.id === id);
+      if (credential) pairedBrowsers!.save({ ...credential, browserTokens: [] });
+      for (const [token, session] of sessions) if (session.credentialId === id) sessions.delete(token); },
     localOrigin: origin,
     setTailnetOrigin(value: string | undefined, validUntil = now() + 60_000) {
       expireRemoteSession();

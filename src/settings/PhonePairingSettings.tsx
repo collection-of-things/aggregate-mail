@@ -16,15 +16,15 @@ export function PhonePairingSettings({ api, canPair }: { api: Api; canPair: bool
     const version = ++revision.current;
     try {
       const next = await api<PhoneDevices>("/phone-devices");
-      if (active.current && !request.current && version === revision.current) setValue((old) => ({ ...next, pairing: next.pairing && old.pairing && next.pairing.id === old.pairing.id ? { ...next.pairing, qr: old.pairing.qr } : next.pairing }));
+      if (active.current && !request.current && version === revision.current) setValue((old) => ({ ...next, pairing: next.pairing && old.pairing && next.pairing.id === old.pairing.id ? { ...next.pairing, qr: old.pairing.qr, url: old.pairing.url } : next.pairing }));
     } catch { if (active.current && !request.current && version === revision.current) { setValue({ devices: [] }); setError("Could not check paired phones. Refresh to try again."); } }
   };
   useEffect(() => { active.current = true; void load(); return () => { active.current = false; revision.current++; }; }, [api]);
   useEffect(() => {
-    if (!canPair || !value.pairing || value.pairing.phase === "complete") return;
+    if (!canPair) return;
     const interval = setInterval(() => void load(), 2000);
     return () => clearInterval(interval);
-  }, [value.pairing?.id, value.pairing?.phase, api, canPair]);
+  }, [api, canPair]);
   const change = async (action: "connect" | "approve" | "cancel" | "revoke", id?: string) => {
     if (request.current || (action !== "revoke" && !canPair)) return;
     if ((action === "approve" || action === "revoke") && !confirm(action === "approve" ? "Does the code on your phone match this code? Approve only the phone you are connecting." : "Remove this phone's passkey and lock its active sessions?")) return;
@@ -38,14 +38,20 @@ export function PhonePairingSettings({ api, canPair }: { api: Api; canPair: bool
   const pairing = canPair ? value.pairing : undefined;
   return <section aria-busy={busy}>
     <h2>Paired phones</h2>
-    <p className="note">Scan, compare the code and approve on this host. Your phone saves a passkey for future unlocks with its screen lock. Invitations expire after two minutes.</p>
+    <p className="note">Scan the QR from another screen, or open the setup link on the device you want to connect. Compare the code and approve on this host. Your phone saves a passkey for future unlocks with its screen lock. Open invitations within two minutes. After opening, you have ten minutes to approve and save the passkey.</p>
     {error && <p role="alert">{error}</p>}
     {!canPair && <p className="note">Enable and verify the private route before connecting another phone. You can still remove paired phones here.</p>}
     {!pairing && <button type="button" disabled={busy || !canPair || value.devices.length >= 8} onClick={() => void change("connect")}>Connect phone</button>}
     {pairing && <div className="settings-group">
-      <p role="status">{pairing.phase === "waiting" ? "Scan with your phone's camera." : pairing.phase === "claimed" ? "Compare this code with your phone before approving." : pairing.phase === "approved" ? "Approved. Save the passkey on your phone." : "Phone connected. Use its passkey to unlock."}</p>
+      <p role="status">{pairing.phase === "waiting" ? "Scan the QR or open the setup link on your phone." : pairing.phase === "claimed" ? "Compare this code with your phone before approving." : pairing.phase === "approved" ? "Approved. Save the passkey on your phone." : "Phone connected. Use its passkey to unlock."}</p>
       {privacy ? <p>Pairing details hidden while Privacy is on.</p> : <>
         {pairing.phase === "waiting" && pairing.qr && <img src={pairing.qr} width="240" height="240" alt="Scan to connect this phone" />}
+        {pairing.phase === "waiting" && pairing.url && <div className="settings-row">
+          <a href={pairing.url} target="_blank" rel="noreferrer">Open setup link</a>
+          <button type="button" onClick={() => {
+            void navigator.clipboard.writeText(pairing.url!).catch(() => setError("Could not copy. Open the setup link instead."));
+          }}>Copy setup link</button>
+        </div>}
         {pairing.code && pairing.phase !== "complete" && <p>Matching code: <strong>{pairing.code}</strong></p>}
         {pairing.phase === "claimed" && <button type="button" disabled={busy} onClick={() => void change("approve", pairing.id)}>Approve matching phone</button>}
       </>}

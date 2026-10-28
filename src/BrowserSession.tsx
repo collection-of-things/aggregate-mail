@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 export function BrowserSession({ children }: { children: ReactNode }) {
   const desktop = !!window.desktop;
   const [allowed, setAllowed] = useState(desktop);
+  const [reconnecting, setReconnecting] = useState(false);
   const [visible, setVisible] = useState(desktop);
   useEffect(() => {
     if (desktop) return;
@@ -11,15 +12,20 @@ export function BrowserSession({ children }: { children: ReactNode }) {
     let revoked = false;
     let revision = 0;
     let build = document.querySelector<HTMLMetaElement>('meta[name="emc2-build"]')?.content;
-    const lock = () => { revoked = true; revision++; setAllowed(false); setVisible(false); };
+    const lock = () => { setReconnecting(false); revoked = true; revision++; setAllowed(false); setVisible(false); };
     const check = async () => {
       if (revoked || disposed) return;
       const current = ++revision;
       try {
         const response = await fetch("/auth/session", { cache: "no-store", signal: AbortSignal.timeout(5000) });
+        if (!response.ok) {
+          if (!disposed && current === revision) { setVisible(false); setReconnecting(true); }
+          return;
+        }
         const state = await response.json() as { authenticated?: boolean };
         if (disposed || current !== revision) return;
-        if (!response.ok || state.authenticated !== true) { lock(); return; }
+        if (state.authenticated !== true) { lock(); return; }
+        setReconnecting(false);
         setAllowed(true);
         setVisible(document.visibilityState !== "hidden");
         const version = response.headers.get("X-Emc2-Build");
@@ -27,7 +33,7 @@ export function BrowserSession({ children }: { children: ReactNode }) {
           if (build && build !== version) window.dispatchEvent(new window.CustomEvent("emc2-update-ready", { detail: version }));
           else build = version;
         }
-      } catch { if (!disposed && current === revision) lock(); }
+      } catch { if (!disposed && current === revision) { setVisible(false); setReconnecting(true); } }
     };
     const visibility = () => { setVisible(false); if (document.visibilityState !== "hidden") void check(); };
     const channel = typeof BroadcastChannel === "undefined" ? undefined : new BroadcastChannel("emc2-browser-access");
@@ -41,6 +47,6 @@ export function BrowserSession({ children }: { children: ReactNode }) {
   if (desktop) return <>{children}</>;
   return <>
     {allowed && <div hidden={!visible} style={{ display: visible ? "contents" : "none" }}>{children}</div>}
-    {!visible && <main><h1>Emc² browser access</h1><p>Your inbox is hidden until browser access is confirmed.</p><a href="/auth">Unlock inbox</a></main>}
+    {!visible && <main><h1>Emc² browser access</h1><p>{reconnecting ? "Reconnecting to your host. Your browser stays paired." : "Your inbox is hidden until browser access is confirmed."}</p>{!reconnecting && <a href="/auth">Unlock inbox</a>}</main>}
   </>;
 }
