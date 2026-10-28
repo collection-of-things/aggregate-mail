@@ -35,14 +35,14 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
     Object.defineProperty(globalThis, key, { value, configurable: true });
   }
   const root = createRoot(dom.window.document.getElementById('root')!);
-  const html = '<style>.summary {color:#123456;background-color:white;width:600px} .photo{width:120px} #undefined{color:red} @media (max-width:600px){.summary{width:100%}}</style><p class="summary">Hello Morgan Example</p><img class="photo" src="https://images.example.test/public.png"><img src="https://images.example.test/Morgan%20Example.png">';
+  const html = '<style>body{color:#111;background-color:#fff}.summary {color:#123456;background-color:white;width:600px} .photo{width:120px} #undefined{color:red} @media (max-width:600px){.summary{width:100%}}</style><p class="summary">Hello Morgan Example</p><img class="photo" src="https://images.example.test/public.png"><img src="https://images.example.test/Morgan%20Example.png">';
   const update = async (id: string, privacy: boolean, showImages: boolean) => {
     await act(async () => root.render(<FormattedMail mailId={id} html={html} showImages={showImages} privacy={privacy} privateNames={['Morgan Example']}
       renderText={(text) => privacy ? redactPrivateText(text, ['Morgan Example']) : text}
       redactText={(text) => privacy ? redactPrivateText(text, ['Morgan Example']) : text} />));
   };
   let keys = 0;
-  const handler = (event: KeyboardEvent) => { if (event.key === 'Escape') { keys++; event.preventDefault(); } };
+  const handler = (event: KeyboardEvent) => { if (event.key === 'Escape' || event.key === 'Enter') { keys++; event.preventDefault(); } };
   dom.window.addEventListener('keydown', handler);
   try {
     await update('one', false, false);
@@ -52,15 +52,30 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
     assert.equal(frame.hasAttribute('srcdoc'), false);
     assert.equal(dom.window.document.querySelector('style'), null, 'sender CSS never enters host document');
     assert.equal(frame.contentDocument!.querySelector('p')?.textContent, 'Hello Morgan Example');
+    // jsdom does not include adopted sheets in computed styles. Materialize
+    // their exact rules only in this synthetic document to exercise cascade.
+    const installed = frame.contentDocument!.adoptedStyleSheets.flatMap(sheet => Array.from(sheet.cssRules, rule => rule.cssText)).join('\n');
+    const style = frame.contentDocument!.createElement('style'); style.textContent = installed;
+    frame.contentDocument!.head.append(style);
+    assert.equal(frame.contentWindow!.getComputedStyle(frame.contentDocument!.body).color, 'rgb(17, 17, 17)', 'sender body foreground wins over host defaults');
+    assert.match(installed, /font: calc\(14px \* var\(--text-scale, 1\)\)/, 'default body font also follows text scaling');
     assert.equal(frame.contentDocument!.querySelectorAll('img').length, 0);
     assert.equal(frame.contentDocument!.querySelector('p')?.hasAttribute('id'), false, 'absent ids cannot match a sender selector');
     assert.doesNotMatch(frame.contentDocument!.body.innerHTML, /summary/);
     await act(async () => { dom.window.document.documentElement.style.color = 'rgb(10, 20, 30)'; });
-    assert.equal(frame.contentDocument!.body.style.color, 'rgb(10, 20, 30)', 'unstyled text follows host theme changes');
+    assert.equal(frame.contentDocument!.body.style.getPropertyValue('--reader-foreground'), 'rgb(10, 20, 30)', 'unstyled text follows host theme changes');
     const event = new (frame.contentWindow as Window & typeof globalThis).KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
     frame.contentDocument!.body.dispatchEvent(event);
     assert.equal(keys, 1);
     assert.equal(event.defaultPrevented, true);
+    const enter = new (frame.contentWindow as Window & typeof globalThis).KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    frame.contentDocument!.querySelector('p')!.dispatchEvent(enter);
+    assert.equal(keys, 2, 'plain reader text forwards configurable Enter shortcuts');
+    assert.equal(enter.defaultPrevented, true);
+    const link = frame.contentDocument!.createElement('a'); link.href = 'https://example.test';
+    frame.contentDocument!.body.append(link);
+    link.dispatchEvent(new (frame.contentWindow as Window & typeof globalThis).KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    assert.equal(keys, 2, 'link activation does not invoke host Enter shortcuts');
     await update('one', true, false);
     assert.equal(frame.isConnected, false, 'privacy replaces the old document synchronously');
     frame = dom.window.document.querySelector('iframe')!;
@@ -128,4 +143,10 @@ test("embedded image responses cannot cross message bindings and release owned b
       if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);
     }
   }
+});
+
+test("sender stylesheet font sizes use the reader text-scale preference", () => {
+  const result = content.mailStylesheet('<style>body{font-size:16px}.sized{font-size:20px}</style>');
+  assert.match(result.css, /font-size:calc\(16px \* var\(--text-scale, 1\)\)/);
+  assert.match(result.css, /font-size:calc\(20px \* var\(--text-scale, 1\)\)/);
 });

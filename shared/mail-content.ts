@@ -194,7 +194,7 @@ export function mailStylesheet(html: string) {
     // A stylesheet must not conceal text or create tiny overflowing boxes.
     !["height", "maxHeight"].includes(name) &&
     (!['fontSize', 'lineHeight'].includes(name) || parseFloat(String(value)) >= 6 || !String(value).endsWith('px') && Number(value) >= 1)
-  ).map(([name, value]) => `${name.replace(/[A-Z]/g, letter => '-' + letter.toLowerCase())}:${value}`).join(';');
+  ).map(([name, value]) => `${name.replace(/[A-Z]/g, letter => '-' + letter.toLowerCase())}:${name === 'fontSize' ? `calc(${value} * var(--text-scale, 1))` : value}`).join(';');
   const selector = (raw: string) => {
     if (raw.length > 500 || !/^[a-zA-Z0-9_.#*\s,>+~-]+$/.test(raw) || !raw.trim()) return null;
     if (raw.trim().split(/[\s,>+~]+/).some(part => !/^(?:[a-zA-Z][\w-]*|\*)?(?:[.#][a-zA-Z_][\w-]*)*$/.test(part))) return null;

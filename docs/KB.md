@@ -3201,3 +3201,7 @@ reader shortcuts forward only after the document's own controls can consume
 the event. Synthetic parser and mounted lifecycle checks are in
 `src/sender-css.test.tsx`; native layout and physical keyboard acceptance are
 separate proof. See [ADR 0102](adr/0102-isolated-sender-styles.md).
+
+Isolated sender styles use the host foreground as a low-priority default.
+Sender font sizes and the body default follow `--text-scale`; unhandled Enter
+on plain content reaches host shortcuts, while interactive controls keep activation.

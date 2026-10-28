@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+const defaults = `:where(body){color:var(--reader-foreground);font:calc(14px * var(--text-scale, 1))/1.5 system-ui,sans-serif}`;
 const controls = `
-body{margin:0;font:14px/1.5 system-ui,sans-serif;overflow-wrap:break-word}
+body{margin:0;overflow-wrap:break-word}
 img,table{max-width:100%}img{height:auto}a{cursor:pointer}
 .address{all:initial!important;display:inline-block!important;font:inherit!important;color:inherit!important;cursor:pointer!important;vertical-align:baseline!important}
 .address.veiled{width:8ch!important;height:1em!important;background:#888!important;border-radius:3px!important}
@@ -14,7 +15,7 @@ function inheritTheme(element: HTMLIFrameElement, body: HTMLElement) {
   const theme = element.ownerDocument.defaultView!.getComputedStyle(element);
   for (const name of ['--text-scale', '--text', '--text-2', '--line', '--link', '--veil'])
     body.style.setProperty(name, theme.getPropertyValue(name));
-  body.style.color = theme.color;
+  body.style.setProperty('--reader-foreground', theme.color);
 }
 
 // The parent owns this blank document. No sender HTML, scripts, forms, popups
@@ -29,11 +30,11 @@ export function IsolatedMail({ css, children, fallback }: { css: string; childre
     try {
       const Sheet = (doc.defaultView as unknown as { CSSStyleSheet: typeof CSSStyleSheet }).CSSStyleSheet;
       if (typeof Sheet.prototype.replaceSync === 'function') {
-        const sheet = new Sheet(); sheet.replaceSync(css + controls); doc.adoptedStyleSheets = [sheet];
+        const sheet = new Sheet(); sheet.replaceSync(defaults + css + controls); doc.adoptedStyleSheets = [sheet];
       } else {
         // DOM test environments and older engines. A blocked stylesheet keeps
         // the existing themed reader; CSP is never relaxed.
-        const style = doc.createElement('style'); style.textContent = css + controls;
+        const style = doc.createElement('style'); style.textContent = defaults + css + controls;
         doc.head.append(style);
         if (!style.sheet) throw Error('Styles unavailable');
       }
@@ -47,7 +48,8 @@ export function IsolatedMail({ css, children, fallback }: { css: string; childre
     if (!element || !doc) return;
     const resize = () => { element.style.height = `${Math.max(48, Math.min(100000, doc.documentElement.scrollHeight) || 48)}px`; };
     const keydown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.isComposing || ['Tab', 'Enter', ' '].includes(event.key)) return;
+      if (event.defaultPrevented || event.isComposing || ['Tab', ' '].includes(event.key)) return;
+      if (event.key === 'Enter' && (event.target as Element | null)?.closest?.('a,button,input,textarea,select,[role=button],[contenteditable],[tabindex]')) return;
       const Key = (element.ownerDocument.defaultView as Window & typeof globalThis).KeyboardEvent;
       const forwarded = new Key('keydown', { key: event.key, code: event.code, ctrlKey: event.ctrlKey, metaKey: event.metaKey,
         altKey: event.altKey, shiftKey: event.shiftKey, repeat: event.repeat, bubbles: true, cancelable: true });
