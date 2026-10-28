@@ -6,7 +6,7 @@ import path from "node:path";
 import { isHigherStableVersion, versionParts } from "../shared/updates.js";
 import { bundleDigest, canonicalDirectory, runBounded, validateDestination, type Run } from "./mac-source-update.js";
 
-import { binaryEnvironment, binaryWorkspacePrefix, revealBinaryRecovery, verifyBinaryBundle, type BinaryReplacement } from "./mac-binary-replacement.js";
+import { binaryEnvironment, binaryRuntimeDigest, binaryWorkspacePrefix, revealBinaryRecovery, verifyBinaryBundle, type BinaryReplacement } from "./mac-binary-replacement.js";
 
 const repository = "collection-of-things/aggregate-mail";
 export const macReleaseApi = `https://api.github.com/repos/${repository}/releases/latest`;
@@ -18,6 +18,30 @@ export class MacInstallerFailure extends Error {
   constructor(readonly reason?: "installer-target") { super("mac-installer-update"); }
 }
 const invalid = () => new MacInstallerFailure();
+
+export async function macInstallerTarget(installation: MacInstallerInstallation, signal: AbortSignal,
+  applications = ["/Applications", path.join(installation.home, "Applications")]) {
+  const { installed, runtime } = installation;
+  if (runtime !== path.join(installed, "Contents/MacOS/Emc²")) throw invalid();
+  const digest = await binaryRuntimeDigest(runtime, signal);
+  try {
+    await validateDestination(installed);
+    return { installed, digest };
+  } catch { signal.throwIfAborted(); }
+
+  // A read-only launch may be a macOS mirror. Never infer its original path or change quarantine.
+  const matches: string[] = [];
+  for (const directory of new Set(applications)) {
+    const target = path.join(directory, "Emc².app");
+    if (target === installed) continue;
+    try {
+      await validateDestination(target);
+      if (await bundleDigest(target, signal) === digest) matches.push(target);
+    } catch { signal.throwIfAborted(); }
+  }
+  if (matches.length !== 1) throw invalid();
+  return { installed: matches[0], digest };
+}
 
 export async function macInstallerCandidate(value: unknown, target: { version: string; arch: string },
   read: (url: string, limit: number) => Promise<string>): Promise<MacInstallerCandidate | null> {
@@ -86,12 +110,16 @@ export class MacInstallerUpdate {
   private quarantine?: string;
   private stageWorkspace?: string;
   private digest?: string;
+  private installedDigest?: string;
   private mount?: string;
   private attached = false;
   private handedOff = false;
   private pending = new Set<Promise<void>>();
-  constructor(readonly candidate: MacInstallerCandidate, private installation: MacInstallerInstallation, private run: Run = runBounded,
-    private launch: (command: string, args: string[], options: SpawnOptions) => ChildProcess = spawn) {}
+  private installation: MacInstallerInstallation;
+  constructor(readonly candidate: MacInstallerCandidate, installation: MacInstallerInstallation, private run: Run = runBounded,
+    private launch: (command: string, args: string[], options: SpawnOptions) => ChildProcess = spawn) {
+    this.installation = { ...installation, quit: () => installation.quit() };
+  }
   private get env(): NodeJS.ProcessEnv {
     return binaryEnvironment(this.installation.home);
   }
@@ -108,10 +136,11 @@ export class MacInstallerUpdate {
   download() { return this.track(this.downloadInstaller()); }
   private async downloadInstaller() {
     try {
-      const { downloads, installed } = this.installation;
+      const { downloads } = this.installation;
       try {
-        await validateDestination(installed);
-        if (this.installation.runtime !== path.join(installed, "Contents/MacOS/Emc²")) throw invalid();
+        const target = await macInstallerTarget(this.installation, this.abort.signal);
+        this.installation.installed = target.installed;
+        this.installedDigest = target.digest;
         await this.cleanupPrevious();
       } catch { throw new MacInstallerFailure("installer-target"); }
       await canonicalDirectory(downloads);
@@ -205,6 +234,8 @@ export class MacInstallerUpdate {
     await verifyDmg(file, this.candidate, this.abort.signal);
     if (await this.run("/usr/bin/xattr", ["-p", "com.apple.quarantine", file], this.workspace, this.env, this.abort.signal) !== this.quarantine) throw invalid();
     await validateDestination(this.installation.installed);
+    if (await bundleDigest(this.installation.installed, this.abort.signal) !== this.installedDigest)
+      throw new MacInstallerFailure("installer-target");
     if (await verifyBinaryBundle(path.join(this.stageWorkspace, "staged.app"), this.candidate, this.quarantine,
       this.stageWorkspace, this.env, this.abort.signal, this.run) !== this.digest) throw invalid();
   }
@@ -237,7 +268,7 @@ export class MacInstallerUpdate {
         this.handedOff = true; child.disconnect(); child.unref(); resolve();
       });
       const request: BinaryReplacement = { parent: process.pid, installed: this.installation.installed, home: this.installation.home,
-        workspace, candidate: { version: this.candidate.version, arch: this.candidate.arch }, digest: this.digest!,
+        workspace, candidate: { version: this.candidate.version, arch: this.candidate.arch }, digest: this.digest!, installedDigest: this.installedDigest!,
         quarantine: this.quarantine!, profile: this.installation.profile };
       child.send(request, error => { if (error) fail(); });
       if (this.abort.signal.aborted) fail();

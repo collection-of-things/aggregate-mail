@@ -901,6 +901,15 @@ explicitly and verifies bundle identity/version, the thin Mach-O architecture,
 strict deep signature and complete bundle digest. It uses no lipo or developer
 tools. Installed and workspace directories must be canonical; bundle symlinks
 must resolve inside the bundle.
+When the running bundle cannot be replaced, the adapter checks only the system
+and current user's Applications folders for `Emc².app`. It accepts exactly one
+canonical, writable bundle with the running app's complete digest. It retains
+the actual running executable for the helper, which verifies that same digest
+before readiness. The selected installation is rechecked before handoff and
+again after parent exit, before moving the old app. Missing, changed, ambiguous
+or noncanonical counterparts fail closed. This does not discover the original
+translocation path or change quarantine. See
+[ADR 0103](adr/0103-macos-readonly-launch-updates.md).
 The owned mount is detached with an independent cleanup signal even after
 cancellation. A still-mounted image is never recursively removed.
 

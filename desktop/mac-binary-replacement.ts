@@ -18,11 +18,17 @@ async function waitForParentExit(parent: number, signal: AbortSignal) {
 
 export type BinaryCandidate = { version: string; arch: "arm64" | "x64" };
 export type BinaryReplacement = { parent: number; installed: string; home: string; workspace: string;
-  candidate: BinaryCandidate; digest: string; quarantine: string; profile?: string };
+  candidate: BinaryCandidate; digest: string; installedDigest: string; quarantine: string; profile?: string };
 const invalid = () => new Error("mac-binary-replacement");
 export const binaryEnvironment = (home: string): NodeJS.ProcessEnv => ({ HOME: home, PATH: "/usr/bin:/bin:/usr/sbin:/sbin", LANG: "en_US.UTF-8" });
 export const binaryWorkspacePrefix = (installed: string) => `.${path.basename(installed)}.update-`;
 export const validQuarantine = (value: string) => /^0083;[a-f0-9]+;Emc2;$/.test(value);
+
+export async function binaryRuntimeDigest(runtime: string, signal?: AbortSignal) {
+  const bundle = path.dirname(path.dirname(path.dirname(runtime)));
+  if (path.extname(bundle) !== ".app" || runtime !== path.join(bundle, "Contents/MacOS/Emc²")) throw invalid();
+  return bundleDigest(bundle, signal);
+}
 
 // Published installers contain one thin Mach-O architecture. Do not invoke lipo or require developer tools.
 async function verifyArchitecture(executable: string, arch: BinaryCandidate["arch"]) {
@@ -53,11 +59,12 @@ export async function verifyBinaryBundle(bundle: string, candidate: BinaryCandid
 
 export async function validateBinaryReplacement(value: unknown, parent: number): Promise<BinaryReplacement> {
   const request = value as BinaryReplacement;
-  if (!request || Object.keys(request).some(key => !["parent", "installed", "home", "workspace", "candidate", "digest", "quarantine", "profile"].includes(key)) ||
+  if (!request || Object.keys(request).some(key => !["parent", "installed", "home", "workspace", "candidate", "digest", "installedDigest", "quarantine", "profile"].includes(key)) ||
       request.parent !== parent || !Number.isSafeInteger(parent) || parent < 2 || typeof request.installed !== "string" ||
       typeof request.workspace !== "string" || path.dirname(request.workspace) !== path.dirname(request.installed) ||
       !path.basename(request.workspace).startsWith(binaryWorkspacePrefix(request.installed)) ||
       typeof request.digest !== "string" || !/^[a-f0-9]{128}$/.test(request.digest) ||
+      typeof request.installedDigest !== "string" || !/^[a-f0-9]{128}$/.test(request.installedDigest) ||
       !request.candidate || Object.keys(request.candidate).sort().join(",") !== "arch,version" ||
       !versionParts(request.candidate.version, true) || !["arm64", "x64"].includes(request.candidate.arch) ||
       typeof request.quarantine !== "string" || !validQuarantine(request.quarantine) ||
@@ -68,6 +75,7 @@ export async function validateBinaryReplacement(value: unknown, parent: number):
   const stat = await lstat(request.workspace);
   if (stat.uid !== process.getuid?.() || (stat.mode & 0o777) !== 0o700) throw invalid();
   await validateDestination(request.installed);
+  if (await bundleDigest(request.installed) !== request.installedDigest) throw invalid();
   return request;
 }
 
@@ -93,6 +101,7 @@ export async function replaceBinaryAndLaunch(request: BinaryReplacement, run: Ru
   try {
     if (await verifyBinaryBundle(stage, candidate, quarantine, workspace, env, signal, run) !== request.digest) throw invalid();
     await validateDestination(installed);
+    if (await bundleDigest(installed, signal) !== request.installedDigest) throw invalid();
     if (await lstat(backup).then(() => true, error => { if (error.code === "ENOENT") return false; throw error; })) throw invalid();
     await rename(installed, backup); backedUp = true;
     await rename(stage, installed); promoted = true;
@@ -137,7 +146,7 @@ export async function runBinaryHelper() {
     process.once("message", value => { clearTimeout(timer); resolve(value); });
   });
   const request = await validateBinaryReplacement(raw, process.ppid);
-  if (process.execPath !== path.join(request.installed, "Contents/MacOS/Emc²") ||
+  if (await binaryRuntimeDigest(process.execPath, abort.signal) !== request.installedDigest ||
       await verifyBinaryBundle(path.join(request.workspace, "staged.app"), request.candidate, request.quarantine,
         request.workspace, binaryEnvironment(request.home), abort.signal) !== request.digest) throw invalid();
   process.send!("ready");
