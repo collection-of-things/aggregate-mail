@@ -1,4 +1,4 @@
-# ADR 0096: Main Contacts page and explicit address-book imports
+# ADR 0098: Main Contacts page and explicit address-book imports
 
 Date: 2026-10-27
 Status: Implementation decision; installed and live-provider acceptance remain separate.

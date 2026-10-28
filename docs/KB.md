@@ -151,7 +151,7 @@ within the destination account and never overwrite existing names. Invalid and
 repeated addresses are counted as skipped. Only names and addresses are retained;
 no raw file, filename, photo, link, formula or provider credential is stored.
 An over-limit import writes nothing. See [contact imports](contacts-import.md)
-and [ADR 0096](adr/0096-contacts-page-and-imports.md).
+and [ADR 0098](adr/0098-contacts-page-and-imports.md).
 
 Plain unquoted search words of 4 to 32 letters allow one insertion, deletion,
 substitution or adjacent transposition within a word. Quoted phrases, field
