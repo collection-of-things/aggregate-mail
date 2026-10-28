@@ -140,6 +140,7 @@ export function logoDomain(value: string) {
 }
 export type MailImage = { src: string; alt: string };
 export type Mail = {
+  unsubscribe?: import("./unsubscribe").Unsubscribe;
   invitation?: { status: "ok"; invitation: import("./invitations").Invitation } | { status: "invalid" | "unsupported"; reason: string };
   direction?: "received" | "sent";
   inReplyTo?: string;

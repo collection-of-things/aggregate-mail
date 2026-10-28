@@ -392,6 +392,7 @@
 .app-search-toolbar .search kbd { font-size: calc(11px * var(--text-scale, 1)); color: var(--text-3); }
 .commands-button { gap: 10px; min-height: 32px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: var(--radius-control); font-size: calc(12px * var(--text-scale, 1)); }
 .commands-button kbd { color: var(--text-3); font-size: calc(10px * var(--text-scale, 1)); }
+.save-view-button { flex-shrink: 0; min-height: 32px; padding: 0 6px; color: var(--text-3); white-space: nowrap; font-size: calc(12px * var(--text-scale, 1)); }
 @media (max-width: 760px) { .commands-button kbd { display: none; } .app-toolbar { padding-left: 12px; } }
 
 .app { font-size: calc(13px * var(--text-scale, 1)); }

@@ -4,6 +4,7 @@ import { act } from "react";
 import { JSDOM } from "jsdom";
 import { defaults } from "./interaction";
 import { compileMailSearch } from "./mail-search";
+import { savedViewSchema, type SavedView } from "../shared/saved-views";
 import type { Draft, Mail, State } from "../shared/types";
 import { generatePalette, parseThemeFile, serializeThemeFile, type CustomTheme } from "./themes";
 
@@ -97,6 +98,7 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
   const previousFetch = globalThis.fetch;
   const mutations: string[] = [];
   const requests: string[] = [];
+  let savedViews: SavedView[] = [];
   const renames: unknown[] = [];
   let renameFails = false;
   let composePreferencesFail = false;
@@ -110,6 +112,22 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
   globalThis.fetch = async (input, options) => {
     const url = String(input);
     requests.push(url);
+    if (url.startsWith("/api/saved-views")) {
+      const body = JSON.parse(String(options?.body || "{}"));
+      const id = url.split("/").at(-1);
+      if (options?.method === "POST") {
+        const view = savedViewSchema.parse({ ...body, id: "00000000-0000-4000-8000-000000000057", revision: 1 });
+        savedViews.push(view);
+        return Response.json(view);
+      }
+      if (options?.method === "PATCH") {
+        const view = savedViewSchema.parse({ ...savedViews.find(view => view.id === id), ...body, revision: body.revision + 1 });
+        savedViews = savedViews.map(current => current.id === id ? view : current);
+        return Response.json(view);
+      }
+      if (options?.method === "DELETE") { savedViews = savedViews.filter(view => view.id !== id); return Response.json({ ok: true }); }
+      return Response.json(savedViews);
+    }
     if (url === "/api/compose-preferences" && options?.method === "PUT") {
       composeSaveRequests++;
       await composeSaveWait;
@@ -1861,6 +1879,7 @@ test("compose keeps toolbar search and privacy usable without losing the draft o
     assert.equal(app.window.document.activeElement, privacy);
     await app.click(app.button("Hide personal information"));
     assert.equal(app.storage.getItem("privacy"), "on");
+    await act(async () => search.focus());
     await app.input(search, "Alpha");
     assert.equal(search.value, "Alpha");
     await act(async () => search.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
@@ -2882,5 +2901,74 @@ test("Contacts opens as a main view, stays outside Settings and cannot trigger m
     assert.equal(app.container.querySelector('.settings-dialog .settings-navigation')?.textContent?.includes("Contacts"), false);
     await app.click(app.button("Close settings"));
     assert.ok(app.container.querySelector('main[aria-label="Contacts"]'));
+  } finally { await app.close(); }
+});
+
+test("saved search views restore query, account, filters and sort through keyboard Commands", async () => {
+  const app = await mount();
+  const press = async (key: string) => act(async () => { app.window.document.activeElement?.dispatchEvent(new app.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })); });
+  const command = async (label: string) => {
+    await app.click(app.button("Commands"));
+    await app.input(app.container.querySelector<HTMLInputElement>('[aria-label="Search commands"]')!, label);
+    await press("Enter");
+  };
+  try {
+    const search = app.container.querySelector<HTMLInputElement>('.search input')!;
+    await app.input(search, "subject:first");
+    await app.click(app.account("first@example.com"));
+    await app.choose("Read status", "Unread");
+    await app.choose("Relevance filter", "Medium relevance");
+    await app.choose("Sort mail", "Oldest");
+    await app.click(app.button("Filters"));
+    await command("Save current view");
+    const name = app.container.querySelector<HTMLInputElement>('[aria-label="Save view"] input')!;
+    await app.input(name, "Private saved query");
+    await act(async () => { name.closest("form")!.dispatchEvent(new app.window.Event("submit", { bubbles: true, cancelable: true })); });
+    assert.equal(app.container.querySelector('[aria-label="Save view"]'), null);
+    await app.click(app.button("Inbox"));
+    await app.click(app.account("second@example.com"));
+    await app.input(search, "different");
+    await command("Open Private saved query");
+    assert.equal(search.value, "subject:first");
+    assert.equal(app.activeAccount(), "first@example.com");
+    await app.openFilters();
+    assert.equal(app.button("Read status").textContent, "Unread");
+    assert.equal(app.button("Relevance filter").textContent, "Medium relevance");
+    assert.equal(app.button("Sort mail").textContent, "Oldest");
+    await app.click(app.button("Filters"));
+    await app.click(app.button("Contacts"));
+    assert.ok(app.container.querySelector('main[aria-label="Contacts"]'));
+    assert.equal(app.container.querySelector(".save-view-button"), null);
+    await command("Open Private saved query");
+    assert.equal(app.container.querySelector('main[aria-label="Contacts"]'), null);
+    assert.equal(search.value, "subject:first");
+    await command("Rename Private saved query");
+    const rename = app.container.querySelector<HTMLInputElement>('[aria-label="Rename saved view"] input')!;
+    await app.input(rename, "Renamed search");
+    await act(async () => { rename.closest("form")!.dispatchEvent(new app.window.Event("submit", { bubbles: true, cancelable: true })); });
+    await command("Delete Renamed search");
+    await app.click(app.button("Delete view"));
+    await app.click(app.button("Commands"));
+    assert.equal(app.container.textContent?.includes("Renamed search"), false);
+    assert.equal(app.mutations.length, 0, "view actions never change mailbox state");
+  } finally { await app.close(); }
+});
+
+test("saved view names and queries stay hidden in privacy mode", async () => {
+  const app = await mount();
+  try {
+    const search = app.container.querySelector<HTMLInputElement>('.search input')!;
+    await app.input(search, "body:confidential");
+    await app.click(app.button("Save view"));
+    const input = app.container.querySelector<HTMLInputElement>('[aria-label="Save view"] input')!;
+    await app.input(input, "Confidential view");
+    await act(async () => { input.closest("form")!.dispatchEvent(new app.window.Event("submit", { bubbles: true, cancelable: true })); });
+    await app.click(app.button("Hide personal information"));
+    await app.click(app.button("Commands"));
+    assert.equal(app.container.innerHTML.includes("Confidential view"), false);
+    assert.equal(app.container.innerHTML.includes("body:confidential"), false);
+    assert.ok(app.container.textContent?.includes("Open Saved view 1"));
+    await app.key("Escape");
+    assert.equal(search.value, "");
   } finally { await app.close(); }
 });

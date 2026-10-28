@@ -1,4 +1,5 @@
 import { COMPOSE_HTML_LIMIT, validComposeMarkup } from "../shared/compose-content.js";
+import { parseUnsubscribe } from "../shared/unsubscribe.js";
 import { parseICalendar, generateICalendar } from "./ical.js";
 import { google } from "./google-api.js";
 import { createHash } from "node:crypto";
@@ -233,6 +234,7 @@ async function parseMessage(
   const invitation = calendars.length > 1 ? { status: "unsupported" as const, reason: "multiple-calendars" } : calendars.length ? calendars[0].content.length > 131072 ? { status: "invalid" as const, reason: "limit" } : parseICalendar(calendars[0].content.toString("utf8")) : undefined;
   return {
     invitation,
+    unsubscribe: parseUnsubscribe(m.headerLines),
     id: `${a.id}:${remoteId}`,
     accountId: a.id,
     remoteId,

@@ -1,5 +1,57 @@
 # Repository knowledge
 
+## Saved search views
+
+Save view appears in the mail search toolbar when a query or list filter is
+active. It asks only for a name. Commands offers Save current view and separate
+Open, Rename and Delete actions for each saved view, using the existing keyboard
+selection and focus behavior. Definitions preserve mailbox, Inbox tab, query,
+account, Gmail label, read/relevance filters and sort. Opening a view clears
+reader selection and restores the definition in one navigation visit. A removed
+account or label disables opening rather than silently broadening the search.
+
+`shared/saved-views.ts` owns bounded schemas. `server/saved-views.ts` mounts
+session/CSRF-protected CRUD under `/api/saved-views`; `savedView` records use the
+existing AES-256-GCM encrypted store. At most 100 views are retained. Names are
+1 to 80 single-line characters. Revision checks reject stale renames/deletes.
+Definitions stay local and search only existing cached mail and local drafts.
+They never fetch history, change categories or mutate provider mail.
+
+Privacy replaces command names with numbered Saved view labels and hides
+unfocused search text. The shared private name field reveals its value only
+while editing. No saved-view definition is written to localStorage.
+`server/saved-views.test.ts` checks encryption, restart, exact definitions and
+guarded CRUD. Saved-view cases in `src/navigation.test.tsx` exercise Commands,
+filter restoration, rename/delete and privacy. Native and installed acceptance
+are separate from these synthetic checks.
+
+## Reviewed unsubscribe
+
+Provider MIME parsing stores bounded `List-Unsubscribe` metadata on full
+encrypted mail records. It does not fetch destinations or add metadata to list
+summaries. The hydrated reader exposes Unsubscribe for supported headers and
+an explanation for rejected headers. Every action first shows the destination
+host or mailto address and describes its effect. Privacy requires an explicit
+destination reveal before confirmation and clears that reveal when enabled.
+
+`POST /api/messages/:id/unsubscribe` inherits session, origin, CSRF, sync and
+update guards. It requires explicit confirmation and exact agreement with the
+stored metadata. The service POST uses the RFC 8058 form body, a five-second
+deadline, public-only DNS results and a pinned connection address. It follows
+zero redirects and sends no cookies or authorization. A mailto action creates
+an ordinary encrypted draft from the receiving account without sending. A
+manual HTTPS action checks the initial destination and returns a browser link;
+the system browser controls its subsequent requests and redirects.
+
+Headers are sender-supplied, with no DKIM authentication claim. Unknown request
+outcomes are explained and never retried automatically. This does not manage
+subscriptions or change local mail/category state. Details and limits are in
+[ADR 0099](adr/0099-reviewed-unsubscribe-outbound-requests.md).
+Synthetic parsing, service and mounted reader checks live in
+`server/unsubscribe.test.ts` and `src/unsubscribe.test.tsx`. Real unsubscribe
+delivery, provider-header availability and installed browser handoff require
+separate acceptance.
+
 ## Phone pairing, passkeys and browser key bootstrap
 
 `server/phone-passkeys.ts` mounts only the public `/auth/pair`, bundled client

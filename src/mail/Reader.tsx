@@ -10,6 +10,7 @@ import { OfferTimes } from "../work/OfferTimes";
 import { InvitationPanel } from "../work/InvitationActions";
 import { ReaderContent } from "./MessageContent";
 import { mailBodyKey, useMailBody } from "../mail-body";
+import { UnsubscribeAction } from "./UnsubscribeAction";
 
 // Today's mail shows its time, this year's its day and time, older mail the full date.
 function readerDate(date: number) {
@@ -26,7 +27,7 @@ function readerDate(date: number) {
  * An opened email: subject, then one sender line with the recipient beneath
  * and the date at the right, Gmail labels, and the body with its image consent.
  */
-function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onMenuKey, onOpen, onChanged, onReplyAll, onForward, onOpenDraft, onUnsnooze, onChangeTime, state }: {
+function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onMenuKey, onOpen, onChanged, onReplyAll, onForward, onOpenDraft, onUnsnooze, onChangeTime, onReviewingUnsubscribe, state }: {
   mail: Mail;
   state?: State;
   provider?: Provider;
@@ -39,6 +40,7 @@ function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onM
   onReplyAll?: () => void;
   onForward?: () => void;
   onOpenDraft?: (draft: Draft) => void;
+  onReviewingUnsubscribe?: (open: boolean) => void;
   onUnsnooze?: () => void;
   onChangeTime?: (event: MouseEvent<HTMLElement>) => void;
   onMenu: (event: MouseEvent<HTMLElement>, mail: Mail) => void;
@@ -75,6 +77,7 @@ function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onM
           loadContent={(id) => api(`/messages/${encodeURIComponent(id)}/content`, "POST")}
           loadImages={(id) => api(`/messages/${encodeURIComponent(id)}/images`, "POST")} />}
         <footer className="reader-secondary-tools">
+        {hydrated && <UnsubscribeAction key={`unsubscribe:${mailBodyKey(mail)}`} mail={hydrated} api={api} busy={busy} onOpenDraft={onOpenDraft} onReviewing={onReviewingUnsubscribe} />}
         {provider === "gmail" && (
           <div className="message-labels">
             <span>

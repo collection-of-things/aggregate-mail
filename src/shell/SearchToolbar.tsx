@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useContext, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { PrivacyContext } from "../ui/Privacy";
 import { commandsChord } from "../interaction";
 import { Close, Search } from "../ui/icons";
 
-export function SearchToolbar({ inputRef, query, label, invalid, disabled, commandsDisabled = disabled, shortcut, onFocus, onChange, onClear, onCommands, scopeKey = "" }: {
+export function SearchToolbar({ inputRef, query, label, invalid, disabled, commandsDisabled = disabled, shortcut, onFocus, onChange, onClear, onCommands, onSaveView, scopeKey = "" }: {
   inputRef: RefObject<HTMLInputElement | null>;
   query: string;
   scopeKey?: string;
@@ -15,8 +16,11 @@ export function SearchToolbar({ inputRef, query, label, invalid, disabled, comma
   onChange: (query: string) => void;
   onClear: () => void;
   onCommands: () => void;
+  onSaveView?: () => void;
 }) {
   const [text, setText] = useState(query);
+  const { on: privacy } = useContext(PrivacyContext);
+  const [focused, setFocused] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latest = useRef(onChange);
   useLayoutEffect(() => { latest.current = onChange; });
@@ -33,8 +37,8 @@ export function SearchToolbar({ inputRef, query, label, invalid, disabled, comma
   return <div className="app-search-toolbar">
     <div className="search" role="search">
       <Search color="currentColor" size={15} />
-      <input data-compose-access ref={inputRef} aria-label={label} aria-describedby="mail-search-help" aria-invalid={invalid || undefined} placeholder="Search mail and drafts" value={text} disabled={disabled}
-        onFocus={onFocus} onChange={(event) => change(event.target.value)}
+      <input data-compose-access ref={inputRef} aria-label={label} aria-describedby="mail-search-help" aria-invalid={invalid || undefined} placeholder={privacy && text && !focused ? "Hidden search. Focus to edit." : "Search mail and drafts"} value={privacy && !focused ? "" : text} disabled={disabled}
+        onFocus={() => { setFocused(true); onFocus(); }} onBlur={() => setFocused(false)} onChange={(event) => change(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Escape") { event.stopPropagation(); clear(); event.currentTarget.blur(); }
         }} />
@@ -42,6 +46,7 @@ export function SearchToolbar({ inputRef, query, label, invalid, disabled, comma
         <Close color="currentColor" size={13} />
       </button> : <kbd aria-hidden="true">{shortcut}</kbd>}
     </div>
+    {onSaveView && <button data-compose-access type="button" className="save-view-button" disabled={disabled || text !== query} onClick={onSaveView}>Save view</button>}
     <button data-compose-access type="button" className="commands-button" disabled={commandsDisabled} onClick={onCommands}
       aria-haspopup="dialog" title={`Commands (${commandsChord()})`}>Commands <kbd>{commandsChord()}</kbd></button>
   </div>;
