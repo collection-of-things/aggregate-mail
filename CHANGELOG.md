@@ -6,6 +6,8 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+## 0.2.19 - 2026-10-28
+
 ### Fixed
 
 - Treat attachment admission refusal as a known pre-submission failure and release scheduled attachment holds.
@@ -31,7 +33,7 @@ unversioned history without treating it as a release record.
 ### Added
 
 - About and storage shows the running version and update status. Browser sessions show a short build ID and can check whether they match the host; desktop sessions use the existing stable-release checker ([#143](https://github.com/collection-of-things/aggregate-mail/issues/143)).
-- Linux web hosting can stage and verify published stable releases, drain before switching, and restore the previous compatible build after failed startup. Failed releases require an explicit retry. Service and timer templates are provided; live activation remains held ([#109](https://github.com/collection-of-things/aggregate-mail/issues/109)).
+- Linux web hosting can stage and verify published stable releases, drain before switching, and restore the previous compatible build after failed startup. Failed releases require an explicit retry. Service and timer templates are provided; operators enable deployments explicitly ([#109](https://github.com/collection-of-things/aggregate-mail/issues/109)).
 
 ### Fixed
 
