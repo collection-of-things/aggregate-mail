@@ -51,11 +51,17 @@ and development startup still require explicit key and profile provisioning.
 Open `/auth` locally to unlock with the recovery passphrase; password managers
 can fill it. It is accepted only at the configured localhost Host and Origin.
 Five attempts per minute are allowed. Phones use paired passkeys instead.
-Sessions lock after 30 minutes without a request or eight hours total;
-background polling counts as activity. Lock ends the current session. Closing a
-tab does not lock it. Restart locks every session. Phone login keeps the host
-session, while another login with the same passkey replaces that passkey's
-previous session. Removing a paired phone locks its sessions immediately.
+Pair each browser once. Paired browsers stay trusted across idle time, tab closes
+and host restarts. Temporary network or route outages hide the inbox and retry
+without removing trust. **Lock inbox** forgets the current browser; removing a
+paired device revokes every browser using that passkey. Clearing site cookies
+also requires another passkey unlock, but not host pairing while the passkey
+remains registered. Browser cookie limits may eventually require another unlock;
+normal use renews the cookie. No AI agent is needed for pairing or approval.
+
+Local recovery-password sessions still lock after 30 minutes without a request
+or eight hours total, and restart ends those local sessions. Paired-device trust
+never exposes the localhost recovery password or bypasses the private route.
 
 For development, export `APP_URL=http://127.0.0.1:5173` with the same required
 variables and run `npm run dev:web`. Open `http://127.0.0.1:5173/auth` first.
@@ -64,6 +70,21 @@ Use built assets for normal use. Google OAuth callback registration must match
 `APP_URL` plus `/api/oauth/google/callback`.
 
 ### Phone access over Tailscale
+
+From the phone, open the private address and choose **Connect this device**.
+Compare its code with **Settings > Phone access** in the authenticated localhost
+browser on the host. Approve there, then save the passkey on the phone. Starting
+from the host with a QR or direct invitation also works.
+
+In the signed-in localhost browser, open **Settings > Phone access**, enable
+access and choose **Connect phone**. Scan the QR from another screen, or use
+**Copy setup link** to open the same invitation on your phone. Compare the code,
+approve on the host and save the passkey on your phone. Open invitations within
+two minutes; once opened, finish approval and passkey setup within ten minutes.
+Reloading the pairing page resumes the claimed setup. For an expired invitation,
+choose Connect phone on the host again. Future visits use **Unlock with passkey**
+in the browser or password manager where you saved it.
+
 
 Install and connect Tailscale on the host and phone. Start the built browser
 app, unlock it locally, then open **Settings → Phone access → Enable phone

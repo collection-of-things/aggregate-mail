@@ -2574,8 +2574,10 @@ coverage are separate evidence.
 Automatic browser sync starts only after the full cached-mail snapshot loads. Bootstrap status alone does not start it; a failed initial read keeps it paused until a successful retry. Regression coverage: `src/bootstrap.test.tsx`.
 Release authorization: the active release workflow publishes eligible main pushes automatically. Use `[skip release]` in a PR title to suppress publication from its squash merge when release approval is held. Skipped CI is not passing verification.
 Browser rendering also checks access before mounting private content and every
-10 seconds afterward. A revoked session or failed access check removes mounted
-mail and drafts. Hidden tabs conceal content and recheck access on return.
+10 seconds afterward. Confirmed revocation removes mounted mail and drafts.
+Temporary network or HTTP failures conceal private content and retry; successful
+reconnection restores the existing mounted draft. Hidden tabs conceal content
+and recheck access on return.
 The access page broadcasts explicit locking to other tabs on the same origin.
 Checks of session status do not renew request-idle expiry. Browser-session loss
 can discard unsaved edits; it never sends mail or retries an uncertain send.
@@ -2805,3 +2807,47 @@ Host installation and persistent sign-in remain separate. Synthetic proof:
 `src/browser-update.test.tsx`, `src/browser-session.test.tsx`, the browser-update
 case in `src/navigation.test.tsx`, `server/browser-access.test.ts` and
 `scripts/browser-build.test.mjs`.
+
+
+### Phone pairing and access pages
+
+Sign-in and pairing pages use a self-contained stylesheet at `/auth/style.css`,
+with light/dark colors, responsive spacing, keyboard focus and touch controls.
+They load before application assets and retain the restrictive content policy.
+Remote sign-in explains passkeys and first-time setup; recovery passphrases
+remain restricted to the configured localhost origin.
+
+The private access page also offers Connect this device. It creates a
+cookie-bound phone request, visible in localhost Settings. A competing remote
+browser cannot replace an active request. The host can approve its matching
+code or cancel it. This entry point grants no access before passkey verification.
+
+Settings > Phone access > Connect phone returns a QR and a direct setup link
+for the same one-use invitation. Open the link on the target device, or scan
+from another screen. Both require the matching-code host approval and a
+user-verified passkey. Privacy hides both invitation forms. Reloading the
+claimed pairing page resumes through its HttpOnly claim cookie. Unopened
+invitations expire in two minutes; claimed setup expires in ten minutes.
+See [ADR 0096](adr/0096-resumable-phone-onboarding.md).
+
+Synthetic regressions: `src/phone-auth.test.ts`, `src/phone-pairing.test.tsx`,
+`server/phone-passkeys.test.ts` and `server/browser-access.test.ts`. Native
+passkey prompts and live phone acceptance require separate confirmation.
+
+
+### Remember paired browsers
+
+Paired browsers use persistent Secure HttpOnly Strict cookies with random
+256-bit tokens. Only SHA256 token hashes are saved in the existing encrypted
+phone-credential record, with up to eight browser hashes per passkey. Trust is
+bound to that credential and exact verified private HTTPS origin. There is no
+server idle or total timeout for this trust. A browser restart or host restart
+retains it; route loss suspends admission until route proof returns. Explicit
+Lock removes the current browser hash. Removing a credential revokes every
+browser using it. Local password sessions retain their existing timeouts.
+Browsers cap cookie lifetime at 400 days, renewed on normal authenticated use.
+Older paired browsers unlock once with their existing passkey to adopt trusted
+cookies. No new host pairing is needed. See [ADR 0097](adr/0097-persistent-paired-browser-trust.md).
+
+Regression checks include `server/browser-trust.test.ts`,
+`server/phone-passkeys.test.ts` and `src/browser-session.test.tsx`.

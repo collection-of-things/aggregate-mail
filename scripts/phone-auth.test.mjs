@@ -25,13 +25,34 @@ test("pairing client clears the fragment before its first request and sends it o
     assert.ok(!dom.window.document.body.innerHTML.includes(token));
   } finally { dom.window.close(); }
 });
-test("missing or invalid invitations do not make requests or offer registration", () => {
+test("invalid invitations do not make requests or offer registration", () => {
   const dom = new JSDOM('<p id="passkey-status"></p><button id="passkey-register" disabled></button>', { url: "https://mail.synthetic-tailnet.ts.net:8444/auth/pair#invalid", runScripts: "outside-only" });
   dom.window.fetch = () => assert.fail("invalid invitation must not make requests");
   try {
     dom.window.eval(bundle);
     assert.equal(dom.window.location.hash, "");
     assert.equal(dom.window.document.getElementById("passkey-register").disabled, true);
-    assert.match(dom.window.document.getElementById("passkey-status").textContent, /Reconnect from Settings/);
+    assert.match(dom.window.document.getElementById("passkey-status").textContent, /Connect this device/);
   } finally { dom.window.close(); }
+});
+
+test("phone-initiated setup recovers an expired page and waits for host approval", async () => {
+  const dom = new JSDOM('<p id="passkey-status"></p><p id="pair-code"></p><button id="passkey-connect" hidden></button><button id="passkey-register" disabled></button>', {url:"https://mail.synthetic-tailnet.ts.net:8444/auth/pair",runScripts:"outside-only"});
+  const calls=[]; let requested=false;
+  dom.window.AbortSignal.timeout=()=>new AbortController().signal;
+  dom.window.fetch=async (url)=>{
+    calls.push(url);
+    if(url.endsWith("/request")){requested=true;return {ok:true,json:async()=>({code:"654321",approved:false})};}
+    return requested?{ok:true,json:async()=>({code:"654321",approved:true})}:{ok:false};
+  };
+  try {
+    dom.window.eval(bundle);await new Promise(resolve=>setImmediate(resolve));
+    const connect=dom.window.document.getElementById("passkey-connect");
+    assert.equal(connect.hidden,false);
+    connect.click();await new Promise(resolve=>setImmediate(resolve));
+    assert.ok(calls.includes("/auth/passkey/request"));
+    assert.equal(connect.hidden,true);
+    assert.match(dom.window.document.getElementById("pair-code").textContent,/654321/);
+    assert.equal(dom.window.document.getElementById("passkey-register").disabled,false);
+  } finally {dom.window.close();}
 });

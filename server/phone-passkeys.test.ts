@@ -43,6 +43,7 @@ async function fixture(t: TestContext, verifiers: Partial<Pick<Parameters<typeof
   const host = (action?: string, body?: unknown, extra?: Record<string, string>) => call(`/api/phone-devices${action ? `/${action}` : ""}`, local, login, body, extra);
   const connect = async () => {
     const result = await host("connect", { confirm: true }); assert.equal(result.status, 200);
+    assert.equal(result.body.pairing.url, invitation, "the direct link and QR claim the same invitation");
     assert.equal(new URL(invitation).pathname, "/auth/pair"); assert.equal(new URL(invitation).search, "");
     return { id: result.body.pairing.id as string, token: new URL(invitation).hash.slice(1) };
   };
@@ -127,7 +128,7 @@ test("tampered WebAuthn challenge, origin, RP and missing user verification are 
   }
   assert.equal(f.credentials.get(auth.id)?.counter, 0);
 });
-test("ceremony cookies cannot swap challenges, lease loss invalidates pairing and sessions", async (t) => {
+test("ceremony cookies cannot swap challenges; route loss cancels setup but preserves paired browser trust", async (t) => {
   const f = await fixture(t); const { auth, userId, result } = await enroll(f);
   const first = await f.call("/auth/passkey/login/options", remote, "", {});
   const second = await f.call("/auth/passkey/login/options", remote, "", {});
@@ -136,7 +137,7 @@ test("ceremony cookies cannot swap challenges, lease loss invalidates pairing an
   f.gate.setTailnetOrigin(undefined);
   assert.equal((await f.call("/api/synthetic", remote, getCookie(result, "__Host-emc2_browser_session"))).status, 403);
   f.gate.setTailnetOrigin(remote, 10_000_000);
-  assert.equal((await f.call("/api/synthetic", remote, getCookie(result, "__Host-emc2_browser_session"))).status, 401);
+  assert.equal((await f.call("/api/synthetic", remote, getCookie(result, "__Host-emc2_browser_session"))).status, 200);
   // An intervening lease loss must invalidate an invitation, even after the same origin recovers.
   assert.equal((await f.call("/auth/passkey/pair", remote, "", { token: invite.token })).status, 400);
 });
@@ -186,4 +187,38 @@ test("host cancellation and credential revocation win against in-flight cryptogr
   const authenticating = f.call("/auth/passkey/login/verify", remote, getCookie(authOptions, "__Host-emc2_ceremony"), enrolled.auth.assertion(authOptions.body.challenge, enrolled.userId)); await authEntry;
   await f.host("revoke", { confirm: true, id: enrolled.auth.id }); releaseAuth();
   assert.equal((await authenticating).status, 400); assert.equal(f.credentials.size, 0);
+});
+
+ test("a claimed invitation allows time for host approval, but still expires and grants no early access", async (t) => {
+  const f = await fixture(t); const invite = await f.connect();
+  const result = await f.call("/auth/passkey/pair", remote, "", { token: invite.token });
+  const cookie = getCookie(result, "__Host-emc2_pair");
+  f.advance(120001);
+  assert.equal((await f.call("/auth/passkey/pair/status", remote, cookie, {})).status, 200);
+  assert.equal((await f.call("/auth/passkey/register/options", remote, cookie, {})).status, 400);
+  assert.equal((await f.call("/api/synthetic", remote, cookie)).status, 401);
+  assert.equal((await f.host("approve", { confirm: true, id: invite.id })).status, 200);
+  assert.equal((await f.call("/auth/passkey/register/options", remote, cookie, {})).status, 200);
+  f.advance(480000);
+  assert.equal((await f.call("/auth/passkey/pair/status", remote, cookie, {})).status, 400);
+});
+
+test("phone-initiated setup still requires matching localhost approval and verified registration", async (t) => {
+  const f = await fixture(t);
+  const requested = await f.call("/auth/passkey/request", remote, "", {});
+  assert.equal(requested.status, 200);
+  const cookie = getCookie(requested, "__Host-emc2_pair");
+  assert.equal((await f.call("/api/synthetic", remote, cookie)).status, 401);
+  assert.equal((await f.call("/auth/passkey/register/options", remote, cookie, {})).status, 400);
+  const host = await f.host(); assert.equal(host.body.pairing.code, requested.body.code);
+  assert.equal((await f.call("/auth/passkey/request", remote, "", {})).status, 400, "another browser cannot replace the request");
+  assert.equal((await f.call("/auth/passkey/request", remote, cookie, {})).body.code, requested.body.code);
+  assert.equal((await f.call("/auth/passkey/request", local, f.login, {})).status, 403);
+  assert.equal((await f.call("/auth/passkey/request", remote, "", {}, {Origin:"https://evil.test"})).status, 403);
+  assert.equal((await f.host("approve", {confirm:true,id:host.body.pairing.id})).status, 200);
+  const options = await f.call("/auth/passkey/register/options", remote, cookie, {});
+  const auth = authenticator();
+  const result = await f.call("/auth/passkey/register/verify", remote, cookie, auth.registration(options.body.challenge));
+  assert.equal(result.status, 200);
+  assert.equal((await f.call("/api/synthetic", remote, getCookie(result,"__Host-emc2_browser_session"))).status, 200);
 });

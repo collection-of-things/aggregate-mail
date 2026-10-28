@@ -4,7 +4,7 @@ import { act, useEffect } from "react";
 import { Window as DOMWindow } from "happy-dom";
 import { BrowserSession } from "./BrowserSession";
 
-test("browser lock removes retained mail and drafts; visibility and offline checks fail closed", async () => {
+test("explicit browser lock removes private content; temporary offline checks hide and automatically recover", async () => {
   const dom = new DOMWindow({ url: "http://127.0.0.1:3001" });
   let accepted = true;
   let failed = false;
@@ -62,8 +62,13 @@ test("browser lock removes retained mail and drafts; visibility and offline chec
     await render("offline");
     failed = true;
     await act(async () => interval?.());
-    assert.equal(container.querySelector("section"), null);
+    assert.equal(container.querySelector("section")?.parentElement?.getAttribute("style"), "display: none;");
+    assert.match(container.textContent || "", /Reconnecting/);
+    const retained = container.querySelector("input");
     failed = false;
+    await act(async () => interval?.());
+    assert.equal(container.querySelector("input"), retained, "temporary outage preserves the mounted draft");
+    assert.equal(container.querySelector("section")?.parentElement?.getAttribute("style"), "display: contents;");
     const before = checks;
     Object.assign(dom, { desktop: {} });
     await render("desktop");

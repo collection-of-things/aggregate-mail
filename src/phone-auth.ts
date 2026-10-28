@@ -5,6 +5,7 @@ let invite = location.pathname === "/auth/pair" ? location.hash.slice(1) : "";
 if (location.hash) history.replaceState(null, "", location.pathname);
 const status = document.getElementById("passkey-status");
 const register = document.getElementById("passkey-register") as HTMLButtonElement | null;
+const connect = document.getElementById("passkey-connect") as HTMLButtonElement | null;
 const unlock = document.getElementById("passkey-unlock") as HTMLButtonElement | null;
 let stopped = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -14,8 +15,9 @@ const post = async <T>(route: string, body: unknown = {}): Promise<T> => {
   if (!response.ok) throw new Error("verification");
   return await response.json() as T;
 };
-const failed = () => { stopped = true; invite = ""; if (timer) clearTimeout(timer); message("Phone setup could not finish. Reconnect from Settings on your host."); };
+const failed = () => { if (connect) connect.hidden = false; if (register) register.disabled = true; const code = document.getElementById("pair-code"); if (code) code.textContent = ""; stopped = true; invite = ""; if (timer) clearTimeout(timer); message("This invitation expired or setup was interrupted. Tap Connect this device to start again, or open a fresh setup link."); };
 const showClaim = (value: { code: string; approved: boolean }) => {
+  if (connect) connect.hidden = true;
   const code = document.getElementById("pair-code");
   if (code) code.textContent = `Matching code: ${value.code}`;
   if (value.approved) { message("Host approved. Save a passkey using your phone's screen lock."); if (register) register.disabled = false; }
@@ -31,7 +33,8 @@ const poll = async () => {
   } catch { failed(); }
 };
 if (register) {
-  if (!/^[A-Za-z0-9_-]{43}$/.test(invite)) failed();
+  if (!invite) void poll();
+  else if (!/^[A-Za-z0-9_-]{43}$/.test(invite)) failed();
   else {
     const token = invite; invite = "";
     void post<{ code: string; approved: boolean }>("pair", { token }).then((value) => { showClaim(value); void poll(); }).catch(failed);
@@ -57,3 +60,13 @@ if (unlock) unlock.onclick = async () => {
   } catch { message("Could not unlock. Try again, or reconnect this phone from Settings on the host."); unlock.disabled = false; }
 };
 window.addEventListener("pagehide", () => { stopped = true; invite = ""; if (timer) clearTimeout(timer); });
+
+if (connect) connect.onclick = async () => {
+  connect.disabled = true;
+  try {
+    const value = await post<{ code: string; approved: boolean }>("request");
+    if (!register) { location.assign("/auth/pair"); return; }
+    stopped = false; showClaim(value); void poll();
+  } catch { message("Another setup is waiting. Ask the host to cancel it, then try again."); }
+  finally { connect.disabled = false; }
+};

@@ -209,3 +209,30 @@ test("only admitted browsers receive the current public build identity without c
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+ test("public access pages load their own styling and distinguish phone setup from local recovery", async () => {
+  const local = "http://127.0.0.1:3002", remote = "https://mail.synthetic-tailnet.ts.net:8444";
+  const gate = browserAccess(password, local); gate.setTailnetOrigin(remote);
+  const app = express(); app.use(gate);
+  const server = app.listen(0, "127.0.0.1"); await once(server, "listening");
+  const address = server.address(); assert.ok(address && typeof address !== "string");
+  const call = (route: string, origin: string) => new Promise<{status: number; body: string; csp: string}>((resolve, reject) => {
+    const req = request({hostname:"127.0.0.1",port:address.port,path:route,headers:{Host:new URL(origin).host}}, res => {
+      let body="";res.on("data",chunk=>body+=chunk);res.on("end",()=>resolve({status:res.statusCode!,body,csp:String(res.headers["content-security-policy"])}));
+    });req.on("error",reject);req.end();
+  });
+  try {
+    const phone = await call("/auth", remote);
+    assert.match(phone.body, /href="\/auth\/style.css"/);
+    assert.match(phone.body, /Connect a new device/);
+    assert.match(phone.body, /setup link/);
+    assert.doesNotMatch(phone.body, /host recovery passphrase|name="password"/);
+    assert.match(phone.csp, /style-src 'self'/);
+    assert.doesNotMatch(phone.csp, /unsafe-inline/);
+    const css = await call("/auth/style.css", remote);
+    assert.equal(css.status, 200); assert.match(css.body, /prefers-color-scheme:dark/);
+    const host = await call("/auth", local);
+    assert.match(host.body, /autocomplete="current-password"/);
+    assert.match(host.body, /Recovery passphrase/);
+  } finally { server.closeAllConnections(); await new Promise<void>(resolve=>server.close(()=>resolve())); }
+});

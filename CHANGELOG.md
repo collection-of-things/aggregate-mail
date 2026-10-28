@@ -9,6 +9,8 @@ unversioned history without treating it as a release record.
 ### Fixed
 
 - Keep conversation history diagnostics in collapsed details, space message headers into readable rows, and show one applicable read-state action in each mail row ([#138](https://github.com/collection-of-things/aggregate-mail/issues/138)).
+- Remember paired browsers across idle time, tab closes and host restarts. Retry temporary outages without discarding drafts or requiring another unlock. Keep explicit Lock and Remove device controls.
+- Guide phone setup with styled sign-in and pairing pages, phone-initiated requests, QR or direct setup links, reload-safe approval and clear recovery instructions. Keep unopened invitations limited to two minutes and allow ten minutes to finish a claimed setup.
 
 ## 0.2.17 - 2026-10-27
 
