@@ -70,7 +70,7 @@ export function IsolatedMail({ css, children, fallback }: { css: string; childre
     return () => { observer?.disconnect(); themeObserver.disconnect(); doc.removeEventListener('load', resize, true); doc.defaultView?.removeEventListener('keydown', keydown); };
   }, [target, children]);
   if (failed) return <>{fallback}</>;
-  return <><iframe ref={frame} title="Formatted email" sandbox="allow-same-origin" referrerPolicy="no-referrer"
+  return <><iframe ref={frame} className="isolated-mail" title="Formatted email" sandbox="allow-same-origin" referrerPolicy="no-referrer"
     style={{ width: '100%', border: 0, display: 'block', minHeight: 48 }} />
     {target ? createPortal(children, target) : fallback}</>;
 }

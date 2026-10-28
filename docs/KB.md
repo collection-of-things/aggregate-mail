@@ -3202,6 +3202,12 @@ the event. Synthetic parser and mounted lifecycle checks are in
 `src/sender-css.test.tsx`; native layout and physical keyboard acceptance are
 separate proof. See [ADR 0102](adr/0102-isolated-sender-styles.md).
 
+The isolated frame carries the `isolated-mail` class so the host message body
+keeps its full available width after the formatted tree moves into the frame.
+Plain-text bodies retain the 65ch line limit. The mounted sender-style test
+checks both host width rules after portal creation; native geometry remains
+separate acceptance.
+
 Isolated sender styles use the host foreground as a low-priority default.
 Sender font sizes and the body default follow `--text-scale`, including changes
 on `.app` while mail stays open; unhandled Enter
