@@ -493,7 +493,7 @@ export const providers: Record<
                 let source: Buffer;
                 try { source = decodeGmailSource(result.data.raw); }
                 catch (error) {
-                  if (error instanceof Error && /byte limit/i.test(error.message)) return recoverGmailMetadata(a, item.id!, api);
+                  if (error instanceof Error && /byte limit/i.test(error.message)) return syncOperation(a.provider, "parse", () => recoverGmailMetadata(a, item.id!, api));
                   throw syncError(error, a.provider, "parse");
                 }
                 return { ...(await syncOperation(a.provider, "parse", () => parse(a, item.id!, source, unread, Number(result.data.internalDate)))),

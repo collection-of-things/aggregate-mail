@@ -2994,7 +2994,8 @@ existing installation key. Encrypted `upload` metadata binds filename, type,
 size and account. Writes batch at most 1 MiB in a synchronous transaction; no
 transaction spans network awaits. Stored uploads, including referenced ones,
 are capped conservatively at 256 MiB per account, 1 GiB globally and 2,000
-entries. Admission reserves the maximum request size. These are disk quotas;
+entries. Admission persists the maximum request reservation until completion,
+so concurrent backup imports cannot consume an active stream's capacity. These are disk quotas;
 stream buffers remain bounded. A new upload cannot silently reuse another
 account's attachment. Changing From requires removing uploaded attachments and
 choosing them again for that account. Existing inline drafts remain readable and sendable with
@@ -3092,7 +3093,7 @@ Cancellation and privacy changes abort the reader request. Native save dialogs,
 installed interaction and real-provider behavior remain separate acceptance.
 
 Synthetic coverage: `server/attachment-envelope.test.ts`,
-`server/attachment-import.test.ts`, `server/forward.test.ts`,
+`server/attachment-import.test.ts`, `server/attachment-quota.test.ts`, `server/forward.test.ts`,
 `server/drafts.test.ts`, `server/send-provider.test.ts`,
 `server/storage-maintenance.test.ts`, `src/attachment-selection.test.tsx`,
 `src/attachments.test.tsx` and `src/compose-layout.test.tsx`.

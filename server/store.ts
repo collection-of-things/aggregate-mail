@@ -66,7 +66,7 @@ export type Records = {
   maintenance: { lastInventoryAt: number };
   config: Partial<Record<"GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "OPENAI_API_KEY" | "TYPESAFE_API_KEY" | "TYPESAFE_PROVIDER", string>>;
   attachment: { accountId: string; content: string };
-  upload: { accountId: string; filename: string; contentType: string; size: number; createdAt: number; complete: boolean };
+  upload: { accountId: string; filename: string; contentType: string; size: number; reservedBytes?: number; createdAt: number; complete: boolean };
   attachmentHold: { id: string; accountId: string; attachments: { id: string }[] };
   compose: ComposePreferences;
   account: StoredAccount;
@@ -548,10 +548,12 @@ const activeUploads = new Set<string>();
 const attachmentReaders = new Map<string, number>();
 export function beginUpload(accountId: string, filename: string, contentType: string, limit = 25 * 1024 * 1024) {
   const inventory = all("upload");
-  if (inventory.filter(x => x.accountId === accountId).reduce((n, x) => n + x.size, 0) + limit > 256 * 1024 * 1024 || inventory.reduce((n, x) => n + x.size, 0) + limit > 1024 * 1024 * 1024 || inventory.length >= 2000)
+  // Backup imports can overlap an admitted stream, including before its first chunk.
+  const occupied = (x: Records["upload"]) => x.complete ? x.size : Math.max(x.size, x.reservedBytes ?? 35 * 1024 * 1024);
+  if (inventory.filter(x => x.accountId === accountId).reduce((n, x) => n + occupied(x), 0) + limit > 256 * 1024 * 1024 || inventory.reduce((n, x) => n + occupied(x), 0) + limit > 1024 * 1024 * 1024 || inventory.length >= 2000)
     throw new Error("Attachment storage limit reached. Discard unused drafts and compact storage.");
   const id = randomUUID();
-  put("upload", id, { accountId, filename, contentType, size: 0, createdAt: Date.now(), complete: false });
+  put("upload", id, { accountId, filename, contentType, size: 0, reservedBytes: limit, createdAt: Date.now(), complete: false });
   activeUploads.add(id);
   return id;
 }
