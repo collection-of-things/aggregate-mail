@@ -8,6 +8,10 @@ unversioned history without treating it as a release record.
 
 ### Fixed
 
+- Treat attachment admission refusal as a known pre-submission failure and release scheduled attachment holds.
+
+### Fixed
+
 - Reject workspace exports with unrecoverable removed-account references and enforce destination draft/template limits before backup previews and imports.
 
 ### Added

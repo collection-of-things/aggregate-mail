@@ -3120,3 +3120,7 @@ Regression: `server/attachment-backup.test.ts`, alongside the backup, envelope,
 raw selection, outbox and scheduled-send suites. Synthetic proof does not
 establish installed dialogs, native portability or live-provider behavior.
 
+
+Refusing busy attachment work before admission is a preflight failure, not
+unknown delivery. Scheduled sends release their byte holds without contacting
+the provider; errors after submission keep existing uncertainty handling.

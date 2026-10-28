@@ -1085,7 +1085,9 @@ async function saveSentCopy(a: StoredAccount, raw: Buffer, warnings: string[] = 
 // The SMTP transport passes envelope.size to its connection, which rejects an
 // advertised SIZE overflow before MAIL FROM on that same connection.
 async function sendReferenced(a: StoredAccount, input: SendInput) {
+  let admitted = false;
   return attachmentWork(async () => {
+    admitted = true;
     const { uploadBytes, eraseUpload, account } = await import("./store.js");
     const message = new MailComposer({
       from: a.email, to: input.to, cc: input.cc, ...(a.provider === "gmail" ? { bcc: input.bcc } : {}),
@@ -1148,6 +1150,9 @@ async function sendReferenced(a: StoredAccount, input: SendInput) {
         catch (error) { if (accepted) throw new SentCopyError("Email was sent, but temporary attachment cleanup failed. Do not resend."); throw error; }
       }
     }
+  }).catch(error => {
+    if (!admitted) throw new AttachmentPreflightError("Attachment work is busy. Nothing was submitted. Try again after the current operation.");
+    throw error;
   });
 }
 
