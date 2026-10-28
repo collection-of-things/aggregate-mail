@@ -2950,7 +2950,7 @@ Regression checks include `server/browser-trust.test.ts`,
 
 Settings, About and storage mounts `WorkspaceBackup`. The desktop bridge has
 only `workspace-backup-open` and `workspace-backup-save`, with native dialogs,
-main-frame sender validation and a 32 MiB file cap. Paths stay in Electron.
+main-frame sender validation and a 128 MiB file cap. Paths stay in Electron.
 `server/workspace-backup.ts` mounts POST export, preview and import routes under
 `/api/workspace-backup` after the existing API authorization middleware. Request
 parsing errors are sanitized; the larger body allowance applies only here.
@@ -3018,7 +3018,8 @@ Cleanup removes only unreferenced uploads older than one hour. This grace period
 protects uploads awaiting the first autosave and separate-copy recovery. Discard,
 confirmed sends and drained storage maintenance invoke cleanup. Interrupted
 uploads remove partial chunks immediately; process-crash leftovers expire through
-normal inventory. Legacy attachment inventory keeps its existing fail-closed
+normal inventory. Explicit account removal purges that account's uploads and holds
+with its drafts/outbox, while preserving other accounts' bytes. Legacy attachment inventory keeps its existing fail-closed
 behavior for unknown kinds and incomplete mail metadata.
 
 `sendMail` creates an encrypted hold before provider work. Confirmed acceptance,
@@ -3095,5 +3096,26 @@ Synthetic coverage: `server/attachment-envelope.test.ts`,
 `server/drafts.test.ts`, `server/send-provider.test.ts`,
 `server/storage-maintenance.test.ts`, `src/attachment-selection.test.tsx`,
 `src/attachments.test.tsx` and `src/compose-layout.test.tsx`.
-See [ADR 0082](adr/0082-attachment-envelope.md).
+See [ADR 0101](adr/0101-attachment-envelope.md).
+
+### Backups with attachment references
+
+[ADR 0101](adr/0101-attachment-envelope.md) extends the original backup decision:
+backup draft/proposal content includes referenced attachment bytes, never a
+source-device upload ID. Export verifies account ownership and complete bytes.
+Preview creates no uploads. Import creates new encrypted uploads and rebinds
+only the imported content in the same transaction as the workspace merge.
+Existing records are skipped without allocating duplicate attachment bytes;
+a failed import rolls back chunks and metadata. Agent history remains inert.
+Received caches and queued/scheduled outbox actions remain excluded.
+
+The encrypted backup cap is now 128 MiB to fit a practical attachment after both
+base64 layers. The dedicated backup request parser accepts 132 MiB; ordinary
+JSON stays at 2 MB. Backup construction is an explicit bounded in-memory file
+operation. Ordinary upload, send and received-part retrieval remain streamed.
+The release build stamps package.json before bundling; the manifest records
+that stamped version. Source builds record the checked-out package version.
+Regression: `server/attachment-backup.test.ts`, alongside the backup, envelope,
+raw selection, outbox and scheduled-send suites. Synthetic proof does not
+establish installed dialogs, native portability or live-provider behavior.
 

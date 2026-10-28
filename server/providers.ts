@@ -981,33 +981,7 @@ function imapProvider() {
         if (warnings.length) throw new SentCopyError(`Email was sent, but ${warnings.join(" and ")}. Do not resend.`);
         return;
       }
-      let client: ImapFlow | undefined;
-      try {
-        client = imap(a);
-        await client.connect();
-        const folders = await client.list();
-        const sent =
-          folders.find((f) => f.specialUse === "\\Sent")?.path || "Sent";
-        if (!folders.some((f) => f.path === sent))
-          await client.mailboxCreate(sent);
-        if (!(await client.append(sent, raw, ["\\Seen"])))
-          throw new Error("Sent copy was not saved.");
-      } catch {
-        warnings.push("saving a Sent copy failed");
-      } finally {
-        try {
-          if (client?.usable) {
-            if (Object.is(await client.logout(), false))
-              warnings.push("closing the Sent-copy connection failed");
-          } else client?.close();
-        } catch {
-          warnings.push("closing the Sent-copy connection failed");
-        }
-      }
-      if (warnings.length)
-        throw new SentCopyError(
-          `Email was sent, but ${warnings.join(" and ")}. Do not resend.`,
-        );
+      await saveSentCopy(a, raw, warnings);
     },
   };
 }
@@ -1077,9 +1051,8 @@ export async function calendarMime(account: StoredAccount, input: SendInput) {
 }
 
 // Saves an accepted SMTP message to Sent. Failure after delivery is a warning, never a resend.
-async function saveSentCopy(a: StoredAccount, raw: Buffer) {
+async function saveSentCopy(a: StoredAccount, raw: Buffer, warnings: string[] = []) {
   let client: ImapFlow | undefined;
-  const warnings: string[] = [];
   try {
     client = imap(a);
     await client.connect();
@@ -1126,7 +1099,7 @@ async function sendReferenced(a: StoredAccount, input: SendInput) {
     const abort = () => source.destroy(new Error("Attachment preparation timed out."));
     signal.addEventListener("abort", abort, { once: true });
     let spool: { id: string; size: number } | undefined;
-    let submitted = false, accepted = false;
+    let submitted = false, accepted = false, partialRejection = false;
     try {
       spool = await storeAttachmentBytes(a.id, "message.eml", "message/rfc822", source, signal, MIME_BYTES);
       const current = account(a.id);
@@ -1147,8 +1120,11 @@ async function sendReferenced(a: StoredAccount, input: SendInput) {
         const raw = Readable.from(uploadBytes(spool.id));
         try {
           submitted = true;
-          await transport.sendMail({ envelope: { from: a.email, to: [...input.to, ...(input.cc || []), ...(input.bcc || [])], size: spool.size }, raw });
+          const receipt = await transport.sendMail({ envelope: { from: a.email, to: [...input.to, ...(input.cc || []), ...(input.bcc || [])], size: spool.size }, raw });
+          if (receipt?.rejected?.length && receipt.accepted?.length === 0)
+            throw Object.assign(new Error("SMTP rejected every recipient."), { code: "EENVELOPE" });
           accepted = true;
+          partialRejection = Boolean(receipt?.rejected?.length);
         } finally { raw.destroy(); transport.close(); }
         // ImapFlow APPEND needs one Buffer. The spool is already bounded by
         // MIME_BYTES, so read it once for the Sent copy before it is erased.
@@ -1156,8 +1132,8 @@ async function sendReferenced(a: StoredAccount, input: SendInput) {
           let copy: Buffer | undefined;
           try { const chunks: Buffer[] = []; for await (const chunk of uploadBytes(spool.id)) chunks.push(chunk); copy = Buffer.concat(chunks); }
           catch { throw new SentCopyError("Email was sent, but saving a Sent copy failed. Do not resend."); }
-          await saveSentCopy(a, copy);
-        }
+          await saveSentCopy(a, copy, partialRejection ? ["some recipients were rejected"] : []);
+        } else if (partialRejection) throw new SentCopyError("Email was sent, but some recipients were rejected. Do not resend.");
       }
     } catch (error) {
       if (accepted && !(error instanceof SentCopyError)) throw new SentCopyError("Email was sent, but closing its attachment stream failed. Do not resend.");

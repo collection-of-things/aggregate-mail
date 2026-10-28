@@ -492,7 +492,7 @@ In the desktop app, open **Settings → About and storage → Encrypted workspac
 backup**. Enter and confirm a passphrase of at least 12 characters, then choose
 **Export encrypted backup** and a destination. Keep the passphrase separately;
 it cannot be recovered. The file works independently of the original computer's
-protected storage key. Files are limited to 32 MiB.
+protected storage key. Files are limited to 128 MiB.
 
 Backups contain local commitments, projects, decisions, Teach rules, pins,
 snoozes, drafts, templates, signatures and agent history. They exclude account
@@ -508,3 +508,9 @@ pin/snooze flags win; nothing is deleted. Pending/interrupted agent actions
 return as inactive, unknown history. Import does not send mail or change your
 provider mailbox. Reload afterward to refresh all views. Missing source mail
 can stay unavailable after resync, especially if provider message IDs changed.
+
+Draft attachments are carried as encrypted backup content and restored as new
+account-bound encrypted uploads. Device upload IDs, received attachment caches
+and queued/scheduled outbox actions are excluded. Missing or corrupt referenced
+bytes stop export. The encrypted file limit is 128 MiB, including both encoding
+layers; an oversized workspace must be reduced before export.

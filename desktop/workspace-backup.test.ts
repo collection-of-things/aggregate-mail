@@ -24,7 +24,7 @@ test("backup file bridge bounds reads, saves private files, and rejects foreign 
     await bridge.writeBackupFile(file, "replacement ciphertext");
     assert.equal(await readFile(file, "utf8"), "replacement ciphertext");
     const oversized = path.join(directory, "too-large");
-    await writeFile(oversized, Buffer.alloc(32 * 1024 * 1024 + 1));
+    await writeFile(oversized, Buffer.alloc(128 * 1024 * 1024 + 1));
     await assert.rejects(bridge.readBackupFile(oversized), /Invalid backup size/);
     await assert.rejects(bridge.readBackupFile(directory));
     const handlers = new Map<string, (...args: any[]) => Promise<unknown>>();

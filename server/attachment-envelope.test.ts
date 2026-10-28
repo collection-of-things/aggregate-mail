@@ -181,6 +181,22 @@ test("practical encrypted attachment envelope", { timeout: 110000 }, async t => 
       assert.ok(sent && appended[0].raw.equals(sent), "Sent copy is the exact submitted message");
       assert.ok(!appended[0].raw.toString("latin1").includes("hidden@example.test"), "Sent copy carries no Bcc header");
     });
+    await t.test("streamed SMTP preserves partial recipient warnings and rejects zero acceptance", async t => {
+      const file = await upload(128, "recipients.bin");
+      const gmailImap = { ...a, provider: "gmail-imap" as const };
+      store.put("account", a.id, gmailImap);
+      let rejectAll = false;
+      t.mock.method(nodemailer, "createTransport", () => ({ close() {}, async sendMail(value: { raw: Readable }) {
+        for await (const _chunk of value.raw) { /* drain the measured synthetic stream */ }
+        return { accepted: rejectAll ? [] : [content.to[0]], rejected: ["rejected@example.test"] };
+      } }));
+      const result = await actions.sendMail({ accountId: a.id, ...content, attachments: [file] });
+      assert.equal(result.ok, true); assert.match(result.warning!, /some recipients were rejected/);
+      rejectAll = true;
+      await assert.rejects(actions.sendMail({ accountId: a.id, ...content, attachments: [file] }), error =>
+        (error as { code?: string }).code === "EENVELOPE");
+      store.put("account", a.id, a);
+    });
     await t.test("Gmail streams base64url JSON without collecting the message", async () => {
       const payload: Buffer[] = [];
       for await (const chunk of bytes.gmailJson(Readable.from([Buffer.from("a"), Buffer.from("bcde"), Buffer.from("fg")]), "thread")) payload.push(Buffer.from(chunk));

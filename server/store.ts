@@ -102,7 +102,7 @@ export function mailSummary(mail: Mail, rules: Rule[] = all("rule")): MailSummar
     reason: mail.reason, archived: mail.archived, snoozedUntil: mail.snoozedUntil,
     messageId: mail.messageId, threadId: mail.threadId, references: mail.references && [...mail.references],
     direction: mail.direction, inReplyTo: mail.inReplyTo, mailbox: mail.mailbox && { ...mail.mailbox },
-    attachments: mail.attachments?.map(({ id, filename, contentType, size, unavailable, uploadId, sourceIndex, remotePart, sizeIsEstimate }) => ({ id, filename, contentType, size, unavailable, uploadId, sourceIndex, remotePart, sizeIsEstimate })),
+    attachments: mail.attachments?.map(({ id, filename, contentType, size, unavailable, contentId, uploadId, sourceIndex, remotePart, sizeIsEstimate }) => ({ id, filename, contentType, size, unavailable, contentId, uploadId, sourceIndex, remotePart, sizeIsEstimate })),
     contentVersion: createHash("sha256").update(JSON.stringify(mail)).digest("hex"),
     inboxTab: typeof mail.address === "string" ? inboxTab(mail, rules) : "primary",
   };
@@ -465,6 +465,11 @@ export function closeStore() {
 }
 
 export function removeAccountAttachments(accountId: string) {
+  // Explicit account removal also purges its drafts/outbox, so its uploads and
+  // uncertainty holds must not keep private bytes after the account is gone.
+  for (const row of db.prepare("SELECT id,value FROM records WHERE kind='upload'").all())
+    if ((decrypt(String(row.value)) as Records["upload"]).accountId === accountId) eraseUpload(String(row.id));
+  for (const hold of all("attachmentHold")) if (hold.accountId === accountId) remove("attachmentHold", hold.id);
   for (const row of db.prepare("SELECT id,value FROM records WHERE kind='attachment'").all()) {
     const attachment = decrypt(String(row.value)) as Records["attachment"];
     if (attachment.accountId === accountId) remove("attachment", String(row.id));
@@ -622,4 +627,24 @@ export function cleanupUploads(now = Date.now()) {
     return orphans.length;
   };
   return db.isTransaction ? cleanup() : transaction(cleanup);
+}
+
+// Backups are explicit bounded in-memory files; ordinary sends remain streamed.
+export function backupUploadContent(accountId: string, file: import("../shared/types.js").DraftAttachment): string {
+  validateAttachmentRefs(accountId, [file]);
+  const chunks: Buffer[] = [];
+  for (const row of db.prepare("SELECT value FROM attachment_chunks WHERE id=? ORDER BY seq").iterate(file.id!))
+    chunks.push(Buffer.from(decrypt(String(row.value)) as string, "base64"));
+  const content = Buffer.concat(chunks);
+  if (content.length !== file.size) throw new Error("Attachment bytes are incomplete. Backup was not created.");
+  return content.toString("base64");
+}
+export function restoreBackupUpload(accountId: string, file: { filename: string; contentType: string; content: string }) {
+  const bytes = Buffer.from(file.content, "base64");
+  const id = beginUpload(accountId, file.filename, file.contentType, bytes.length);
+  try {
+    for (let offset = 0, seq = 0; offset < bytes.length; offset += 65536, seq++) appendUpload(id, seq, bytes.subarray(offset, offset + 65536));
+    finishUpload(id, bytes.length);
+    return { id, filename: file.filename, contentType: file.contentType, size: bytes.length };
+  } catch (error) { eraseUpload(id); throw error; }
 }

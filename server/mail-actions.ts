@@ -137,7 +137,9 @@ export async function sendMail(value: unknown, beforeExecution?: () => void) {
     const input = sendSchema.parse(value);
     const a = account(input.accountId);
     beforeExecution?.();
-    const hold = holdAttachments(a.id, input.attachments);
+    let hold: string | undefined;
+    try { hold = holdAttachments(a.id, input.attachments); }
+    catch { throw new AttachmentPreflightError("Attachment identity changed. Choose the file again before sending."); }
     const cleanup = () => {
       try { releaseAttachmentHold(hold); cleanupUploads(); return undefined; }
       catch { return "Email was sent, but attachment cleanup failed. Do not resend."; }

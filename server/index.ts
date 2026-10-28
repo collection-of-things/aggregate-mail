@@ -160,7 +160,7 @@ mountPhoneAccess(app, phoneService, browserGate);
 if (browserGate) phonePasskeys({ gate: browserGate, list: () => all("phoneCredential"),
   save: (value) => put("phoneCredential", value.id, value), remove: (id) => remove("phoneCredential", id),
 }).mount(app);
-app.use("/api/workspace-backup", express.json({ limit: "34mb" }));
+app.use("/api/workspace-backup", express.json({ limit: "132mb" }));
 app.use("/api/workspace-backup", (_error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   res.status(400).json({ error: "Invalid backup request or file exceeds the size limit." });
 });

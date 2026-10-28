@@ -1,4 +1,4 @@
-# ADR 0082: Attachment envelope
+# ADR 0101: Attachment envelope
 
 Date: 2026-10-26
 Status: Authorized implementation
@@ -42,6 +42,23 @@ IMAP accounts keep their Sent copy: after SMTP acceptance, the bounded encrypted
 spool is read once into the Buffer that ImapFlow APPEND requires. Submission
 itself stays streamed. Never retry delivery to make a Sent copy; a copy failure
 is a successful-delivery warning.
+
+## Attachment-aware workspace backup
+
+Amends [ADR 0100](0100-encrypted-workspace-backup.md), file cap and draft content.
+Keep version 1 authentication and passphrase derivation. Include account-verified
+uploaded draft/proposal bytes as inline content inside the encrypted backup;
+never export device-specific upload IDs. Missing/incomplete bytes fail export.
+Restore as fresh account-bound encrypted uploads within the workspace merge's
+single transaction. A rollback removes all imported chunks/metadata. Preview
+and skipped existing records allocate no uploads. Keep imported agent history
+inert and exclude outbox actions and received caches.
+
+Raise the encrypted file cap to 128 MiB, including both encoding layers, and
+use a dedicated 132 MiB request parser after authentication. Ordinary JSON stays
+at 2 MB. Backup construction is explicitly bounded in memory; ordinary attachment
+upload, download and send streams keep their existing small buffers. Files above
+the backup cap fail visibly instead of dropping attachment references.
 
 ## Verification boundary
 

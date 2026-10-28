@@ -15,7 +15,7 @@ unversioned history without treating it as a release record.
 - Support 20 outgoing attachments and 25 MiB total through raw local uploads and encrypted attachment references. Keep small legacy drafts readable, stream referenced messages with provider size preflight, and preserve bytes for drafts and uncertain sends.
 - Offer cancellable, bounded Gmail and IMAP part downloads for large received attachments. Keep automatic imports small and distinguish unparsed bodies from files not downloaded yet. IMAP accounts still save the exact sent message to Sent, without Bcc.
 
-- Keep later small received attachments available when an earlier part exceeds import limits and show exact selected bytes ([#87](https://github.com/collection-of-things/aggregate-mail/issues/87)).
+- Include uploaded draft attachments in encrypted workspace backups and restore new account-bound references atomically. The encrypted backup limit is 128 MiB ([#86](https://github.com/collection-of-things/aggregate-mail/issues/86), [#87](https://github.com/collection-of-things/aggregate-mail/issues/87)).
 
 - Back up local workspace data in a passphrase-encrypted file and preview a merge before restoring. Existing records are preserved; credentials and cached mail bodies are excluded ([#86](https://github.com/collection-of-things/aggregate-mail/issues/86)).
 
