@@ -1,7 +1,10 @@
 import { Fragment, createElement, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { imageSource, type MailAttachment } from "../../shared/types";
-import { embeddedImageTypes, mailLink, mailStyle, parseMailContent, privateMailLink, type MailContentNode } from "../../shared/mail-content";
+import { embeddedImageTypes, mailLink, mailStyle, mailStylesheet, parseMailContent, privateMailLink, type MailContentNode } from "../../shared/mail-content";
 import { segmentPrivateParts, type PrivacySegment } from "../privacy";
+import { IsolatedMail } from "./IsolatedMail";
+
+type Presentation = { className?: string; id?: string };
 
 type Props = {
   mailId?: string;
@@ -19,7 +22,9 @@ type Props = {
 // Parent owns opening-specific consent and text redaction. Hooks: formatted-mail,
 // formatted-mail-fallback, formatted-mail-image and formatted-mail-image-placeholder.
 export function FormattedMail({ mailId, attachments = [], html, showImages, renderText, redactText, privacy, privateNames = [], fallbackText = "", fallback }: Props) {
-  const nodes = useMemo(() => typeof html === "string" ? parseMailContent(html) : null, [html]);
+  const stylesheet = useMemo(() => mailStylesheet(html || ""), [html]);
+  const isolated = !!stylesheet.css;
+  const nodes = useMemo(() => typeof html === "string" ? parseMailContent(html, isolated) : null, [html, isolated]);
   const textParts = nodes ? contentParts(nodes) : [];
   const privateParts = privacy ? segmentPrivateParts(textParts, privateNames) : undefined;
   const embeddedFiles = new Map<string, MailAttachment>();
@@ -59,32 +64,38 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
     // Quotes take the app's own inset and bar, so nested replies keep their width.
     if (tag === "blockquote") for (const property of Object.keys(style) as (keyof CSSProperties)[])
       if (/^(margin|padding|border)/.test(property)) delete style[property];
-    delete style.color;
-    style.backgroundColor = "transparent";
-    if (style.borderColor) style.borderColor = "var(--line)";
-    for (const property of ["border", "borderTop", "borderRight", "borderBottom", "borderLeft"] as const) {
-      if (style[property]) style[property] = String(style[property]).replace(/^(\d+(?:\.\d+)?px (?:solid|dashed|dotted) ).+$/, "$1var(--line)");
+    if (!isolated) {
+      delete style.color;
+      style.backgroundColor = "transparent";
+      if (style.borderColor) style.borderColor = "var(--line)";
+      for (const property of ["border", "borderTop", "borderRight", "borderBottom", "borderLeft"] as const) {
+        if (style[property]) style[property] = String(style[property]).replace(/^(\d+(?:\.\d+)?px (?:solid|dashed|dotted) ).+$/, "$1var(--line)");
+      }
     }
+    const presentation: Presentation = isolated ? {
+      className: (a.class || "").split(/\s+/).map(name => stylesheet.identifiers.get('.' + name)).filter(Boolean).join(' ') || undefined,
+      id: a.id ? stylesheet.identifiers.get('#' + a.id) : undefined,
+    } : {};
     if (tag === "img") {
       // An empty box at the image's size keeps the sender layout; small icon
       // cells would otherwise wrap the reason one letter per line.
-      if (!showImages) return <ImagePlaceholder key={key} style={style} reason="Image blocked. Use Show images to load it." />;
+      if (!showImages) return <ImagePlaceholder {...presentation} key={key} style={style} reason="Image blocked. Use Show images to load it." />;
       const cid = /^cid:(.+)$/i.exec(a.src || "")?.[1];
       const embedded = embeddedAttachment(a.src || "", attachments);
       if (cid && privacy && privateMailLink(a.src, redactText))
-        return <ImagePlaceholder key={key} style={style} reason="Image unavailable while personal information is hidden." />;
+        return <ImagePlaceholder {...presentation} key={key} style={style} reason="Image unavailable while personal information is hidden." />;
       if (embedded && mailId) {
         const source = embeddedSources[embedded.id];
-        return source?.src ? <FormattedImage key={`${key}:${source.src}`} src={source.src} alt={redactText(a.alt || "").slice(0, 500)} style={style} /> :
-          <ImagePlaceholder key={key} style={style} reason={source?.failed ? "Embedded image could not be loaded." : "Loading embedded image…"} />;
+        return source?.src ? <FormattedImage {...presentation} key={`${key}:${source.src}`} src={source.src} alt={redactText(a.alt || "").slice(0, 500)} style={style} /> :
+          <ImagePlaceholder {...presentation} key={key} style={style} reason={source?.failed ? "Embedded image could not be loaded." : "Loading embedded image…"} />;
       }
       const src = imageSource(a.src || "");
       if (privacy && (privateMailLink(a.src || "", redactText) || (src && privateMailLink(src, redactText))))
-        return <ImagePlaceholder key={key} style={style} reason="Image unavailable while personal information is hidden." />;
-      return src ? <FormattedImage key={`${key}:${src}`} src={src} alt={redactText(a.alt || "").slice(0, 500)} style={style} /> :
-        <ImagePlaceholder key={key} style={style} reason="Unsupported image." />;
+        return <ImagePlaceholder {...presentation} key={key} style={style} reason="Image unavailable while personal information is hidden." />;
+      return src ? <FormattedImage {...presentation} key={`${key}:${src}`} src={src} alt={redactText(a.alt || "").slice(0, 500)} style={style} /> :
+        <ImagePlaceholder {...presentation} key={key} style={style} reason="Unsupported image." />;
     }
-    const props: Record<string, unknown> = { key, style };
+    const props: Record<string, unknown> = { key, style, ...presentation };
     let element = tag === "font" ? "span" : tag === "center" ? "div" : tag;
     if (tag === "a") {
       const href = mailLink(a.href || "");
@@ -93,6 +104,9 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
         // Card-style links set no decoration; plain links keep an underline.
         style.textDecoration ??= "underline";
         Object.assign(props, { href, target: "_blank", rel: "noopener noreferrer", referrerPolicy: "no-referrer" });
+        if (isolated) props.onClick = (event: { preventDefault: () => void }) => {
+          event.preventDefault(); window.open(href, "_blank", "noopener,noreferrer");
+        };
       }
       else element = "span";
     }
@@ -116,16 +130,18 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
     return createElement(element, props, content);
   };
   const formatted = !!nodes && !!(textParts.join("").trim() || hasImage(nodes, attachments));
-  return <div className={formatted ? "formatted-mail" : "formatted-mail formatted-mail-fallback"}
+  const body = <div className={formatted ? "formatted-mail" : "formatted-mail formatted-mail-fallback"}
     style={{ maxWidth: "100%", minWidth: 0, overflow: "auto", overflowWrap: formatted ? "break-word" : "anywhere", contain: "layout paint", isolation: "isolate", whiteSpace: formatted ? "normal" : "pre-wrap" }}>
     {formatted ? nodes.map(render) : fallback ?? renderText(fallbackText)}
   </div>;
+  return isolated && formatted ? <IsolatedMail key={JSON.stringify([mailId, html, privacy, showImages])} css={stylesheet.css}
+    fallback={<div className="formatted-mail formatted-mail-fallback">{fallback ?? renderText(fallbackText || textParts.join(''))}</div>}>{body}</IsolatedMail> : body;
 }
 
 // Holds a blocked image's place at its own size (24px when unsized); the reason
 // is a label and tooltip because a small icon cell cannot fit it as text.
-function ImagePlaceholder({ style, reason }: { style: CSSProperties; reason: string }) {
-  return <span className="formatted-mail-image-placeholder" role="img" aria-label={reason} title={reason}
+function ImagePlaceholder({ style, reason, className, id }: { style: CSSProperties; reason: string } & Presentation) {
+  return <span id={id} className={["formatted-mail-image-placeholder", className].filter(Boolean).join(" ")} role="img" aria-label={reason} title={reason}
     style={{ width: style.width ?? 24, height: style.height ?? 24, maxHeight: style.maxHeight }} />;
 }
 
@@ -142,14 +158,15 @@ function embeddedAttachment(source: string, attachments: readonly MailAttachment
 type EmbeddedSource = { src?: string; failed?: boolean };
 // One fetch/blob per unique referenced attachment, shared by all image occurrences.
 function useEmbeddedImages(mailId: string | undefined, files: readonly MailAttachment[]) {
-  const [sources, setSources] = useState<Record<string, EmbeddedSource>>({});
   // The value key avoids re-fetches when parent renders recreate the same metadata.
   const fileKey = JSON.stringify(files.map(({ id, size, contentType }) => ({ id, size, contentType })));
+  const binding = JSON.stringify([mailId, fileKey]);
+  const [state, setState] = useState<{ binding: string; sources: Record<string, EmbeddedSource> }>({ binding, sources: {} });
   useEffect(() => {
     let active = true;
     const urls: string[] = [];
     const controller = new AbortController();
-    setSources({});
+    setState({ binding, sources: {} });
     if (mailId) for (const file of files) void (async () => {
       const response = await fetch(`/api/messages/${encodeURIComponent(mailId)}/attachments/${encodeURIComponent(file.id)}`, { signal: controller.signal });
       if (!response.ok) throw new Error("Embedded image unavailable");
@@ -158,24 +175,24 @@ function useEmbeddedImages(mailId: string | undefined, files: readonly MailAttac
       if (!active) return;
       const src = URL.createObjectURL(new Blob([bytes], { type: file.contentType.toLowerCase() }));
       urls.push(src);
-      setSources((current) => ({ ...current, [file.id]: { src } }));
-    })().catch(() => { if (active) setSources((current) => ({ ...current, [file.id]: { failed: true } })); });
+      setState((current) => ({ binding, sources: { ...current.sources, [file.id]: { src } } }));
+    })().catch(() => { if (active) setState((current) => ({ binding, sources: { ...current.sources, [file.id]: { failed: true } } })); });
     return () => { active = false; controller.abort(); urls.forEach((url) => URL.revokeObjectURL(url)); };
-  }, [mailId, fileKey]);
-  return sources;
+  }, [mailId, fileKey, binding]);
+  return state.binding === binding ? state.sources : {};
 }
 
-function FormattedImage({ src, alt, style }: { src: string; alt: string; style: CSSProperties }) {
+function FormattedImage({ src, alt, style, ...presentation }: { src: string; alt: string; style: CSSProperties } & Presentation) {
   const [status, setStatus] = useState("loading");
   // `display: contents` keeps the image in the sender's line, so its own
   // vertical-align and float apply as they would in a mail client.
   return <span className="formatted-mail-image" style={{ display: "contents" }}>
-    {status !== "error" && <img src={src} alt={alt} referrerPolicy="no-referrer" decoding="async" loading="lazy"
+    {status !== "error" && <img {...presentation} src={src} alt={alt} referrerPolicy="no-referrer" decoding="async" loading="lazy"
       // With a width, auto height keeps the shape when max-width narrows it;
       // icons sized only by height keep that height.
       style={{ ...style, maxWidth: "100%", height: style.width || !style.height ? "auto" : style.height }}
       onLoad={() => setStatus("loaded")} onError={() => setStatus("error")} />}
-    {status === "error" && <ImagePlaceholder style={style} reason="Image could not be loaded." />}
+    {status === "error" && <ImagePlaceholder {...presentation} style={style} reason="Image could not be loaded." />}
   </span>;
 }
 

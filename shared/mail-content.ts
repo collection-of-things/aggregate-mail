@@ -36,7 +36,7 @@ const allowedAttributes = new Set(("style href src alt width height align valign
   "colspan rowspan cellpadding cellspacing border start").split(" "));
 
 // Unknown wrappers keep their text. Active content and its children are discarded.
-export function parseMailContent(html: string): MailContentNode[] | null {
+export function parseMailContent(html: string, selectors = false): MailContentNode[] | null {
   if (boundedMailHtml(html) === null) return null;
   const roots: MailContentNode[] = [];
   const stack: { children: MailContentNode[]; dropped: boolean }[] = [];
@@ -55,7 +55,7 @@ export function parseMailContent(html: string): MailContentNode[] | null {
       const dropped = !!parent?.dropped || droppedTags.has(tag);
       if (!dropped) (parent?.children ?? roots).push({
         tag: allowedTags.has(tag) ? tag : "span",
-        attributes: Object.fromEntries(Object.entries(attributes).filter(([key]) => allowedAttributes.has(key))),
+        attributes: Object.fromEntries(Object.entries(attributes).filter(([key]) => allowedAttributes.has(key) || selectors && (key === "class" || key === "id"))),
         children,
       });
       stack.push({ children, dropped });
@@ -173,4 +173,68 @@ export function privateMailLink(value: string, redactText: (text: string) => str
   }
   // Deeply encoded destinations cannot be proven free of hidden text.
   return true;
+}
+
+// Only resource-free declarations enter the isolated reader. Original selector
+// names stay in memory; the document receives opaque per-message identifiers.
+export function mailStylesheet(html: string) {
+  const identifiers = new Map<string, string>();
+  if (boundedMailHtml(html) === null) return { css: "", identifiers };
+  let source = "", inStyle = false;
+  const parser = new Parser({
+    onopentag(tag) { if (tag === "style") inStyle = true; },
+    onclosetag(tag) { if (tag === "style") { inStyle = false; source += "\n"; } },
+    ontext(text) { if (inStyle) source += text; },
+  });
+  parser.end(html);
+  if (source.length > 32_000) return { css: "", identifiers };
+  source = source.replace(/\/\*[\s\S]*?\*\//g, "");
+  let rules = 0;
+  const declarations = (raw: string) => Object.entries(mailStyle(raw)).filter(([name, value]) =>
+    // A stylesheet must not conceal text or create tiny overflowing boxes.
+    !["height", "maxHeight"].includes(name) &&
+    (!['fontSize', 'lineHeight'].includes(name) || parseFloat(String(value)) >= 6 || !String(value).endsWith('px') && Number(value) >= 1)
+  ).map(([name, value]) => `${name.replace(/[A-Z]/g, letter => '-' + letter.toLowerCase())}:${name === 'fontSize' ? `calc(${value} * var(--text-scale, 1))` : value}`).join(';');
+  const selector = (raw: string) => {
+    if (raw.length > 500 || !/^[a-zA-Z0-9_.#*\s,>+~-]+$/.test(raw) || !raw.trim()) return null;
+    if (raw.trim().split(/[\s,>+~]+/).some(part => !/^(?:[a-zA-Z][\w-]*|\*)?(?:[.#][a-zA-Z_][\w-]*)*$/.test(part))) return null;
+    let valid = true;
+    const result = raw.trim().replace(/([.#]?)([a-zA-Z_][\w-]*)/g, (key: string, prefix: string, name: string) => {
+      if (!prefix) {
+        if (!allowedTags.has(name.toLowerCase()) && name !== 'body' && name !== 'html') valid = false;
+        return name.toLowerCase();
+      }
+      if (!identifiers.has(key)) identifiers.set(key, `sender-${identifiers.size}`);
+      return prefix + identifiers.get(key);
+    });
+    return valid ? result : null;
+  };
+  function block(input: string, nested = false): string {
+    let css = '', at = 0;
+    while (at < input.length && rules < 128) {
+      const open = input.indexOf('{', at), semi = input.indexOf(';', at);
+      if (semi >= 0 && (open < 0 || semi < open)) { at = semi + 1; continue; }
+      if (open < 0) break;
+      let close = open + 1, depth = 1;
+      for (; close < input.length && depth; close++) {
+        if (input[close] === '{') depth++;
+        if (input[close] === '}') depth--;
+      }
+      if (depth) break;
+      const head = input.slice(at, open).trim(), body = input.slice(open + 1, close - 1);
+      at = close; rules++;
+      if (/^@media\s/i.test(head)) {
+        const media = head.slice(6).trim().toLowerCase();
+        if (!nested && /^(?:(?:only )?screen(?: and )?)?\((?:min|max)-width:\s*\d{1,4}px\)(?: and \((?:min|max)-width:\s*\d{1,4}px\))*$/.test(media)) {
+          const children = block(body, true);
+          if (children) css += `@media ${media}{${children}}`;
+        }
+      } else if (!head.startsWith('@') && !/[{}]/.test(body)) {
+        const safe = selector(head), values = declarations(body);
+        if (safe && values) css += `${safe}{${values}}`;
+      }
+    }
+    return css;
+  }
+  return { css: block(source), identifiers };
 }
