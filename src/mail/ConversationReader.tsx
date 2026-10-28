@@ -85,44 +85,48 @@ export function ConversationReader({ mail, gmail, api, busy, onChanged, onSelect
     .filter(item => item.accountId === mail.accountId && item.id !== mail.id);
   const ordered: Mail[] = [...messages, mail].sort((a, b) => a.date - b.date || a.id.localeCompare(b.id));
   return <section className="conversation-reader" aria-label="Conversation">
-    <p className="conversation-coverage">{ordered.length} cached message{ordered.length === 1 ? "" : "s"}. Older or Sent messages may be missing. Local Inbox and bounded Sent history do not prove completeness.</p>
-    {!gmail && <p>IMAP history uses cached Message-ID references only. Remote thread expansion is unavailable.</p>}
-    {gmail && mail.threadId && <button type="button" className="link" disabled={pending || busy} onClick={() => void fetchRest()}>{pending ? "Fetching conversation…" : "Fetch bounded Gmail conversation (up to 100 messages)"}</button>}
-    {error && <p role="alert">{error}</p>}
-    {conversation?.gaps.map((gap, index) => <p key={index}><Redact text={gap} /></p>)}
-    <p>Enter or click expands a message. Reader toolbar and shortcuts apply to the selected message. Use Select for actions to change it; each message has its own context menu.</p>
+    {error && <p className="conversation-error" role="alert">{error}</p>}
     {ordered.map((item, index) => {
       const open = expanded[item.id] ?? (item.id === mail.id);
       return <MailPrivacy mail={item} key={item.id}><section className="conversation-message" data-message-id={item.id}>
-        <button type="button" className="conversation-toggle" aria-expanded={open} aria-controls={`${region}-${index}`}
-          onContextMenu={event => onMenu?.(event, item)}
-          onClick={() => setExpanded(current => ({ ...current, [item.id]: !open }))}
-          onKeyDown={event => {
-            onMenuKey?.(event, item);
-            if (event.defaultPrevented) return;
-            if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-            const keys = ["Enter", "ArrowUp", "ArrowDown", "Home", "End", "ArrowLeft", "ArrowRight"];
-            if (!keys.includes(event.key)) return;
-            event.preventDefault(); event.stopPropagation();
-            if (event.key === "Enter") {
-              setExpanded(current => ({ ...current, [item.id]: !open })); return;
-            }
-            if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-              setExpanded(current => ({ ...current, [item.id]: event.key === "ArrowRight" })); return;
-            }
-            const buttons = event.currentTarget.closest('.conversation-reader')!.querySelectorAll<HTMLButtonElement>('.conversation-toggle');
-            const target = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : Math.max(0, Math.min(buttons.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)));
-            buttons[target]?.focus();
-          }}>
-          <span>{open ? "▾" : "▸"} <Redact text={item.sender} /></span>
-          <time dateTime={new Date(item.date).toISOString()}>{new Date(item.date).toLocaleString()}</time>
-          <span className="conversation-snippet"><Redact text={item.preview} /></span>
-          {item.id === mail.id && <strong>Selected for actions</strong>}
-          {item.unread && <span>Unread</span>}
-        </button>
-        {item.id !== mail.id && <button type="button" className="link" disabled={busy} onClick={() => onSelect(item)}>Select for actions</button>}
+        <div className="conversation-header">
+          <button type="button" className="conversation-toggle" aria-expanded={open} aria-controls={`${region}-${index}`}
+            onContextMenu={event => onMenu?.(event, item)}
+            onClick={() => setExpanded(current => ({ ...current, [item.id]: !open }))}
+            onKeyDown={event => {
+              onMenuKey?.(event, item);
+              if (event.defaultPrevented) return;
+              if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+              const keys = ["Enter", "ArrowUp", "ArrowDown", "Home", "End", "ArrowLeft", "ArrowRight"];
+              if (!keys.includes(event.key)) return;
+              event.preventDefault(); event.stopPropagation();
+              if (event.key === "Enter") {
+                setExpanded(current => ({ ...current, [item.id]: !open })); return;
+              }
+              if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                setExpanded(current => ({ ...current, [item.id]: event.key === "ArrowRight" })); return;
+              }
+              const buttons = event.currentTarget.closest('.conversation-reader')!.querySelectorAll<HTMLButtonElement>('.conversation-toggle');
+              const target = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : Math.max(0, Math.min(buttons.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)));
+              buttons[target]?.focus();
+            }}>
+            <span className="conversation-sender"><span aria-hidden="true">{open ? "▾" : "▸"}</span> <Redact text={item.sender} /></span>
+            <time dateTime={new Date(item.date).toISOString()}>{new Date(item.date).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</time>
+            <span className="conversation-snippet"><Redact text={item.preview} /></span>
+            <span className="conversation-state">{item.id === mail.id && <strong><span className="visually-hidden">Selected for actions</span><span aria-hidden="true">Active</span></strong>}{item.unread && <span>Unread</span>}</span>
+          </button>
+          {item.id !== mail.id && <button type="button" className="link conversation-select" disabled={busy} onClick={() => onSelect(item)}>Select for actions</button>}
+        </div>
         {open && <div id={`${region}-${index}`}>{renderMessage(item)}</div>}
       </section></MailPrivacy>;
     })}
+    <details className="conversation-details">
+      <summary>Conversation details · {ordered.length} cached {ordered.length === 1 ? "message" : "messages"}</summary>
+      <p className="conversation-coverage">{ordered.length} cached message{ordered.length === 1 ? "" : "s"}. Older or Sent messages may be missing. Local Inbox and bounded Sent history do not prove completeness.</p>
+      {!gmail && <p>IMAP history uses cached Message-ID references only. Remote thread expansion is unavailable.</p>}
+      {gmail && mail.threadId && <button type="button" className="link" disabled={pending || busy} onClick={() => void fetchRest()}>{pending ? "Fetching conversation…" : "Fetch bounded Gmail conversation (up to 100 messages)"}</button>}
+      {conversation?.gaps.map((gap, index) => <p key={index}><Redact text={gap} /></p>)}
+      <p>Enter or click expands a message. Reader toolbar and shortcuts apply to the selected message. Use Select for actions to change it; each message has its own context menu.</p>
+    </details>
   </section>;
 }

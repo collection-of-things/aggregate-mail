@@ -2709,6 +2709,13 @@ privacy-redacted subjects. See [ADR 0089](adr/0089-bulk-mail-selection.md).
 
 ## Inline cached conversation reader (#54)
 
+Conversation history diagnostics, keyboard guidance and bounded Gmail fetch live
+in collapsed Conversation details below the stack. Errors remain visible above
+messages. Message headers separate sender/date from preview and active/unread
+state; Select for actions stays outside the expansion button. Row hover actions
+show Mark as read for unread mail or Mark as unread for read mail, with an envelope
+for the latter. The full context menu retains both guarded operations.
+
 `src/mail/ConversationReader.tsx` reuses GET `/messages/:id/conversation` and
 POST `/messages/:id/conversation/expand`. Membership comes from the existing
 account-scoped service model, never from subjects. Order is oldest first with
