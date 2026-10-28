@@ -10,6 +10,13 @@ img,table{max-width:100%}img{height:auto}a{cursor:pointer}
 .formatted-mail-image-placeholder{display:inline-block;max-width:100%;vertical-align:middle;background:#8883}
 `;
 
+function inheritTheme(element: HTMLIFrameElement, body: HTMLElement) {
+  const theme = element.ownerDocument.defaultView!.getComputedStyle(element);
+  for (const name of ['--text-scale', '--text', '--text-2', '--line', '--link', '--veil'])
+    body.style.setProperty(name, theme.getPropertyValue(name));
+  body.style.color = theme.color;
+}
+
 // The parent owns this blank document. No sender HTML, scripts, forms, popups
 // or navigation permissions enter it. Same-origin permits the React portal.
 export function IsolatedMail({ css, children, fallback }: { css: string; children: ReactNode; fallback: ReactNode }) {
@@ -30,10 +37,7 @@ export function IsolatedMail({ css, children, fallback }: { css: string; childre
         doc.head.append(style);
         if (!style.sheet) throw Error('Styles unavailable');
       }
-      const theme = element.ownerDocument.defaultView!.getComputedStyle(element);
-      for (const name of ['--text-scale', '--text', '--text-2', '--line', '--link', '--veil'])
-        doc.body.style.setProperty(name, theme.getPropertyValue(name));
-      doc.body.style.color = theme.color;
+      inheritTheme(element, doc.body);
       setTarget(doc.body);
     } catch { setFailed(true); }
     return () => { doc.adoptedStyleSheets = []; };
@@ -51,9 +55,12 @@ export function IsolatedMail({ css, children, fallback }: { css: string; childre
     };
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : undefined;
     observer?.observe(target!); resize();
+    const Observer = (element.ownerDocument.defaultView as Window & typeof globalThis).MutationObserver;
+    const themeObserver = new Observer(() => inheritTheme(element, target!));
+    themeObserver.observe(element.ownerDocument.documentElement, { attributes: true, attributeFilter: ['style', 'class', 'data-theme'] });
     doc.addEventListener('load', resize, true);
     doc.defaultView!.addEventListener('keydown', keydown);
-    return () => { observer?.disconnect(); doc.removeEventListener('load', resize, true); doc.defaultView?.removeEventListener('keydown', keydown); };
+    return () => { observer?.disconnect(); themeObserver.disconnect(); doc.removeEventListener('load', resize, true); doc.defaultView?.removeEventListener('keydown', keydown); };
   }, [target, children]);
   if (failed) return <>{fallback}</>;
   return <><iframe ref={frame} title="Formatted email" sandbox="allow-same-origin" referrerPolicy="no-referrer"

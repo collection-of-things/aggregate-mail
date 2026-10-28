@@ -54,6 +54,8 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
     assert.equal(frame.contentDocument!.querySelectorAll('img').length, 0);
     assert.equal(frame.contentDocument!.querySelector('p')?.hasAttribute('id'), false, 'absent ids cannot match a sender selector');
     assert.doesNotMatch(frame.contentDocument!.body.innerHTML, /summary/);
+    await act(async () => { dom.window.document.documentElement.style.color = 'rgb(10, 20, 30)'; });
+    assert.equal(frame.contentDocument!.body.style.color, 'rgb(10, 20, 30)', 'unstyled text follows host theme changes');
     const event = new (frame.contentWindow as Window & typeof globalThis).KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
     frame.contentDocument!.body.dispatchEvent(event);
     assert.equal(keys, 1);
