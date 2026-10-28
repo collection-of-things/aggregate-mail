@@ -67,6 +67,23 @@ qsgWf9eTSH3hwijq.mp4. Full machine transcript in .reference/transcript.txt. Gmai
 
 Use a macOS-style interface in light and dark with a collapsible full-height sidebar, per-pane headers, selectable themes and accents, optional OS-material transparency, calm near-neutral working panes, a reading pane beside the list, and short, smooth state transitions. Keep compact inbox density available, and preserve keyboard navigation and reduced-motion support. No decorative cards, pills, or slogans. No live browser testing, per user instruction.
 
+## Saved views, contacts and unsubscribe review
+
+Named saved views restore cached-mail searches, accounts, mailboxes, filters
+and sort through Commands. Definitions use encrypted local storage; unavailable
+accounts or labels prevent opening. Privacy hides names and unfocused queries.
+
+Contacts is a sidebar page with saved contacts, recent recipients and previewed
+CSV/vCard imports. Contacts are account-scoped and feed recipient suggestions.
+Imports preserve existing contacts and need no provider API credentials.
+
+Reader unsubscribe actions require destination review and explicit confirmation.
+Supported actions send an HTTPS request, prepare an unsent mailto draft or check
+a manual browser link. Sender-supplied destinations are not authenticated;
+unsafe destinations are blocked and uncertain outcomes never retry automatically.
+See the [user guide](README.md#review-unsubscribe-requests) and
+[implementation limits](docs/KB.md#reviewed-unsubscribe).
+
 ## Undo send
 
 User Send queues an encrypted local snapshot with a configurable Off, 5, 10
