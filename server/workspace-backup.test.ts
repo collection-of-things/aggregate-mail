@@ -28,7 +28,7 @@ test("encrypted workspace backup and non-destructive restore, synthetic only", {
   store.put("decision", "d", { id: "d", projectId: "p", text: "Synthetic decision", sourceMailIds: [mail.id], createdAt: 1 });
   store.put("rule", "r", { id: "r", accountId: "a", sender: "sender@example.test", instruction: "Synthetic rule", category: "important", relevance: 1 });
   const draftId = "bc82c740-46ee-4c0a-b24b-d216c92cf909";
-  store.put("draft", draftId, { id: draftId, accountId: "a", to: "", subject: "Synthetic draft", body: "SYNTHETIC-LOCAL-TEXT", sendUnknown: true, revision: 2, updatedAt: 1 });
+  store.put("draft", draftId, { id: draftId, accountId: "a", to: "" as unknown as string[], subject: "Synthetic draft", body: "SYNTHETIC-LOCAL-TEXT", sendUnknown: true, revision: 2, updatedAt: 1 });
   store.put("compose", "preferences", { templates: [{ id: "t", name: "Synthetic", subject: "Template", body: "Template text" }], signatures: { a: "Synthetic signature" } });
   store.put("proposal", "proposal", { id: "proposal", agentId: "agent", accountId: "a", action: "read", payload: { mailId: mail.id }, digest: "synthetic", createdAt: 1, status: "pending" });
   const payload = backup.captureBackup();
