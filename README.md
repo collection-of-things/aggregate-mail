@@ -1,6 +1,6 @@
 # Emc²
 
-An installable desktop email client for Windows, with a macOS build target, based on Ryan Vogel's video. Electron with React and TypeScript, a bundled mail service, and encrypted SQLite storage. The installed app needs no browser, terminal, or separate Node installation.
+An installable desktop email client for Windows, macOS and Linux, based on Ryan Vogel's video. Electron with React and TypeScript, a bundled mail service, and encrypted SQLite storage. The installed app needs no browser, terminal, or separate Node installation.
 
 ## Local browser access
 
@@ -218,6 +218,13 @@ The macOS menu provides standard Command shortcuts for editing, closing and quit
 
 Start a search to find cached mail and saved local drafts across all accounts, including Sent, Archive and Snoozed. Use words, quoted phrases and combined filters. Plain unquoted words tolerate one typo. For example, `from:team@example.com is:unread after:2026-10-01 -subject:newsletter` combines sender, unread state, date and exclusion. Supported fields are `from:`, `to:`, `subject:`, `body:`, `account:`, `is:read`, `is:unread`, `is:pinned`, `before:` and `after:`. Dates use `YYYY-MM-DD` at midnight UTC; before excludes that day and after includes it. Account matches the full account ID, email address or custom label. After search starts, account, mailbox and mail filters can narrow results. Draft dates use the last saved time. Read/pin predicates and mail-only filters exclude drafts. Only imported mail and local drafts are searched; this does not fetch complete provider history.
 
+After searching or applying a mail filter, select **Save view** and enter a
+name. Commands also offers **Save current view**. Use Commands to open, rename
+or delete a saved view. Opening restores its query, account, mailbox, Inbox tab,
+filters and sort. Saved views stay in encrypted local storage and search the
+same cached mail and drafts. A view whose account or label was removed cannot
+open. Privacy mode hides view names and unfocused search text.
+
 Select Commands beside search, or press Command+K on macOS and Control+K elsewhere, to search app actions. Up/Down move through the command choices; Enter runs one. In the closed mail list, Up/Down select an email without opening or reading it. j/k remain available.
 
 Settings, Writing manages reusable plain-text templates and per-account signatures. Save preferences before composing. A new message or reply gets its account's signature. Changing From replaces an unchanged signature; edited text stays intact. In the composer, type in the Template field to filter templates by name and text, move with the arrows and insert with Enter or Insert template. Inserting appends text and only fills the subject if it is empty. These preferences use the encrypted local store.
@@ -225,6 +232,34 @@ Settings, Writing manages reusable plain-text templates and per-account signatur
 Pin email in the toolbar or context menu marks a cached message locally. Search `is:pinned`, or choose Show pinned emails in this view in Commands, to find it. Pins do not change the provider mailbox or mail sorting.
 
 In-app toasts report new unread arrivals after the initial import, sending and action outcomes. Errors and delivery warnings remain until dismissed. A send warning can mean delivery succeeded but the Sent copy failed; check the stated outcome before sending again.
+
+## Contacts
+
+Open **Contacts** from the sidebar or Commands. **Saved contacts** lets you add,
+edit, delete and find people. **Recent recipients** lists people you have emailed
+from Emc². The sidebar account filter applies to both lists, and saved contacts
+appear in recipient suggestions when composing.
+
+To bring an existing address book, choose **Import contacts**, select the source
+and destination account, then choose a UTF-8 CSV or vCard file. Review the preview
+before saving. Imports add new addresses without overwriting existing contacts.
+Google, Yahoo and Outlook-compatible CSV exports and Apple/iCloud vCards are
+supported. No developer account or paid service is required. See
+[contact import steps and limits](docs/contacts-import.md).
+
+## Review unsubscribe requests
+
+When a message supplies a supported unsubscribe destination, select
+**Unsubscribe** in the reader and review the destination before continuing.
+The sender supplies this destination; Emc² does not authenticate it. In privacy
+mode, reveal it before confirming.
+
+Depending on the message, you can send a direct HTTPS unsubscribe request,
+create a normal draft to review and send yourself, or check a link and choose
+**Open in browser**. Nothing unsubscribes automatically. Unsafe destinations
+are refused. The sender controls when mail stops; an accepted request is not
+proof that a subscription has ended. An uncertain result is never retried
+automatically.
 
 ## Connect an account
 

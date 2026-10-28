@@ -34,6 +34,7 @@ unversioned history without treating it as a release record.
   verification and review identities, and completion comments with reciprocal fix
   links across GitHub and git.cafe. Repository contribution procedures take
   precedence over generic personal skill defaults.
+- Add README instructions for saved search views, Contacts imports and reviewed unsubscribe actions, and update the product capability summary.
 
 ## 0.2.18 - 2026-10-28
 

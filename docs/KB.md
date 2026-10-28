@@ -1,5 +1,9 @@
 # Repository knowledge
 
+User-facing steps for saved views, Contacts imports and reviewed unsubscribe
+actions are in the [README](../README.md#search-and-compose-tools). Product
+scope is summarized in [PRODUCT.md](../PRODUCT.md#saved-views-contacts-and-unsubscribe-review).
+
 ## Saved search views
 
 Save view appears in the mail search toolbar when a query or list filter is
