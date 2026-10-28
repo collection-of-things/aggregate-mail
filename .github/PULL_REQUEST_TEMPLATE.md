@@ -8,7 +8,10 @@
 
 ## Stack
 
-<!-- Delete this section for a single PR. List every layer from bottom to top and mark this one in bold. Follow the stack merge procedure in CONTRIBUTING.md. -->
+<!-- Delete this section for a single PR. List every layer from bottom to top and mark this one in bold. Name the immediate parent and dependency issues; merge bottom first. Follow the stack merge procedure in CONTRIBUTING.md. -->
+
+Parent branch/PR and dependency issues:
+Merge order (bottom first):
 
 1. #000 Foundation change (base `main`)
 2. **#000 This change (base foundation branch)**
@@ -36,7 +39,8 @@
 - Delivery owner (one writer):
 - Owned paths:
 - Base branch and feature branch:
-- Related issue or pull request:
+- Immediate parent and dependencies (none for a standalone PR):
+- Related issue or pull request (full URLs on each forge; numbers may differ):
 - Coordination search completed; current owner confirmed:
 
 </details>
@@ -45,12 +49,16 @@
 <summary>Review</summary>
 
 - Independent reviewer:
-- Reviewed base and head revisions:
+- Reviewed target/base SHA, head SHA, tree and complete diff identity:
+- Verification input identities and matching receipts:
+- Latest-target fetch/rebase and remaining stack reconciliation:
 - Required checks and approvals:
 - Blocking feedback resolved:
 - Native, live-account or release proof still needed, if applicable:
 
 </details>
+
+<!-- After a fix merges, verify acceptance, comment with the completion reason and fixing PR link on each issue, add reciprocal issue links/reasons on the PR, and read back closure and git.cafe State on both hosts. Leave unfinished scope open. See CONTRIBUTING.md. -->
 
 ## Merge risk
 

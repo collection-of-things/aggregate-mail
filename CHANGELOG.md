@@ -11,6 +11,13 @@ unversioned history without treating it as a release record.
 - Restore visible shared-button styling for custom-theme actions, including Create theme and Import theme.
 - Give Projects, Agent review and All cached distinct sidebar icons so they are easier to distinguish from Contacts, Inbox and Drafts.
 
+### Documentation
+
+- Clarify canonical contribution targets, stack dependencies, latest-target rebases,
+  verification and review identities, and completion comments with reciprocal fix
+  links across GitHub and git.cafe. Repository contribution procedures take
+  precedence over generic personal skill defaults.
+
 ## 0.2.18 - 2026-10-28
 
 ### Added
