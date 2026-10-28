@@ -6,6 +6,10 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Fixed
+
+- Reject workspace exports with unrecoverable removed-account references and enforce destination draft/template limits before backup previews and imports.
+
 ### Added
 
 - Back up local workspace data in a passphrase-encrypted file and preview a merge before restoring. Existing records are preserved; credentials and cached mail bodies are excluded ([#86](https://github.com/collection-of-things/aggregate-mail/issues/86)).

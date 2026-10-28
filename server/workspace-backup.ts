@@ -4,7 +4,7 @@ import { trackMailWork } from "./mail-actions.js";
 import type express from "express";
 import { z } from "zod";
 import { all, get, put, transaction, workspaceMailFlags, type Records } from "./store.js";
-import { contentSchema } from "./drafts.js";
+import { contentSchema, MAX_DRAFTS_PER_ACCOUNT } from "./drafts.js";
 import { ruleSchema } from "./workspace.js";
 import { BACKUP_MAX_BYTES, type BackupPreview } from "../shared/workspace-backup.js";
 
@@ -74,7 +74,9 @@ export function captureBackup(): Payload {
   for (const value of compose?.templates ?? []) records.push({ kind: "template", id: value.id, value });
   for (const [accountId, body] of Object.entries(compose?.signatures ?? {})) records.push({ kind: "signature", id: accountId, value: { accountId, body } });
   for (const value of workspaceMailFlags()) records.push({ kind: "workspaceMailState", id: value.id, value });
-  return validate({ manifest: { formatVersion: 1, appVersion, createdAt: new Date().toISOString(), counts: counts(records) }, accounts: all("account").map(({ id, email, provider }) => ({ id, email, provider })), records });
+  const payload = validate({ manifest: { formatVersion: 1, appVersion, createdAt: new Date().toISOString(), counts: counts(records) }, accounts: all("account").map(({ id, email, provider }) => ({ id, email, provider })), records });
+  if (prepare(payload).missingAccounts) throw Error("Backup contains retained work for a removed account. Reassign or remove that work before exporting.");
+  return payload;
 }
 export async function sealBackup(input: unknown, password: unknown): Promise<string> {
   const payload = validate(input);
@@ -157,6 +159,18 @@ export function mergeBackup(payload: Payload, commit = false): BackupPreview {
     const result: BackupPreview = { manifest: payload.manifest, added: counts([]), skipped: counts([]), missingAccounts };
     if (commit && missingAccounts) throw Error("Connect each backup account first, with one matching email address and provider. Nothing was imported.");
     const compose = structuredClone(get("compose", "preferences") ?? { templates: [], signatures: {} });
+    // Preview and commit both check the deduplicated destination inside the transaction.
+    const drafts = new Map(all("draft").map(draft => [draft.id, draft.accountId]));
+    const templates = new Set(compose.templates.map(template => template.id));
+    for (const row of records) {
+      if (row.kind === "draft" && !drafts.has(row.id)) drafts.set(row.id, row.value.accountId);
+      if (row.kind === "template") templates.add(row.id);
+    }
+    const draftCounts = new Map<string, number>();
+    for (const accountId of drafts.values()) draftCounts.set(accountId, (draftCounts.get(accountId) ?? 0) + 1);
+    if ([...draftCounts.values()].some(count => count > MAX_DRAFTS_PER_ACCOUNT))
+      throw Error("Backup would exceed the 100-draft account limit. Remove drafts before importing. Nothing was imported.");
+    if (templates.size > 50) throw Error("Backup would exceed the 50-template limit. Remove templates before importing. Nothing was imported.");
     for (const row of records) {
       let exists: boolean;
       if (row.kind === "template") exists = compose.templates.some(t => t.id === row.id);

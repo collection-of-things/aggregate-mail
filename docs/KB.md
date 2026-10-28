@@ -2966,3 +2966,7 @@ Run these files serially through the bounded wrapper, plus the strict build,
 preload regression and the isolated desktop startup recipe above. These checks
 do not establish installed dialog behavior, native portability or live-provider
 continuity.
+
+Workspace backups reject retained work without connected account identity hints.
+Preview and import each check deduplicated destination draft and template quotas
+inside the transaction; overflow imports leave existing work unchanged.

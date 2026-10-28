@@ -117,6 +117,42 @@ test("encrypted workspace backup and non-destructive restore, synthetic only", {
     assert.equal(store.get("project", "p"), undefined);
     db.exec("DROP TRIGGER synthetic_failure"); db.close();
   });
+  await t.test("export rejects retained account references without identity hints", () => {
+    const account = store.get("account", "b")!;
+    store.remove("account", "b");
+    assert.throws(() => backup.captureBackup(), /retained work for a removed account/);
+    store.put("account", "b", account);
+  });
+  await t.test("preview and import enforce deduplicated destination quotas atomically", () => {
+    const beforeDrafts = store.all("draft");
+    const beforeCompose = store.get("compose", "preferences")!;
+    const makePayload = (kind: "draft" | "template", total: number) => {
+      const source = payload.records.find(row => row.kind === kind)!;
+      const records = Array.from({ length: total }, (_, i) => ({ kind, id: `quota-${kind}-${i}`, value: { ...(source.value as object), id: `quota-${kind}-${i}` } }));
+      return { ...payload, records, manifest: { ...payload.manifest, counts: Object.fromEntries(Object.keys(payload.manifest.counts).map(name => [name, name === kind ? total : 0])) } };
+    };
+    for (const kind of ["draft", "template"] as const) {
+      const incoming = makePayload(kind, kind === "draft" ? 100 : 50);
+      const before = JSON.stringify({ drafts: store.all("draft"), compose: store.get("compose", "preferences") });
+      for (const commit of [false, true]) {
+        assert.throws(() => backup.mergeBackup(incoming, commit), /limit/);
+        assert.equal(JSON.stringify({ drafts: store.all("draft"), compose: store.get("compose", "preferences") }), before);
+      }
+    }
+    // Exact duplicates at the limit remain admissible; new records after preview
+    // are counted again by the import transaction.
+    for (const draft of beforeDrafts) store.remove("draft", draft.id);
+    const incoming = makePayload("draft", 100);
+    assert.equal(backup.mergeBackup(incoming).added.draft, 100);
+    store.put("draft", "extra", { ...beforeDrafts[0], id: "extra" });
+    assert.throws(() => backup.mergeBackup(incoming, true), /limit/);
+    store.remove("draft", "extra");
+    backup.mergeBackup(incoming, true);
+    assert.equal(backup.mergeBackup(incoming).skipped.draft, 100);
+    for (const draft of store.all("draft")) store.remove("draft", draft.id);
+    for (const draft of beforeDrafts) store.put("draft", draft.id, draft);
+    store.put("compose", "preferences", beforeCompose);
+  });
   await t.test("API requires preview receipt before merge", async () => {
     process.env.MAIL_DESKTOP_TOKEN = "synthetic-backup-desktop";
     // No connected accounts means startup cannot contact a live provider.
@@ -143,7 +179,7 @@ test("encrypted workspace backup and non-destructive restore, synthetic only", {
         request.on("error", reject); request.end(JSON.stringify({ passphrase: password }));
       });
       assert.equal(hostStatus, 403);
-      assert.equal((await post("export")).status, 200);
+      assert.equal((await post("export")).status, 400, "retained work without a connected identity cannot be exported");
       const badJson = await fetch(`${base}/api/workspace-backup/import`, { method: "POST", headers, body: '{"passphrase":"SYNTHETIC-DO-NOT-ECHO"' });
       assert.equal(badJson.status, 400);
       assert.ok(!(await badJson.text()).includes("SYNTHETIC-DO-NOT-ECHO"));
