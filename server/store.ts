@@ -45,10 +45,11 @@ function decrypt(value: string): unknown {
     ),
   );
 }
-type Records = {
+export type Records = {
   savedView: import("../shared/saved-views.js").SavedView;
   phoneCredential: import("../shared/phone-access.js").PhoneCredential;
   phoneAccess: import("../shared/phone-access.js").PhoneAccessRecord;
+  workspaceMailState: { id: string; accountId: string; pinned?: boolean; snoozedUntil: number | null };
   availability: import("../shared/availability.js").AvailabilitySettings;
   calendarOffer: import("../shared/offers.js").CalendarOffer;
   calendarOperation: { id: string; accountId: string; eventId: string; revision: number; kind: string; draftId?: string; state: "complete" | "unknown"; remoteId?: string; result?: import("../shared/calendar.js").CalendarEvent; input?: string; requestId?: string; response?: import("../shared/calendar.js").CalendarResponse; sourceMailId?: string; sourceFingerprint?: string };
@@ -369,6 +370,16 @@ export function all<K extends keyof Records>(kind: K): Records[K][] {
     .all(kind)
     .map((row) => decrypt(String(row.value)) as Records[K]);
 }
+// Scan one message at a time so a backup never hydrates the whole body cache.
+export function workspaceMailFlags(): Records["workspaceMailState"][] {
+  const flags = new Map(all("workspaceMailState").map(value => [value.id, value]));
+  for (const row of db.prepare("SELECT value FROM records WHERE kind='mail'").iterate()) {
+    const mail = decrypt(String(row.value)) as Mail;
+    if (mail.pinned || mail.snoozedUntil != null)
+      flags.set(mail.id, { id: mail.id, accountId: mail.accountId, pinned: mail.pinned, snoozedUntil: mail.snoozedUntil ?? null });
+  }
+  return [...flags.values()];
+}
 export function count(kind: keyof Records): number {
   return (db.prepare("SELECT COUNT(*) AS total FROM records WHERE kind = ?").get(kind) as { total: number }).total;
 }
@@ -405,6 +416,15 @@ export function put<K extends keyof Records>(
   value: Records[K],
 ): void {
   if (kind === "mail" && !pendingMail) return transaction(() => put(kind, id, value));
+  // Restore flags once when the provider cache is first materialized. Later
+  // user actions and ordinary sync keep their existing semantics.
+  if (kind === "mail") {
+    const flags = get("workspaceMailState", id);
+    if (flags && flags.accountId === (value as Mail).accountId && !get("mail", id)) {
+      value = { ...value, pinned: flags.pinned, snoozedUntil: flags.snoozedUntil };
+      remove("workspaceMailState", id);
+    }
+  }
   const encrypted = encrypt(value);
   const rules = kind === "mail" ? all("rule") : [];
   const summary = kind === "mail" ? mailSummary(value as Mail, rules) : undefined;
@@ -473,7 +493,7 @@ export function compactStore(options: { cleanupOrphans?: boolean; vacuum?: boole
   let removedAttachments = 0;
   let cleanupSkipped: "unknown-record-kind" | "incomplete-mail-metadata" | "incomplete-attachment-metadata" | undefined;
   if (options.cleanupOrphans) transaction(() => {
-    const knownKinds: (keyof Records)[] = ["savedView", "outbox", "availability", "calendarOffer", "calendarOperation", "commitment", "googleCalendar", "googleCalendarWindow", "calendarEvent", "project", "decision", "coverage", "proposal", "agent", "agentProvider", "attachment", "config", "maintenance", "compose", "account", "mail", "mailSummary", "label", "rule", "meta", "mcp", "draft", "contact", "recentRecipient"];
+    const knownKinds: (keyof Records)[] = ["workspaceMailState", "savedView", "outbox", "availability", "calendarOffer", "calendarOperation", "commitment", "googleCalendar", "googleCalendarWindow", "calendarEvent", "project", "decision", "coverage", "proposal", "agent", "agentProvider", "attachment", "config", "maintenance", "compose", "account", "mail", "mailSummary", "label", "rule", "meta", "mcp", "draft", "contact", "recentRecipient"];
     if (db.prepare("SELECT DISTINCT kind FROM records").all().some(row => !knownKinds.includes(String(row.kind) as keyof Records))) {
       cleanupSkipped = "unknown-record-kind";
       return;

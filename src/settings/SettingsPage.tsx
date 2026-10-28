@@ -1,4 +1,5 @@
 import { accountStatus } from "../account-status";
+import { WorkspaceBackup } from "./WorkspaceBackup";
 import { notificationDefaults, type NotificationPreferences } from "../notifications";
 import { NotificationSettings } from "./NotificationSettings";
 import { Fragment, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
@@ -357,6 +358,7 @@ export function SettingsPage({
           onNotice={onNotice}
         />}
         {section === "mcp" && <>{assistants}<details className="settings-group settings-details settings-agent-advanced"><summary>Connection controls</summary><McpSection api={api} perform={perform} busy={busy} onCopied={onCopied} onError={onError} /></details></>}
+        {section === "about" && <WorkspaceBackup api={api} perform={perform} busy={busy} />}
         {section === "about" && <section>
           <dl className="settings-facts settings-group">
             <div><dt>Storage</dt><dd>{aboutStorageSentence(window.desktop?.credentialFallback)}.</dd></div>

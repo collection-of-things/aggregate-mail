@@ -3,6 +3,10 @@ import type { NotificationBridge } from "../shared/notifications.js";
 import type { UpdateCommand, UpdateState } from "../shared/updates.js";
 contextBridge.exposeInMainWorld("desktop", {
   platform: process.platform,
+  workspaceBackup: {
+    save: (encrypted: string) => ipcRenderer.invoke("workspace-backup-save", encrypted),
+    open: () => ipcRenderer.invoke("workspace-backup-open"),
+  },
   notifications: {
     configure: (value, privacy) => ipcRenderer.invoke("notification-configure", value, privacy),
     audio: (command) => ipcRenderer.invoke("notification-audio", command),

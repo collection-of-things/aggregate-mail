@@ -36,6 +36,7 @@ import { LEGACY_APP_NAME, migrateLegacyUserData } from "./migrate.js";
 import type { Updates } from "./updates.js";
 import { canonicalKey, readCurrentRecord, migrateLegacyKey, MIGRATION_ERROR, type CurrentRecord } from "./keychain.js";
 import { isOpenCodeCredential, openCodeConfig } from "../shared/opencode.js";
+import { registerWorkspaceBackupIpc } from "./workspace-backup.js";
 import { setupOpenCode } from "./opencode.js";
 import { explicitUpdateProfile } from "./mac-source-update.js";
 
@@ -369,6 +370,7 @@ else {
           return result.canceled ? undefined : result.filePaths[0];
         },
       });
+      registerWorkspaceBackupIpc(ipcMain, () => window, rendererOrigin);
       registerNotificationIpc(ipcMain, () => window?.webContents, rendererOrigin, mailNotifications);
       server = await backend.startServer(
         32145,
