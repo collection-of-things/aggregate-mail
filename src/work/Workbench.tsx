@@ -1,3 +1,4 @@
+import { attachmentSize } from "../../shared/attachments";
 import { useCallback, useEffect, useMemo, useRef, useState, useId, type ReactNode } from "react";
 import type { Draft, RendererMail as Mail, RendererState as State, McpSettings } from "../../shared/types";
 import type { AgentGrant, AgentProposal, AgentTool, Commitment, CommitmentStatus, Project } from "../../shared/workspace";
@@ -566,7 +567,7 @@ function Proposal({ permissionAvailable, proposal, state, pending, onOpen, onRev
     <dl className="proposal-envelope"><dt>From</dt><dd><Redact text={account?.email||"Account unavailable"} /></dd>
       {"to" in payload && <><dt>To</dt><dd><Redact text={Array.isArray(payload.to) ? payload.to.join(", ") : payload.to}/></dd>{!!payload.cc?.length && <><dt>Cc</dt><dd><Redact text={payload.cc.join(", ")}/></dd></>}{!!payload.bcc?.length && <><dt>Bcc</dt><dd><Redact text={payload.bcc.join(", ")}/></dd></>}<dt>Subject</dt><dd><Redact text={payload.subject}/></dd></>}
     </dl>
-    {"to" in payload && <><pre><Redact text={payload.body}/></pre>{!!payload.attachments?.length && <p>Attachments: {payload.attachments.map((file,index)=><span key={index}><Redact text={file.filename}/> ({file.contentType}, {Math.floor(file.content.length*3/4)} bytes) </span>)}</p>}</>}
+    {"to" in payload && <><pre><Redact text={payload.body}/></pre>{!!payload.attachments?.length && <p>Attachments: {payload.attachments.map((file,index)=><span key={index}><Redact text={file.filename}/> ({file.contentType}, {attachmentSize(file)} bytes) </span>)}</p>}</>}
     {sources.map((id) => <Source key={id} id={id} state={state} onOpen={onOpen} />)}
     <details><summary>Review details</summary><p>Approval is checked against the current source and permission.</p><code>{proposal.digest}</code></details>
     {stale&&<p role="alert">Evidence changed since this proposal. Reject it and request a fresh proposal.</p>}

@@ -26,7 +26,7 @@ export function WorkspaceBackup({ api, perform, busy }: { api: Api; perform: Per
   return <section>
     <h2>Encrypted workspace backup</h2>
     <p className="note">Export local commitments, projects, Teach rules, pins, snoozes, drafts, templates, signatures and agent history. Account credentials, OAuth tokens, agent and MCP secrets, and cached provider mail bodies are excluded. Drafts and history can contain private text.</p>
-    <p className="note">Keep the passphrase separately. It cannot be recovered. Backups are limited to 32 MiB. Restore requires connected accounts with matching email addresses and providers. Source mail can remain unavailable after resync.</p>
+    <p className="note">Keep the passphrase separately. It cannot be recovered. Backups are limited to 128 MiB. Restore requires connected accounts with matching email addresses and providers. Source mail can remain unavailable after resync.</p>
     {!bridge ? <p className="note">Open the desktop app to save or open backup files.</p> : <>
       <label className="settings-row stacked"><span>Backup passphrase</span><input type="password" autoComplete="new-password" minLength={12} maxLength={1024} value={password} disabled={disabled || !!preview} onChange={event => setPassword(event.target.value)} /></label>
       <label className="settings-row stacked"><span>Confirm passphrase for export</span><input type="password" autoComplete="new-password" maxLength={1024} value={confirmation} disabled={disabled || !!preview} onChange={event => setConfirmation(event.target.value)} /></label>

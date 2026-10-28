@@ -371,10 +371,10 @@ export function App() {
           method,
           signal,
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type": body instanceof Blob ? "application/octet-stream" : "application/json",
             "X-CSRF-Token": csrf.current,
           },
-          body: body === undefined ? undefined : JSON.stringify(body),
+          body: body instanceof Blob ? body : body === undefined ? undefined : JSON.stringify(body),
         });
         if (res.status === 401 && !window.desktop) window.dispatchEvent(new Event("emc2-browser-locked"));
         const data = (await res.json()) as T & { error?: string; state?: string; sendUnknown?: boolean; results?: { status?: string }[] };

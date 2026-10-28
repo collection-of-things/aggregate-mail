@@ -627,7 +627,12 @@ There is no new store kind, provider action or automatic approval path. See
 [ADR 0047](adr/0047-agent-local-work-creation.md).
 
 Outgoing attachments allow ten files, at most 512 KiB each and 1 MiB total.
-Received files beyond those limits retain unavailable metadata. Stored bytes
+Received files beyond those limits retain unavailable metadata. Only successfully
+cached parts consume the import byte/file budget, so an oversized part does not
+exclude later small files. Large skipped files say "Large attachment not
+downloaded"; this is distinct from a message parse failure. The composer shows
+selected file counts and exact decoded bytes before selection/send, accounting
+for base64 padding when validating an additional selection. Stored bytes
 and compose drafts are encrypted. Downloads require an explicit user action;
 files never open automatically. The reader offers explicit Download controls for
 all available file types, including spreadsheets and archives. Preview is limited
@@ -640,7 +645,8 @@ the renderer keeps its existing script execution policy. Enabling privacy clears
 pending results; a new explicit preview may expose personal information in
 pixels. Image preview URLs are revoked on hide, privacy changes and unmount.
 Unavailable or oversized imports keep their existing metadata and explanation.
-Synthetic coverage is in `src/attachments.test.tsx` and
+Synthetic coverage is in `src/attachments.test.tsx`,
+`src/attachment-selection.test.tsx`, `server/attachment-import.test.ts` and
 `server/workspace.test.ts`; installed file-saving and PDF appearance require
 separate acceptance. Disconnect removes cached mail, attachment
 bytes, scoped rules and agent access. Confirmed commitments and project notes
@@ -2259,8 +2265,8 @@ origin and CSRF checks and a strict `{"confirm":true}` JSON body. It pauses
 admission, drains admitted mail/provider work and checkpoints WAL before
 conservative orphan attachment cleanup and SQLite `VACUUM`. All retained mail
 views supply exact attachment references. Unknown record kinds or incomplete
-metadata skip deletion; corrupt encrypted records abort cleanup. Drafts remain
-inline and unchanged. Busy readers fail before deletion. Cleanup and vacuum
+metadata skip deletion; corrupt encrypted records abort cleanup. Legacy drafts remain
+inline. New uploads use encrypted chunk records and immutable references. Busy readers fail before deletion. Cleanup and vacuum
 are separate transactions, so a failed vacuum can follow successful orphan
 removal. Surviving ciphertext and installation keys are not rewritten by vacuum.
 The route resumes mail work after success or failure.
@@ -2318,7 +2324,8 @@ not replace the raw transport and parser bounds. Oversized messages report an
 explicit failure while previous cached mail remains available. Image downloads
 use incremental byte limits. Decorative memory caches have entry/byte budgets
 and expiry; disposable logo files are trimmed to 256 entries and 16 MiB.
-Resource limits do not change mail retention or draft attachment encoding.
+Resource limits do not change mail retention. Attachment upload and reference
+limits are described below.
 
 Search documents use a 256-entry LRU cache with a 4 MiB accounted-string budget.
 The budget charges two bytes per UTF-16 unit for identity and raw, canonical
@@ -2943,7 +2950,7 @@ Regression checks include `server/browser-trust.test.ts`,
 
 Settings, About and storage mounts `WorkspaceBackup`. The desktop bridge has
 only `workspace-backup-open` and `workspace-backup-save`, with native dialogs,
-main-frame sender validation and a 32 MiB file cap. Paths stay in Electron.
+main-frame sender validation and a 128 MiB file cap. Paths stay in Electron.
 `server/workspace-backup.ts` mounts POST export, preview and import routes under
 `/api/workspace-backup` after the existing API authorization middleware. Request
 parsing errors are sanitized; the larger body allowance applies only here.
@@ -2970,3 +2977,150 @@ continuity.
 Workspace backups reject retained work without connected account identity hints.
 Preview and import each check deduplicated destination draft and template quotas
 inside the transaction; overflow imports leave existing work unchanged.
+
+## Practical attachment envelope
+
+Outgoing messages allow 20 attachments and 25 MiB of decoded file bytes in total,
+with a 25 MiB per-file bound. The composer shows exact selected bytes and limits
+before selection and Send. New selections upload raw bytes serially through
+`POST /api/accounts/:accountId/attachments?filename=...&contentType=...`.
+The route inherits desktop session, loopback, origin, CSRF, sync and update
+checks. It requires a declared length, limits each request to 25 MiB and 60
+seconds, and returns `{id, filename, contentType, size}`. Other JSON routes stay
+at 2 MB. Partial uploads are removed on failure or cancellation.
+
+The store encrypts independent 64 KiB chunks in `attachment_chunks` using the
+existing installation key. Encrypted `upload` metadata binds filename, type,
+size and account. Writes batch at most 1 MiB in a synchronous transaction; no
+transaction spans network awaits. Stored uploads, including referenced ones,
+are capped conservatively at 256 MiB per account, 1 GiB globally and 2,000
+entries. Admission persists the maximum request reservation until completion,
+so concurrent backup imports cannot consume an active stream's capacity. These are disk quotas;
+stream buffers remain bounded. A new upload cannot silently reuse another
+account's attachment. Changing From requires removing uploaded attachments and
+choosing them again for that account. Existing inline drafts remain readable and sendable with
+the original 512 KiB per-file and 1 MiB inline total limits.
+
+Drafts and `sendSchema` store attachment references inside the ordinary
+`attachments` field. Frozen snapshots and encrypted outbox requests therefore
+keep their bytes without an attachment sidecar or a larger JSON request. Saves
+and sends verify every reference against immutable stored metadata. Forward
+reuses downloaded references only within the same account and lists omitted
+files. Legacy inline attachments still use the existing send path.
+
+### Reference lifecycle and outbox integration
+
+`cleanupUploads` scans one encrypted record at a time, recursively collecting
+string references from every record kind, including opaque outbox payloads.
+Drafts, received mail, queued/failed/unknown outbox entries and durable
+`attachmentHold` records all retain referenced bytes. In-memory active readers
+also prevent cleanup. Corrupt ciphertext aborts inventory before deletion.
+Cleanup removes only unreferenced uploads older than one hour. This grace period
+protects uploads awaiting the first autosave and separate-copy recovery. Discard,
+confirmed sends and drained storage maintenance invoke cleanup. Interrupted
+uploads remove partial chunks immediately; process-crash leftovers expire through
+normal inventory. Explicit account removal purges that account's uploads and holds
+with its drafts/outbox, while preserving other accounts' bytes. Legacy attachment inventory keeps its existing fail-closed
+behavior for unknown kinds and incomplete mail metadata.
+
+`sendMail` creates an encrypted hold before provider work. Confirmed acceptance,
+including a Sent-copy warning, releases the hold. Known attachment preparation
+and SMTP SIZE failures release it because submission did not occur. Other
+failures retain it indefinitely, including across restart. Do not expire unknown
+send holds. `releaseAttachmentHold(id)` is available only for a caller that has
+explicitly resolved that operation; there is no automatic retry or timeout-based
+release. A caller integrating resolution must retain any draft/outbox payload
+until its own terminal-state transaction commits. Removing an outbox record
+never directly deletes attachment chunks. Referenced bytes survive cancellation
+until all remaining records release them. Cleanup failure after acceptance is a
+warning and cannot turn successful delivery into a retryable send failure.
+
+### Provider envelopes and received downloads
+
+Referenced sends stream MIME into an encrypted spool, enforce 35 MiB encoded
+MIME, and replay the exact measured bytes. Gmail's API raw-message cap is 35 MiB;
+its JSON base64url transport is streamed separately. SMTP servers commonly allow
+25 MB, 35 MB or 50 MB encoded messages. Nodemailer's submission connection checks
+the measured `envelope.size` against its advertised positive SIZE before MAIL
+or DATA. Servers without SIZE still use the local 35 MiB cap for referenced
+messages. MIME base64 line wrapping adds about 37 percent, so decoded file size
+alone does not guarantee provider acceptance.
+
+| Provider | Emc² encoded-message cap | Additional remote preflight |
+| --- | --- | --- |
+| Gmail API | 35 MiB raw MIME | Measure before streaming base64url JSON |
+| Gmail SMTP (`gmail-imap`) | 35 MiB MIME | Submission connection's advertised SIZE |
+| iCloud SMTP | 35 MiB MIME | Submission connection's advertised SIZE |
+| Fastmail SMTP | 35 MiB MIME | Submission connection's advertised SIZE |
+| Yahoo SMTP | 35 MiB MIME | Submission connection's advertised SIZE |
+| Custom IMAP/SMTP | 35 MiB MIME | Submission connection's advertised SIZE |
+
+The lower positive advertised SMTP value wins. Preset names do not establish
+plan-specific provider acceptance limits. Without SIZE the provider's actual
+limit is unknown until submission; the local cap still applies. Typical 25 MB
+SMTP budgets permit less than 25 MiB of files after MIME encoding.
+
+For streamed SMTP messages, Gmail SMTP saves its own Sent copy. Other IMAP
+accounts append the exact submitted message to Sent after SMTP acceptance,
+through the same `saveSentCopy` helper as legacy sends. ImapFlow's APPEND needs
+one Buffer, so the encrypted spool (bounded by `MIME_BYTES`, 35 MiB) is read once
+after acceptance and before it is erased. The copy carries no Bcc header. A copy
+or cleanup failure is a successful-send warning; never resend because of it.
+
+Automatic import stays at 10 files, 512 KiB each and 1 MiB total. The 8 MiB raw
+parse bound remains. Oversized Gmail sources recover bounded metadata using
+full-message fields that exclude body bytes. IMAP listings use RFC822.SIZE and
+fetch only envelope/bodystructure for oversized messages. The reader separates
+an unparsed message body from a large attachment not downloaded yet. IMAP
+bodystructure sizes are estimates until the decoded part is downloaded.
+
+`POST /api/messages/:id/attachments/:attachmentId/download` performs an explicit
+provider-part retrieval and caches completed bytes encrypted. The reader offers
+Cancel download. Requests stop at 25 MiB decoded bytes or 60 seconds; failure
+removes partial chunks and preserves metadata. Gmail uses
+`users.messages.attachments.get` and decodes its response incrementally. IMAP
+opens the recorded mailbox read-only, verifies UIDVALIDITY and Message-ID,
+and downloads only the selected UID/body part with bounded PEEK ranges.
+Archived mail without a recorded safe mailbox identity is refused. Account,
+message and attachment identities are checked again before provider-part fetch
+and before caching. No read flags or mailbox state are changed.
+
+The existing attachment GET streams cached bytes to the renderer. The existing
+browser/desktop download pattern saves the chosen file, with no executable
+preview or sender HTML. Only small automatically imported PDF/raster files offer
+in-app previews; explicit large downloads do not automatically render pixels.
+Cancellation and privacy changes abort the reader request. Native save dialogs,
+installed interaction and real-provider behavior remain separate acceptance.
+
+Synthetic coverage: `server/attachment-envelope.test.ts`,
+`server/attachment-import.test.ts`, `server/attachment-quota.test.ts`, `server/forward.test.ts`,
+`server/drafts.test.ts`, `server/send-provider.test.ts`,
+`server/storage-maintenance.test.ts`, `src/attachment-selection.test.tsx`,
+`src/attachments.test.tsx` and `src/compose-layout.test.tsx`.
+See [ADR 0101](adr/0101-attachment-envelope.md).
+
+### Backups with attachment references
+
+[ADR 0101](adr/0101-attachment-envelope.md) extends the original backup decision:
+backup draft/proposal content includes referenced attachment bytes, never a
+source-device upload ID. Export verifies account ownership and complete bytes.
+Preview creates no uploads. Import creates new encrypted uploads and rebinds
+only the imported content in the same transaction as the workspace merge.
+Existing records are skipped without allocating duplicate attachment bytes;
+a failed import rolls back chunks and metadata. Agent history remains inert.
+Received caches and queued/scheduled outbox actions remain excluded.
+
+The encrypted backup cap is now 128 MiB to fit a practical attachment after both
+base64 layers. The dedicated backup request parser accepts 132 MiB; ordinary
+JSON stays at 2 MB. Backup construction is an explicit bounded in-memory file
+operation. Ordinary upload, send and received-part retrieval remain streamed.
+The release build stamps package.json before bundling; the manifest records
+that stamped version. Source builds record the checked-out package version.
+Regression: `server/attachment-backup.test.ts`, alongside the backup, envelope,
+raw selection, outbox and scheduled-send suites. Synthetic proof does not
+establish installed dialogs, native portability or live-provider behavior.
+
+
+Refusing busy attachment work before admission is a preflight failure, not
+unknown delivery. Scheduled sends release their byte holds without contacting
+the provider; errors after submission keep existing uncertainty handling.

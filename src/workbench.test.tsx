@@ -385,13 +385,14 @@ test("proposal envelope omits empty Cc and attachment rows without removing the 
 
 test("reply proposals freeze exact payload, need reviewed evidence and approve into Drafts without the sending switch",async()=>{const ui=await mount("agents");try{
  ui.grants.push({id:"agent",name:"Sender",token:"synthetic-only",accountIds:["a"],tools:["reply_to_email"],createdAt:1});
- const proposal:AgentProposal={id:"proposal",agentId:"agent",accountId:"a",action:"send",payload:{accountId:"a",to: ["recipient@example.com"],cc:["copy@example.com"],subject:"Reviewed subject",body:"Exact body",attachments:[{filename:"note.txt",contentType:"text/plain",content:"bm90ZQ=="}]},sourceMailId:"in-a",digest:"d".repeat(64),status:"pending",createdAt:1};ui.workspace.proposals.push(proposal);await ui.click(ui.button("Refresh workspace"));
+ const proposal:AgentProposal={id:"proposal",agentId:"agent",accountId:"a",action:"send",payload:{accountId:"a",to: ["recipient@example.com"],cc:["copy@example.com"],subject:"Reviewed subject",body:"Exact body",attachments:[{filename:"note.txt",contentType:"text/plain",content:"bm90ZQ=="},{id:"d85bf730-b0f4-478c-a7eb-f57a4b4c6620",filename:"uploaded.txt",contentType:"text/plain",size:12345}]},sourceMailId:"in-a",digest:"d".repeat(64),status:"pending",createdAt:1};ui.workspace.proposals.push(proposal);await ui.click(ui.button("Refresh workspace"));
  const card = ui.container.querySelector(".agent-proposal")!;
  assert.deepEqual([...card.querySelectorAll(".proposal-envelope dt")].map(node => node.textContent), ["From", "To", "Cc", "Subject"]);
  assert.deepEqual([...card.querySelectorAll(".proposal-envelope dd")].map(node => node.textContent), ["reader@example.com", "recipient@example.com", "copy@example.com", "Reviewed subject"]);
  assert.equal(card.querySelector("pre")?.textContent, "Exact body");
  assert.equal(card.querySelector(".proposal-header p")?.textContent, "Status: pending");
- assert.ok(card.textContent?.includes("note.txt (text/plain, 6 bytes)"));
+ assert.ok(card.textContent?.includes("note.txt (text/plain, 4 bytes)"), "padded base64 reports its decoded size");
+ assert.ok(card.textContent?.includes("uploaded.txt (text/plain, 12345 bytes)"), "uploaded references show their exact stored size");
  assert.equal(card.querySelectorAll(".work-source").length, 1);
  assert.equal(card.querySelector("details code")?.textContent, proposal.digest);
  assert.ok(ui.container.textContent?.includes("Exact body"));assert.ok(ui.container.textContent?.includes("copy@example.com"));assert.ok(!ui.container.innerHTML.includes("bm90ZQ=="));const review=[...ui.container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].at(-1)!;assert.equal(ui.button("Approve and open in Drafts").disabled,true);await ui.click(review);assert.equal(ui.button("Approve and open in Drafts").disabled,false);assert.ok(ui.container.textContent?.includes("Nothing is sent until you press Send"));proposal.sourceChanged=true;await ui.click(ui.button("Refresh workspace"));assert.equal(ui.button("Approve and open in Drafts").disabled,true);assert.ok(ui.container.textContent?.includes("Evidence changed"));

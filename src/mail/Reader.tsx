@@ -73,7 +73,7 @@ function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onM
         </p>}
         {hydrated && <InvitationPanel key={`invitation:${mailBodyKey(mail)}`} mail={hydrated} api={api} onOpenDraft={onOpenDraft} onChanged={onChanged} />}
         {!hydrated && <p role="status">{content.error || "Loading cached email…"}{content.error && <> <button type="button" className="link" onClick={content.retry}>Try again</button></>}</p>}
-        {hydrated && <ReaderContent key={`content:${mailBodyKey(mail)}`} mail={hydrated}
+        {hydrated && <ReaderContent api={api} key={`content:${mailBodyKey(mail)}`} mail={hydrated}
           loadContent={(id) => api(`/messages/${encodeURIComponent(id)}/content`, "POST")}
           loadImages={(id) => api(`/messages/${encodeURIComponent(id)}/images`, "POST")} />}
         <footer className="reader-secondary-tools">

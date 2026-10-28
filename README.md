@@ -300,9 +300,9 @@ Custom account names can be edited in Settings, Accounts. Privacy keeps these la
 - Teach previews an account-scoped sender rule and optional literal condition before saving. Future-only is the default; applying to existing matches requires its checkbox. The question condition checks question marks and does not infer intent. Removing a rule reapplies local sorting.
 - Archive removes mail from the Gmail inbox or moves IMAP mail to an archive folder. It does not delete mail.
 - Snooze is local to this client. Messages return to their category after the chosen time.
-- Compose and reply send plain text by default, with optional bold, italic, underline, links, lists and quotations and a matching plain-text alternative, with Cc and up to ten attachments (512 KiB per file, 1 MiB total). Reply all retains the other participants. IMAP mail gets a Sent copy. If copying fails after delivery, the draft closes with a warning rather than encouraging a duplicate send.
+- Compose and reply send plain text by default, with optional bold, italic, underline, links, lists and quotations and a matching plain-text alternative, with Cc, Bcc, multiple To recipients and up to 20 attachments (25 MiB total). Reply all retains the other participants. IMAP mail gets a Sent copy. If copying fails after delivery, the draft closes with a warning rather than encouraging a duplicate send.
 - IMAP watches for inbox changes while the app runs. Gmail API checks its mailbox revision every 15 seconds and syncs only when it changes, with backoff after failures. Opening, manual sync and a five-minute background recovery sync fetch the full inbox; large mailboxes can take time. Gmail reuses cached bodies and checks labels.
-- Bodies preserve a bounded, safe subset of the sender's formatted layout, with readable plain text when formatting is unavailable or rejected. Sender scripts, forms, stylesheets and resource-loading CSS are excluded. Show images sits above the body; images stay blocked until activated for that opening. Show images also works while personal text is hidden; image descriptions and captions stay masked. Image URLs containing detected private information remain blocked in that mode. Image pixels may contain personal information. Loading remote images can tell the sender you opened the email. HTTP and HTTPS links open in your default browser on desktop. Personal-information hiding suppresses links containing known recipient names or email addresses. Received attachments show metadata and an explicit download action when their bytes fit the import limits. Formatted composition uses a separate bounded outbound subset. Embedded images, arbitrary CSS, tables and pasted HTML are not supported; paste inserts text. Search covers the chosen cached view, including retained archives and explicitly imported Sent evidence.
+- Bodies preserve a bounded, safe subset of the sender's formatted layout, with readable plain text when formatting is unavailable or rejected. Sender scripts, forms, stylesheets and resource-loading CSS are excluded. Show images sits above the body; images stay blocked until activated for that opening. Show images also works while personal text is hidden; image descriptions and captions stay masked. Image URLs containing detected private information remain blocked in that mode. Image pixels may contain personal information. Loading remote images can tell the sender you opened the email. HTTP and HTTPS links open in your default browser on desktop. Personal-information hiding suppresses links containing known recipient names or email addresses. Received attachments show metadata and an explicit, cancellable download for parts up to 25 MiB; automatic imports retain their smaller limits. Formatted composition uses a separate bounded outbound subset. Embedded images, arbitrary CSS, tables and pasted HTML are not supported; paste inserts text. Search covers the chosen cached view, including retained archives and explicitly imported Sent evidence.
 - Drafts autosave in the encrypted store, including recipients and attachment bytes. Closing retains the draft; discarding is separate. Unknown send outcomes remain visible to prevent accidental duplicates.
 
 ## MCP
@@ -492,7 +492,7 @@ In the desktop app, open **Settings → About and storage → Encrypted workspac
 backup**. Enter and confirm a passphrase of at least 12 characters, then choose
 **Export encrypted backup** and a destination. Keep the passphrase separately;
 it cannot be recovered. The file works independently of the original computer's
-protected storage key. Files are limited to 32 MiB.
+protected storage key. Files are limited to 128 MiB.
 
 Backups contain local commitments, projects, decisions, Teach rules, pins,
 snoozes, drafts, templates, signatures and agent history. They exclude account
@@ -508,3 +508,9 @@ pin/snooze flags win; nothing is deleted. Pending/interrupted agent actions
 return as inactive, unknown history. Import does not send mail or change your
 provider mailbox. Reload afterward to refresh all views. Missing source mail
 can stay unavailable after resync, especially if provider message IDs changed.
+
+Draft attachments are carried as encrypted backup content and restored as new
+account-bound encrypted uploads. Device upload IDs, received attachment caches
+and queued/scheduled outbox actions are excluded. Missing or corrupt referenced
+bytes stop export. The encrypted file limit is 128 MiB, including both encoding
+layers; an oversized workspace must be reduced before export.

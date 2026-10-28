@@ -2046,23 +2046,25 @@ test("compose keyboard cycle reaches sidebar and toolbar without stealing editin
 
 for (const failed of [false, true]) test(`compose attachment drain ${failed ? "retains failed reads" : "keeps completed bytes"} during navigation`, async () => {
   const app = await mount();
-  const previous = Object.getOwnPropertyDescriptor(globalThis, "FileReader");
+  const original = globalThis.fetch;
   let finish: (() => void) | undefined;
-  class HeldReader {
-    result = "data:text/plain;base64,U3ludGhldGlj";
-    onload?: () => void;
-    onerror?: () => void;
-    readAsDataURL() { finish = () => failed ? this.onerror?.() : this.onload?.(); }
-  }
-  Object.defineProperty(globalThis, "FileReader", { configurable: true, value: HeldReader });
+  const uploaded = { id: "5b8f2c1d-3e4a-4b6c-9d7e-8f9a0b1c2d3e", filename: "notes.txt", contentType: "text/plain", size: 9 };
+  // Hold the raw attachment upload so navigation must wait for it.
+  globalThis.fetch = (async (input: RequestInfo | URL, options?: RequestInit) => {
+    if (String(input).includes("/attachments?") && options?.method === "POST")
+      return new Promise<Response>((resolve, reject) => {
+        finish = () => failed ? reject(new Error("Synthetic upload failure")) : resolve({ ok: true, status: 201, json: async () => uploaded } as Response);
+      });
+    return original(input, options);
+  }) as typeof fetch;
   try {
     await app.click(app.button("New message"));
     const input = app.container.querySelector<HTMLInputElement>('input[type="file"]')!;
     Object.defineProperty(input, "files", { configurable: true, value: [new app.window.File(["Synthetic"], "notes.txt", { type: "text/plain" })] });
     await act(async () => input.dispatchEvent(new app.window.Event("change", { bubbles: true })));
-    assert.ok(finish, "synthetic file read is pending");
+    assert.ok(finish, "synthetic attachment upload is pending");
     await app.click(app.button("Settings"));
-    assert.ok(app.container.querySelector(".compose-dialog"), "navigation waits for the file read");
+    assert.ok(app.container.querySelector(".compose-dialog"), "navigation waits for the upload");
     await act(async () => finish?.());
     if (failed) {
       assert.ok(app.container.querySelector(".compose-dialog"));
@@ -2071,11 +2073,11 @@ for (const failed of [false, true]) test(`compose attachment drain ${failed ? "r
     } else {
       assert.equal(Boolean(app.container.querySelector(".compose-dialog")), false);
       assert.equal(app.savedDraft()?.attachments?.[0]?.filename, "notes.txt");
-      assert.equal(app.savedDraft()?.attachments?.[0]?.content, "U3ludGhldGlj");
+      assert.equal((app.savedDraft()?.attachments?.[0] as { id?: string } | undefined)?.id, uploaded.id, "the draft keeps the uploaded reference");
       assert.ok(app.container.querySelector(".settings"));
     }
   } finally {
-    if (previous) Object.defineProperty(globalThis, "FileReader", previous); else Reflect.deleteProperty(globalThis, "FileReader");
+    globalThis.fetch = original;
     await app.close();
   }
 });

@@ -1,0 +1,55 @@
+import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { test } from "node:test";
+
+test("backup preserves uploaded draft bytes without exporting device references or outbox actions", { timeout: 90000 }, async () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "emc2-attachment-backup-"));
+  process.env.MAIL_DATA_DIR = directory;
+  process.env.MAIL_CONFIG_PATH = path.join(directory, "absent.env");
+  const store = await import("./store.js");
+  const { storeAttachmentBytes } = await import("./attachment-bytes.js");
+  const backup = await import("./workspace-backup.js");
+  try {
+    store.put("account", "a", { id: "a", provider: "imap", email: "synthetic@example.test", credentials: {} });
+    const bytes = Buffer.alloc(2 * 1024 * 1024, 37);
+    const uploaded = await storeAttachmentBytes("a", "synthetic.bin", "application/octet-stream", (async function* () { yield bytes; })(), new AbortController().signal);
+    const draft = { id: "3da53f49-4c62-4c4a-adbc-330fbd321046", accountId: "a", to: ["recipient@example.test"], subject: "Synthetic", body: "Local draft", attachments: [uploaded], sendUnknown: true, revision: 2, updatedAt: 1 };
+    store.put("draft", draft.id, draft);
+    store.put("proposal", "history", { id: "history", accountId: "a", agentId: "absent-agent", action: "draft", payload: { accountId: "a", to: ["recipient@example.test"], subject: "Synthetic", body: "Local history", attachments: [uploaded] }, digest: "synthetic", createdAt: 1, status: "pending" });
+    store.put("outbox", "opaque", { id: "opaque", accountId: "a", payload: { attachments: [uploaded] } } as never);
+    const payload = backup.captureBackup();
+    assert.ok(!JSON.stringify(payload).includes(uploaded.id), "no source-device upload ID leaves the profile");
+    assert.ok(!payload.records.some(row => String(row.kind) === "outbox"));
+    const file = await backup.sealBackup(payload, "synthetic backup passphrase");
+    const opened = await backup.openBackup(file, "synthetic backup passphrase");
+    store.remove("draft", draft.id); store.remove("proposal", "history");
+    const count = store.all("upload").length;
+    backup.mergeBackup(opened);
+    assert.equal(store.all("upload").length, count, "preview never creates uploads");
+    backup.mergeBackup(opened, true);
+    const restored = store.get("draft", draft.id)!;
+    assert.equal(restored.sendUnknown, true);
+    assert.notEqual(restored.attachments![0].id, uploaded.id);
+    const read: Buffer[] = [];
+    for await (const chunk of store.uploadBytes(restored.attachments![0].id!)) read.push(chunk);
+    assert.deepEqual(Buffer.concat(read), bytes);
+    assert.equal(store.get("proposal", "history")!.status, "unknown");
+    const after = store.all("upload").length;
+    backup.mergeBackup(opened, true);
+    assert.equal(store.all("upload").length, after, "skipped drafts/history do not duplicate bytes");
+    store.remove("draft", draft.id); store.remove("proposal", "history");
+    const db = new DatabaseSync(path.join(directory, "mail.sqlite"));
+    db.exec("CREATE TRIGGER synthetic_draft_failure BEFORE INSERT ON records WHEN NEW.kind='draft' BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END");
+    assert.throws(() => backup.mergeBackup(opened, true), /synthetic failure/);
+    assert.equal(store.all("upload").length, after, "failed merge rolls back new encrypted uploads too");
+    assert.equal(store.get("draft", draft.id), undefined);
+    db.exec("DROP TRIGGER synthetic_draft_failure"); db.close();
+    store.cleanupUploads(Date.now() + 7200000);
+    assert.ok(store.get("upload", uploaded.id), "opaque outbox payload still protects the original bytes");
+    store.put("draft", draft.id, { ...draft, accountId: "other" });
+    assert.throws(() => backup.captureBackup(), /another account/);
+  } finally { store.closeStore(); rmSync(directory, { recursive: true, force: true }); }
+});

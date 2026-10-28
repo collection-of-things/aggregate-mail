@@ -1,5 +1,5 @@
 // Only encrypted bytes cross the file bridge. Paths remain in the main process.
-export const BACKUP_MAX_BYTES = 32 * 1024 * 1024;
+export const BACKUP_MAX_BYTES = 128 * 1024 * 1024;
 export type BackupPreview = {
   manifest: { formatVersion: 1; appVersion: string; createdAt: string; counts: Record<string, number> };
   added: Record<string, number>;

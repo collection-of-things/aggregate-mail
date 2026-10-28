@@ -54,6 +54,6 @@ export function registerWorkspaceBackupIpc(ipc: IpcMain, current: () => BrowserW
       if (!trusted()) throw Error();
       await writeBackupFile(result.filePath, encrypted);
       return true;
-    } catch { throw Error("The backup file could not be opened or saved. Check file access and the 32 MiB limit."); }
+    } catch { throw Error("The backup file could not be opened or saved. Check file access and the 128 MiB limit."); }
   });
 }

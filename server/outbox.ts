@@ -1,3 +1,4 @@
+import { AttachmentPreflightError } from "./attachment-bytes.js";
 import { readDraft } from "./drafts.js";
 import { networkInterfaces } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -26,6 +27,7 @@ export function requireOutbox(id: string): OutboxRecord {
 // Only explicit protocol rejections establish failure. Timeouts and disconnects
 // remain unknown even if they happened before the provider actually accepted.
 export function rejectedBeforeAcceptance(error: unknown): boolean {
+  if (error instanceof AttachmentPreflightError) return true;
   if (!error || typeof error !== "object") return false;
   const e = error as { responseCode?: number; code?: string; response?: { status?: number } };
   return (typeof e.responseCode === "number" && e.responseCode >= 400 && e.responseCode <= 599) ||

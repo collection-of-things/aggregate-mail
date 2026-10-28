@@ -1,3 +1,6 @@
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { uploadBytes } from "./store.js";
 import { forwardContent } from "./forward.js";
 import { conversationMembers } from "./conversation-members.js";
 import { sameImapAccount } from "./imap-watch.js";
@@ -367,9 +370,16 @@ export function mountWorkspace(app: express.Express) {
     const mail = findMail(req.params.id);
     res.status(201).json(createDraft(mail.accountId, forwardContent(mail)));
   });
-  router.get("/messages/:id/attachments/:attachmentId", (req, res) => {
+  router.get("/messages/:id/attachments/:attachmentId", async (req, res) => {
     const m = findMail(req.params.id);
     const metadata = m.attachments?.find((a) => a.id === req.params.attachmentId);
+    if (metadata?.uploadId && !metadata.unavailable) {
+      const saved = get("upload", metadata.uploadId);
+      if (!saved?.complete || saved.accountId !== m.accountId) return fail(404, "Attachment bytes unavailable.");
+      res.set({ "Content-Type": "application/octet-stream", "Content-Length": String(saved.size), "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(metadata.filename)}`, "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox" });
+      await pipeline(Readable.from(uploadBytes(metadata.uploadId)), res);
+      return;
+    }
     const attachment = get("attachment", `${m.id}:${req.params.attachmentId}`);
     if (!metadata || metadata.unavailable || !attachment || attachment.accountId !== m.accountId)
       return fail(404, "Attachment bytes unavailable. They were not downloaded within the import limit.");

@@ -1,8 +1,9 @@
 import { ScheduleTime } from "./ScheduleTime";
 import { followUpPreset } from "../../shared/follow-up-presets";
+import { ATTACHMENT_BYTES, ATTACHMENT_COUNT, attachmentSize } from "../../shared/attachments";
 import { RichBody } from "./RichBody";
 import { useContext, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import type { Account, Mail } from "../../shared/types";
+import type { Account, Mail, DraftAttachment } from "../../shared/types";
 import { emptyComposePreferences, type ComposePreferences } from "../../shared/mail-features";
 import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
 import { accountLabel } from "../mail-ui";
@@ -149,19 +150,30 @@ export function ComposePanel({
   const [dragging, setDragging] = useState(false);
   const [showBcc, setShowBcc] = useState(false);
   const [showCc, setShowCc] = useState(false);
+  const selectedBytes = (draft.attachments || []).reduce((sum, file) => sum + attachmentSize(file), 0);
   const ccVisible = showCc || Boolean(draft.cc?.some((address) => address.trim()));
   const addFiles = async (files: File[]) => {
     if (!files.length || busy || filesBusy.current) return;
-    if (files.some((file) => file.size > 524288 || !file.name || file.name.length > 255 || /[\u0000-\u001f\u007f/\\:]/.test(file.name) || file.name === "." || file.name === "..") || files.reduce((sum, file) => sum + file.size, 0) + (draft.attachments || []).reduce((sum, file) => sum + file.content.length * 3 / 4, 0) > 1048576 || files.length + (draft.attachments?.length || 0) > 10) {
-      setAttachmentError("Choose up to 10 files with safe filenames, at most 512 KiB each and 1 MiB total."); return;
+    if (files.some((file) => file.size > ATTACHMENT_BYTES || !file.name || file.name.length > 255 || /[\u0000-\u001f\u007f/\\:]/.test(file.name) || file.name === "." || file.name === "..") || files.reduce((sum, file) => sum + file.size, 0) + selectedBytes > ATTACHMENT_BYTES || files.length + (draft.attachments?.length || 0) > ATTACHMENT_COUNT) {
+      setAttachmentError("Choose up to 20 files with safe filenames, at most 25 MiB each and 25 MiB total."); return;
     }
     filesBusy.current = true; setLoadingFiles(true); setAttachmentError("");
     const task = (async () => { try {
-      const attachments = await Promise.all(files.map((file) => new Promise<{ filename: string; contentType: string; content: string }>((resolve, reject) => {
-        const reader = new FileReader(); reader.onerror = () => reject(new Error());
-        reader.onload = () => resolve({ filename: file.name, contentType: file.type || "application/octet-stream", content: String(reader.result).split(",")[1] });
-        reader.readAsDataURL(file);
-      })));
+      const attachments: DraftAttachment[] = [];
+      for (const file of files) {
+        if (api) {
+          const query = new URLSearchParams({ filename: file.name, contentType: file.type || "application/octet-stream" });
+          attachments.push(await api<DraftAttachment>(`/accounts/${encodeURIComponent(draft.accountId)}/attachments?${query}`, "POST", file));
+        } else {
+          // Standalone callers without a service can still use the legacy small form.
+          if (file.size > 524288) throw new Error("Attachment upload service is unavailable");
+          attachments.push(await new Promise<DraftAttachment>((resolve, reject) => {
+            const reader = new FileReader(); reader.onerror = () => reject(new Error());
+            reader.onload = () => resolve({ filename: file.name, contentType: file.type || "application/octet-stream", content: String(reader.result).split(",")[1] });
+            reader.readAsDataURL(file);
+          }));
+        }
+      }
       setDraft({ ...draft, attachments: [...(draft.attachments || []), ...attachments] });
     } catch { setAttachmentError("Attachment could not be read. Choose it again."); throw new Error("Attachment read failed"); }
     finally { filesBusy.current = false; setLoadingFiles(false); } })();
@@ -184,7 +196,7 @@ export function ComposePanel({
         <span className="compose-context-label">Replying to</span>
         <h3><Redact text={source.subject || "No subject"} /></h3>
         <p><Redact text={source.sender} /> · {new Date(source.date).toLocaleDateString()}</p>
-        <div className="compose-context-body"><ReaderContent key={sourceKey} mail={{ ...source, body: source.body || source.preview || "No message text in cache." }}
+        <div className="compose-context-body"><ReaderContent api={api} key={sourceKey} mail={{ ...source, body: source.body || source.preview || "No message text in cache." }}
           loadContent={api ? (id) => api(`/messages/${encodeURIComponent(id)}/content`, "POST") : undefined}
           loadImages={(id) => api ? api(`/messages/${encodeURIComponent(id)}/images`, "POST") : Promise.reject(new Error("Images unavailable"))} /></div>
       </aside></MailPrivacy>}
@@ -217,6 +229,7 @@ export function ComposePanel({
                 label: privacy ? accountLabel(account, index, true) : account.name ? `${account.name} · ${account.email}` : account.email,
               }))}
               onChange={(accountId) => {
+                if (accountId !== draft.accountId && draft.attachments?.some(file => file.id)) { setAttachmentError("Remove uploaded attachments before changing From. Choose the files again for the new account."); return; }
                 try { setDraft(changeComposeAccount(draft, accountId, preferences)); }
                 catch { setAttachmentError("Unable to update the signature without changing your message. Your text is unchanged."); }
               }}
@@ -257,13 +270,14 @@ export function ComposePanel({
               void addFiles(files);
             }} />
           </label>
-          <span id="compose-attachment-limits" className="compose-attachment-limits">Up to 10 files · 512 KiB each · 1 MiB total</span>
+          <span id="compose-attachment-limits" className="compose-attachment-limits">Up to 20 files · 25 MiB each · 25 MiB total; provider message limits include encoding</span>
+          <span className="compose-attachment-limits compose-attachment-size" role="status">{draft.attachments?.length || 0} {draft.attachments?.length === 1 ? "file" : "files"} · {selectedBytes} bytes selected</span>
         </div>
         <RichBody draft={draft} disabled={busy || loadingFiles} onChange={setDraft} />
         <div className="compose-extras">
-          {(draft.attachments || []).map((file, index) => <p className="compose-attachment" key={index}><Redact text={file.filename} /> <button type="button" disabled={busy || loadingFiles} aria-label={`Remove attachment ${index + 1}`} onClick={() => setDraft({ ...draft, attachments: draft.attachments?.filter((_, i) => i !== index) })}>Remove</button></p>)}
+          {(draft.attachments || []).map((file, index) => <p className="compose-attachment" key={index}><Redact text={file.filename} /> ({attachmentSize(file)} bytes) <button type="button" disabled={busy || loadingFiles} aria-label={`Remove attachment ${index + 1}`} onClick={() => setDraft({ ...draft, attachments: draft.attachments?.filter((_, i) => i !== index) })}>Remove</button></p>)}
           {attachmentError && <p role="alert">{attachmentError}</p>}
-          {loadingFiles && <p role="status">Reading attachments…</p>}
+          {loadingFiles && <p role="status">Uploading attachments…</p>}
           <ComposePreferenceControls draft={draft} preferences={preferences} busy={busy || loadingFiles} onChange={setDraft} />
           {onUndoDelay && <div className="compose-undo-delay"><span>Undo delay</span><Dropdown label="Undo send delay"
             value={String(preferences.undoSendSeconds ?? 10)} disabled={busy || loadingFiles}

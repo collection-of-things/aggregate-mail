@@ -3,8 +3,13 @@ import packageInfo from "../package.json" with { type: "json" };
 import { trackMailWork } from "./mail-actions.js";
 import type express from "express";
 import { z } from "zod";
-import { all, get, put, transaction, workspaceMailFlags, type Records } from "./store.js";
+import { all, get, put, transaction, workspaceMailFlags, backupUploadContent, restoreBackupUpload, type Records } from "./store.js";
 import { contentSchema, MAX_DRAFTS_PER_ACCOUNT } from "./drafts.js";
+import { canonicalBase64Size } from "./mime-limits.js";
+import { attachmentMetadataSchema } from "./providers.js";
+import { ATTACHMENT_BYTES, ATTACHMENT_COUNT } from "../shared/attachments.js";
+import type { DraftAttachment } from "../shared/types.js";
+
 import { ruleSchema } from "./workspace.js";
 import { BACKUP_MAX_BYTES, type BackupPreview } from "../shared/workspace-backup.js";
 
@@ -19,13 +24,21 @@ const ids = z.array(id).max(10000);
 const status = z.enum(["needs-reply", "needs-work", "waiting", "done", "cancelled"]);
 const deadline = { dueAt: time.optional(), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), followUpAt: time.optional() };
 const history = z.object({ at: time, status, ...deadline, reason: text, text, evidenceMailIds: ids });
+const backupAttachmentSchema = attachmentMetadataSchema.extend({
+  content: z.string().max(Math.ceil(ATTACHMENT_BYTES / 3) * 4).refine(value => {
+    const size = canonicalBase64Size(value);
+    return size !== null && size <= ATTACHMENT_BYTES;
+  }, "Invalid backup attachment bytes"),
+}).strict();
+const backupContentSchema = contentSchema.safeExtend({ attachments: z.array(backupAttachmentSchema).max(ATTACHMENT_COUNT)
+  .refine(files => files.reduce((size, file) => size + (canonicalBase64Size(file.content) ?? Infinity), 0) <= ATTACHMENT_BYTES).optional() });
 const schemas = {
   commitment: z.object({ id, accountId: id, sourceMailId: id, text, reason: text, status, ...deadline, evidenceMailIds: ids, projectId: id.optional(), revision: time, updatedAt: time, history: z.array(history), sourceUnavailable: z.boolean().optional() }),
   project: z.object({ id, name: text, sourceMailIds: ids, accountIds: ids, crossAccountConfirmed: z.boolean(), revision: time, updatedAt: time }),
   decision: z.object({ id, projectId: id, text, sourceMailIds: ids, createdAt: time }),
   rule: ruleSchema.omit({ accountId: true }).extend({ id, accountId: id.optional(), createdAt: time.optional(), excludedMailIds: ids.optional() }),
-  draft: contentSchema.safeExtend({ id, accountId: id, revision: time, updatedAt: time, sendUnknown: z.boolean(), calendarContext: z.object({ eventId: id, revision: time, sourceMailId: id.optional(), sourceFingerprint: text.optional() }).optional() }),
-  proposal: z.object({ id, agentId: id, accountId: id, action: z.enum(["send", "draft", "archive", "read"]), payload: z.union([contentSchema.safeExtend({ accountId: id }), z.object({ mailId: id })]), sourceMailId: id.optional(), sourceFingerprint: text.optional(), sourceChanged: z.boolean().optional(), digest: text, createdAt: time, status: z.enum(["pending", "executing", "succeeded", "failed", "unknown", "rejected"]), receipt: z.object({ at: time, message: text, draftId: id.optional() }).optional() }),
+  draft: backupContentSchema.safeExtend({ id, accountId: id, revision: time, updatedAt: time, sendUnknown: z.boolean(), calendarContext: z.object({ eventId: id, revision: time, sourceMailId: id.optional(), sourceFingerprint: text.optional() }).optional() }),
+  proposal: z.object({ id, agentId: id, accountId: id, action: z.enum(["send", "draft", "archive", "read"]), payload: z.union([backupContentSchema.safeExtend({ accountId: id }), z.object({ mailId: id })]), sourceMailId: id.optional(), sourceFingerprint: text.optional(), sourceChanged: z.boolean().optional(), digest: text, createdAt: time, status: z.enum(["pending", "executing", "succeeded", "failed", "unknown", "rejected"]), receipt: z.object({ at: time, message: text, draftId: id.optional() }).optional() }),
   template: z.object({ id, name: text, subject: text, body: text }),
   signature: z.object({ accountId: id, body: text }),
   workspaceMailState: z.object({ id, accountId: id, pinned: z.boolean().optional(), snoozedUntil: time.nullable() }),
@@ -68,8 +81,24 @@ function validate(input: unknown): Payload {
 }
 export function captureBackup(): Payload {
   const records: Entry[] = [];
+  let retainedBytes = 0;
+  const portable = (value: unknown, accountId: string) => {
+    const record = structuredClone(value) as Record<string, any>;
+    const content = record.payload && "body" in record.payload ? record.payload : record;
+    if (Array.isArray(content.attachments)) content.attachments = content.attachments.map((file: DraftAttachment) => {
+      if (!file.id) return file;
+      // Account for both base64 layers before allocating another file's bytes.
+      if (retainedBytes + Math.ceil(file.size! / 3) * 4 > BACKUP_MAX_BYTES * 0.70)
+        throw Error("Backup exceeds the 128 MiB file limit.");
+      const { id: _id, size: _size, ...metadata } = file;
+      return { ...metadata, content: backupUploadContent(accountId, file) };
+    });
+    retainedBytes += Buffer.byteLength(JSON.stringify(record));
+    if (retainedBytes > BACKUP_MAX_BYTES * 0.70) throw Error("Backup exceeds the 128 MiB file limit.");
+    return record;
+  };
   for (const kind of ["commitment", "project", "decision", "rule", "draft", "proposal"] as const)
-    for (const value of all(kind)) records.push({ kind, id: value.id, value });
+    for (const value of all(kind)) records.push({ kind, id: value.id, value: portable(value, "accountId" in value ? value.accountId! : "") });
   const compose = get("compose", "preferences");
   for (const value of compose?.templates ?? []) records.push({ kind: "template", id: value.id, value });
   for (const [accountId, body] of Object.entries(compose?.signatures ?? {})) records.push({ kind: "signature", id: accountId, value: { accountId, body } });
@@ -87,7 +116,7 @@ export async function sealBackup(input: unknown, password: unknown): Promise<str
     cipher.setAAD(Buffer.from("emc2-workspace-backup:1"));
     const data = Buffer.concat([cipher.update(JSON.stringify(payload), "utf8"), cipher.final()]);
     const file = JSON.stringify({ format: "emc2-workspace-backup", version: 1, kdf: { name: "scrypt", ...parameters, salt: salt.toString("base64") }, iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), data: data.toString("base64") });
-    if (Buffer.byteLength(file) > BACKUP_MAX_BYTES) throw Error("Backup exceeds the 32 MiB file limit.");
+    if (Buffer.byteLength(file) > BACKUP_MAX_BYTES) throw Error("Backup exceeds the 128 MiB file limit.");
     return file;
   } finally { key.fill(0); }
 }
@@ -188,7 +217,15 @@ export function mergeBackup(payload: Payload, commit = false): BackupPreview {
           const mail = get("mail", row.id);
           if (mail && mail.accountId === row.value.accountId) put("mail", row.id, { ...mail, pinned: row.value.pinned, snoozedUntil: row.value.snoozedUntil });
           else put("workspaceMailState", row.id, row.value as Records["workspaceMailState"]);
-        } else put(row.kind, row.id, row.value as Records[typeof row.kind]);
+        } else {
+          if (row.kind === "draft" || row.kind === "proposal") {
+            const value = row.value as Record<string, any>;
+            const content = row.kind === "proposal" ? value.payload : value;
+            if (Array.isArray(content.attachments)) content.attachments = content.attachments.map((file: z.infer<typeof backupAttachmentSchema>) =>
+              restoreBackupUpload(value.accountId, file));
+          }
+          put(row.kind, row.id, row.value as Records[typeof row.kind]);
+        }
       }
     }
     if (commit) put("compose", "preferences", compose);

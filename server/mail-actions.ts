@@ -1,8 +1,9 @@
+import { AttachmentPreflightError } from "./attachment-bytes.js";
 import { z } from "zod";
 import type { LocalMailUndo } from "../shared/local-mail-undo.js";
 import { updateLocalMail, restoreLocalMail } from "./local-mail-undo.js";
 import { MAX_MAIL_BATCH, type MailBatchResponse } from "../shared/bulk-mail.js";
-import { all, get, account, put, remove } from "./store.js";
+import { all, get, account, put, remove, holdAttachments, releaseAttachmentHold, cleanupUploads } from "./store.js";
 import { providers, sendSchema, SentCopyError, updateGmailLabels, type SendInput } from "./providers.js";
 import { recordRecentRecipients } from "./contacts.js";
 
@@ -136,17 +137,27 @@ export async function sendMail(value: unknown, beforeExecution?: () => void) {
     const input = sendSchema.parse(value);
     const a = account(input.accountId);
     beforeExecution?.();
+    let hold: string | undefined;
+    try { hold = holdAttachments(a.id, input.attachments); }
+    catch { throw new AttachmentPreflightError("Attachment identity changed. Choose the file again before sending."); }
+    const cleanup = () => {
+      try { releaseAttachmentHold(hold); cleanupUploads(); return undefined; }
+      catch { return "Email was sent, but attachment cleanup failed. Do not resend."; }
+    };
     try {
       await providers[a.provider].send(a, input);
     } catch (error) {
       if (error instanceof SentCopyError) {
         rememberRecipients(input);
-        return { ok: true, warning: error.message };
+        const warning = cleanup();
+        return { ok: true, warning: [error.message, warning].filter(Boolean).join(" ") };
       }
+      if (error instanceof AttachmentPreflightError) { try { releaseAttachmentHold(hold); } catch {} }
       throw error;
     }
     rememberRecipients(input);
-    return { ok: true };
+    const warning = cleanup();
+    return { ok: true, ...(warning ? { warning } : {}) };
   });
 }
 

@@ -66,6 +66,8 @@ export type Records = {
   maintenance: { lastInventoryAt: number };
   config: Partial<Record<"GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "OPENAI_API_KEY" | "TYPESAFE_API_KEY" | "TYPESAFE_PROVIDER", string>>;
   attachment: { accountId: string; content: string };
+  upload: { accountId: string; filename: string; contentType: string; size: number; reservedBytes?: number; createdAt: number; complete: boolean };
+  attachmentHold: { id: string; accountId: string; attachments: { id: string }[] };
   compose: ComposePreferences;
   account: StoredAccount;
   mail: Mail;
@@ -100,7 +102,7 @@ export function mailSummary(mail: Mail, rules: Rule[] = all("rule")): MailSummar
     reason: mail.reason, archived: mail.archived, snoozedUntil: mail.snoozedUntil,
     messageId: mail.messageId, threadId: mail.threadId, references: mail.references && [...mail.references],
     direction: mail.direction, inReplyTo: mail.inReplyTo, mailbox: mail.mailbox && { ...mail.mailbox },
-    attachments: mail.attachments?.map(({ id, filename, contentType, size, unavailable }) => ({ id, filename, contentType, size, unavailable })),
+    attachments: mail.attachments?.map(({ id, filename, contentType, size, unavailable, contentId, uploadId, sourceIndex, remotePart, sizeIsEstimate }) => ({ id, filename, contentType, size, unavailable, contentId, uploadId, sourceIndex, remotePart, sizeIsEstimate })),
     contentVersion: createHash("sha256").update(JSON.stringify(mail)).digest("hex"),
     inboxTab: typeof mail.address === "string" ? inboxTab(mail, rules) : "primary",
   };
@@ -463,6 +465,11 @@ export function closeStore() {
 }
 
 export function removeAccountAttachments(accountId: string) {
+  // Explicit account removal also purges its drafts/outbox, so its uploads and
+  // uncertainty holds must not keep private bytes after the account is gone.
+  for (const row of db.prepare("SELECT id,value FROM records WHERE kind='upload'").all())
+    if ((decrypt(String(row.value)) as Records["upload"]).accountId === accountId) eraseUpload(String(row.id));
+  for (const hold of all("attachmentHold")) if (hold.accountId === accountId) remove("attachmentHold", hold.id);
   for (const row of db.prepare("SELECT id,value FROM records WHERE kind='attachment'").all()) {
     const attachment = decrypt(String(row.value)) as Records["attachment"];
     if (attachment.accountId === accountId) remove("attachment", String(row.id));
@@ -493,7 +500,7 @@ export function compactStore(options: { cleanupOrphans?: boolean; vacuum?: boole
   let removedAttachments = 0;
   let cleanupSkipped: "unknown-record-kind" | "incomplete-mail-metadata" | "incomplete-attachment-metadata" | undefined;
   if (options.cleanupOrphans) transaction(() => {
-    const knownKinds: (keyof Records)[] = ["workspaceMailState", "savedView", "outbox", "availability", "calendarOffer", "calendarOperation", "commitment", "googleCalendar", "googleCalendarWindow", "calendarEvent", "project", "decision", "coverage", "proposal", "agent", "agentProvider", "attachment", "config", "maintenance", "compose", "account", "mail", "mailSummary", "label", "rule", "meta", "mcp", "draft", "contact", "recentRecipient"];
+    const knownKinds: (keyof Records)[] = ["upload", "attachmentHold", "workspaceMailState", "savedView", "outbox", "availability", "calendarOffer", "calendarOperation", "commitment", "googleCalendar", "googleCalendarWindow", "calendarEvent", "project", "decision", "coverage", "proposal", "agent", "agentProvider", "attachment", "config", "maintenance", "compose", "account", "mail", "mailSummary", "label", "rule", "meta", "mcp", "draft", "contact", "recentRecipient"];
     if (db.prepare("SELECT DISTINCT kind FROM records").all().some(row => !knownKinds.includes(String(row.kind) as keyof Records))) {
       cleanupSkipped = "unknown-record-kind";
       return;
@@ -517,10 +524,11 @@ export function compactStore(options: { cleanupOrphans?: boolean; vacuum?: boole
       }
       if (!references.has(String(row.id))) orphans.push(String(row.id));
     }
-    // Draft attachments are inline in the encrypted draft. No draft is rewritten.
+    // Legacy attachments remain inline. Upload references are inventoried separately.
     for (const id of orphans) remove("attachment", id);
     removedAttachments = orphans.length;
   });
+  if (options.cleanupOrphans) cleanupUploads();
   // SQLite's own transaction makes a failed/interrupted VACUUM recoverable. Cleanup
   // is a separate committed transaction because VACUUM cannot run inside one.
   // An empty freelist has no already-free pages to reclaim. Explicit force
@@ -532,4 +540,113 @@ export function compactStore(options: { cleanupOrphans?: boolean; vacuum?: boole
   if (options.cleanupOrphans && options.inventoryAt !== undefined)
     put("maintenance", "storage", { lastInventoryAt: options.inventoryAt });
   return { beforeBytes, afterBytes: size(), removedAttachments, cleanupSkipped, vacuumed };
+}
+
+// Chunk rows contain only authenticated ciphertext, never plaintext spool files.
+db.exec("CREATE TABLE IF NOT EXISTS attachment_chunks (id TEXT, seq INTEGER, value TEXT NOT NULL, PRIMARY KEY(id,seq))");
+const activeUploads = new Set<string>();
+const attachmentReaders = new Map<string, number>();
+export function beginUpload(accountId: string, filename: string, contentType: string, limit = 25 * 1024 * 1024) {
+  const inventory = all("upload");
+  // Backup imports can overlap an admitted stream, including before its first chunk.
+  const occupied = (x: Records["upload"]) => x.complete ? x.size : Math.max(x.size, x.reservedBytes ?? 35 * 1024 * 1024);
+  if (inventory.filter(x => x.accountId === accountId).reduce((n, x) => n + occupied(x), 0) + limit > 256 * 1024 * 1024 || inventory.reduce((n, x) => n + occupied(x), 0) + limit > 1024 * 1024 * 1024 || inventory.length >= 2000)
+    throw new Error("Attachment storage limit reached. Discard unused drafts and compact storage.");
+  const id = randomUUID();
+  put("upload", id, { accountId, filename, contentType, size: 0, reservedBytes: limit, createdAt: Date.now(), complete: false });
+  activeUploads.add(id);
+  return id;
+}
+export function appendUpload(id: string, seq: number, bytes: Buffer) {
+  if (bytes.length > 65536) throw new Error("Attachment chunk limit exceeded.");
+  db.prepare("INSERT INTO attachment_chunks VALUES(?,?,?)").run(id, seq, encrypt(bytes.toString("base64")));
+}
+export function finishUpload(id: string, size: number) {
+  const value = get("upload", id);
+  if (!value) throw new Error("Attachment upload missing.");
+  put("upload", id, { ...value, size, complete: true });
+  activeUploads.delete(id);
+}
+export function eraseUpload(id: string) {
+  db.prepare("DELETE FROM attachment_chunks WHERE id=?").run(id);
+  remove("upload", id); activeUploads.delete(id);
+}
+export async function* uploadBytes(id: string) {
+  const meta = get("upload", id);
+  if (!meta?.complete) throw new Error("Attachment upload is incomplete.");
+  attachmentReaders.set(id, (attachmentReaders.get(id) || 0) + 1);
+  try {
+    let size = 0;
+    // No long-lived SQL iterator across awaits or writes.
+    const select = db.prepare("SELECT value FROM attachment_chunks WHERE id=? AND seq=?");
+    for (let seq = 0; ; seq++) {
+      const row = select.get(id, seq);
+      if (!row) break;
+      const bytes = Buffer.from(decrypt(String(row.value)) as string, "base64");
+      size += bytes.length;
+      yield bytes;
+    }
+    if (size !== meta.size) throw new Error("Attachment bytes are incomplete.");
+  } finally {
+    const remaining = (attachmentReaders.get(id) || 1) - 1;
+    if (remaining) attachmentReaders.set(id, remaining); else attachmentReaders.delete(id);
+  }
+}
+export function validateAttachmentRefs(accountId: string, attachments: import("../shared/types.js").DraftAttachment[] = []) {
+  for (const file of attachments) {
+    if (!file.id) continue;
+    const saved = get("upload", file.id);
+    if (!saved?.complete || saved.accountId !== accountId || saved.size !== file.size || saved.filename !== file.filename || saved.contentType !== file.contentType)
+      throw new Error("Attachment identity changed or belongs to another account. Choose the file again.");
+  }
+}
+export function holdAttachments(accountId: string, attachments: import("../shared/types.js").DraftAttachment[] = []) {
+  validateAttachmentRefs(accountId, attachments);
+  if (!attachments.some(file => file.id)) return;
+  const id = randomUUID();
+  put("attachmentHold", id, { id, accountId, attachments: attachments.flatMap(f => f.id ? [{ id: f.id }] : []) });
+  return id;
+}
+export function releaseAttachmentHold(id: string | undefined) { if (id) remove("attachmentHold", id); }
+export function cleanupUploads(now = Date.now()) {
+  const cleanup = () => {
+    const candidates = new Set(db.prepare("SELECT id FROM records WHERE kind='upload'").all().map(row => String(row.id)));
+    const references = new Set([...activeUploads, ...attachmentReaders.keys()]);
+    // Trace every encrypted record, including opaque outbox payloads and unknown
+    // record kinds. A decryption failure aborts before any deletion.
+    const visit = (value: unknown): void => {
+      if (typeof value === "string") { if (candidates.has(value)) references.add(value); }
+      else if (Array.isArray(value)) value.forEach(visit);
+      else if (value && typeof value === "object") Object.values(value).forEach(visit);
+    };
+    for (const row of db.prepare("SELECT value FROM records WHERE kind!='upload'").iterate()) visit(decrypt(String(row.value)));
+    const orphans: string[] = [];
+    for (const row of db.prepare("SELECT id,value FROM records WHERE kind='upload'").iterate()) {
+      const value = decrypt(String(row.value)) as Records["upload"];
+      if (!references.has(String(row.id)) && now - value.createdAt >= 3600000) orphans.push(String(row.id));
+    }
+    for (const id of orphans) eraseUpload(id);
+    return orphans.length;
+  };
+  return db.isTransaction ? cleanup() : transaction(cleanup);
+}
+
+// Backups are explicit bounded in-memory files; ordinary sends remain streamed.
+export function backupUploadContent(accountId: string, file: import("../shared/types.js").DraftAttachment): string {
+  validateAttachmentRefs(accountId, [file]);
+  const chunks: Buffer[] = [];
+  for (const row of db.prepare("SELECT value FROM attachment_chunks WHERE id=? ORDER BY seq").iterate(file.id!))
+    chunks.push(Buffer.from(decrypt(String(row.value)) as string, "base64"));
+  const content = Buffer.concat(chunks);
+  if (content.length !== file.size) throw new Error("Attachment bytes are incomplete. Backup was not created.");
+  return content.toString("base64");
+}
+export function restoreBackupUpload(accountId: string, file: { filename: string; contentType: string; content: string }) {
+  const bytes = Buffer.from(file.content, "base64");
+  const id = beginUpload(accountId, file.filename, file.contentType, bytes.length);
+  try {
+    for (let offset = 0, seq = 0; offset < bytes.length; offset += 65536, seq++) appendUpload(id, seq, bytes.subarray(offset, offset + 65536));
+    finishUpload(id, bytes.length);
+    return { id, filename: file.filename, contentType: file.contentType, size: bytes.length };
+  } catch (error) { eraseUpload(id); throw error; }
 }
