@@ -13,8 +13,12 @@ test("only the budgeted CI and release workflows remain", () => {
   assert.deepEqual(readdirSync(new URL("../.github/workflows/", import.meta.url)).sort(), ["ci.yml", "release.yml"]);
   const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
   assert.deepEqual(ci.match(/runs-on: \S+/g), ["runs-on: ubuntu-latest", "runs-on: ubuntu-latest", "runs-on: ubuntu-latest"]);
-  assert.match(ci, /types: \[labeled, synchronize, reopened\]/);
-  assert.match(ci, /contains\(github\.event\.pull_request\.labels\.\*\.name, 'ci'\)/);
+  assert.match(ci, /types: \[opened, synchronize, reopened, ready_for_review\]/);
+  assert.match(ci, /paths-ignore:\n      - '\*\*\/\*\.md'\n      - 'docs\/\*\*'/);
+  assert.match(ci, /if: github\.event_name == 'workflow_dispatch' \|\| !github\.event\.pull_request\.draft/);
+  assert.doesNotMatch(ci, /labels\.\*\.name/);
+  assert.match(ci, /if \[ "\$visibility" = public \]; then/);
+  assert.match(ci, /--jq \.visibility \|\| echo unknown/);
   assert.match(ci, /MAX_RUNS: 150/);
   assert.match(ci, /actions\/workflows\/ci\.yml\/disable/);
   assert.match(ci, /cancel-in-progress: true/);

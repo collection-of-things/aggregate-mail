@@ -6,6 +6,10 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Changed
+
+- Pull requests now get typecheck and test CI automatically, without a `ci` label. Documentation-only changes are skipped, and the monthly run cap applies again only if the repository becomes private ([ADR 0105](docs/adr/0105-automatic-public-pr-ci.md)).
+
 ### Fixed
 
 - Avoid overlapping browser session checks and allow slow private connections more time to verify access. Origin failures now return readable API errors instead of JSON parsing errors ([#160](https://github.com/collection-of-things/aggregate-mail/issues/160)).

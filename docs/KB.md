@@ -1464,13 +1464,15 @@ Keep credentials, personal contact details, absolute machine paths, private host
 
 ## CI
 
-[CI](../.github/workflows/ci.yml) is opt-in: it runs only on pull requests to
-`main` labelled `ci` (when labelled and on later pushes) and on manual dispatch.
+[CI](../.github/workflows/ci.yml) runs automatically on non-draft pull requests
+to `main` (opened, reopened, ready for review and later pushes) and on manual
+dispatch. Changes touching only Markdown or `docs/` are skipped.
 Every job runs on GitHub-hosted runners: a budget gate and
 `tsc --noEmit` on `ubuntu-latest` capped at 2 and 8 minutes, and `npm test` on
-`ubuntu-latest` capped at 15 minutes. After 150
-completed runs in a calendar month the gate disables the workflow until a
-maintainer re-enables it. [Build installers and release](../.github/workflows/release.yml) runs on pushes
+`ubuntu-latest` capped at 15 minutes. The repository is public, so these runs
+are not billed and the gate passes. If it becomes private, the gate disables
+the workflow after 150 completed runs in a calendar month until a maintainer
+re-enables it ([ADR 0105](adr/0105-automatic-public-pr-ci.md)). [Build installers and release](../.github/workflows/release.yml) runs on pushes
 to `main` (next patch version, tagged and published after all four installer
 jobs pass) and on manual dispatch of an existing stable tag. Docs-only pushes,
 `[skip release]` and `Release ` commits are skipped. Checks, Linux and
