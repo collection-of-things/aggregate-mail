@@ -2906,7 +2906,9 @@ tab invalidates any earlier response and queues fresh verification before showin
 retained mail. Explicit revocation
 still removes retained mail immediately; failed checks hide it while preserving
 mounted drafts. Private-route admission still requires successful verification
-and the existing sixty-second proof lease. API origin denials return JSON with
+and the existing sixty-second proof lease. Renewal schedules from that lease
+rather than a fixed interval, reserving time for CLI checks and the first TLS
+probe even after a slow previous verification. API origin denials return JSON with
 a readable error; access-page denials remain text.
 
 `npm run build:web` stamps the built HTML with a public, deterministic asset

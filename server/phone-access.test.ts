@@ -170,3 +170,72 @@ test("a slow TLS proof stays within the existing route lease without suspending 
     assert.equal(gate.phoneOrigin(), undefined);
   } finally { service.close(); f.service.close(); globalThis.fetch = fetchBefore; AbortSignal.timeout = timeoutBefore; }
 });
+
+
+test("renewal leaves time for slow checks and both TLS probes without a lease gap", async context => {
+  const f = fixture(); await f.service.enable(); f.service.close();
+  context.mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"], now: 1000 });
+  const gate = browserAccess("synthetic-password-only", "http://127.0.0.1:3002");
+  let mismatches = 0;
+  let proofs = 0;
+  const delay = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+  const service = phoneAccess({ gate, load: f.record, save: () => {}, port: () => 3002,
+    run: async args => {
+      if (args[0] === "status") {
+        await delay(4000);
+        return JSON.stringify({ BackendState: "Running", Self: { Online: true, DNSName: dns } });
+      }
+      return JSON.stringify(f.config);
+    },
+    probe: async (_origin, expected) => {
+      await delay(14_000);
+      const actual = gate.phoneOrigin() ? 200 : 403;
+      if (actual !== expected) { mismatches++; throw new Error("synthetic lease gap"); }
+      proofs++;
+    } });
+  try {
+    const started = service.start();
+    // Advance in steps so each asynchronous continuation can schedule its next wait.
+    for (let elapsed = 0; elapsed < 140_000; elapsed += 1000) {
+      context.mock.timers.tick(1000);
+      await new Promise<void>(resolve => setImmediate(resolve));
+    }
+    await started;
+    assert.equal(mismatches, 0, "renewal must finish before existing proof expires");
+    assert.ok(proofs >= 6, "exercise repeated renewals, including a skipped fixed-interval tick");
+    assert.equal(gate.phoneOrigin(), origin);
+  } finally { service.close(); context.mock.timers.reset(); }
+});
+
+test("close and restart leave one renewal timer when an old refresh finishes late", async context => {
+  const f = fixture(); await f.service.enable(); f.service.close();
+  context.mock.timers.enable({ apis: ["setTimeout"] });
+  const beforeSet = globalThis.setTimeout;
+  const beforeClear = globalThis.clearTimeout;
+  const pending = new Set<ReturnType<typeof setTimeout>>();
+  globalThis.setTimeout = ((callback: () => void, delay: number) => {
+    const timer = beforeSet(() => { pending.delete(timer); callback(); }, delay);
+    pending.add(timer); return timer;
+  }) as typeof setTimeout;
+  globalThis.clearTimeout = ((timer: ReturnType<typeof setTimeout>) => { pending.delete(timer); beforeClear(timer); }) as typeof clearTimeout;
+  let hold: Promise<void> | undefined;
+  let release!: () => void;
+  const gate = browserAccess("synthetic-password-only", "http://127.0.0.1:3002");
+  const service = phoneAccess({ gate, load: f.record, save: () => {}, port: () => 3002,
+    run: async args => {
+      if (args[0] === "status") { await hold; return JSON.stringify({ BackendState: "Running", Self: { Online: true, DNSName: dns } }); }
+      return JSON.stringify(f.config);
+    }, probe: async () => {} });
+  try {
+    await service.start();
+    hold = new Promise<void>(resolve => { release = resolve; });
+    context.mock.timers.tick(60_000);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    service.close();
+    await service.start();
+    assert.equal(pending.size, 1);
+    release();
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(pending.size, 1, "late completion must replace, not duplicate, the scheduled timer");
+  } finally { service.close(); globalThis.setTimeout = beforeSet; globalThis.clearTimeout = beforeClear; context.mock.timers.reset(); }
+});

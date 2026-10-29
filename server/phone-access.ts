@@ -178,7 +178,18 @@ export function phoneAccess(options: {
     try { const record = options.load(); if (record) { await removeOwned(record); options.save(undefined); } warning = ""; }
     finally { busy = false; }
   };
-  let timer: ReturnType<typeof setInterval> | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const schedule = () => {
+    if (closed) return;
+    if (timer) clearTimeout(timer);
+    // Leave 20s for CLI checks, 15s for the first probe and a 5s margin.
+    const delay = verified ? Math.max(1000, Math.min(30_000, proofUntil - now() - 40_000)) : 30_000;
+    timer = setTimeout(() => {
+      const next = !busy && options.load()?.phase === "ready" ? refresh() : Promise.resolve();
+      void next.catch(() => {}).finally(schedule);
+    }, delay);
+    timer.unref();
+  };
   return {
     status, enable, disable,
     async start() {
@@ -186,10 +197,9 @@ export function phoneAccess(options: {
       try { await refresh(); }
       catch { revoke(); warning = "The saved route is unavailable. Phone access is suspended; localhost remains available."; }
       if (closed) return;
-      timer = setInterval(() => { if (!busy && options.load()?.phase === "ready") void refresh().catch(() => {}); }, 30_000);
-      timer.unref();
+      schedule();
     },
-    close() { closed = true; if (timer) clearInterval(timer); revoke(); },
+    close() { closed = true; if (timer) clearTimeout(timer); revoke(); },
   };
 }
 

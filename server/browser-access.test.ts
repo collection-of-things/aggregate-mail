@@ -97,10 +97,12 @@ test("browser gate protects reads, writes and assets, with origin checks, rotati
       assert.doesNotMatch(result.body, /protected-content/);
       assert.match(String(result.headers["content-security-policy"]), /frame-ancestors 'none'/);
     }
-    const wrongOrigin = await call("/api/state", "GET", { Host: `evil.test:${address.port}` });
-    assert.equal(wrongOrigin.status, 403);
-    assert.match(String(wrongOrigin.headers["content-type"]), /application\/json/);
-    assert.equal(JSON.parse(wrongOrigin.body).error, "Browser origin could not be verified. Wait for reconnection before trying again.");
+    for (const target of ["/api", "/api/state"]) {
+      const wrongOrigin = await call(target, "GET", { Host: `evil.test:${address.port}` });
+      assert.equal(wrongOrigin.status, 403);
+      assert.match(String(wrongOrigin.headers["content-type"]), /application\/json/);
+      assert.equal(JSON.parse(wrongOrigin.body).error, "Browser origin could not be verified. Wait for reconnection before trying again.");
+    }
     assert.equal((await call("/auth", "GET", { Origin: "http://evil.test" })).status, 403);
     assert.equal((await call("/auth/login", "POST")).status, 403);
     assert.equal((await call("/auth/login", "POST", { Origin: "null" })).status, 403);

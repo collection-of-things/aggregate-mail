@@ -152,7 +152,7 @@ ${unlocked ? '<p><a class="primary" href="/">Open inbox</a></p>' : '<label for="
     const requestOrigin = originFor(req);
     res.set("X-Emc2-Browser", "1");
     if (!requestOrigin || (req.headers.origin && req.headers.origin !== requestOrigin)) {
-      if (req.path.startsWith("/api/")) return res.status(403).json({ error: "Browser origin could not be verified. Wait for reconnection before trying again." });
+      if (req.path === "/api" || req.path.startsWith("/api/")) return res.status(403).json({ error: "Browser origin could not be verified. Wait for reconnection before trying again." });
       return res.status(403).type("text").send("Local origin required.");
     }
     next();
