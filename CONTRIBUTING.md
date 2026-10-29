@@ -201,8 +201,10 @@ The [journey map](docs/user-journeys.md) identifies focused checks; the
   and updater manifest set, rejects artifact digest mismatches and generates
   checksums. Existing tags must match the run commit and cannot be moved or
   deleted. The workflow creates no source version commit.
-- Pull-request CI is separate and opt-in. Skipped or absent checks are not
-  passing application verification. Review dependency advisories, licenses
+- Pull-request CI runs automatically on ready pull requests and skips
+  documentation-only changes. It is free while the repository is public and
+  capped if it becomes private ([ADR 0105](docs/adr/0105-automatic-public-pr-ci.md)).
+  Skipped or absent checks are not passing application verification. Review dependency advisories, licenses
   and updates manually.
 - Repository protections and Actions enablement are separate settings. Deleting
   workflows does not remove required checks, merge-queue rules or approvals.
