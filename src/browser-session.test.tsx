@@ -8,6 +8,7 @@ test("explicit browser lock removes private content; temporary offline checks hi
   const dom = new DOMWindow({ url: "http://127.0.0.1:3001" });
   let accepted = true;
   let failed = false;
+  let heldResponse: Promise<Response> | undefined;
   let interval: (() => void) | undefined;
   let channel: { onmessage?: (event: { data: string }) => void; close(): void } | undefined;
   let checks = 0;
@@ -16,7 +17,7 @@ test("explicit browser lock removes private content; temporary offline checks hi
   dom.addEventListener("emc2-update-ready", event => { assert.equal((event as unknown as CustomEvent).detail, "b".repeat(64)); updates++; });
   const globals = {
     window: dom, document: dom.document, IS_REACT_ACT_ENVIRONMENT: true,
-    fetch: async () => { checks++; if (failed) throw new Error("synthetic offline"); return Response.json({ authenticated: accepted }, { headers: { "X-Emc2-Build": "b".repeat(64) } }); },
+    fetch: async () => { checks++; if (heldResponse) return heldResponse; if (failed) throw new Error("synthetic offline"); return Response.json({ authenticated: accepted }, { headers: { "X-Emc2-Build": "b".repeat(64) } }); },
     BroadcastChannel: class { onmessage?: (event: { data: string }) => void; constructor() { channel = this; } close() {} },
     setInterval: (callback: () => void) => { interval = callback; return 1; }, clearInterval: () => {},
   };
@@ -68,6 +69,25 @@ test("explicit browser lock removes private content; temporary offline checks hi
     failed = false;
     await act(async () => interval?.());
     assert.equal(container.querySelector("input"), retained, "temporary outage preserves the mounted draft");
+    assert.equal(container.querySelector("section")?.parentElement?.getAttribute("style"), "display: contents;");
+    let release!: (response: Response) => void;
+    heldResponse = new Promise<Response>(resolve => { release = resolve; });
+    const slowChecks = checks;
+    await act(async () => interval?.());
+    await act(async () => interval?.());
+    assert.equal(checks, slowChecks + 1, "a slow session check must not overlap the next poll");
+    Object.defineProperty(dom.document, "visibilityState", { configurable: true, value: "hidden" });
+    await act(async () => dom.document.dispatchEvent(new dom.Event("visibilitychange")));
+    Object.defineProperty(dom.document, "visibilityState", { configurable: true, value: "visible" });
+    await act(async () => dom.document.dispatchEvent(new dom.Event("visibilitychange")));
+    let releaseFresh!: (response: Response) => void;
+    heldResponse = new Promise<Response>(resolve => { releaseFresh = resolve; });
+    await act(async () => release(Response.json({ authenticated: true })));
+    assert.equal(container.querySelector("section")?.parentElement?.getAttribute("style"), "display: none;", "a pre-hide response cannot reveal retained mail after wake");
+    assert.equal(checks, slowChecks + 2, "wake queues a fresh check after the old one finishes");
+    await act(async () => releaseFresh(Response.json({ authenticated: true })));
+    heldResponse = undefined;
+    assert.equal(container.querySelector("input"), retained, "delayed revalidation preserves the draft");
     assert.equal(container.querySelector("section")?.parentElement?.getAttribute("style"), "display: contents;");
     const before = checks;
     Object.assign(dom, { desktop: {} });

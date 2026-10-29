@@ -148,3 +148,25 @@ test("management requires authenticated exact localhost Host and Origin plus exp
     assert.equal(status.status, 200); assert.equal(JSON.parse(status.body).canManage, false);
   } finally { server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); }
 });
+
+
+test("a slow TLS proof stays within the existing route lease without suspending admission", async () => {
+  const f = fixture(); await f.service.enable();
+  const gate = browserAccess("synthetic-password-only", "http://127.0.0.1:3002");
+  const fetchBefore = globalThis.fetch;
+  const timeoutBefore = AbortSignal.timeout;
+  const service = phoneAccess({ gate, load: f.record, save: () => {}, port: () => 3002,
+    run: async args => args[0] === "status" ? JSON.stringify({ BackendState: "Running", Self: { Online: true, DNSName: dns } }) : JSON.stringify(f.config) });
+  try {
+    AbortSignal.timeout = ms => ms <= 6000 ? AbortSignal.abort() : new AbortController().signal;
+    globalThis.fetch = async (_url, init) => {
+      init?.signal?.throwIfAborted();
+      return new Response("", { status: gate.phoneOrigin() ? 200 : 403, headers: { "x-emc2-browser": "1" } });
+    };
+    await service.start();
+    assert.equal(gate.phoneOrigin(), origin, "a six-second proof must complete inside the 60-second lease");
+    globalThis.fetch = async () => new Response("", { status: 502 });
+    assert.notEqual((await service.status(true)).state, "ready", "failed proof still suspends admission");
+    assert.equal(gate.phoneOrigin(), undefined);
+  } finally { service.close(); f.service.close(); globalThis.fetch = fetchBefore; AbortSignal.timeout = timeoutBefore; }
+});

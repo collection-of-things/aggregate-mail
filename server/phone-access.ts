@@ -17,7 +17,7 @@ const runTailscale: Run = async (args) => {
   return stdout;
 };
 const probeHttps = async (origin: string, expected: number) => {
-  const response = await fetch(`${origin}/auth`, { redirect: "error", signal: AbortSignal.timeout(5000) });
+  const response = await fetch(`${origin}/auth`, { redirect: "error", signal: AbortSignal.timeout(15_000) });
   try {
     if (response.status !== expected || response.headers.get("x-emc2-browser") !== "1") throw new Error("probe");
   } finally { await response.body?.cancel(); }

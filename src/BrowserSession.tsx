@@ -11,13 +11,16 @@ export function BrowserSession({ children }: { children: ReactNode }) {
     let disposed = false;
     let revoked = false;
     let revision = 0;
+    let checking = false;
+    let checkAfterVisibility = false;
     let build = document.querySelector<HTMLMetaElement>('meta[name="emc2-build"]')?.content;
     const lock = () => { setReconnecting(false); revoked = true; revision++; setAllowed(false); setVisible(false); };
     const check = async () => {
-      if (revoked || disposed) return;
+      if (revoked || disposed || checking) return;
+      checking = true;
       const current = ++revision;
       try {
-        const response = await fetch("/auth/session", { cache: "no-store", signal: AbortSignal.timeout(5000) });
+        const response = await fetch("/auth/session", { cache: "no-store", signal: AbortSignal.timeout(15_000) });
         if (!response.ok) {
           if (!disposed && current === revision) { setVisible(false); setReconnecting(true); }
           return;
@@ -34,8 +37,17 @@ export function BrowserSession({ children }: { children: ReactNode }) {
           else build = version;
         }
       } catch { if (!disposed && current === revision) { setVisible(false); setReconnecting(true); } }
+      finally {
+        checking = false;
+        if (checkAfterVisibility) { checkAfterVisibility = false; void check(); }
+      }
     };
-    const visibility = () => { setVisible(false); if (document.visibilityState !== "hidden") void check(); };
+    const visibility = () => {
+      setVisible(false);
+      revision++;
+      checkAfterVisibility = document.visibilityState !== "hidden" && checking;
+      if (document.visibilityState !== "hidden" && !checking) void check();
+    };
     const channel = typeof BroadcastChannel === "undefined" ? undefined : new BroadcastChannel("emc2-browser-access");
     if (channel) channel.onmessage = (event) => { if (event.data === "locked") lock(); };
     window.addEventListener("emc2-browser-locked", lock);
