@@ -6,6 +6,8 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+## 0.2.21 - 2026-10-29
+
 ### Changed
 
 - Pull requests now get typecheck and test CI automatically, without a `ci` label. Documentation-only changes are skipped, and the monthly run cap applies again only if the repository becomes private ([ADR 0105](docs/adr/0105-automatic-public-pr-ci.md)).
