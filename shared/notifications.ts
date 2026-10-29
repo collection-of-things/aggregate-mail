@@ -29,7 +29,21 @@ export function notificationPreferences(input: unknown): NotificationPreferences
 export type NotificationMail = Pick<Mail, "id" | "sender" | "subject" | "preview">;
 export type MailArrival = { sequence: number; mail: NotificationMail };
 // Notifications carry plain text only, with no markup, control characters or unbounded body.
-export const notificationText = (value: string, limit: number) => value.replace(/<[^>]*>/g, " ").replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
+// A single left-to-right pass replaces tags; the global expression rescanned a
+// long run of unmatched "<" once per position.
+const stripTags = (value: string) => {
+  let result = "", at = 0;
+  while (at < value.length) {
+    const open = value.indexOf("<", at);
+    if (open < 0) { result += value.slice(at); break; }
+    result += `${value.slice(at, open)} `;
+    const close = value.indexOf(">", open + 1);
+    if (close < 0) { result += value.slice(open); break; }
+    at = close + 1;
+  }
+  return result;
+};
+export const notificationText = (value: string, limit: number) => stripTags(value.slice(0, 8192)).replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
 export function notificationMail(mail: NotificationMail): NotificationMail {
   return { id: mail.id, sender: notificationText(mail.sender, 120), subject: notificationText(mail.subject, 160), preview: notificationText(mail.preview, 200) };
 }

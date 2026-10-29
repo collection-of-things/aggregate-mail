@@ -15,7 +15,33 @@ export type InboxTab = (typeof inboxTabs)[number]["id"];
 type Classified = RuleMail & Pick<Mail, "sender" | "reason" | "labelIds">;
 
 // Codes, sign-in and security notices, support threads and replies always need the user.
-const personal = /verification|verify|one[- ]time|\botp\b|passcode|security (alert|code|notice)|new sign[- ]?in|(sign[- ]?in|log[- ]?in) (attempt|alert|code|link|request)|(reset|change|forgot)\w* (your )?password|password (reset|change)|two[- ]factor|\b2fa\b|\bcode\b[^.]{0,20}\d{4,}|\d{4,}[^.]{0,20}\bcode\b|support (ticket|request|case)|\bticket\s*#|\bcase\s*#|^(re|fwd?):/i;
+const personal = /verification|verify|one[- ]time|\botp\b|passcode|security (alert|code|notice)|new sign[- ]?in|(sign[- ]?in|log[- ]?in) (attempt|alert|code|link|request)|(reset|change|forgot)\w* (your )?password|password (reset|change)|two[- ]factor|\b2fa\b|support (ticket|request|case)|\bticket\s*#|\bcase\s*#|^(re|fwd?):/i;
+const digit = (value: string, at: number) => value.charCodeAt(at) >= 48 && value.charCodeAt(at) <= 57;
+// A "code" word within 20 non-period characters of a 4+ digit run, either
+// direction. The overlapping expressions rescanned every digit run once per
+// start position; scanning each word boundary stays linear.
+const codeNearDigits = (value: string) => {
+  for (const match of value.matchAll(/\bcode\b/gi)) {
+    const start = match.index, end = start + match[0].length;
+    for (let i = start - 1; i >= 0 && i >= start - 20; i--) {
+      if (value[i] === ".") break;
+      if (!digit(value, i)) continue;
+      let run = 1;
+      while (i - run >= 0 && digit(value, i - run)) run++;
+      if (run >= 4) return true;
+      i -= run - 1;
+    }
+    for (let i = end; i < value.length && i <= end + 20; i++) {
+      if (value[i] === ".") break;
+      if (!digit(value, i)) continue;
+      let run = 1;
+      while (i + run < value.length && digit(value, i + run)) run++;
+      if (run >= 4) return true;
+      i += run - 1;
+    }
+  }
+  return false;
+};
 const gmailCategories: Record<string, InboxTab> = {
   CATEGORY_PERSONAL: "primary",
   CATEGORY_SOCIAL: "social",
@@ -52,7 +78,7 @@ export function inboxTab(mail: Classified, rules: (RuleMatch & Pick<Rule, "categ
   const address = mail.address.toLowerCase();
   if (matchingRule(mail, rules)?.category === "important") return "primary";
   const text = `${mail.subject} ${mail.preview}`;
-  if (personal.test(mail.subject) || personal.test(text)) return "primary";
+  if (personal.test(mail.subject) || personal.test(text) || codeNearDigits(mail.subject) || codeNearDigits(text)) return "primary";
   for (const id of mail.labelIds || []) if (gmailCategories[id]) return gmailCategories[id];
   if (reasonTabs[mail.reason]) return reasonTabs[mail.reason];
   if (transactions.test(text)) return "transactions";

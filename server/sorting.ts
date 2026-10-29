@@ -23,11 +23,14 @@ export function sortMail(
       relevance: rule.relevance,
       reason: rule.instruction,
     };
-  const text = `${mail.subject} ${mail.preview}`;
+  const text = `${mail.subject} ${mail.preview}`.slice(0, 4096);
+  // "confirm" somewhere before "code": the confirm.*code expression rescanned
+  // the whole remainder at every position. A literal scan is linear.
+  const lower = text.toLowerCase();
+  const confirm = lower.indexOf("confirm");
   if (
-    /verification|confirm.*code|security|declined|failed|password|sign.in/i.test(
-      text,
-    )
+    /verification|security|declined|failed|password|sign.in/i.test(text) ||
+    (confirm >= 0 && lower.indexOf("code", confirm + 7) >= 0)
   )
     return {
       // Codes and security notices are time-sensitive, so they count as important.

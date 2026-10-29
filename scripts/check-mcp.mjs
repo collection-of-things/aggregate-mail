@@ -9,6 +9,8 @@ import { createInterface } from "node:readline";
 
 const directory = mkdtempSync(path.join(tmpdir(), "aggregate-mcp-smoke-"));
 const moduleUrl = new URL("../server/index.ts", import.meta.url).href;
+// Per-run values: no fixed token is published or inherited by the child.
+const token = randomBytes(32).toString("hex");
 const child = spawn(
   process.execPath,
   [
@@ -30,7 +32,10 @@ const child = spawn(
       MAIL_DATA_DIR: directory,
       MAIL_CONFIG_PATH: path.join(directory, "settings.env"),
       MAIL_DATA_KEY: randomBytes(32).toString("base64"),
-      MAIL_DESKTOP_TOKEN: "isolated-mcp-smoke-desktop-token",
+      MAIL_DESKTOP_TOKEN: token,
+      // Never let a real provider credential reach the isolated server.
+      TYPESAFE_API_KEY: "", TYPESAFE_PROVIDER: "", TYPESAFE_ENDPOINT: "", TYPESAFE_MODEL: "",
+      OPENAI_API_KEY: "", OPENAI_MODEL: "", GOOGLE_CLIENT_ID: "", GOOGLE_CLIENT_SECRET: "",
     },
     stdio: ["ignore", "pipe", "inherit", "ipc"],
   },
@@ -48,7 +53,7 @@ try {
   assert.ok(port > 0 && port !== 32145);
   const base = `http://127.0.0.1:${port}`;
   const headers = {
-    "X-Desktop-Token": "isolated-mcp-smoke-desktop-token",
+    "X-Desktop-Token": token,
     "Content-Type": "application/json",
   };
   const stateResponse = await fetch(`${base}/api/state`, { headers });

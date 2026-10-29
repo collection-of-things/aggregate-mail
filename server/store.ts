@@ -3,7 +3,8 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { randomBytes, randomUUID, createCipheriv, createDecipheriv, createHash } from "node:crypto";
-import type { Account, Mail, MailSummary, MailChanges, MailSearchResult, Rule, McpSettings, GmailLabel, Draft, DraftSummary } from "../shared/types.js";
+import { isDeepStrictEqual } from "node:util";
+import type { Account, Mail, MailAttachment, MailSummary, MailChanges, MailSearchResult, Rule, McpSettings, GmailLabel, Draft, DraftSummary } from "../shared/types.js";
 import type { ComposePreferences } from "../shared/mail-features.js";
 import { storageNeedsVacuum } from "./storage-maintenance.js";
 import { inboxTab } from "../shared/inbox-tabs.js";
@@ -93,6 +94,10 @@ export type StoredAccount = Account & {
     username?: string;
   };
 };
+// The attachment fields a summary carries; kept in one place so projection and
+// comparison can never disagree about the shape.
+const summaryAttachment = ({ id, filename, contentType, size, unavailable, contentId, uploadId, sourceIndex, remotePart, sizeIsEstimate }: MailAttachment) =>
+  ({ id, filename, contentType, size, unavailable, contentId, uploadId, sourceIndex, remotePart, sizeIsEstimate });
 export function mailSummary(mail: Mail, rules: Rule[] = all("rule")): MailSummary {
   return {
     id: mail.id, accountId: mail.accountId, remoteId: mail.remoteId, sender: mail.sender,
@@ -102,10 +107,22 @@ export function mailSummary(mail: Mail, rules: Rule[] = all("rule")): MailSummar
     reason: mail.reason, archived: mail.archived, snoozedUntil: mail.snoozedUntil,
     messageId: mail.messageId, threadId: mail.threadId, references: mail.references && [...mail.references],
     direction: mail.direction, inReplyTo: mail.inReplyTo, mailbox: mail.mailbox && { ...mail.mailbox },
-    attachments: mail.attachments?.map(({ id, filename, contentType, size, unavailable, contentId, uploadId, sourceIndex, remotePart, sizeIsEstimate }) => ({ id, filename, contentType, size, unavailable, contentId, uploadId, sourceIndex, remotePart, sizeIsEstimate })),
+    attachments: mail.attachments?.map(summaryAttachment),
     contentVersion: createHash("sha256").update(JSON.stringify(mail)).digest("hex"),
     inboxTab: typeof mail.address === "string" ? inboxTab(mail, rules) : "primary",
   };
+}
+// Every field mailSummary projects, except the derived contentVersion and
+// inboxTab. Used to ask "would saving this row change the summary?"
+const summaryFields = ["id", "accountId", "remoteId", "sender", "address", "to", "cc", "replyTo", "subject", "preview", "date", "unread", "pinned", "labelIds", "category", "relevance", "reason", "archived", "snoozedUntil", "messageId", "threadId", "references", "direction", "inReplyTo", "mailbox", "attachments"] as const;
+// True when a would-be saved record is identical on every summary field. Sync
+// uses it to report presence without reopening the encrypted record.
+export function sameMailSummary(incoming: Partial<Mail>, summary: MailSummary): boolean {
+  for (const key of summaryFields) {
+    const value = key === "attachments" ? incoming.attachments?.map(summaryAttachment) : incoming[key];
+    if (!isDeepStrictEqual(value, summary[key])) return false;
+  }
+  return true;
 }
 type StoredMailSummary = { version: 1; sourceDigest: string; rulesDigest: string; summary: MailSummary };
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -262,6 +279,7 @@ export async function syncMailCache(accountId: string) {
     summaries,
     size: summaries.size,
     has: (id: string) => summaries.has(id) || identities.has(id),
+    peek: (id: string) => summaries.get(identities.get(id) ?? id),
     get: (id: string) => {
       id = identities.get(id) ?? id;
       const summary = summaries.get(id);

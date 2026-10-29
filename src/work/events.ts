@@ -106,6 +106,21 @@ export function sessionInput(fields: EventFields, busy: boolean) {
   return { input: { start: result.input.start, end: result.input.end, busy, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" } };
 }
 
+// Each sticky match must end at a colon, so a run of whitespace is visited
+// once per prefix instead of being re-split across a repeated expression.
+const replyPrefix = /\s*(?:re|fw|fwd|aw|sv|wg)(?:\s*\[\d+\])?\s*:/iy;
+function stripReplyPrefixes(subject: string): string {
+  const bounded = subject.slice(0, 4096);
+  let at = 0;
+  for (;;) {
+    replyPrefix.lastIndex = at;
+    const match = replyPrefix.exec(bounded);
+    if (!match || !match[0].length) break;
+    at = match.index + match[0].length;
+  }
+  return bounded.slice(at);
+}
+
 // A meeting from an email takes its subject and everyone on it except the user's own addresses.
 export function meetingFields(mail: Mail, ownEmails: string[], now: number): EventFields {
   const own = new Set(ownEmails.map((email) => email.toLowerCase()));
@@ -115,7 +130,7 @@ export function meetingFields(mail: Mail, ownEmails: string[], now: number): Eve
     if (own.has(key) || seen.has(key)) return false;
     seen.add(key); return true;
   }).slice(0, 50);
-  const title = mail.subject.replace(/^(\s*(re|fw|fwd|aw|sv|wg)\s*(\[\d+\])?\s*:\s*)+/i, "").trim().slice(0, 300);
+  const title = stripReplyPrefixes(mail.subject).trim().slice(0, 300);
   return { ...blankEvent(now, undefined, mail.accountId), title, attendees: people.join(", "), sourceMailId: mail.id };
 }
 

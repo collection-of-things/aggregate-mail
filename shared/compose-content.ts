@@ -52,11 +52,9 @@ function text(nodes: Node[]): string {
   let result = "";
   for (const node of nodes) {
     if (typeof node === "string") { result += node; continue; }
-    const inner = text(node.children);
-    if (blockTags.has(node.tag) && result && !result.endsWith("\n")) result += "\n";
-    if (node.tag === "br") result += "\n";
-    else if (node.tag === "a") result += inner === node.href ? inner : `${inner} (${node.href})`;
-    else if (node.tag === "ul" || node.tag === "ol") {
+    // Lists own their children; visiting them once keeps nested lists linear.
+    if (node.tag === "ul" || node.tag === "ol") {
+      if (result && !result.endsWith("\n")) result += "\n";
       let ordinal = 0;
       for (const item of node.children) {
         if (typeof item === "string" && !item.trim()) continue;
@@ -66,7 +64,13 @@ function text(nodes: Node[]): string {
           result += marker + text(item.children).replace(/\n$/, "").replace(/\n/g, "\n" + " ".repeat(marker.length)) + "\n";
         } else result += text([item]);
       }
-    } else if (node.tag === "blockquote") result += inner.replace(/\n$/, "").split("\n").map(line => `> ${line}`).join("\n") + "\n";
+      continue;
+    }
+    const inner = text(node.children);
+    if (blockTags.has(node.tag) && result && !result.endsWith("\n")) result += "\n";
+    if (node.tag === "br") result += "\n";
+    else if (node.tag === "a") result += inner === node.href ? inner : `${inner} (${node.href})`;
+    else if (node.tag === "blockquote") result += inner.replace(/\n$/, "").split("\n").map(line => `> ${line}`).join("\n") + "\n";
     else if (blockTags.has(node.tag)) result += inner + "\n";
     else result += inner;
   }

@@ -127,19 +127,45 @@ export function privateRanges(text: string, names: readonly string[] = []): Priv
     const length = at + 1 + suffix.index + suffix[0].length;
     add(match.index, match.index + length, "address", match[0].slice(0, length));
   }
-  for (const name of new Set(names.map(cleanName).filter(Boolean))) {
+  const lower = decoded.toLowerCase();
+  // toLowerCase keeps offsets only when no character expands; otherwise the
+  // bounded expression preserves the Unicode case-folded match positions.
+  const aligned = lower.length === decoded.length;
+  const withinBounds = (start: number, end: number) => {
+    const before = Array.from(decoded.slice(Math.max(0, start - 2), start)).at(-1) || "";
+    const after = String.fromCodePoint(decoded.codePointAt(end) || 0);
+    return !wordCharacter.test(before) && !wordCharacter.test(after);
+  };
+  // Candidate size is bounded so matching cannot grow with crafted input.
+  for (const name of [...new Set(names.map(cleanName).filter(Boolean))].slice(0, 64)) {
     // Words never contain a separator character, so matching stays linear.
     const words = name.split(/[\s+]+/u).filter(Boolean);
-    if (!words.length) continue;
-    const pattern = words
+    if (!words.length || name.length > 160 || words.length > 16) continue;
+    const lowered = words.map((word) => word.toLowerCase());
+    if (aligned) {
+      const first = lowered[0];
+      let at = 0;
+      while (at <= lower.length - first.length) {
+        const start = lower.indexOf(first, at);
+        if (start < 0) break;
+        at = start + 1;
+        let end = start + first.length, matched = true;
+        for (let index = 1; index < lowered.length; index++) {
+          const gap = end;
+          while (end < lower.length && /[\s+]/.test(lower[end])) end++;
+          if (end === gap || !lower.startsWith(lowered[index], end)) { matched = false; break; }
+          end += lowered[index].length;
+        }
+        if (matched && withinBounds(start, end)) add(start, end, "name", name);
+      }
+      continue;
+    }
+    const pattern = lowered
       .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[\\s+]+");
     for (const match of decoded.matchAll(new RegExp(pattern, "giu"))) {
       const start = match.index;
       const end = start + match[0].length;
-      const before = Array.from(decoded.slice(Math.max(0, start - 2), start)).at(-1) || "";
-      const after = String.fromCodePoint(decoded.codePointAt(end) || 0);
-      if (!wordCharacter.test(before) && !wordCharacter.test(after))
-        add(start, end, "name", name);
+      if (withinBounds(start, end)) add(start, end, "name", name);
     }
   }
   ranges.sort((left, right) => left.start - right.start || right.end - left.end);

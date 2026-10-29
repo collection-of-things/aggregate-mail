@@ -18,7 +18,7 @@ import { boundedMailHtml, previewText } from "../shared/mail-content.js";
 import nodemailer from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer/index.js";
 import { z } from "zod";
-import type { GmailLabel, Mail, MailImage, MailAttachment, Provider, ProviderSearchResult, SyncFailure } from "../shared/types.js";
+import type { GmailLabel, Mail, MailImage, MailAttachment, MailSummary, Provider, ProviderSearchResult, SyncFailure } from "../shared/types.js";
 import type { ProviderSearchPlan } from "../shared/mail-search.js";
 import type { StoredAccount } from "./store.js";
 
@@ -292,7 +292,15 @@ export async function validateImap(a: StoredAccount) {
   }
 }
 export class SentCopyError extends Error {}
-type CachedMail = Pick<ReadonlyMap<string, Mail>, "size" | "get" | "has">;
+// `peek` reads summary metadata only; it lets sync answer flag questions
+// without reopening the encrypted record for unchanged mail.
+type CachedMail = Pick<ReadonlyMap<string, Mail>, "size" | "get" | "has"> & { peek?: (id: string) => MailSummary | undefined };
+// Sync batches may carry a stored summary for unchanged mail instead of its
+// full record.
+type SyncBatch = Incoming | MailSummary;
+// One search response cannot return more identifiers than this; anything
+// larger is treated as a server fault, not a workload.
+const IMAP_SEARCH_RESULTS_MAX = 10000;
 // `known` receives a cache ID and Message-ID so cached matches are not downloaded again.
 export type ProviderSearchOptions = { limit: number; signal: AbortSignal; known: (id: string, messageId?: string) => boolean };
 type ProviderSearchFetch = Pick<ProviderSearchResult, "examined" | "complete" | "narrowed" | "mailboxes"> & { messages: Incoming[] };
@@ -345,14 +353,14 @@ export const providers: Record<
     sent: (a: StoredAccount, bound: number) => Promise<{ messages: Incoming[]; truncated: boolean }>;
     search: (a: StoredAccount, plan: ProviderSearchPlan, options: ProviderSearchOptions) => Promise<ProviderSearchFetch>;
     thread?: (a: StoredAccount, threadId: string) => Promise<Incoming[]>;
-    list: (a: StoredAccount, cached: CachedMail, onBatch?: (batch: Incoming[]) => void, onWarning?: (warning: SyncFailure) => void, labels?: GmailLabel[], retain?: boolean) => Promise<Incoming[]>;
+    list: (a: StoredAccount, cached: CachedMail, onBatch?: (batch: SyncBatch[]) => void, onWarning?: (warning: SyncFailure) => void, labels?: GmailLabel[], retain?: boolean) => Promise<Incoming[]>;
     images: (a: StoredAccount, m: Mail) => Promise<MailImage[]>;
     content: (a: StoredAccount, m: Mail) => Promise<{ html: string | null; images: MailImage[]; attachments?: MailAttachment[]; invitation?: Mail["invitation"] }>;
     update: (
       a: StoredAccount,
       m: Mail,
       action: "archive" | "read" | "unread" | "inbox" | "trash",
-    ) => Promise<void | { remoteId: string }>;
+    ) => Promise<void | { remoteId?: string; mailbox?: Mail["mailbox"] }>;
     send: (a: StoredAccount, input: SendInput) => Promise<void>;
   }
 > & { gmail: { thread: (a: StoredAccount, threadId: string) => Promise<Incoming[]> } } = {
@@ -477,15 +485,25 @@ export const providers: Record<
           pageToken,
         }, options));
         const items = page.data.messages || [];
-        let pageBatch: Incoming[] = [];
+        let pageBatch: SyncBatch[] = [];
         for (let offset = 0; offset < items.length; offset += 2) {
           const results = await Promise.allSettled(
             items.slice(offset, offset + 2).map(async (item) => {
+              const unread = unreadIds.has(item.id!);
+              const labelIds = labels ? ["INBOX", ...(unread ? ["UNREAD"] : []), ...(memberships.get(item.id!) || [])] : undefined;
+              const threadId = item.threadId || undefined;
+              // Summary metadata answers flag and label questions without
+              // reopening the encrypted record.
+              const summary = cached.peek?.(`${a.id}:${item.id}`);
+              if (summary && !retain && onBatch && summary.unread === unread &&
+                (labelIds === undefined || isDeepStrictEqual(labelIds, summary.labelIds)) &&
+                (threadId === undefined || threadId === summary.threadId))
+                return { ...summary, unread };
               const previous = cached.get(`${a.id}:${item.id}`);
               if (previous) return {
-                ...previous, unread: unreadIds.has(item.id!),
-                ...(labels ? { labelIds: ["INBOX", ...(unreadIds.has(item.id!) ? ["UNREAD"] : []), ...(memberships.get(item.id!) || [])] } : {}),
-                ...(item.threadId ? { threadId: item.threadId } : {}),
+                ...previous, unread,
+                ...(labelIds !== undefined ? { labelIds } : {}),
+                ...(threadId ? { threadId } : {}),
               };
               try {
                 const result = await api.users.messages.get({ userId: "me", id: item.id!, format: "raw" }, { ...options, maxContentLength: gmailResponseLimit });
@@ -506,7 +524,9 @@ export const providers: Record<
             }),
           );
           const batch = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
-          if (retain || !onBatch) messages.push(...batch);
+          // Retained lists hold full records only; summary rows appear only in
+          // progressive batch mode.
+          if (retain || !onBatch) messages.push(...(batch.filter((m) => "body" in m) as Incoming[]));
           pageBatch.push(...batch);
           const failure = results.find((result) => result.status === "rejected");
           // Fresh mail stays progressive; cached-only changes share a page write.
@@ -662,6 +682,7 @@ function imapProvider() {
               signal.throwIfAborted();
               const found = await imapOperation(client, () => client.search(group, { uid: true }));
               if (!found) throw new Error("The IMAP server rejected this search.");
+              if (found.length > IMAP_SEARCH_RESULTS_MAX) throw new Error("The IMAP server returned too many search results.");
               uids = new Set(uids ? found.filter((uid) => uids!.has(uid)) : found);
             }
             const newest = [...uids!].filter((uid) => Number.isSafeInteger(uid) && uid > 0).sort((x, y) => y - x);
@@ -695,7 +716,7 @@ function imapProvider() {
         else client.close();
       }
     },
-    async list(a: StoredAccount, cached: CachedMail, onBatch?: (batch: Incoming[]) => void, onWarning?: (warning: SyncFailure) => void, _labels?: GmailLabel[], retain = true) {
+    async list(a: StoredAccount, cached: CachedMail, onBatch?: (batch: SyncBatch[]) => void, onWarning?: (warning: SyncFailure) => void, _labels?: GmailLabel[], retain = true) {
       const client = imap(a);
       let phase: SyncFailure["phase"] = "connect";
       try {
@@ -720,14 +741,24 @@ function imapProvider() {
           const seen = new Set<number>();
           const missing: number[] = [];
           const oversized = new Set<number>();
-          let batch: Incoming[] = [];
+          let batch: SyncBatch[] = [];
           // Drain flags first: ImapFlow cannot issue commands inside this iterator.
           for await (const m of imapFetch(client, "1:*", { uid: true, flags: true, size: true })) {
             if (!Number.isSafeInteger(m.uid) || m.uid <= 0 || seen.has(m.uid) || !m.flags) incomplete();
             seen.add(m.uid);
-            const previous = cached.get(`${a.id}:${validity}:${m.uid}`);
+            const id = `${a.id}:${validity}:${m.uid}`;
+            const unread = !m.flags?.has("\\Seen");
+            // Summary metadata answers the flag question without reopening the
+            // encrypted record; a changed flag still needs the full previous row.
+            const summary = cached.peek?.(id);
+            if (summary && !retain && onBatch && summary.unread === unread) {
+              batch.push({ ...summary, unread });
+              if (batch.length === 100) { onBatch?.(batch); batch = []; }
+              continue;
+            }
+            const previous = cached.get(id);
             if (previous) {
-              const incoming = { ...previous, unread: !m.flags?.has("\\Seen") };
+              const incoming = { ...previous, unread };
               if (retain || !onBatch) result.push(incoming);
               batch.push(incoming);
               if (batch.length === 100) { onBatch?.(batch); batch = []; }
@@ -755,7 +786,7 @@ function imapProvider() {
               if (!m.source) throw Object.assign(new Error(), { code: "READ_FAILED" });
               batch.push(await syncOperation(a.provider, "parse", () => parse(a, `${validity}:${m.uid}`, m.source!, !m.flags?.has("\\Seen"))));
             }
-            if (retain || !onBatch) result.push(...batch);
+            if (retain || !onBatch) result.push(...batch.filter((m): m is Incoming => "body" in m));
             onBatch?.(batch);
             if (expected.size) incomplete();
             complete();
@@ -813,22 +844,22 @@ function imapProvider() {
       }
     },
     async update(a: StoredAccount, m: Mail, action: "archive" | "read" | "unread" | "inbox" | "trash") {
-      if (m.direction === "sent" || m.mailbox || m.remoteId.startsWith("sent:")) throw new Error("Changing this Sent email is unsupported. Change it in your provider.");
+      if (m.direction === "sent" || m.remoteId.startsWith("sent:") || (m.mailbox && !m.archived)) throw new Error("Changing this Sent email is unsupported. Change it in your provider.");
       const identifiers = /^(\d+):([1-9]\d*)$/.exec(m.remoteId);
       if (action === "trash" && (!identifiers ||
         identifiers.slice(1).some((value) => !Number.isSafeInteger(Number(value)) || Number(value) < 1 || Number(value) > 4294967295)))
         throw new Error("Email identifiers are unavailable. Sync before moving this email to Trash.");
       const client = imap(a);
       let movedToTrash = false;
-      let restoredIdentity: { remoteId: string } | undefined;
+      let restoredIdentity: { remoteId?: string; mailbox?: Mail["mailbox"] } | undefined;
       try {
         await client.connect();
+        // ImapFlow otherwise falls back to COPY, Deleted and EXPUNGE.
+        const rev2 = client.enabled.has("IMAP4REV2") ||
+          (client.capabilities.has("IMAP4rev2") && !client.capabilities.has("IMAP4rev1"));
         let trash: string | undefined;
         let trashSource = "INBOX";
         if (action === "trash") {
-          // ImapFlow otherwise falls back to COPY, Deleted and EXPUNGE.
-          const rev2 = client.enabled.has("IMAP4REV2") ||
-            (client.capabilities.has("IMAP4rev2") && !client.capabilities.has("IMAP4rev1"));
           if (!client.capabilities.has("MOVE") && !rev2)
             throw new Error("This server does not support safe Move to Trash. Move this email in your provider.");
           const folders = await client.list();
@@ -859,8 +890,9 @@ function imapProvider() {
             throw new Error("A unique archive folder is unavailable. Move this email in your provider.");
           restoreSource = sources[0].path;
         }
-        const mailbox = action === "inbox" ? restoreSource : action === "trash" ? trashSource : m.archived && (action === "read" || action === "unread")
-          ? (await client.list()).find((folder) => folder.specialUse === (a.provider === "gmail-imap" ? "\\All" : "\\Archive"))?.path || (a.provider === "gmail-imap" ? null : "Archive")
+        // A confirmed archive move records the exact destination; open it first.
+        const mailbox = action === "inbox" ? (m.mailbox?.path || restoreSource) : action === "trash" ? (m.mailbox?.path || trashSource) : m.archived && (action === "read" || action === "unread")
+          ? (m.mailbox?.path || (await client.list()).find((folder) => folder.specialUse === (a.provider === "gmail-imap" ? "\\All" : "\\Archive"))?.path || (a.provider === "gmail-imap" ? null : "Archive"))
           : "INBOX";
         if (!mailbox) throw new Error("Gmail All Mail is unavailable. Enable it in IMAP before marking archived mail read.");
         const lock = await client.getMailboxLock(mailbox);
@@ -874,16 +906,26 @@ function imapProvider() {
             if (!m.messageId) throw new Error("This archived email has no Message-ID. Change it in your provider.");
             if ((action === "trash" || action === "inbox") && (m.messageId.length > 998 || /[\s\u0000-\u001f\u007f]/.test(m.messageId)))
               throw new Error("This archived email has an invalid Message-ID. Move it in your provider.");
-            // Moving IMAP mail changes its UID; never reuse the old inbox UID in the archive.
-            const matches = await client.search({ header: { "message-id": m.messageId } }, { uid: true });
-            if (!matches || matches.length !== 1)
-              throw new Error("Could not identify this archived email. Change it in your provider.");
-            uid = String(matches[0]);
+            // The binding from the confirmed archive move names the destination
+            // exactly; it is valid only inside the same mailbox and validity.
+            const bound = Boolean(m.mailbox && client.mailbox && client.mailbox.path === m.mailbox.path && String(client.mailbox.uidValidity) === m.mailbox.uidValidity);
+            if (bound) uid = String(m.mailbox!.uid);
+            else {
+              // Moving IMAP mail changes its UID; never reuse the old inbox UID in the archive.
+              const matches = await client.search({ header: { "message-id": m.messageId } }, { uid: true });
+              if (!matches || matches.length !== 1)
+                throw new Error("Could not identify this archived email. Change it in your provider.");
+              uid = String(matches[0]);
+            }
             if ((action === "trash" || action === "inbox") && (!/^[1-9]\d*$/.test(uid) || !Number.isSafeInteger(Number(uid)) || Number(uid) > 4294967295))
               throw new Error("Could not identify this archived email. Move it in your provider.");
-            const candidate = await client.fetchOne(uid, { headers: ["message-id"] }, { uid: true });
+            const candidate = await client.fetchOne(uid, (action === "trash" || action === "inbox") ? { envelope: true, headers: ["message-id"] } : { headers: ["message-id"] }, { uid: true });
             if (!candidate || ((action === "trash" || action === "inbox") && String(candidate.uid) !== uid) || !candidate.headers || (await simpleParser(candidate.headers)).messageId !== m.messageId)
               throw new Error("Could not identify this archived email. Change it in your provider.");
+            // A recovered match without a move binding is not identity for a
+            // destructive move unless the independent Date and Subject agree.
+            if (!bound && (action === "trash" || action === "inbox") && (candidate.envelope?.date?.getTime() !== m.date || (candidate.envelope?.subject ?? "") !== m.subject))
+              throw new Error("Could not confirm this archived email. Change it in your provider.");
           } else if (
             !client.mailbox ||
             String(client.mailbox.uidValidity) !== validity
@@ -919,6 +961,9 @@ function imapProvider() {
                 "Could not mark this email as read. Sync and try again.",
               );
           } else {
+            // A COPY + Deleted + EXPUNGE fallback can expunge unrelated mail.
+            if (!client.capabilities.has("MOVE") && !rev2)
+              throw new Error("This server does not support safe Archive. Archive this email in your provider.");
             const folders = await client.list();
             const googleImap = a.provider === "gmail-imap";
             const archive =
@@ -928,10 +973,16 @@ function imapProvider() {
               throw new Error("Gmail All Mail is unavailable. Enable it in IMAP before archiving.");
             if (!folders.some((f) => f.path === archive))
               await client.mailboxCreate(archive);
-            if (!(await client.messageMove(uid, archive, { uid: true })))
+            const moved = await client.messageMove(uid, archive, { uid: true });
+            if (!moved)
               throw new Error(
                 "Could not archive this email. Sync and try again.",
               );
+            // Record the confirmed destination binding so archived actions can
+            // target this exact message instead of searching by Message-ID.
+            const targetUid = moved.uidMap?.get(Number(uid));
+            if (targetUid && Number.isSafeInteger(targetUid) && targetUid >= 1 && targetUid <= 4294967295 && /^[1-9]\d*$/.test(String(moved.uidValidity)))
+              restoredIdentity = { mailbox: { path: archive, uidValidity: String(moved.uidValidity), uid: targetUid } };
           }
         } finally {
           try { lock.release(); }

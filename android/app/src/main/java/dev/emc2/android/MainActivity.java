@@ -321,8 +321,10 @@ public final class MainActivity extends Activity {
     private void confirmSend() {
         try {
             JSONObject draft = draftFields(); MailData.validateDraft(app.state(), draft);
-            new AlertDialog.Builder(this).setTitle("Send this message?").setMessage("Send to " + draft.getString("to") + "?")
+            AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Send this message?").setMessage("Send to " + draft.getString("to") + "?")
                     .setNegativeButton("Cancel", null).setPositiveButton("Send", (d,w) -> send(draft)).show();
+            // Dialog windows do not inherit the activity's screenshot protection.
+            if (dialog.getWindow() != null) dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         } catch (Exception error) { status.setText("Choose an account, one valid recipient, a subject and message before sending."); }
     }
     private void send(JSONObject draft) {

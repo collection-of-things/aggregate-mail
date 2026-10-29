@@ -9,11 +9,11 @@ export function isOpenCodeCredential(value: unknown): value is string {
   return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 }
 
-/** The one `mcp.emc2` entry written for a grant. */
-export function openCodeMcpEntry(credential: string): Record<string, unknown> {
+/** The one `mcp.emc2` entry written for a grant, aimed at a verified endpoint. */
+export function openCodeMcpEntry(credential: string, endpoint = OPENCODE_ENDPOINT): Record<string, unknown> {
   return {
     type: "remote",
-    url: OPENCODE_ENDPOINT,
+    url: endpoint,
     enabled: true,
     oauth: false,
     headers: { Authorization: `Bearer ${credential}` },
@@ -21,10 +21,10 @@ export function openCodeMcpEntry(credential: string): Record<string, unknown> {
 }
 
 /** The complete user-config fragment, including the credential. */
-export function openCodeConfig(credential: string): string {
+export function openCodeConfig(credential: string, endpoint?: string): string {
   return JSON.stringify({
     $schema: "https://opencode.ai/config.json",
-    mcp: { emc2: openCodeMcpEntry(credential) },
+    mcp: { emc2: openCodeMcpEntry(credential, endpoint) },
   }, null, 2);
 }
 

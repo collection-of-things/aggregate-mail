@@ -25,7 +25,7 @@ test("single-message unread and inbox actions use confirmed provider identity an
  t.mock.method(ImapFlow.prototype, "list", async () => source ? [{path:source, specialUse:"\\Archive", flags:new Set(["\\Archive"])}] : []);
  t.mock.method(ImapFlow.prototype, "getMailboxLock", async function(this:ImapFlow, mailbox:string) {this.mailbox={path:mailbox, delimiter:"/", uidValidity:1n, uidNext:100, exists:1, flags:new Set()}; return {release(){}};});
  t.mock.method(ImapFlow.prototype, "search", async () => matches);
- t.mock.method(ImapFlow.prototype, "fetchOne", async () => ({seq:1, uid, headers:Buffer.from(`Message-ID: ${candidateId}\r\n\r\n`)}));
+ t.mock.method(ImapFlow.prototype, "fetchOne", async () => ({seq:1, uid, headers:Buffer.from(`Message-ID: ${candidateId}\r\n\r\n`), envelope:{date:new Date(mail.date), subject:mail.subject}}));
  t.mock.method(ImapFlow.prototype, "messageFlagsRemove", async (target:string, flags:string[], options:object) => {assert.deepEqual(flags,["\\Seen"]); assert.deepEqual(options,{uid:true}); mutations.push(`unread:${target}`); return true;});
  t.mock.method(ImapFlow.prototype, "messageMove", async (target:string, destination:string) => {assert.equal(destination,"INBOX"); mutations.push(`inbox:${target}`);return {path:source,destination,uidValidity:1n,uidMap:new Map([[77,99]])};});
  await updateMessage(mail.id,{action:"unread"});

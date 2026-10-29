@@ -75,9 +75,10 @@ test("Trash actions use synthetic providers, safe targets and confirmed cache re
   });
   t.mock.method(ImapFlow.prototype, "fetchOne", async (uid: string, query: object, options: object): Promise<FetchMessageObject | false> => {
     assert.equal(locked, true);
-    assert.deepEqual(query, { headers: ["message-id"] });
+    assert.deepEqual((query as { headers: string[] }).headers, ["message-id"]);
+    assert.ok((query as { envelope?: boolean }).envelope === undefined || (query as { envelope?: boolean }).envelope === true);
     assert.deepEqual(options, { uid: true });
-    return missingCandidate ? false : { seq: 1, uid: candidateUid ?? Number(uid), headers: Buffer.from(header) };
+    return missingCandidate ? false : { seq: 1, uid: candidateUid ?? Number(uid), headers: Buffer.from(header), envelope: { date: new Date(mail.date), subject: mail.subject } } as FetchMessageObject;
   });
   t.mock.method(ImapFlow.prototype, "messageMove", async (uid: string, target: string, options: object) => {
     assert.equal(locked, true);

@@ -94,13 +94,15 @@ export function ConfigurationForm({
           type="password"
           autoComplete="new-password"
           placeholder={
-            jevConfigured
+            jevConfigured && provider === jevProvider
               ? "Leave blank to keep the saved key"
               : jevProviders[provider].console
           }
         />
       </label>
-      <StoredValue present={jevConfigured} />
+      {jevConfigured && provider !== jevProvider
+        ? <p className="stored">Changing providers clears the saved key.</p>
+        : <StoredValue present={jevConfigured} />}
       <label>
         OpenAI API key (optional)
         <input

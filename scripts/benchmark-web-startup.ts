@@ -17,11 +17,16 @@ const count = Number(process.env.EMC2_BENCHMARK_MESSAGES || 34000);
 assert.ok(Number.isInteger(count) && count >= 4 && count <= 34000);
 if (!phase) {
   const directory = mkdtempSync(path.join(tmpdir(), "emc2-startup-"));
+  // Per-run values: no fixed token is published or inherited by the children.
+  const token = crypto.randomBytes(32).toString("hex");
   try {
     for (const childPhase of ["seed", "measure", "measure"]) {
       const child = spawnSync(process.execPath, ["--import", "tsx", fileURLToPath(import.meta.url)], {
         env: { ...process.env, EMC2_STARTUP_PHASE: childPhase, MAIL_DATA_DIR: directory,
-          MAIL_DATA_KEY: "", MAIL_CONFIG_PATH: path.join(directory, "absent.env"), MAIL_DESKTOP_TOKEN: "synthetic-startup" },
+          MAIL_DATA_KEY: "", MAIL_CONFIG_PATH: path.join(directory, "absent.env"), MAIL_DESKTOP_TOKEN: token,
+          // Never let a real provider credential reach the isolated server.
+          TYPESAFE_API_KEY: "", TYPESAFE_PROVIDER: "", TYPESAFE_ENDPOINT: "", TYPESAFE_MODEL: "",
+          OPENAI_API_KEY: "", OPENAI_MODEL: "", GOOGLE_CLIENT_ID: "", GOOGLE_CLIENT_SECRET: "" },
         encoding: "utf8", timeout: 180000,
       });
       assert.equal(child.status, 0, child.stderr);
@@ -91,7 +96,7 @@ if (!phase) {
     let apiMs = 0, apiBytes = 0;
     try {
       const t = performance.now();
-      const response = await fetch(`http://127.0.0.1:${address.port}/api/state`, { headers: { "X-Desktop-Token": "synthetic-startup", Connection: "close" } });
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/state`, { headers: { "X-Desktop-Token": process.env.MAIL_DESKTOP_TOKEN!, Connection: "close" } });
       assert.equal(response.status, 200); const text = await response.text(); apiMs = performance.now() - t; apiBytes = Buffer.byteLength(text);
       assert.equal(JSON.parse(text).messages.length, count);
     } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }

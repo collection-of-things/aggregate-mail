@@ -162,7 +162,12 @@ function OpenCodeSetup({ token, enabled, api, onEnabled, onNotice }: {
   const copy = async () => {
     try {
       if (window.desktop?.copyOpenCodeConfig) await window.desktop.copyOpenCodeConfig(token);
-      else await navigator.clipboard.writeText(openCodeConfig(token));
+      else {
+        // The clipboard text must aim at the same endpoint the app verified.
+        const settings = await api<McpSettings>("/mcp");
+        if (!settings.endpoint) throw new Error("unavailable");
+        await navigator.clipboard.writeText(openCodeConfig(token, settings.endpoint));
+      }
       setCopied(true);
     } catch { setCopied(false); onNotice("OpenCode config could not be copied."); }
   };

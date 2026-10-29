@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { McpSettings } from "../../shared/types";
 import type { Api, Perform } from "../api";
 import { ChevronDown } from "../ui/icons";
+import { OPENCODE_ENDPOINT } from "../../shared/opencode";
 
 export function McpSection({
   api,
@@ -42,7 +43,7 @@ export function McpSection({
     void perform(async () => {
       setSettings(await api<McpSettings>("/mcp", "PATCH", input));
     });
-  const endpoint = "http://127.0.0.1:32145/mcp";
+  const endpoint = settings?.endpoint || OPENCODE_ENDPOINT;
   const snippets = [["Endpoint", endpoint]];
   return (
     <section className="mcp-settings">
