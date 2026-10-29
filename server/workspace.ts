@@ -318,7 +318,10 @@ export function mountWorkspace(app: express.Express) {
     put("decision", item.id, item);
     res.status(201).json(item);
   });
-  router.get("/messages/:id/conversation", (req, res) => res.json(conversation(req.params.id)));
+  router.get("/messages/:id/conversation", async (req, res) => {
+    const messages = await readConversationMail([req.params.id]);
+    res.json(conversation(req.params.id, new Map(messages.map(mail => [mail.id, mail]))));
+  });
   router.post("/accounts/:accountId/sent/sync", async (req, res) => {
     const { bound } = z.object({ bound: z.number().int().min(1).max(100).default(50) }).strict().parse(req.body);
     const a = account(req.params.accountId);

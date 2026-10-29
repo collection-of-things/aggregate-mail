@@ -1283,6 +1283,26 @@ cursors return a full summary snapshot. Response serialization still uses
 backpressure and bounded yields; disconnect cancellation discards that
 request's work without cancelling shared cold initialization.
 
+The state route uses `server/state-response.ts` for batched serialization and
+negotiated gzip on large snapshots. Small responses and clients excluding gzip
+retain plain JSON. The existing writer keeps status, including CSRF, in a
+separate uncompressed gzip member from mail metadata. Authentication, no-store,
+snapshot boundaries, cancellation and backpressure still apply.
+
+The cached conversation GET route uses `readConversationMail` to select related
+messages from summaries and hydrate only those bodies in one SQLite snapshot.
+It passes that captured view to the existing conversation builder, preserving
+account boundaries, ordering and coverage gaps. Opening does not synchronously
+decrypt the whole mailbox. Explicit provider expansion and synchronous approval
+fingerprint operations retain their existing contracts.
+
+`server/loading-performance.test.ts` exercises both real authenticated HTTP
+routes, requiring equivalent compressed state JSON, small plain deltas and
+related-only body decoding. Existing conversation snapshot, privacy, reader and
+state-transport tests cover the reused helpers. Synthetic HTTP timings do not
+prove browser paint, native interaction or provider latency; cold summary
+initialization and metadata membership scans still scale with mailbox size.
+
 `GET /api/messages/:id/body` requires exact `accountId` and `contentVersion`
 query values and reads only the local encrypted record. Missing or wrong-account
 mail returns 404; a changed version returns 409. The renderer holds content for

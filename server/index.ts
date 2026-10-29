@@ -1,3 +1,4 @@
+import { writeStateResponse } from "./state-response.js";
 import { needsEmbeddedContentRecovery } from "../shared/mail-content.js";
 import { browserGate, browserPort } from "./browser-preflight.js";
 import { LocalMailUndoConflict } from "./local-mail-undo.js";
@@ -270,18 +271,12 @@ app.get("/api/state", async (req, res) => {
     }, controller.signal);
     if (res.destroyed) return;
     const { messages, ...mailStatus } = changes;
-    // Serialize bounded records so a large initial snapshot does not monopolize the main loop.
-    res.type("json");
-    res.write(JSON.stringify({ ...status, ...mailStatus }).slice(0, -1) + ',"messages":[');
-    for (let i = 0; i < messages.length; i++) {
-      if (res.destroyed) return;
-      const ready = res.write((i ? "," : "") + JSON.stringify(messages[i]));
-      if (!ready) await new Promise<void>((resolve) => { const done = () => { res.off("drain", done); res.off("close", done); resolve(); }; res.once("drain", done); res.once("close", done); });
-      if ((i + 1) % 32 === 0) await new Promise<void>(resolve => setImmediate(resolve));
-    }
-    if (!res.destroyed) res.end("]}");
+    await writeStateResponse(req, res, { ...status, ...mailStatus }, messages, controller.signal);
   } catch (error) {
-    if (!controller.signal.aborted) throw error;
+    if (!controller.signal.aborted) {
+      if (res.headersSent) res.destroy(error as Error);
+      else throw error;
+    }
   } finally { res.off("close", cancel); }
 });
 app.get("/api/messages/search", async (req, res) => {
