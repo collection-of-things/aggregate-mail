@@ -20,12 +20,16 @@ only suppressed free checks: none of the 14 CI runs on 2026-10-28 ran, and
   `docs/`. Keep manual dispatch and cancel superseded runs.
 - The budget gate reads the repository visibility on every run. Public: it
   passes without counting. Private, or visibility unknown: the 150-run monthly
-  cap and the job deadlines apply as before.
+  cap and the job deadlines apply. The cap counts only runs that executed jobs,
+  so draft-PR runs that skip every job do not use it up. At the cap, CI jobs
+  are skipped; only a repository known to be private also disables the
+  workflow, and a failed disable call does not fail the gate.
 - Runners, job deadlines and the release workflow are unchanged.
 
 ## Consequences
 
-Every ready pull request gets typecheck and test results without a label, at
+Every ready pull request that changes more than Markdown or `docs/` gets
+typecheck and test results without a label, at
 no Actions cost while the repository is public. Changing visibility restores
 the cap without a workflow edit. CI is still not a required check; local
 verification and independent review stay required.

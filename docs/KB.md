@@ -1470,8 +1470,10 @@ dispatch. Changes touching only Markdown or `docs/` are skipped.
 Every job runs on GitHub-hosted runners: a budget gate and
 `tsc --noEmit` on `ubuntu-latest` capped at 2 and 8 minutes, and `npm test` on
 `ubuntu-latest` capped at 15 minutes. The repository is public, so these runs
-are not billed and the gate passes. If it becomes private, the gate disables
-the workflow after 150 completed runs in a calendar month until a maintainer
+are not billed and the gate passes. If it becomes private, or a visibility
+lookup fails (`unknown`), the gate skips CI jobs after 150 executed runs in a
+calendar month; draft-PR runs that skip every job are not counted. Only a
+repository known to be private also disables the workflow until a maintainer
 re-enables it ([ADR 0105](adr/0105-automatic-public-pr-ci.md)). [Build installers and release](../.github/workflows/release.yml) runs on pushes
 to `main` (next patch version, tagged and published after all four installer
 jobs pass) and on manual dispatch of an existing stable tag. Docs-only pushes,

@@ -7,10 +7,11 @@ name: CI
 # Budget: every job runs on GitHub-hosted standard runners, which GitHub does
 # not bill for public repositories. The gate checks visibility on every run:
 # while the repository is public it always passes. If the repository becomes
-# private, the cap applies: the budget gate, typecheck and test jobs are capped
-# at 2, 8 and 15 minutes, and after MAX_RUNS runs in a calendar month (at most
-# about 3750 minutes) the gate disables this workflow. Re-enable it in the
-# Actions tab the next month.
+# private, or its visibility cannot be read, the cap applies: the budget gate,
+# typecheck and test jobs are capped at 2, 8 and 15 minutes, and after MAX_RUNS
+# executed runs in a calendar month (at most about 3750 minutes) CI jobs are
+# skipped. A private repository also disables this workflow; re-enable it in
+# the Actions tab the next month.
 on:
   pull_request:
     branches: [main]
@@ -51,12 +52,18 @@ jobs:
             exit 0
           fi
           since="$(date -u +%Y-%m-01)"
-          runs="$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?created=>=$since&status=completed&per_page=1" --jq .total_count)"
-          echo "Completed CI runs this month: $runs of $MAX_RUNS"
+          # Count only runs that executed jobs; draft-PR runs skip every job.
+          runs="$(gh api --paginate "repos/$REPO/actions/workflows/ci.yml/runs?created=>=$since&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.conclusion != "skipped")] | length' | awk '{n += $1} END {print n + 0}')"
+          echo "Executed CI runs this month: $runs of $MAX_RUNS (visibility: $visibility)"
           if [ "$runs" -ge "$MAX_RUNS" ]; then
-            gh api -X PUT "repos/$REPO/actions/workflows/ci.yml/disable"
-            echo "::warning::Monthly CI budget reached; workflow disabled until re-enabled."
             echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Monthly CI budget reached; CI jobs skipped."
+            # Disable only when the repository is known to be private, so a
+            # failed visibility lookup cannot switch CI off for later runs.
+            if [ "$visibility" = private ]; then
+              gh api -X PUT "repos/$REPO/actions/workflows/ci.yml/disable" ||
+                echo "::warning::Could not disable the workflow; jobs stay skipped while the cap holds."
+            fi
           else
             echo "ok=true" >> "$GITHUB_OUTPUT"
           fi
