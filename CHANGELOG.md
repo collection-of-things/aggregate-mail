@@ -12,6 +12,8 @@ unversioned history without treating it as a release record.
 
 ### Fixed
 
+- Open cached conversations without decoding unrelated message bodies, and compress large cached-mail snapshots to reduce startup transfer time in the browser and desktop ([#164](https://github.com/collection-of-things/aggregate-mail/issues/164)).
+
 - Avoid overlapping browser session checks and allow slow private connections more time to verify access. Origin failures now return readable API errors instead of JSON parsing errors ([#160](https://github.com/collection-of-things/aggregate-mail/issues/160)).
 
 ## 0.2.20 - 2026-10-28
