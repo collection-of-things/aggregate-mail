@@ -1233,6 +1233,43 @@ test("complete a waiting task directly from Today, Projects and Calendar", async
  }
 });
 
+test("task completion preserves an unfinished project decision and its evidence", async () => {
+ const ui = await mount("projects");
+ try {
+  ui.workspace.projects.push({ id: "p1", name: "Synthetic project", sourceMailIds: ["in-a"], accountIds: ["a"], crossAccountConfirmed: false, revision: 1, updatedAt: 1 });
+  ui.workspace.commitments.push({ id: "c1", projectId: "p1", accountId: "a", sourceMailId: "in-a", text: "Synthetic task", reason: "Synthetic reason", status: "waiting", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [] });
+  await ui.click(ui.button("Refresh workspace")); await ui.click(ui.button("Synthetic project"));
+  await ui.click(ui.container.querySelector<HTMLElement>(".project-decisions summary")!);
+  await ui.fill("What was agreed", "Keep the delivery date");
+  const source = ui.container.querySelector<HTMLInputElement>('.project-decisions input[type="checkbox"]')!;
+  await ui.click(source);
+  await ui.click(ui.container.querySelector<HTMLInputElement>('input[aria-label="Mark task complete"]')!);
+  assert.equal(ui.workspace.commitments[0].status, "done");
+  assert.equal(ui.field("What was agreed").value, "Keep the delivery date");
+  assert.equal(source.isConnected && source.checked, true);
+  assert.equal(ui.requests.filter(request => request.method !== "GET").length, 1);
+ } finally { await ui.close(); }
+});
+
+for (const moved of [false, true]) test(`task completion ${moved ? "preserves focus moved during the request" : "restores focus to the next task"}`, async () => {
+ const ui = await mount("actions");
+ try {
+  const base: Commitment = { id: "c1", accountId: "a", sourceMailId: "in-a", text: "Middle task", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [], dueDate: "2030-01-02" };
+  ui.workspace.commitments.push(base, { ...base, id: "first", text: "First task", dueDate: "2030-01-01" }, { ...base, id: "last", text: "Last task", dueDate: "2030-01-03" });
+  await ui.click(ui.button("Refresh workspace"));
+  const row = (id: string) => ui.container.querySelector(`#work-task-${id}`)!.closest("article")!;
+  const origin = row("c1").querySelector<HTMLInputElement>("input")!;
+  const next = row("last").querySelector<HTMLInputElement>("input")!;
+  await act(async () => origin.focus()); ui.holdWorkspace(); await ui.click(origin);
+  const other = ui.container.querySelectorAll<HTMLButtonElement>(".work-view-tabs button")[1];
+  if (moved) await act(async () => other.focus());
+  await act(async () => ui.heldReads.at(-1)!.release());
+  assert.equal(ui.workspace.commitments[0].status, "done");
+  assert.equal(document.activeElement, moved ? other : next);
+  assert.match(ui.container.textContent!, /Task completed/);
+ } finally { await ui.close(); }
+});
+
 test("an unconfirmed completion keeps the task and prevents another write", async () => {
  const ui = await mount("actions");
  try {

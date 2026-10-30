@@ -2915,6 +2915,10 @@ the existing commitment update, retain its reason and evidence, and append
 history. Failed or uncertain writes use the existing refresh and review gate.
 The status-only completion request is allowed during mail sync; other task
 edits retain the sync guard.
+Completion leaves unfinished project decision text and evidence selected. It uses
+the workspace mutation guard without acknowledging unrelated form drafts. The
+status announces success without taking focus from another control; when the
+completion control disappears, focus returns to a nearby task or detail action.
 Completion does not change mail or local work sessions. Reopening and cancelling
 remain in Edit task. See [ADR 0107](adr/0107-direct-task-completion.md).
 
