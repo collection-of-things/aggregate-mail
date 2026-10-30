@@ -170,19 +170,26 @@ if (!process.env.EMC2_SYNC_TEST_CHILD) {
         clear();
       });
       await t.test("pin changes survive a delayed sync batch", async () => {
-        for (const action of ["pin", "unpin"] as const) {
+        for (const batch of ["unchanged", "changed", "summary"] as const) for (const action of ["pin", "unpin"] as const) {
           clear();
           const a = fixture("pin-sync"); put("account", a.id, a);
           const cached = { ...mail(a), ...(action === "unpin" ? { pinned: true } : {}) }; put("mail", cached.id, cached);
           const entered = deferred(), release = deferred();
-          providers.imap.list = async () => { entered.resolve(); await release.promise; return [cached]; };
+          providers.imap.list = async (_account, cache, onBatch) => {
+            entered.resolve(); await release.promise;
+            if (batch === "summary") { onBatch?.([cache.peek?.(cached.id)!]); return []; }
+            return [batch === "changed" ? { ...cached, preview: "Updated by provider" } : cached];
+          };
           const pending = request("/sync"); await entered.promise;
           try {
             const response = await request(`/messages/${cached.id}`, { action }, "PATCH");
             assert.equal(response.status, 200);
             assert.equal(all("mail").find(item => item.id === cached.id)?.pinned, action === "pin" ? true : undefined);
           } finally { release.resolve(); await pending; }
-          assert.equal(all("mail").find(item => item.id === cached.id)?.pinned, action === "pin" ? true : undefined);
+          const saved = all("mail").find(item => item.id === cached.id)!;
+          assert.equal(saved.pinned, action === "pin" ? true : undefined, `${action} survives a ${batch} batch`);
+          assert.equal(saved.preview, batch === "changed" ? "Updated by provider" : cached.preview);
+          assert.equal(saved.body, cached.body);
         }
       });
       await t.test("fetched Gmail batches are visible while later fetching and every configured AI judgement are pending", async () => {
