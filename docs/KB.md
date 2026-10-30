@@ -2913,6 +2913,8 @@ Today and Projects provide a task completion checkbox. Task details in Today,
 Projects and Calendar offer Mark complete. Both send the current revision with
 the existing commitment update, retain its reason and evidence, and append
 history. Failed or uncertain writes use the existing refresh and review gate.
+The status-only completion request is allowed during mail sync; other task
+edits retain the sync guard.
 Completion does not change mail or local work sessions. Reopening and cancelling
 remain in Edit task. See [ADR 0107](adr/0107-direct-task-completion.md).
 

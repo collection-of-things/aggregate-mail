@@ -192,6 +192,21 @@ if (!process.env.EMC2_SYNC_TEST_CHILD) {
           assert.equal(saved.body, cached.body);
         }
       });
+      await t.test("task completion remains available during sync without opening other edits", async () => {
+        const a = fixture("task-sync"); put("account", a.id, a);
+        const source = mail(a); put("mail", source.id, source);
+        put("commitment", "task", { id: "task", accountId: a.id, sourceMailId: source.id, text: "Synthetic task", reason: "Synthetic reason", status: "waiting", evidenceMailIds: [source.id], revision: 1, updatedAt: 1, history: [] });
+        const entered = deferred(), release = deferred();
+        providers.imap.list = async () => { entered.resolve(); await release.promise; return [source]; };
+        const pending = request("/sync"); await entered.promise;
+        try {
+          assert.equal((await request("/commitments/task", { revision: 1, status: "done" }, "PATCH")).status, 200);
+          const saved = all("commitment").find(item => item.id === "task")!;
+          assert.equal(saved.status, "done"); assert.equal(saved.reason, "Synthetic reason"); assert.equal(saved.history.at(-1)?.status, "done");
+          assert.equal((await request("/commitments/task", { revision: 1, status: "done" }, "PATCH")).status, 409);
+          assert.equal((await request("/commitments/task", { revision: 2, status: "done", text: "Changed" }, "PATCH")).status, 409);
+        } finally { release.resolve(); await pending; }
+      });
       await t.test("fetched Gmail batches are visible while later fetching and every configured AI judgement are pending", async () => {
         const a = fixture("progress", "gmail"); put("account", a.id, a);
         const fetched = deferred(), finishFetch = deferred(), sorting = deferred(), finishSorting = deferred();
