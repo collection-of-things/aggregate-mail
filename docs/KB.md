@@ -755,9 +755,9 @@ Windows offers Off, Subtle (Mica) and Glass (Acrylic); macOS offers Off and Glas
 
 The renderer uses macOS-style chrome in light or dark on every desktop platform: a themed window frame and sidebar, near-neutral mail and reader panes, grouped Settings controls and rounded menus/dialogs. `src/styles/tokens.css` defines every color, surface and radius token for both schemes. Pane and menu transitions are brief opacity/transform animations; there are no looping effects or wheel-event handlers. Scroll containers use native smooth programmatic scrolling and contained overscroll. New panes reset instantly, and reduced-motion preferences disable smooth scrolling and shorten animations.
 
-The mail sidebar places Drafts directly below New message. A Settings gear and sync status share one fixed footer row. The theme picker grows with its previews and labels; the fixed 48px stacked-row height applies only to mail rows, so accent swatches stay below the theme choices.
+The mail sidebar places Drafts directly below New message. A Settings gear and sync status share one fixed footer row. The theme picker grows with its previews and labels; the fixed mail-row height applies only to mail rows, so accent swatches stay below the theme choices.
 
-Mail date headings stick at `top: 0`. Rows run edge to edge without pane gutters, row insets, corner radii or vertical margins; text has 18px horizontal padding and separators remain inset. Comfortable row heights are 48px, 34px and 28px for high, medium and low relevance; compact rows are 24px. Turning off Size rows by importance gives every row the medium layout and height. The 150px sender column and 8px subject gap also set the 158px two-line preview indent. Side-by-side cards use the same full-width washes and 18px horizontal padding, with 58px low and 78px medium/high heights, or 52px in compact density. All row heights scale with text size.
+Mail date headings stick at `top: 0`. Rows run edge to edge without pane gutters, row insets, corner radii or vertical margins; text has 18px horizontal padding and separators remain inset. Every comfortable row is 34px and every compact row 24px; high-relevance mail carries a small filled importance marker in the sorting-reason colour inside the 150px sender column, so subjects stay aligned. Side-by-side cards use the same full-width washes and 18px horizontal padding, at 100px or 72px in compact density, with a preview in comfortable density. All row heights scale with text size.
 
 Right-click mail rows or opened messages to use Mark as read without opening the message. Already-read mail disables that item. Explicit read and read-on-open both use `markMailRead` in `src/mail-ui.ts`, coalesce pending requests and call the existing read endpoint independently of other UI busy state. Requests wait behind server sync; failures keep unread state and can be retried from the menu or by reopening mail. Other context-menu provider writes remain disabled during sync.
 
@@ -793,8 +793,7 @@ accessible names include the permitted account and status. Account dots match
 sidebar order and repeat after four accounts. Narrow rows put metadata below
 the sender. The compact narrow height is 72px in both CSS tokens and windowing
 fallbacks. Sender avatars omit provider overlays. Status visibility follows
-message importance, independent of the Size rows by importance preference;
-only May need labels take the existing reason colour.
+message importance; only May need labels take the existing reason colour.
 
 Synthetic mounted-App tests cover combined controls, empty-result reset, privacy-safe account labels, account-specific compose, setup entry, keyboard ownership, read-on-open, history, section folding and collapse focus. They do not prove actual account connections or native appearance.
 
@@ -1736,8 +1735,8 @@ Replies use the safe formatted reader for the original message. Reopened drafts 
 
 [Privacy matching](../src/privacy.ts) learns names from optional account display names and the current To/Cc display names tied to connected account addresses. It covers full names, first names and surnames, including one-letter Unicode components, with Unicode-aware boundaries, case/whitespace variation and URL encoding. The opened message's dictionary also protects Gmail label filter options and the label editor. A sender avatar uses a neutral dot when its displayed initial matches a known private name component; ordinary company initials stay visible. Sender-markup splits cannot expose a known name. Hidden bars have no private children, title or accessibility text. Explicit reveal applies to the clicked token; re-enabling privacy clears it. Unknown names that appear only in a body cannot be identified. A name that is also an ordinary word can hide that word while privacy is on. Editable compose fields retain their focus-to-reveal behavior.
 
-[Inbox tabs](../shared/inbox-tabs.ts) are derived on the client from Teach rules, personal-mail patterns, Gmail `CATEGORY_*` labels, the sorter's reason and sender/subject patterns; nothing new is stored, and the server's `important`/`other` category still drives MCP, relevance and Teach. The selected tab is part of the in-memory navigation location. The sidebar open state is stored as `sidebar` (`open` or `closed`) in localStorage, beside `window-controls`. The removed sender panel left an unused `sender-panel` key, which is ignored. A persistent toolbar contains search and Commands above the pane headers, plus the Filters and privacy buttons while the mail list shows; each pane's secondary controls share its header's title line. A closed sidebar stays mounted with `inert` so it can animate. [App](../src/App.tsx) decides which panes are on screen with [`useMedia`](../src/ui/useMedia.ts) (the sidebar needs 760px, the reader beside the list 980px). With Side by side selected, the mail list keeps its column even before opening an email and after closing it; the adjacent reader shows opening guidance until mail is opened. F6 skips this empty reader until an email is open. Full width and windows below 980px use one column. The renderer gives the window controls to the header in each corner through [`PaneHeader`](../src/shell/PaneHeader.tsx); without `matchMedia` (the renderer tests) every pane counts as present. [Appearance](../src/appearance.ts) stores mode (`system`, `light` or `dark`; dark by default), theme, accent, transparency (`off`, `subtle` or `glass`; an earlier boolean `glass` is migrated), reading layout (`split` or `full`) and `sizeByImportance` (on by
-default; off gives every row the medium layout) under `emc2.appearance.v1`. It applies them as `data-scheme`, `data-theme`, `--accent` (a deeper shade in light mode) and `data-glass` on the document root; System follows `prefers-color-scheme`. The preload exposes `desktop.materials`, true on macOS and on Windows build 22621 or later; `desktop.setMaterial`, which sends `window-material` (`none`, `mica` or `acrylic`), accepted only from the app window and only on Windows; and `desktop.setScheme`, which sends `window-scheme` and sets `nativeTheme.themeSource` so materials, native menus and System follow the mode. The main process starts dark until the renderer reports its mode. [ADR 0022](adr/0022-window-materials-and-themes.md) records the window material decision and [ADR 0025](adr/0025-light-mode-and-reading-pane.md) the modes and reading layout.
+[Inbox tabs](../shared/inbox-tabs.ts) are derived on the client from Teach rules, personal-mail patterns, Gmail `CATEGORY_*` labels, the sorter's reason and sender/subject patterns; nothing new is stored, and the server's `important`/`other` category still drives MCP, relevance and Teach. The selected tab is part of the in-memory navigation location. The sidebar open state is stored as `sidebar` (`open` or `closed`) in localStorage, beside `window-controls`. The removed sender panel left an unused `sender-panel` key, which is ignored. A persistent toolbar contains search and Commands above the pane headers, plus the Filters and privacy buttons while the mail list shows; each pane's secondary controls share its header's title line. A closed sidebar stays mounted with `inert` so it can animate. [App](../src/App.tsx) decides which panes are on screen with [`useMedia`](../src/ui/useMedia.ts) (the sidebar needs 760px, the reader beside the list 980px). With Side by side selected, the mail list keeps its column even before opening an email and after closing it; the adjacent reader shows opening guidance until mail is opened. F6 skips this empty reader until an email is open. Full width and windows below 980px use one column. The renderer gives the window controls to the header in each corner through [`PaneHeader`](../src/shell/PaneHeader.tsx); without `matchMedia` (the renderer tests) every pane counts as present. [Appearance](../src/appearance.ts) stores mode (`system`, `light` or `dark`; dark by default), theme, accent, transparency (`off`, `subtle` or `glass`; an earlier boolean `glass` is migrated), reading layout (`split` or `full`) under `emc2.appearance.v1`.
+A stored legacy `sizeByImportance` key is ignored. It applies them as `data-scheme`, `data-theme`, `--accent` (a deeper shade in light mode) and `data-glass` on the document root; System follows `prefers-color-scheme`. The preload exposes `desktop.materials`, true on macOS and on Windows build 22621 or later; `desktop.setMaterial`, which sends `window-material` (`none`, `mica` or `acrylic`), accepted only from the app window and only on Windows; and `desktop.setScheme`, which sends `window-scheme` and sets `nativeTheme.themeSource` so materials, native menus and System follow the mode. The main process starts dark until the renderer reports its mode. [ADR 0022](adr/0022-window-materials-and-themes.md) records the window material decision and [ADR 0025](adr/0025-light-mode-and-reading-pane.md) the modes and reading layout.
 
 Window chrome outside macOS ([ADR 0026](adr/0026-native-window-chrome.md)): the main process reads `window.json` (`{"controls":"mac"|"windows"}`) from the app data folder when it creates the window; anything unreadable means the drawn lights. Windows style creates the window with `titleBarOverlay` and passes `--emc2-window-controls=windows` to the preload, which exposes `desktop.windowControls`. `window-controls` (from the current window main frame at the app origin only) saves the choice and, if it changed, closes through the native draft guard and, only after accepted closure, opens a new window at the old bounds; the renderer refuses while a draft is open or sending. `window-overlay` sets the caption colors (validated `#rrggbb`) from the renderer's `--surface` and `--text`. Mail rows call `desktop.mailMenu`, which sends `mail-menu` to `ipcMain.handle`; [window-chrome](../desktop/window-chrome.ts) checks item ids, labels, enabled flags, display-only accelerators and position, and the main process pops a native menu and returns the chosen id (or null after the menu closes). Without the bridge the drawn menu is used. Folded sidebar sections are stored as `sidebar-folded` in localStorage.
 
@@ -1845,7 +1844,7 @@ expanded. See [ADR 0048](adr/0048-v2-persistent-navigation.md).
 
 ## V2 visual correction
 
-The V2 sidebar uses separate Workspace and Mail groups at 196px, with Settings
+The V2 sidebar uses separate Mail and Workspace groups (Mail first) at 208px, with Settings
 anchored at the bottom. Agent review keeps existing assistant cards above a
 collapsible add form. Permissions, BYOK and external connection setup stay in
 each card; hiding a section preserves its state and approval guards. Projects
@@ -2872,20 +2871,28 @@ inside mail serialization. Results contain the same identity and done, failed
 or unknown status. Exceptions after provider work starts are unknown, never
 automatically retried. Missing responses become unknown in the renderer.
 
-The list's bulk selection is independent of its opened message. X is editable;
-existing custom bindings keep priority. Shift+arrows and Shift-click select a
-range. Platform select-all includes unmounted virtual rows in the current
-filtered list up to 200. Selection clears on view/filter changes and prunes
-missing or account-changed mail. Fields, dialogs and opened readers keep their
-keys. Trash confirms the captured count; results identify affected items with
-privacy-redacted subjects. See [ADR 0089](adr/0089-bulk-mail-selection.md).
+The list's bulk selection is independent of its opened message. Its chrome lives
+in the list's shared rail: a select-all checkbox aligned with the row checkboxes
+beside the Inbox tabs, with the count and triage actions portaled into the same
+line; the inline `.bulk-bar` row is only the fallback when no rail exists. X is
+editable; existing custom bindings keep priority. Shift+arrows and Shift-click
+select a range. Platform select-all includes unmounted virtual rows in the
+current filtered list up to 200. Selection clears on view/filter changes and
+prunes missing or account-changed mail. Fields, dialogs and opened readers keep
+their keys. Trash confirms the captured count; results identify affected items
+with privacy-redacted subjects. See [ADR 0089](adr/0089-bulk-mail-selection.md).
 
 ## Inline cached conversation reader (#54)
 
 Conversation history diagnostics, keyboard guidance and bounded Gmail fetch live
-in collapsed Conversation details below the stack. Errors remain visible above
-messages. Message headers separate sender/date from preview and active/unread
-state; Select for actions stays outside the expansion button. Row hover actions
+in the compact bar above the stack: the count, the expansion control and a
+collapsed "Why some messages may be missing" disclosure carrying the coverage
+caveats and gaps; the keyboard guidance stays visually hidden on each toggle's
+`aria-describedby`. A single cached message renders without that chrome; a Gmail
+one keeps only its Load full conversation link, and the disclosure appears for a
+lone email only on a reported gap or an error. Message
+rows separate sender, preview and relative date from selected/unread state;
+Select for actions stays outside the expansion button. Row hover actions
 show Mark as read for unread mail or Mark as unread for read mail, with an envelope
 for the latter. The full context menu retains both guarded operations.
 
@@ -2894,6 +2901,11 @@ POST `/messages/:id/conversation/expand`. Membership comes from the existing
 account-scoped service model, never from subjects. Order is oldest first with
 ID tie-breaking. Cache counts and reported gaps do not establish complete
 history. Gmail fetch remains capped at 100 messages; IMAP has no remote expansion.
+A muted line above the stack carries the count, the expansion control and a
+collapsed "Why some messages may be missing" disclosure with the coverage
+caveats and specific gaps; the generic local-evidence caveat is filtered out. One
+cached message renders without thread chrome, apart from Gmail's Load full
+conversation link and any reported gap or error.
 
 Malformed response envelopes or message entries retain the opened mail with an
 unavailable-evidence notice. Late results from another opening cannot replace
@@ -2981,7 +2993,7 @@ Settings, Appearance exposes Comfortable and Compact spacing beside Reading pane
 It shares App's density state with Commands and the configured density shortcut.
 Explicit changes save `emc2.density` on this device; startup reads the saved value
 without writing it. A failed save keeps the session value and shows a notice.
-Density changes spacing independently of importance sizing and text scale.
+Density changes spacing independently of text scale.
 The virtual list retains existing wide and narrow row-height tokens, including
 72px compact cards. Density and text-scale changes scroll the selected row into
 view without taking focus from Settings or editors. Passive scrolling and mail

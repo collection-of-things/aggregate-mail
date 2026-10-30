@@ -185,6 +185,8 @@ export function App() {
   const [bulkBlocking, setBulkBlocking] = useState(false);
   const [savedViewEdit, setSavedViewEdit] = useState<SavedViewEdit | null>(null);
   const [reviewingUnsubscribe, setReviewingUnsubscribe] = useState(false);
+  const [railSelect, setRailSelect] = useState<HTMLElement | null>(null);
+  const [railActions, setRailActions] = useState<HTMLElement | null>(null);
   const toolbarBlocked = !!(savedViewEdit || reviewingUnsubscribe || bulkBlocking || scheduledOpen || teach || snooze || trashMail || shortcuts || labelMail || connecting || updateInstalling || settingsModal || workModal || quickSource || meetingMail);
   const navigationBlocked = settings || !!compose || toolbarBlocked;
   const navigate = (patch: Partial<MailLocation>, search = false) => {
@@ -1301,7 +1303,7 @@ export function App() {
   type PaletteId =
     | keyof typeof paletteActions
     | `view-${(typeof paletteViews)[number]}`
-    | "row-sizing" | "drafts" | "archive-view" | "snoozed-view" | "pinned-view" | "pinned-all" | "sync"
+    | "drafts" | "archive-view" | "snoozed-view" | "pinned-view" | "pinned-all" | "sync"
     | `mail-${MailMenuId}`;
   // Extra search words keyed by command id, so an alias on a missing id fails to compile.
   const commandAliases: Partial<Record<PaletteId, string[]>> = {
@@ -1358,8 +1360,6 @@ export function App() {
     ...interactionActions.flatMap(({ id, label }) => id in paletteActions ? [{ id, label, group: "navigation" as const,
       shortcut: shortcut(id), aliases: commandAliases[id as keyof typeof paletteActions],
       run: paletteActions[id as keyof typeof paletteActions] }] : []),
-    { id: "row-sizing", label: "Size rows by importance on / off", group: "navigation",
-      run: () => updateAppearance({ ...appearance, sizeByImportance: !appearance.sizeByImportance }) },
     ...paletteViews.map((next) => ({ id: `view-${next}`, label: `Open ${viewNames[next]}`, group: "navigation" as const,
       aliases: commandAliases[`view-${next}`], run: () => navigate({ page: "mail", view: next, opened: false }) })),
     { id: "scheduled", label: "Open Scheduled", group: "navigation", disabled: navigationBlocked, run: () => setScheduledOpen(true) },
@@ -1504,7 +1504,11 @@ export function App() {
                 <span className="view-summary">{loaded ? `${filtered.length} cached ${filtered.length === 1 ? "message" : "messages"}` : "Loading cached mail"}</span>
                 {(view === "sent" || view === "all") && <div className="head-note">Cached mail only. <button type="button" title={accountFilter === "all" ? "Select one account to fetch up to 50 Sent messages" : "Fetch up to 50 Sent messages"} disabled={busy || accountFilter === "all"} onClick={() => void perform(async () => { const coverage = await api<SentCoverage>(`/accounts/${encodeURIComponent(accountFilter)}/sent/sync`, "POST", { bound: 50 }); if (coverage.error) throw new Error("Sent import failed. Existing cached mail remains available."); }, "Sent cache refreshed.")}>Fetch Sent</button>{accountFilter === "all" && <small>Choose an account first.</small>}</div>}
               </PaneHeader>}
-              {view === "inbox" && !query && <div className="mail-category-bar"><InboxTabs tab={tab} unread={tabUnread} onTab={switchTab} /></div>}
+              <div className="mail-category-bar">
+                <div className="rail-select" ref={setRailSelect} />
+                {view === "inbox" && !query && <InboxTabs tab={tab} unread={tabUnread} onTab={switchTab} />}
+                <div className="rail-actions" ref={setRailActions} />
+              </div>
           <main className={split ? "workspace split" : "workspace"}>
             <section className="list-pane">
               {!settings && <CredentialFallbackNotice mode={window.desktop?.credentialFallback} />}
@@ -1517,6 +1521,7 @@ export function App() {
               >
               <div key={paneKey} className={`pane ${pane.current.motion}`}>
                 <BulkMailSelection active={!opened} messages={opened ? [] : filtered} accounts={state.accounts}
+                  railSelect={railSelect} railActions={railActions}
                   scope={JSON.stringify([page, view, tab, accountFilter, labelFilter, query, readFilter, relevanceFilter, sort, opened])}
                   selectedId={selected?.id} onSelect={setSelectedId} api={api} reload={reload}
                   toggleLabel={shortcut("selectMail")}
@@ -1535,7 +1540,6 @@ export function App() {
                     sort={sort}
                     opening={interaction.opening}
                     accounts={state.accounts}
-                    sizeByImportance={appearance.sizeByImportance}
                     showAccount={accountFilter === "all" && state.accounts.length > 1}
                     actions={(mail) => mailMenuActions(mail).map((action) => action.id === "snooze"
                       ? { ...action, run: (event: ReactMouseEvent<HTMLButtonElement>) => showSnooze(mail, event) }
@@ -1659,7 +1663,9 @@ export function App() {
           </div>
         </Dialog>}
         {/* Native title-bar hit testing needs this no-drag region after the draggable pane headers. */}
-        <div className="app-update-control" inert={settings} style={{ right: systemCaption ? 154 : drawsWindowControls && windowSide === "right" ? 106 : 12 }}>
+        {/* The drawn-lights slot is 86px: header padding-right 12 + lights 52
+            (3x12 with 8px gaps) + traffic margin-left 12 + toolbar gap 10. */}
+        <div className="app-update-control" inert={settings} style={{ right: systemCaption ? 154 : drawsWindowControls && windowSide === "right" ? 86 : 12 }}>
           <UpdateNotice bridge={window.desktop?.updates} onInstalling={setUpdateInstalling} />
         </div>
         {contextMenu && menuMail && (

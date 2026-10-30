@@ -119,9 +119,6 @@
   flex-shrink: 0;
   margin-left: -2px;
 }
-.app-toolbar .traffic.right {
-  margin-left: 6px;
-}
 .mail-navigation {
   display: flex;
   align-items: center;
@@ -291,6 +288,7 @@
   background: var(--surface);
 }
 .reader-scroll {
+  --reader-gutter: 32px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;

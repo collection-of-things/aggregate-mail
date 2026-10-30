@@ -40,7 +40,8 @@ async function mount(api: Api = async <T,>() => ({ results: [] } as T), reload =
     target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: value, bubbles: true, cancelable: true, ...options }));
   });
   const count = () => document.querySelector('[aria-live="polite"]')!.textContent;
-  return { dom, render, button, click, key, count, opened: () => opened, async close() {
+  const master = () => document.querySelector<HTMLButtonElement>('[aria-label="Select all visible (up to 200)"]')!;
+  return { dom, render, button, click, key, count, master, opened: () => opened, async close() {
     await act(async () => root.unmount()); dom.window.close();
     for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key); }
   } };
@@ -49,7 +50,8 @@ async function mount(api: Api = async <T,>() => ({ results: [] } as T), reload =
 test("keyboard toggles, inclusive ranges, Shift-click, Escape and virtualized select-all remain bounded", async () => {
   const ui = await mount();
   try {
-    const checkbox = () => document.querySelector<HTMLButtonElement>('[role="checkbox"]')!;
+    const master = () => document.querySelector<HTMLButtonElement>('[aria-label="Select all visible (up to 200)"]')!;
+    const checkbox = () => document.querySelector<HTMLButtonElement>('.mail-row [role="checkbox"]')!;
     await act(async () => checkbox().click()); assert.match(ui.count()!, /^1 messages selected/);
     assert.equal(checkbox().getAttribute("aria-checked"), "true"); assert.equal(ui.opened(), 0);
     await act(async () => checkbox().click()); assert.match(ui.count()!, /^0 messages selected/);
@@ -61,7 +63,7 @@ test("keyboard toggles, inclusive ranges, Shift-click, Escape and virtualized se
     await act(async () => document.getElementById("mail-local-5")!.dispatchEvent(new ui.dom.window.MouseEvent("click", { shiftKey: true, bubbles: true })));
     assert.match(ui.count()!, /^6 messages selected/); assert.equal(ui.opened(), 0);
     await ui.key("local-5", "Escape"); assert.match(ui.count()!, /^0 messages selected/);
-    await ui.click("Select all visible (up to 200)"); assert.match(ui.count()!, /^200 messages selected; selection limited to 200/);
+    await act(async () => master().click()); assert.match(ui.count()!, /^200 messages selected; selection limited to 200/);
     assert.ok(document.querySelectorAll('.mail-window-row').length < 200, "selection includes unmounted virtual rows");
     await ui.render(messages.slice(0, 5)); assert.match(ui.count()!, /^5 messages selected/);
     await ui.render([{ ...messages[0], accountId: "changed" }]); assert.match(ui.count()!, /^0 messages selected/);
@@ -85,7 +87,7 @@ test("Trash captures exact count, cancel sends nothing, mixed results survive pr
     return { results: input.items.map((item, index) => ({ ...item, status: ["done", "failed", "unknown"][index % 3] })) } as T;
   }, async () => { refreshes++; });
   try {
-    await ui.render(messages.slice(0, 3)); await ui.click("Select all visible (up to 200)");
+    await ui.render(messages.slice(0, 3)); await act(async () => ui.master().click());
     await ui.click("Move to Trash");
     assert.match(document.querySelector('[role="dialog"]')!.textContent!, /Move exactly 3 messages to Trash/);
     assert.equal(calls.length, 0); await ui.click("Cancel"); assert.equal(calls.length, 0);
@@ -105,7 +107,7 @@ test("response loss marks every item unknown and cache refresh failure does not 
   let calls = 0;
   const ui = await mount(async () => { calls++; throw new Error("Synthetic response loss"); }, async () => { throw new Error("Synthetic refresh failure"); });
   try {
-    await ui.render(messages.slice(0, 2)); await ui.click("Select all visible (up to 200)"); await ui.click("Done");
+    await ui.render(messages.slice(0, 2)); await act(async () => ui.master().click()); await ui.click("Done");
     assert.equal(calls, 1);
     assert.match(document.querySelector('.bulk-result')!.textContent!, /0 done, 0 failed, 2 unknown/);
     assert.match(document.querySelector('.bulk-result')!.textContent!, /Refreshing mail failed/);
@@ -189,8 +191,8 @@ test("selection stays available during sync while bulk actions wait for it", asy
   const calls: unknown[] = [];
   const ui = await mount(async <T,>(...args: unknown[]) => { calls.push(args); return { results: [] } as T; }, async () => {}, undefined, true);
   try {
-    assert.equal(ui.button("Select all visible (up to 200)").disabled, false);
-    await act(async () => document.querySelector<HTMLButtonElement>('[role="checkbox"]')!.click());
+    assert.equal(ui.master().disabled, false);
+    await act(async () => document.querySelector<HTMLButtonElement>('.mail-row [role="checkbox"]')!.click());
     assert.match(ui.count()!, /^1 messages selected/);
     assert.equal(ui.button("Archive").disabled, true);
     assert.ok(document.body.textContent!.includes("Waiting for sync…"));
@@ -216,5 +218,46 @@ test("a sync refresh keeps an open bulk dialog until one of its messages disappe
     await ui.render(messages.slice(0, 5)); await ui.key("local-1", "x"); await ui.click("Snooze"); assert.ok(open());
     await ui.render([{ ...messages[0], id: "new-0", remoteId: "new" }, ...messages.slice(0, 5)]); assert.ok(open(), "added mail keeps the dialog");
     await ui.render([messages[0], ...messages.slice(2, 5)]); assert.equal(open(), false, "a removed target closes the dialog");
+  } finally { await ui.close(); }
+});
+
+test("master checkbox reports none, mixed and all selected, and clears when all are selected", async () => {
+  const ui = await mount();
+  try {
+    assert.equal(ui.master().getAttribute("aria-checked"), "false");
+    await act(async () => document.querySelector<HTMLButtonElement>('.mail-row [role="checkbox"]')!.click());
+    assert.equal(ui.master().getAttribute("aria-checked"), "mixed");
+    await act(async () => ui.master().click());
+    assert.match(ui.count()!, /^200 messages selected/);
+    assert.equal(ui.master().getAttribute("aria-checked"), "true");
+    assert.equal(ui.master().textContent, "✓");
+    await act(async () => ui.master().click());
+    assert.match(ui.count()!, /^0 messages selected/);
+    assert.equal(ui.master().getAttribute("aria-checked"), "false");
+  } finally { await ui.close(); }
+});
+
+test("a 200-item range outside the first batch reads mixed, and the master then selects the first 200", async () => {
+  const ui = await mount();
+  try {
+    const list = document.querySelector<HTMLElement>(".list")!;
+    const scrollTo = async (top: number) => act(async () => {
+      list.scrollTop = top;
+      list.dispatchEvent(new ui.dom.window.Event("scroll"));
+    });
+    await scrollTo(1600);
+    const middle = document.querySelector<HTMLButtonElement>('[data-mail-id="local-50"] [role="checkbox"]');
+    assert.ok(middle, "row local-50 mounts once the window scrolls to it");
+    await act(async () => middle.click());
+    assert.match(ui.count()!, /^1 messages selected/);
+    await scrollTo(8100);
+    const last = document.getElementById("mail-local-249");
+    assert.ok(last, "row local-249 mounts once the window scrolls to it");
+    await act(async () => last.dispatchEvent(new ui.dom.window.MouseEvent("click", { shiftKey: true, bubbles: true })));
+    assert.match(ui.count()!, /^200 messages selected/);
+    assert.equal(ui.master().getAttribute("aria-checked"), "mixed", "a range outside the first 200 is not all-selected");
+    await act(async () => ui.master().click());
+    assert.match(ui.count()!, /^200 messages selected/);
+    assert.equal(ui.master().getAttribute("aria-checked"), "true", "the master selects the first 200");
   } finally { await ui.close(); }
 });

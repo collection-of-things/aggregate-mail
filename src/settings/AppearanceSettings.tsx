@@ -185,10 +185,8 @@ export function AppearanceSettings({ value, scheme, onChange, onPreview = noPrev
         {onDensity && <div className="settings-row stacked">
           <span id="density-label">Density</span>
           <Segmented labelledBy="density-label" value={density} choices={[{ id: "comfortable", label: "Comfortable" }, { id: "compact", label: "Compact" }]} onChange={onDensity} />
-          <p className="note">Density changes spacing. Importance sizing changes row height by relevance.</p>
+          <p className="note">Density changes spacing.</p>
         </div>}
-        <label className="settings-row"><span>Size rows by importance</span><input type="checkbox" role="switch" checked={value.sizeByImportance}
-          onChange={(event) => onChange({ ...value, sizeByImportance: event.target.checked })} /></label>
       </div>
       <p className="note">
         {glass ? "Transparency applies to the whole window. " : ""}

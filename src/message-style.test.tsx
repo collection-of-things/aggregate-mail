@@ -21,14 +21,14 @@ test("theme choices grow above accent swatches without inheriting the mail-row h
     const document = dom.window.document;
     document.body.innerHTML = renderToStaticMarkup(<>
       <AppearanceSettings value={defaultAppearance} scheme="dark" onChange={() => true} />
-      <div className="row stacked" />
+      <div className="row" />
     </>);
     document.head.insertAdjacentHTML("beforeend", `<style>${stylesheet()}</style>`);
     const height = (selector: string) => dom.window.getComputedStyle(document.querySelector(selector)!).height;
     assert.ok(["", "auto"].includes(height(".settings-row.stacked")), "Theme rows must grow with their previews and labels");
     assert.equal(height(".theme-preview"), "56px");
     assert.equal(height(".accent-choices button"), "22px");
-    assert.equal(height(".row.stacked"), "calc(var(--mail-row-high) * var(--text-scale, 1))", "Mail rows keep shared scaled windowing geometry");
+    assert.equal(height(".row"), "calc(var(--mail-row-medium) * var(--text-scale, 1))", "Mail rows keep shared scaled windowing geometry");
   } finally {
     if (previousWindow) Object.defineProperty(globalThis, "window", previousWindow);
     else Reflect.deleteProperty(globalThis, "window");

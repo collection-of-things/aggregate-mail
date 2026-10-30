@@ -58,10 +58,9 @@ async function mount(count = 3000, pageOffset = 0) {
     if (pageOffset && this.classList.contains("list"))
       return { top: pageOffset, bottom: pageOffset + height, height } as DOMRect;
     if (pageOffset && this.classList.contains("row")) {
-      const mail = props.messages[Number(this.getAttribute("data-index"))];
       const top = pageOffset + offset + parseFloat(this.closest<HTMLElement>(".mail-window-row")!.style.top) -
         (document.querySelector<HTMLElement>(".list")?.scrollTop || 0);
-      const rowHeight = props.narrow ? (props.density === "compact" ? 72 : mail.relevance > 1 ? 100 : 80) : props.density === "compact" ? 24 : mail.relevance === 3 ? 48 : mail.relevance === 2 ? 34 : 28;
+      const rowHeight = props.narrow ? (props.density === "compact" ? 72 : 100) : props.density === "compact" ? 24 : 34;
       const scale = parseFloat(dom.window.getComputedStyle(document.querySelector(".list")!).getPropertyValue("--text-scale")) || 1;
       return { top, bottom: top + rowHeight * scale, height: rowHeight * scale } as DOMRect;
     }
@@ -187,11 +186,11 @@ test("25624-message first, middle and last selections restore focus and retain a
 test("density, date groups, offsets, resize, filtering, sort, shrink and empty arrays preserve reachability", async () => {
   const app = await mount(180);
   try {
-    assert.equal(app.windowHeight(), 60 * (28 + 34 + 48));
+    assert.equal(app.windowHeight(), 180 * 34);
     app.props.sort = "newest"; await app.render();
     const groups = app.document.querySelectorAll<HTMLElement>(".mail-window-date");
     assert.ok(groups.length >= 3);
-    assert.ok(Math.abs(app.windowHeight() - (60 * (28 + 34 + 48) + groups.length * 30)) < 0.01);
+    assert.ok(Math.abs(app.windowHeight() - (180 * 34 + groups.length * 30)) < 0.01);
     assert.ok([...groups].every(group => parseFloat(group.style.height) > 30));
     await app.scroll(3000);
     const before = app.scrolls.length;
@@ -256,7 +255,7 @@ test("selection remains visible when the list sits inside an offset page ancesto
       `selected row top ${selected.top} must be inside viewport starting at ${viewport.top}`);
     assert.ok(selected.bottom <= viewport.bottom,
       `selected row bottom ${selected.bottom} must be inside viewport ending at ${viewport.bottom}`);
-    assert.equal(app.list().scrollTop, 688, "selection scrolling excludes the page ancestor offset");
+    assert.equal(app.list().scrollTop, 646, "selection scrolling excludes the page ancestor offset");
   } finally { await app.close(); }
 });
 
@@ -264,7 +263,7 @@ test("split cards retain every message across density and pane layout changes", 
   const app = await mount(3000);
   try {
     app.props.narrow = true; await app.render();
-    assert.ok(Math.abs(app.windowHeight() - 1000 * (80 + 100 + 100)) < 0.001);
+    assert.ok(Math.abs(app.windowHeight() - 3000 * 100) < 0.001);
     const seen = new Set<string>();
     for (let top = 0; top < app.list().scrollHeight; top += 430) {
       await app.scroll(top);

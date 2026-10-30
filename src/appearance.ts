@@ -55,12 +55,10 @@ export type Appearance = {
   transparency: Transparency;
   glassOpacity: number;
   reading: ReadingLayout;
-  // Rows follow relevance (high/medium/low heights) or one uniform medium row.
-  sizeByImportance: boolean;
   customThemes: CustomTheme[];
 };
 
-export const defaultAppearance: Appearance = { mode: "dark", theme: "black", accent: "blue", transparency: "glass", glassOpacity: 70, reading: "split", sizeByImportance: true, customThemes: [] };
+export const defaultAppearance: Appearance = { mode: "dark", theme: "black", accent: "blue", transparency: "glass", glassOpacity: 70, reading: "split", customThemes: [] };
 const storageKey = "emc2.appearance.v1";
 const glassOpacitySchema = z.number().int().min(0).max(100);
 
@@ -115,7 +113,6 @@ export function readAppearance(): Appearance {
       transparency,
       glassOpacity: glassOpacitySchema.safeParse(input.glassOpacity).data ?? defaultAppearance.glassOpacity,
       reading: oneOf(readingLayouts, input.reading) ? input.reading : defaultAppearance.reading,
-      sizeByImportance: typeof input.sizeByImportance === "boolean" ? input.sizeByImportance : defaultAppearance.sizeByImportance,
       customThemes: library,
     };
   } catch {
@@ -125,11 +122,11 @@ export function readAppearance(): Appearance {
 
 export function saveAppearance(value: Appearance): boolean {
   try {
-    const { mode, theme, accent, transparency, reading, sizeByImportance } = value;
+    const { mode, theme, accent, transparency, reading } = value;
     const glassOpacity = glassOpacitySchema.parse(value.glassOpacity);
     const library = customThemesSchema.parse(value.customThemes);
     if (!oneOf(themes, theme) && !library.some((custom) => custom.id === theme)) return false;
-    localStorage.setItem(storageKey, JSON.stringify({ mode, theme, accent, transparency, glassOpacity, reading, sizeByImportance, customThemes: library }));
+    localStorage.setItem(storageKey, JSON.stringify({ mode, theme, accent, transparency, glassOpacity, reading, customThemes: library }));
     return true;
   } catch {
     return false;

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useContext, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Account, RendererMail } from "../../shared/types";
 import { MAX_MAIL_BATCH, type BulkMailAction, type MailBatchResponse, type MailBatchResult, type MailIdentity } from "../../shared/bulk-mail";
 import { createPortal } from "react-dom";
@@ -15,10 +15,11 @@ const actions: [BulkMailAction, string][] = [["read", "Mark as read"], ["unread"
 const sentActions = new Set<BulkMailAction>(["pin", "unpin", "trash"]);
 type Outcome = { results: MailBatchResult[]; items: RendererMail[]; refreshFailed?: boolean };
 
-export function BulkMailSelection({ messages, accounts, scope, selectedId, onSelect, api, reload, disabled, syncing = false, onBlockingChange, selectionShortcut, toggleLabel = "X", active = true, children }: {
+export function BulkMailSelection({ messages, accounts, scope, selectedId, onSelect, api, reload, disabled, syncing = false, onBlockingChange, selectionShortcut, toggleLabel = "X", active = true, railSelect = null, railActions = null, children }: {
   messages: RendererMail[]; accounts: Account[]; scope: string; selectedId?: string;
   onSelect: (id: string) => void; api: Api; reload: () => Promise<unknown>;
   selectionShortcut?: (event: globalThis.KeyboardEvent) => "toggle" | "range" | null; toggleLabel?: string;
+  railSelect?: HTMLElement | null; railActions?: HTMLElement | null;
   disabled: boolean; syncing?: boolean; active?: boolean; onBlockingChange: (blocking: boolean) => void; children: ReactNode;
 }) {
   const [selection, setSelection] = useState<{ scope: string; items: MailIdentity[] }>({ scope, items: [] });
@@ -120,25 +121,46 @@ export function BulkMailSelection({ messages, accounts, scope, selectedId, onSel
     return index < 0 ? "Unavailable account" : accountLabel(accounts[index], index, privacy, accounts);
   };
   const resultMail = new Map(outcome?.items.map(mail => [selectionKey(mail), mail]));
+  const firstBatch = messages.slice(0, MAX_MAIL_BATCH);
+  const allSelected = firstBatch.length > 0 && items.length === firstBatch.length && firstBatch.every(mail => selected.has(selectionKey(mail)));
+  const masterRef = useRef<HTMLButtonElement>(null);
+  // Selecting hides the Inbox tabs; move focus to the master when it was on one.
+  useLayoutEffect(() => {
+    if (!(items.length > 0)) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && railSelect?.closest(".mail-category-bar")?.querySelector(".inbox-tabs")?.contains(active)) masterRef.current?.focus();
+  }, [items.length > 0]);
+  const master = <button type="button" role="checkbox" className="mail-select rail-master" ref={masterRef}
+    aria-checked={allSelected ? "true" : items.length ? "mixed" : "false"}
+    aria-label={`Select all visible (up to ${MAX_MAIL_BATCH})`} title={`Select all visible (up to ${MAX_MAIL_BATCH})`}
+    disabled={blocked || !messages.length} onClick={() => { if (allSelected) clear(); else all(); }}>
+    {allSelected ? "✓" : items.length ? "–" : ""}
+  </button>;
+  const triage = <div role="group" className="rail-triage" aria-label="Select and triage messages"
+    aria-description={`${toggleLabel} toggles selection. Shift and arrow keys or Shift-click select a range. Escape clears selection.`}
+    data-selection={items.length ? "true" : undefined}>
+    <span role="status" aria-live="polite" aria-atomic="true" className={items.length ? "rail-count" : "visually-hidden"}>
+      {items.length} messages selected{limit ? `; selection limited to ${MAX_MAIL_BATCH}` : ""}</span>
+    {!!items.length && <>
+      <span className="rail-accounts">{[...new Set(items.map(item => item.accountId))].map(label).join(", ")}</span>
+      <button className="tool" disabled={blocked} onClick={clear}>Clear selection</button>
+      {sentOnly && <span id={sentNote}>Sent mail supports Pin, Unpin and Move to Trash only.</span>}
+      <span className="rail-tools">{actions.map(([action, text], index) => <button key={index} className="tool" disabled={actionsBlocked || sentOnly && !sentActions.has(action)}
+        aria-describedby={sentOnly && !sentActions.has(action) ? sentNote : undefined} onClick={() => {
+        if (action === "trash") setConfirmation(items.map(item => ({ ...item })));
+        else if (action === "snooze") setSnoozing(true);
+        else void execute(action);
+      }}>{text}</button>)}</span>
+    </>}
+    {!!items.length && syncing && !pending && <span role="status">Waiting for sync…</span>}
+    {pending && <span role="status">Applying message actions…</span>}
+  </div>;
   return <BulkSelectionContext.Provider value={active ? { selected, disabled: blocked, toggle } : null}>
     <div className="bulk-mail" onKeyDownCapture={keydown}>
-      {active && <div className="bulk-bar" role="group" aria-label="Select and triage messages" aria-description={`${toggleLabel} toggles selection. Shift and arrow keys or Shift-click select a range. Escape clears selection.`}>
-        <button className="button" disabled={blocked || !messages.length} onClick={all}>Select all visible (up to {MAX_MAIL_BATCH})</button>
-        <span role="status" aria-live="polite" aria-atomic="true">{items.length} messages selected{limit ? `; selection limited to ${MAX_MAIL_BATCH}` : ""}</span>
-        {!!items.length && <>
-          <span>{[...new Set(items.map(item => item.accountId))].map(label).join(", ")}</span>
-          <button className="button" disabled={blocked} onClick={clear}>Clear selection</button>
-          {sentOnly && <span id={sentNote}>Sent mail supports Pin, Unpin and Move to Trash only.</span>}
-          {actions.map(([action, text], index) => <button key={index} className="button" disabled={actionsBlocked || sentOnly && !sentActions.has(action)}
-            aria-describedby={sentOnly && !sentActions.has(action) ? sentNote : undefined} onClick={() => {
-            if (action === "trash") setConfirmation(items.map(item => ({ ...item })));
-            else if (action === "snooze") setSnoozing(true);
-            else void execute(action);
-          }}>{text}</button>)}
-        </>}
-        {!!items.length && syncing && !pending && <span role="status">Waiting for sync…</span>}
-        {pending && <span role="status">Applying message actions…</span>}
-      </div>}
+      {/* Portals keep the pieces under this React subtree, so onKeyDownCapture still sees them. */}
+      {active && railSelect && createPortal(master, railSelect)}
+      {active && railActions && createPortal(triage, railActions)}
+      {active && (!railSelect || !railActions) && <div className="bulk-bar">{!railSelect && master}{!railActions && triage}</div>}
       {active && outcome && <div className="bulk-result" role="status">
         <p>{outcome.results.filter(item => item.status === "done").length} done, {outcome.results.filter(item => item.status === "failed").length} failed, {outcome.results.filter(item => item.status === "unknown").length} unknown.</p>
         {outcome.results.some(item => item.status !== "done") && <>

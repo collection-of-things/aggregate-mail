@@ -952,8 +952,12 @@ test("App select-all selects closed-list mail without reading and leaves an open
   try {
     const event = await app.key("a", undefined, { ctrlKey: true });
     assert.equal(event.defaultPrevented, true);
+    const rail = app.container.querySelector(".mail-category-bar")!;
+    assert.ok(rail.querySelector('[aria-label="Select all visible (up to 200)"]'), "the master checkbox sits in the shared rail");
     const bar = app.container.querySelector('[aria-label="Select and triage messages"]')!;
+    assert.ok(bar.closest(".mail-category-bar"), "the triage group lives in the shared rail");
     assert.match(bar.textContent!, /[1-9] messages selected/);
+    assert.equal(app.container.querySelector(".bulk-bar"), null, "no separate bulk bar row remains in the list pane");
     assert.equal(app.mutations.length, 0);
     await app.click(app.button("Clear selection", bar));
     await app.open();

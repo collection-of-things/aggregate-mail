@@ -268,15 +268,19 @@
 .mail-view { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; }
 .mail-view-head { gap: 10px; }
 .mail-view-head .head-note { margin-left: auto; }
-.mail-category-bar { height: 42px; flex-shrink: 0; border-bottom: 1px solid var(--line); padding-inline: 25px; overflow-x: auto; }
+.mail-category-bar { display: flex; align-items: center; column-gap: 4px; height: 42px; flex-shrink: 0; border-bottom: 1px solid var(--line); padding: 0 12px 0 10px; overflow-x: auto; }
 .mail-category-bar .inbox-tabs { height: 100%; gap: 22px; margin: 0; }
+.rail-select { flex-shrink: 0; width: 16px; display: grid; place-items: center; }
+.rail-actions { display: flex; align-items: center; min-width: 0; margin-left: auto; }
+.rail-actions:has(> [data-selection="true"]) { flex: 1; margin-left: 0; }
+.mail-category-bar:has(.rail-actions [data-selection="true"]) .inbox-tabs { display: none; }
 .mail-category-bar .inbox-tabs button { min-width: max-content; flex: none; font-size: calc(11px * var(--text-scale, 1)); }
 .mail-category-bar .tab-name { display: inline; }
 .mail-category-bar .tab-icon { display: none; }
 :root:not([data-glass]) .mail-category-bar { background: var(--surface); }
 .reader-head { height: 43px; padding-inline: 20px; }
 .reader-head .mail-actions { gap: 10px; }
-.reader-scroll .message { padding: 29px 32px; }
+.reader-scroll .message { padding: 29px var(--reader-gutter, 32px); }
 .message h1 { font-size: calc(22px * var(--text-scale, 1)); font-weight: 600; letter-spacing: -.03em; }
 .message-from { margin-bottom: 24px; padding-bottom: 22px; }
 .message-from .avatar { width: 32px; height: 32px; }
@@ -415,14 +419,14 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
   .view-summary { font-size: calc(10px * var(--text-scale, 1)); }
 }
 @media (max-width: 760px) {
-  .mail-category-bar { padding-inline: 16px; }
   .mail-category-bar .inbox-tabs { gap: 14px; }
   .view-summary { display: none; }
   .main-head { height: 52px; padding-inline: 16px; }
   .today-layout:not(.has-selection) { display: block; overflow: auto; }
   .today-layout:not(.has-selection) > .today-reader { border-top: 1px solid var(--line); }
   section.work-calendar[data-layout="month"] { display: block; }
-  .reader-scroll .message { padding: 24px 20px; }
+  .reader-scroll { --reader-gutter: 20px; }
+  .reader-scroll .message { padding: 24px var(--reader-gutter, 20px); }
   .settings-column { padding: 24px 20px 40px; }
 }
 @container (max-width: 680px) {

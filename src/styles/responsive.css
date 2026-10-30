@@ -10,9 +10,6 @@
   .message {
     padding: 24px 18px 48px;
   }
-  .stacked .row-preview {
-    padding-left: 0;
-  }
   .row-line strong {
     width: auto;
   }

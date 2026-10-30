@@ -14,6 +14,14 @@ unversioned history without treating it as a release record.
 - Prepare reviewed CLI draft proposals with multiple To recipients and Bcc.
   Approval preserves the recipients in editable Drafts and never sends mail. ([#175](https://github.com/collection-of-things/aggregate-mail/issues/175))
 
+### Changed
+
+- Read mail full width like Gmail: the subject, sender, labels and formatted body span the reader instead of a centered 820px column, so sender-centered tables stay centered on wide panes.
+- Replace Size rows by importance with a small filled importance marker before the sender on high-relevance mail, in the sorting-reason color. Every row keeps one height in each density.
+- The sidebar lists Mail views before Workspace views.
+- Category tabs and bulk selection share one rail with a select-all checkbox.
+- The conversation reader hides its coverage notes behind a disclosure and shows single emails without thread chrome, apart from Gmail's Load full conversation link.
+
 ### Fixed
 
 - Keep mail selection checkboxes and Select all usable while mail syncs; bulk actions wait for sync and say so. ([#178](https://github.com/collection-of-things/aggregate-mail/pull/178))
@@ -38,6 +46,8 @@ unversioned history without treating it as a release record.
 - Preserve bounded partial IMAP search results and allow recovery of an unbound archived message when its subject matches and its envelope date is absent; a present date must match. Privacy mode hides the whole text when there are more names, or longer names, than its bounded matcher covers, instead of leaving them visible. ([#167](https://github.com/collection-of-things/aggregate-mail/pull/167))
 - Pin and unpin a message without waiting for an ongoing mail sync to finish ([#171](https://github.com/collection-of-things/aggregate-mail/issues/171)).
 - Complete a task from its Today or Projects checkbox, or from its details in Calendar and the other work views, preserving unfinished project decisions, save recovery and focus when returning from tasks or source emails ([#172](https://github.com/collection-of-things/aggregate-mail/issues/172)).
+- Align the bulk-select checkbox with the row contents and keep the unread dot clear beside it, on both wide rows and side-by-side cards.
+- Keep the toolbar update control clear of the privacy button beside drawn right-side window controls.
 
 ## 0.2.22 - 2026-10-30
 

@@ -8,6 +8,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import express from "express";
 import { z } from "zod";
 import type { Commitment, Project, AgentAction, AgentPayload, AgentProposal, AgentTool, Conversation, RulePreview } from "../shared/workspace.js";
+import { LOCAL_EVIDENCE_CAVEAT } from "../shared/workspace.js";
 import type { Mail, Rule } from "../shared/types.js";
 import { all, get, readConversationMail, put, remove, transaction, account } from "./store.js";
 import { findMail, updateMessage, runMailWork } from "./mail-actions.js";
@@ -58,7 +59,7 @@ export function conversation(id: string, view?: Map<string, Mail>): Conversation
   const observedIds = new Set(messages.map((m) => m.messageId).filter(Boolean));
   const missing = new Set(messages.flatMap((m) => [m.inReplyTo, ...(m.references || [])]).filter((value): value is string => Boolean(value) && !observedIds.has(value)));
   const coverage = get("coverage", source.accountId);
-  const gaps = ["Local evidence only. Inbox and bounded Sent imports do not prove conversation completeness.", ...[...missing].map((value) => `Referenced message unavailable: ${value}`)];
+  const gaps = [LOCAL_EVIDENCE_CAVEAT, ...[...missing].map((value) => `Referenced message unavailable: ${value}`)];
   if (!coverage)
     gaps.push("Sent evidence has not been imported.");
   if (coverage?.error)
