@@ -208,3 +208,13 @@ test("a sync refresh keeps a still-listed range anchor", async () => {
     await check("local-5", true); assert.match(ui.count()!, /^3 messages selected/);
   } finally { await ui.close(); }
 });
+
+test("a sync refresh keeps an open bulk dialog until one of its messages disappears", async () => {
+  const ui = await mount();
+  try {
+    const open = () => document.body.textContent!.includes("Snooze selected messages");
+    await ui.render(messages.slice(0, 5)); await ui.key("local-1", "x"); await ui.click("Snooze"); assert.ok(open());
+    await ui.render([{ ...messages[0], id: "new-0", remoteId: "new" }, ...messages.slice(0, 5)]); assert.ok(open(), "added mail keeps the dialog");
+    await ui.render([messages[0], ...messages.slice(2, 5)]); assert.equal(open(), false, "a removed target closes the dialog");
+  } finally { await ui.close(); }
+});

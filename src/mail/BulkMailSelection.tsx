@@ -40,10 +40,12 @@ export function BulkMailSelection({ messages, accounts, scope, selectedId, onSel
   const membership = JSON.stringify(messages.map(selectionKey));
   useEffect(() => {
     setSelection(current => ({ scope, items: current.scope === scope ? current.items.filter(item => available.has(selectionKey(item))) : [] }));
-    // Sync refreshes keep a range anchor that is still listed.
-    if (anchorScope.current !== scope || (anchor.current && !available.has(anchor.current))) anchor.current = null;
+    // Sync refreshes keep a still-listed range anchor and an open dialog whose targets all remain.
+    const moved = anchorScope.current !== scope;
     anchorScope.current = scope;
-    setConfirmation(null); setSnoozing(false); setLimit(false);
+    if (moved || (anchor.current && !available.has(anchor.current))) anchor.current = null;
+    const lost = (targets: MailIdentity[]) => targets.some(item => !available.has(selectionKey(item)));
+    if (moved || lost(selection.items) || (confirmation && lost(confirmation))) { setConfirmation(null); setSnoozing(false); setLimit(false); }
   }, [scope, membership]);
   useEffect(() => {
     onBlockingChange(pending || !!confirmation || snoozing);
