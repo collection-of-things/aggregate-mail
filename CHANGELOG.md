@@ -16,6 +16,8 @@ unversioned history without treating it as a release record.
 
 ### Fixed
 
+- Show only applicable mail-row hover actions, in the reader toolbar's order: Archive or Move to Inbox, Snooze, Trash, Reply, read state and Pin.
+
 - Identify malformed MCP app queries with a stable validation code and guidance
   to check quotes, fields and dates. ([#175](https://github.com/collection-of-things/aggregate-mail/issues/175))
 

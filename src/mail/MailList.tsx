@@ -15,7 +15,9 @@ import { accountLabel } from "../mail-ui";
 
 type RowLayout = "inline" | "stacked" | "brief" | "card";
 type RowAction = Omit<MenuAction, "run"> & { run: (event: MouseEvent<HTMLButtonElement>) => void };
-const rowIcons = { unread: MailIcon, inbox: Inbox, read: Check, snooze: Clock, unsnooze: Inbox, reply: Reply, archive: Archive, pin: Pin, trash: Trash };
+// Toolbar order: Archive (or Move to Inbox), Snooze, Trash, then Reply, read state and Pin.
+const rowIcons = { archive: Archive, inbox: Inbox, snooze: Clock, unsnooze: Inbox, trash: Trash, reply: Reply, read: Check, unread: MailIcon, pin: Pin };
+const rowOrder = Object.keys(rowIcons);
 
 /**
  * Mail rows under sticky date headings. Wide lists keep sender and subject on
@@ -139,7 +141,9 @@ export function MailList<T extends Mail>({
           <div className="row-actions" role="group" aria-label="Email actions">
             {actions?.(m).filter((action) => action.id in rowIcons &&
               !(action.id === "read" && !m.unread) && !(action.id === "unread" && m.unread) &&
-              !(action.id === "snooze" && m.snoozedUntil && m.snoozedUntil > Date.now())).map((action) => {
+              !(action.id === "archive" && m.archived) && !(action.id === "inbox" && !m.archived) &&
+              !(action.id === "snooze" && m.snoozedUntil && m.snoozedUntil > Date.now()))
+              .sort((a, b) => rowOrder.indexOf(a.id) - rowOrder.indexOf(b.id)).map((action) => {
               const Icon = rowIcons[action.id as keyof typeof rowIcons];
               return <button key={action.id} type="button" aria-label={action.label}
                 aria-description={action.description} title={action.description || action.label}
