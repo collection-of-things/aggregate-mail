@@ -334,10 +334,11 @@
 .work-group h2 { padding: 0 0 13px; border-bottom: 0; font-size: calc(12px * var(--text-scale, 1)); }
 .work-group h2 span { margin-left: auto; color: var(--text-3); font-size: calc(10px * var(--text-scale, 1)); }
 .work-group .work-row, .project-tasks .work-row { padding: 12px 0; border-radius: 0; }
-.work-select { position: relative; padding-left: 28px; gap: 6px; }
+.work-row { display: flex; align-items: flex-start; gap: 13px; }
+.work-row-complete { margin: 7px 0 0; flex: 0 0 auto; }
+.work-select { position: relative; min-width: 0; gap: 6px; }
 .work-select strong { font-weight: 500; font-size: calc(12px * var(--text-scale, 1)); }
 .work-select .work-meta { font-size: calc(11px * var(--text-scale, 1)); color: var(--text-3); }
-.work-row-marker { position: absolute; left: 0; top: 7px; width: 15px; height: 15px; border: 1px solid var(--line-2); border-radius: 4px; }
 .work-row.selected { border-radius: 7px; padding-inline: 10px; background: var(--selected); }
 .project-overview { padding-bottom: 25px; }
 .project-overview h2 { margin: 0 0 6px; font-size: calc(20px * var(--text-scale, 1)); font-weight: 550; letter-spacing: -.025em; }

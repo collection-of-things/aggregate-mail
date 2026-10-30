@@ -2907,6 +2907,15 @@ When inline conversation reading is combined with Forward, only the selected
 message receives the callback bound to the current action target. Other
 expanded messages must first use Select for actions.
 
+## Direct task completion
+
+Today and Projects provide a task completion checkbox. Task details in Today,
+Projects and Calendar offer Mark complete. Both send the current revision with
+the existing commitment update, retain its reason and evidence, and append
+history. Failed or uncertain writes use the existing refresh and review gate.
+Completion does not change mail or local work sessions. Reopening and cancelling
+remain in Edit task. See [ADR 0107](adr/0107-direct-task-completion.md).
+
 ## Local mail Undo
 
 Single-message Pin and Unpin run during a mail sync and remain tracked by the

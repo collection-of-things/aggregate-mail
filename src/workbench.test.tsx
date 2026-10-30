@@ -214,7 +214,7 @@ async function mount(mode: "actions"|"calendar"|"projects"|"agents"|"assistants"
     else if(url==="/commitments"&&method==="POST"){
       if(failure)throw new Error("Synthetic conflict");const input=body as any;const item:Commitment={...input,id:"c1",revision:1,updatedAt:1,history:[{at:1,status:input.status,text:input.text,reason:input.reason,evidenceMailIds:input.evidenceMailIds}]};workspace.commitments.push(item);result=item;
     }else if(url==="/commitments/c1"&&method==="PATCH"){
-      if(failure)throw new Error("Synthetic conflict");const input=body as any;assert.equal(input.revision,workspace.commitments[0].revision);workspace.commitments[0]={...workspace.commitments[0],...input,revision:input.revision+1,history:[...workspace.commitments[0].history,{at:2,status:input.status,text:input.text,reason:input.reason,evidenceMailIds:input.evidenceMailIds}]};result=workspace.commitments[0];
+      if(failure)throw new Error("Synthetic conflict");const input=body as any;const current=workspace.commitments[0];assert.equal(input.revision,current.revision);workspace.commitments[0]={...current,...input,revision:input.revision+1,history:[...current.history,{at:2,status:input.status??current.status,text:input.text??current.text,reason:input.reason??current.reason,evidenceMailIds:input.evidenceMailIds??current.evidenceMailIds}]};result=workspace.commitments[0];
     }else if(url==="/projects"&&method==="POST") {const input=body as any;assert.deepEqual(input.confirmAccountIds,["a","b"]);const item={...input,id:"p1",accountIds:["a","b"],crossAccountConfirmed:true,revision:1,updatedAt:1};workspace.projects.push(item);result=item;}
     else if(url.endsWith("/decisions")&&method==="POST") { if(failure)throw new Error("Synthetic decision failure");throw new Error("Unexpected decision save"); }
     else if(url.endsWith("/approve")){const input=body as any;assert.equal(input.digest,workspace.proposals[0].digest);workspace.proposals[0].status="succeeded";result=workspace.proposals[0];}
@@ -1200,6 +1200,45 @@ test("quitting with a dirty event form uses the same unload guard as a draft", a
   assert.equal(unload(), true, "a changed edit event form blocks quit");
   await ui.click(ui.button("Cancel"));
   assert.equal(unload(), false, "Cancel returns to the saved event without the guard");
+ } finally { await ui.close(); }
+});
+
+test("complete a waiting task directly from Today and Calendar", async () => {
+ for (const mode of ["actions", "calendar"] as const) {
+  const ui = await mount(mode);
+  try {
+   ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Synthetic task", reason: "Synthetic reason", status: "waiting", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [] });
+   await ui.click(ui.button("Refresh workspace"));
+   if (mode === "actions") {
+    const checkbox = ui.container.querySelector<HTMLInputElement>('input[aria-label="Mark task complete"]');
+    assert.ok(checkbox);
+    await ui.click(checkbox);
+   } else {
+    await ui.click(ui.button("Agenda"));
+    const task = [...ui.container.querySelectorAll<HTMLButtonElement>(".calendar-agenda button")].find(button => button.textContent?.includes("Synthetic task"));
+    assert.ok(task); await ui.click(task);
+    await ui.click(ui.button("Mark complete"));
+   }
+   assert.deepEqual(ui.requests.filter(request => request.method === "PATCH").map(({ url, body }) => ({ url, body })), [{ url: "/commitments/c1", body: { revision: 1, status: "done" } }]);
+   assert.equal(ui.workspace.commitments[0].status, "done");
+   assert.equal(ui.workspace.commitments[0].reason, "Synthetic reason");
+   assert.equal(ui.workspace.commitments[0].history.at(-1)?.status, "done");
+   assert.match(ui.container.textContent!, /Task completed/);
+  } finally { await ui.close(); }
+ }
+});
+
+test("an unconfirmed completion keeps the task and prevents another write", async () => {
+ const ui = await mount("actions");
+ try {
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Synthetic task", reason: "Synthetic reason", status: "waiting", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [] });
+  await ui.click(ui.button("Refresh workspace")); ui.fail();
+  await ui.click(ui.container.querySelector<HTMLInputElement>('input[aria-label="Mark task complete"]')!);
+  assert.equal(ui.workspace.commitments[0].status, "waiting");
+  assert.match(ui.container.textContent!, /previous change has an unknown outcome/i);
+  assert.doesNotMatch(ui.container.textContent!, /Task completed/);
+  assert.equal(ui.container.querySelector<HTMLInputElement>('input[aria-label="Mark task complete"]')!.disabled, true);
+  assert.equal(ui.requests.filter(request => request.method === "PATCH").length, 1);
  } finally { await ui.close(); }
 });
 

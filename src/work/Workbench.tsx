@@ -228,6 +228,9 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   const [detailOpen, setDetailOpen] = useState(false);
   const inspector = useRef<HTMLElement>(null);
   const selectedRow = useRef<HTMLButtonElement | null>(null);
+  const taskNotice = useRef<HTMLParagraphElement | null>(null);
+  const [taskStatus, setTaskStatus] = useState("");
+  useEffect(() => { if (taskStatus) taskNotice.current?.focus({ preventScroll: true }); }, [taskStatus]);
   const wasReading = useRef(readerOpened);
   useEffect(() => {
     if (wasReading.current && !readerOpened && (mode === "actions" || mode === "projects")) {
@@ -297,9 +300,19 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   useEffect(() => { onModalChange?.(!!editor || !!projectEditor || !!eventEditor || !!eventDelete || sessionModal); return () => onModalChange?.(false); }, [!!editor, !!projectEditor, !!eventEditor, !!eventDelete, sessionModal, onModalChange]);
   useEffect(() => { onEventDirtyChange?.(eventDirty || sessions.dirty || sessions.locked); return () => onEventDirtyChange?.(false); }, [eventDirty, sessions.dirty, sessions.locked, onEventDirtyChange]);
   const accountName = (item: Commitment) => { const index = state.accounts.findIndex((account) => account.id === item.accountId); return index < 0 ? "Account unavailable" : accountLabel(state.accounts[index], index, privacy); };
+  const completeTask = async (item: Commitment) => {
+    if (!openCommitment(item) || blocked || work.refreshing || sessionModal) return;
+    setTaskStatus("");
+    if (await mutate(() => api(`/commitments/${encodeURIComponent(item.id)}`, "PATCH", { revision: item.revision, status: "done" }))) {
+      setTaskStatus("Task completed.");
+    }
+  };
   const itemRow = (item: Commitment) => <article key={item.id} className={`work-item work-row${selectedId === item.id ? " selected" : ""}`}>
+    <input className="work-row-complete" type="checkbox" aria-label="Mark task complete" aria-describedby={`work-task-${encodeURIComponent(item.id)}`}
+      checked={item.status === "done"} disabled={!openCommitment(item) || blocked || work.refreshing || sessionModal}
+      onChange={() => void completeTask(item)} />
     <button type="button" className="work-select" aria-pressed={selectedId === item.id} onClick={(event) => { selectedRow.current = event.currentTarget; if (sessionModal) return; setSelectedId(item.id); setDetailOpen(true); if (mode === "actions" || mode === "projects") { const mail = state.messages.find((mail) => mail.id === item.sourceMailId && mail.accountId === item.accountId && state.accounts.some((account) => account.id === mail.accountId)); if (mail) { missingSelection.current = false; onOpen(mail); } else { missingSelection.current = true; onCloseReader?.(); } } }}>
-      <span className="work-row-marker" aria-hidden="true" /><strong><Redact text={item.text} /></strong>
+      <strong id={`work-task-${encodeURIComponent(item.id)}`}><Redact text={item.text} /></strong>
       <span className="work-meta">{`${statusNames[item.status]} · `}<Redact text={accountName(item)} />{deadlineDate(item) && ` · Due ${deadlineDate(item)}`}{item.followUpAt === undefined ? "" : ` · Remind ${new Date(item.followUpAt).toLocaleString()}`}</span>
     </button>
   </article>;
@@ -316,6 +329,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       <button type="button" className="icon" aria-label={mode === "calendar" ? "Back to calendar" : "Back to work list"} title={mode === "calendar" ? "Back to calendar" : "Back to work list"} onClick={closeDetail}><ArrowLeft size={15} /></button>
       <span className="work-status">{statusNames[selected.status]}</span>
       <strong><Redact text={selected.text} /></strong>
+      {openCommitment(selected) && <button type="button" disabled={blocked || work.refreshing || sessionModal} onClick={() => void completeTask(selected)}>Mark complete</button>}
       <button type="button" disabled={blocked} onClick={() => setEditor(selected)}>Edit task</button>
       <button type="button" disabled={blocked || sessions.locked || !sessions.value?.available} onClick={() => sessions.open(selected)}>Plan work</button>
     </div>
@@ -383,6 +397,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
         onChange={setAgentTab} /></div>}
     </>)}
     <div className={`work-content work-${mode}${mode === "actions" || mode === "projects" ? " today-content" : ""}`}>
+    {taskStatus && <p ref={taskNotice} tabIndex={-1} role="status" className="work-meta">{taskStatus}</p>}
     {error && !editor && <p role="alert">{error}</p>}
     {(mode === "agents" || mode === "assistants") && agentError && <p role="alert">{agentError}</p>}
     {!loaded && !error && <p role="status">Loading confirmed work…</p>}
