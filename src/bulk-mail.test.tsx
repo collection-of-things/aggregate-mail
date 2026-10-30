@@ -11,7 +11,7 @@ const messages: Mail[] = Array.from({ length: 250 }, (_, index) => ({ id: `local
   sender: "Synthetic", address: "sender@example.test", to: "reader@example.test", subject: `Subject ${index}`,
   body: "", preview: "", date: 1, unread: true, archived: false, category: "important", relevance: 2, reason: "", snoozedUntil: null }));
 const noop = () => {};
-async function mount(api: Api = async <T,>() => ({ results: [] } as T), reload = async () => {}, selectionShortcut?: (event: KeyboardEvent) => "toggle" | "range" | null) {
+async function mount(api: Api = async <T,>() => ({ results: [] } as T), reload = async () => {}, selectionShortcut?: (event: KeyboardEvent) => "toggle" | "range" | null, syncing = false) {
   const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: "http://localhost/" });
   const previous = new Map<string, PropertyDescriptor | undefined>();
   for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true })) {
@@ -26,7 +26,7 @@ async function mount(api: Api = async <T,>() => ({ results: [] } as T), reload =
     const [cursor, setCursor] = useState(items[0]?.id);
     return <div ref={ref} className="list"><BulkMailSelection messages={items} accounts={[
       { id: "a", email: "a@example.test", provider: "imap" }, { id: "b", email: "b@example.test", provider: "imap" },
-    ]} scope={scope} selectedId={cursor} onSelect={setCursor} api={api} reload={reload} disabled={false} onBlockingChange={noop} selectionShortcut={selectionShortcut}>
+    ]} scope={scope} selectedId={cursor} onSelect={setCursor} api={api} reload={reload} disabled={false} syncing={syncing} onBlockingChange={noop} selectionShortcut={selectionShortcut}>
       <MailList messages={items} accounts={[]} listRef={ref} selectedId={cursor} focusSelection={true} density="comfortable" narrow={false} sort="relevance"
         opening="single" onSelect={setCursor} onOpen={() => { opened++; }} onMenu={noop} onMenuKey={noop} />
     </BulkMailSelection></div>;
@@ -182,5 +182,18 @@ test("custom selection bindings and existing arrow shortcuts retain their owners
     await ui.key("local-0", "ArrowDown", { shiftKey: true });
     assert.match(ui.count()!, /^1 messages selected/, "a configured arrow action is not captured as a range");
     assert.equal(ui.opened(), 0);
+  } finally { await ui.close(); }
+});
+
+test("selection stays available during sync while bulk actions wait for it", async () => {
+  const calls: unknown[] = [];
+  const ui = await mount(async <T,>(...args: unknown[]) => { calls.push(args); return { results: [] } as T; }, async () => {}, undefined, true);
+  try {
+    assert.equal(ui.button("Select all visible (up to 200)").disabled, false);
+    await act(async () => document.querySelector<HTMLButtonElement>('[role="checkbox"]')!.click());
+    assert.match(ui.count()!, /^1 messages selected/);
+    assert.equal(ui.button("Archive").disabled, true);
+    assert.ok(document.body.textContent!.includes("Waiting for sync…"));
+    await ui.click("Archive"); assert.equal(calls.length, 0);
   } finally { await ui.close(); }
 });

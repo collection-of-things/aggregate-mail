@@ -1522,8 +1522,8 @@ export function App() {
                   toggleLabel={shortcut("selectMail")}
                   selectionShortcut={event => matches(event, "selectMail", interaction, interactionPlatform()) ? "toggle" :
                     interactionActions.some(({ id }) => matches(event, id, interaction, interactionPlatform())) ? null : "range"}
-                  disabled={!loaded || search.pending || busy || syncing || settings || !!compose || updateInstalling || !!contextMenu || palette || !!teach || !!snooze || !!trashMail || shortcuts || !!labelMail || !!connecting}
-                  onBlockingChange={setBulkBlocking}>
+                  disabled={!loaded || search.pending || busy || settings || !!compose || updateInstalling || !!contextMenu || palette || !!teach || !!snooze || !!trashMail || shortcuts || !!labelMail || !!connecting}
+                  syncing={syncing} onBlockingChange={setBulkBlocking}>
                 {reader && !split ? reader : filtered.length ? (
                   <MailList
                     messages={filtered}

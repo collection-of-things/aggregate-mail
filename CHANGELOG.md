@@ -16,6 +16,8 @@ unversioned history without treating it as a release record.
 
 ### Fixed
 
+- Keep mail selection checkboxes and Select all usable while mail syncs; bulk actions wait for sync and say so.
+
 - Show only applicable mail-row hover actions, in the reader toolbar's order: Archive or Move to Inbox, Snooze, Trash, Reply, read state and Pin.
 
 - Identify malformed MCP app queries with a stable validation code and guidance

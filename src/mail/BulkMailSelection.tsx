@@ -15,11 +15,11 @@ const actions: [BulkMailAction, string][] = [["read", "Mark as read"], ["unread"
 const sentActions = new Set<BulkMailAction>(["pin", "unpin", "trash"]);
 type Outcome = { results: MailBatchResult[]; items: RendererMail[]; refreshFailed?: boolean };
 
-export function BulkMailSelection({ messages, accounts, scope, selectedId, onSelect, api, reload, disabled, onBlockingChange, selectionShortcut, toggleLabel = "X", active = true, children }: {
+export function BulkMailSelection({ messages, accounts, scope, selectedId, onSelect, api, reload, disabled, syncing = false, onBlockingChange, selectionShortcut, toggleLabel = "X", active = true, children }: {
   messages: RendererMail[]; accounts: Account[]; scope: string; selectedId?: string;
   onSelect: (id: string) => void; api: Api; reload: () => Promise<unknown>;
   selectionShortcut?: (event: globalThis.KeyboardEvent) => "toggle" | "range" | null; toggleLabel?: string;
-  disabled: boolean; active?: boolean; onBlockingChange: (blocking: boolean) => void; children: ReactNode;
+  disabled: boolean; syncing?: boolean; active?: boolean; onBlockingChange: (blocking: boolean) => void; children: ReactNode;
 }) {
   const [selection, setSelection] = useState<{ scope: string; items: MailIdentity[] }>({ scope, items: [] });
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -34,6 +34,8 @@ export function BulkMailSelection({ messages, accounts, scope, selectedId, onSel
   const items = selection.scope === scope ? selection.items.filter(item => available.has(selectionKey(item))) : [];
   const selected = new Set(items.map(selectionKey));
   const blocked = disabled || pending || !!confirmation || snoozing;
+  // Selecting is local, so it stays available during sync; only actions wait.
+  const actionsBlocked = blocked || syncing;
   const membership = JSON.stringify(messages.map(selectionKey));
   useEffect(() => {
     setSelection(current => ({ scope, items: current.scope === scope ? current.items.filter(item => available.has(selectionKey(item))) : [] }));
@@ -92,7 +94,7 @@ export function BulkMailSelection({ messages, accounts, scope, selectedId, onSel
     return () => window.removeEventListener("keydown", handler);
   }, [active]);
   const execute = async (action: BulkMailAction, submitted = items, until?: number) => {
-    if (lock.current || disabled || !submitted.length) return;
+    if (lock.current || disabled || syncing || !submitted.length) return;
     lock.current = true; setPending(true); setConfirmation(null); setSnoozing(false); clear();
     let results: MailBatchResult[];
     try {
@@ -122,13 +124,14 @@ export function BulkMailSelection({ messages, accounts, scope, selectedId, onSel
           <span>{[...new Set(items.map(item => item.accountId))].map(label).join(", ")}</span>
           <button className="button" disabled={blocked} onClick={clear}>Clear selection</button>
           {sentOnly && <span id={sentNote}>Sent mail supports Pin, Unpin and Move to Trash only.</span>}
-          {actions.map(([action, text], index) => <button key={index} className="button" disabled={blocked || sentOnly && !sentActions.has(action)}
+          {actions.map(([action, text], index) => <button key={index} className="button" disabled={actionsBlocked || sentOnly && !sentActions.has(action)}
             aria-describedby={sentOnly && !sentActions.has(action) ? sentNote : undefined} onClick={() => {
             if (action === "trash") setConfirmation(items.map(item => ({ ...item })));
             else if (action === "snooze") setSnoozing(true);
             else void execute(action);
           }}>{text}</button>)}
         </>}
+        {!!items.length && syncing && !pending && <span role="status">Waiting for sync…</span>}
         {pending && <span role="status">Applying message actions…</span>}
       </div>}
       {active && outcome && <div className="bulk-result" role="status">
@@ -147,7 +150,7 @@ export function BulkMailSelection({ messages, accounts, scope, selectedId, onSel
       {confirmation && createPortal(<Dialog title="Move messages to Trash" onClose={() => setConfirmation(null)}>
         <p>Move exactly {confirmation.length} messages to Trash? Recovery depends on your provider.</p>
         <div className="dialog-actions"><button className="button" onClick={() => setConfirmation(null)}>Cancel</button>
-          <button className="button" disabled={disabled} onClick={() => void execute("trash", confirmation)}>Move {confirmation.length} messages to Trash</button></div>
+          <button className="button" disabled={disabled || syncing} onClick={() => void execute("trash", confirmation)}>Move {confirmation.length} messages to Trash</button></div>
       </Dialog>, document.body)}
       {snoozing && createPortal(<Dialog title="Snooze selected messages" onClose={() => setSnoozing(false)}>
         <form onSubmit={event => { event.preventDefault(); const field = event.currentTarget.elements.namedItem("until") as HTMLInputElement;
@@ -155,7 +158,7 @@ export function BulkMailSelection({ messages, accounts, scope, selectedId, onSel
           if (!(until > Date.now() && until <= Date.now() + 366 * 86400000)) { field.setCustomValidity("Choose a future time within the next year."); field.reportValidity(); return; }
           void execute("snooze", items, until); }}>
           <label>Snooze until <input required name="until" type="datetime-local" onChange={event => event.currentTarget.setCustomValidity("")} /></label>
-          <p>Choose a future time within the next year.</p><button className="button" disabled={disabled} type="submit">Snooze {items.length} messages</button>
+          <p>Choose a future time within the next year.</p><button className="button" disabled={disabled || syncing} type="submit">Snooze {items.length} messages</button>
         </form>
       </Dialog>, document.body)}
     </div>
