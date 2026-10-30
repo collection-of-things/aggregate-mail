@@ -1303,9 +1303,12 @@ request's work without cancelling shared cold initialization.
 
 The state route uses `server/state-response.ts` for batched serialization and
 negotiated gzip on large snapshots. Small responses and clients excluding gzip
-retain plain JSON. The existing writer keeps status, including CSRF, in a
-separate uncompressed gzip member from mail metadata. Authentication, no-store,
-snapshot boundaries, cancellation and backpressure still apply.
+retain plain JSON. The writer sends one gzip member: status, including CSRF,
+in stored (uncompressed) DEFLATE blocks, then mail metadata as raw DEFLATE
+with a fresh dictionary. Some HTTP decoders read only the first gzip member,
+so the earlier two-member layout produced `Unexpected end of JSON input`.
+Authentication, no-store, snapshot boundaries, cancellation and backpressure
+still apply.
 
 The cached conversation GET route uses `readConversationMail` to select related
 messages from summaries and hydrate only those bodies in one SQLite snapshot.
@@ -1594,9 +1597,10 @@ release, publication recovery or downloaded installer behavior.
 There is no automatic PR or merge-queue commit-email job. Keep the local
 `scripts/check-commit-emails.mjs origin/main..HEAD` gate for authors, committers
 and co-author trailers, and mask any rejected address. Review dependency
-advisories, licenses and upgrades manually. `.github/release.yml` lists pull
-requests directly under What's Changed, without category groups, and leaves
-out Dependabot. It configures release notes and is not a workflow.
+advisories, licenses and upgrades manually. Release bodies come from the
+CHANGELOG.md version section through `scripts/release-notes.mjs`; push
+releases may use Unreleased, and missing notes fail before tagging
+([ADR 0106](adr/0106-changelog-release-notes.md)).
 
 Actions enablement, required checks, merge queues and tag protections are
 repository settings, outside these files. This source deletion changes none of
@@ -2361,15 +2365,16 @@ measures a warm server snapshot on loopback; cold metadata initialization,
 serialization and compaction are reported separately. Keep runtime receipts
 outside the repository. It does not measure browser paint or network latency.
 
-`server/state-response.ts` is a separate, unmounted transport candidate. It
-negotiates gzip above 16 KiB, keeps tiny deltas plain, preserves decoded JSON,
-and uses a separate stored status member so CSRF never enters the compressed
-message dictionary. `server/state-response.test.ts` exercises negotiation,
-decoded equality, auth ordering, disconnects and serialization failures using
-an ephemeral synthetic HTTP service. Route integration and browser/proxy
-acceptance remain separate work. `scripts/benchmark-state-transport.ts` measures
-wire bytes, loopback time, decode time and process CPU on synthetic envelopes;
-run it through the bounded runner with 2048 MiB and a 120-second deadline.
+`server/state-response.ts` serves the state route. It negotiates gzip above
+16 KiB, keeps tiny deltas plain, preserves decoded JSON, and stores status in
+uncompressed DEFLATE blocks inside one gzip member so CSRF never enters the
+compressed message dictionary. `server/state-response.test.ts` exercises
+negotiation, decoded equality, single-member output, status over 64 KiB, auth
+ordering, disconnects and serialization failures using an ephemeral synthetic
+HTTP service. Browser and proxy acceptance remain separate work.
+`scripts/benchmark-state-transport.ts` measures wire bytes, loopback time,
+decode time and process CPU on synthetic envelopes; run it through the
+bounded runner with 2048 MiB and a 120-second deadline.
 
 
 `server/mime-limits.ts` caps raw messages at 8 MiB, Gmail responses at 12 MiB,

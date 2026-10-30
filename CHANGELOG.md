@@ -22,6 +22,12 @@ unversioned history without treating it as a release record.
 
 - Preserve bounded partial IMAP search results and allow recovery of an unbound archived message when its subject matches and its envelope date is absent; a present date must match. Privacy mode hides the whole text when there are more names than its bounded matcher covers, instead of leaving the extra names visible. ([#167](https://github.com/collection-of-things/aggregate-mail/pull/167))
 
+## 0.2.22 - 2026-10-30
+
+### Fixed
+
+- Fix "Unexpected end of JSON input" when loading large cached-mail snapshots in clients that decode only the first gzip member of a compressed response ([#168](https://github.com/collection-of-things/aggregate-mail/pull/168)).
+
 ## 0.2.21 - 2026-10-29
 
 ### Changed
@@ -46,39 +52,23 @@ unversioned history without treating it as a release record.
 
 ## 0.2.19 - 2026-10-28
 
-### Fixed
-
-- Treat attachment admission refusal as a known pre-submission failure and release scheduled attachment holds.
-
-### Fixed
-
-- Reject workspace exports with unrecoverable removed-account references and enforce destination draft/template limits before backup previews and imports.
-
 ### Added
 
 - Support 20 outgoing attachments and 25 MiB total through raw local uploads and encrypted attachment references. Keep small legacy drafts readable, stream referenced messages with provider size preflight, and preserve bytes for drafts and uncertain sends.
 - Offer cancellable, bounded Gmail and IMAP part downloads for large received attachments. Keep automatic imports small and distinguish unparsed bodies from files not downloaded yet. IMAP accounts still save the exact sent message to Sent, without Bcc.
-
 - Include uploaded draft attachments in encrypted workspace backups and restore new account-bound references atomically. The encrypted backup limit is 128 MiB ([#86](https://github.com/collection-of-things/aggregate-mail/issues/86), [#87](https://github.com/collection-of-things/aggregate-mail/issues/87)).
-
 - Back up local workspace data in a passphrase-encrypted file and preview a merge before restoring. Existing records are preserved; credentials and cached mail bodies are excluded ([#86](https://github.com/collection-of-things/aggregate-mail/issues/86)).
-
-### Fixed
-
-- Restore visible shared-button styling for custom-theme actions, including Create theme and Import theme.
-- Give Projects, Agent review and All cached distinct sidebar icons so they are easier to distinguish from Contacts, Inbox and Drafts.
-
-### Added
-
 - About and storage shows the running version and update status. Browser sessions show a short build ID and can check whether they match the host; desktop sessions use the existing stable-release checker ([#143](https://github.com/collection-of-things/aggregate-mail/issues/143)).
 - Linux web hosting can stage and verify published stable releases, drain before switching, and restore the previous compatible build after failed startup. Failed releases require an explicit retry. Service and timer templates are provided; operators enable deployments explicitly ([#109](https://github.com/collection-of-things/aggregate-mail/issues/109)).
 
 ### Fixed
 
+- Treat attachment admission refusal as a known pre-submission failure and release scheduled attachment holds.
+- Reject workspace exports with unrecoverable removed-account references and enforce destination draft/template limits before backup previews and imports.
+- Restore visible shared-button styling for custom-theme actions, including Create theme and Import theme.
+- Give Projects, Agent review and All cached distinct sidebar icons so they are easier to distinguish from Contacts, Inbox and Drafts.
 - Allow macOS updates from a read-only launch copy when exactly one canonical, writable Applications installation matches the running bundle. Recheck its digest before replacement without changing quarantine or Gatekeeper.
-
 - Preserve sender foreground contrast, live text-size preference changes and configured Enter shortcuts inside isolated email content.
-
 - Preserve supported sender colors, class-based columns and responsive width rules in an isolated email document. Scripts, remote styles and fonts remain blocked; privacy and per-opening image consent still apply ([#135](https://github.com/collection-of-things/aggregate-mail/issues/135)).
 
 ### Documentation

@@ -3,7 +3,9 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
+import { releaseNotes } from "./release-notes.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const packagePath = path.join(root, "package.json");
@@ -47,6 +49,8 @@ const version = !level
     }[level];
 const tag = `v${version}`;
 const repo = githubRepo();
+// Fail before building when CHANGELOG.md has no notes to publish.
+const notes = publish ? releaseNotes(readFileSync(path.join(root, "CHANGELOG.md"), "utf8"), version, { allowUnreleased: true }) : "";
 
 console.log(`Emc² ${current.version} -> ${version}`);
 console.log(`Release lane: ${repo ? `GitHub ${repo}` : "none found"}`);
@@ -95,6 +99,8 @@ if (!repo) {
   process.exit(0);
 }
 const blockmap = newest(releaseDir, (name) => /\.exe\.blockmap$/.test(name));
+const notesPath = path.join(tmpdir(), `emc2-release-notes-${version}.md`);
+writeFileSync(notesPath, notes);
 try {
   run("gh", [
     "release",
@@ -106,12 +112,13 @@ try {
     repo,
     "--title",
     `${current.name} ${version}`,
-    "--generate-notes",
+    "--notes-file",
+    notesPath,
   ]);
   console.log(`\nPublished ${tag} to ${repo}.`);
 } catch {
   console.log(
-    `\nCould not publish to ${repo}. Check that it exists and that gh is signed in, then retry:\n  gh release create ${tag} release/*.exe --repo ${repo} --generate-notes`,
+    `\nCould not publish to ${repo}. Check that it exists and that gh is signed in, then retry:\n  gh release create ${tag} release/*.exe --repo ${repo} --notes-file "${notesPath}"`,
   );
 }
 console.log(

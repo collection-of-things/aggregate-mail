@@ -240,6 +240,14 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.checks.outputs.version }}
         run: node scripts/prepare-release-assets.mjs release "${RELEASE_VERSION:-${GITHUB_REF_NAME#v}}"
+      # Fails before tagging or publishing when CHANGELOG.md has no notes.
+      - name: Write release notes from CHANGELOG.md
+        env:
+          RELEASE_VERSION: ${{ needs.checks.outputs.version }}
+        run: |
+          args=()
+          if [ "$GITHUB_EVENT_NAME" = push ]; then args+=(--allow-unreleased); fi
+          node scripts/release-notes.mjs "${RELEASE_VERSION:-${GITHUB_REF_NAME#v}}" "${args[@]}" > "$RUNNER_TEMP/release-notes.md"
       - name: Create the release tag
         if: github.event_name == 'push'
         env:
@@ -261,4 +269,4 @@ jobs:
             ./*.exe ./*.dmg ./*.AppImage latest.yml latest-linux.yml SHA256SUMS.txt \
             --repo "${GITHUB_REPOSITORY}" --verify-tag \
             --title "${TAG}" \
-            --generate-notes
+            --notes-file "$RUNNER_TEMP/release-notes.md"
