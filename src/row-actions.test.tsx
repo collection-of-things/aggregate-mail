@@ -144,3 +144,13 @@ for (const unread of [true, false]) test(`row offers only the applicable read-st
  assert.equal(html.includes('aria-label="Mark as read"'), unread);
  assert.equal(html.includes('aria-label="Mark as unread"'), !unread);
 });
+
+for (const archived of [false, true]) test(`row shows only applicable actions in toolbar order: archived=${archived}`, () => {
+ const html = renderToStaticMarkup(<MailList messages={[{...mail, archived}]} selectedId={undefined} density="comfortable" narrow={false} sort="newest" opening="double" accounts={[]} listRef={{current:null}} focusSelection={false} onOpen={()=>{}} onSelect={()=>{}} onMenu={()=>{}} onMenuKey={()=>{}} actions={() => [
+  {id:'read', label:'Mark as read', run(){}}, {id:'inbox', label:'Move to Inbox', run(){}}, {id:'pin', label:'Pin email', run(){}},
+  {id:'reply', label:'Reply', run(){}}, {id:'archive', label:'Archive', run(){}}, {id:'snooze', label:'Snooze', run(){}}, {id:'trash', label:'Move to Trash', run(){}},
+ ]} />);
+ const labels = [...html.matchAll(/aria-label="([^"]+)"/g)].map((match) => match[1]).filter((label) => label !== 'Email actions' && label !== 'More actions');
+ assert.equal(labels.length, 7, 'one read-state action plus six applicable actions');
+ assert.deepEqual(labels.slice(-6), [archived ? 'Move to Inbox' : 'Archive', 'Snooze', 'Move to Trash', 'Reply', 'Mark as read', 'Pin email']);
+});
