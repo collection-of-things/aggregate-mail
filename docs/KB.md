@@ -2841,9 +2841,11 @@ remain separate proof.
 The serialized single-message PATCH route accepts `unread` and `inbox`. Gmail
 adds UNREAD or INBOX. IMAP resolves archived mail by the exact mailbox binding
 recorded at its confirmed archive move, or by an exact Message-ID match when no
-binding exists; UIDPLUS, a unique flagged archive folder and MOVE are required.
-A recovered Message-ID match must also agree on Date and Subject before a
-destructive move. Gmail over IMAP copies from All Mail instead. Destination
+binding exists. Restoring to Inbox requires UIDPLUS and a unique flagged
+archive folder (All Mail on Gmail). Other IMAP servers also need MOVE; Gmail
+over IMAP copies from All Mail into INBOX instead. Marking archived mail read or
+unread needs none of these. A recovered Message-ID match must also agree on Subject,
+and on Date when the envelope has one, before a destructive move. Destination
 identifiers map back to the same local ID during sync. Shift+U and V are editable defaults, preserving
 U for return-to-list and B for snooze. Commands and message actions use the same
 eligibility checks. An open reader stays unread after the action.

@@ -73,4 +73,15 @@ public class MailTransportTest {
         assertThrows(Exception.class, () -> MailTransport.body(message("\r\ntext"), 13, new int[]{0}));
         assertThrows(Exception.class, () -> MailTransport.body(message("\r\ntext"), 0, new int[]{128}));
     }
+    private static void drain(String wire) throws Exception {
+        java.io.InputStream in = new MailTransport.LiteralGuardInputStream(new ByteArrayInputStream(wire.getBytes(StandardCharsets.US_ASCII)));
+        byte[] buffer = new byte[7];
+        while (in.read(buffer, 0, buffer.length) >= 0) { }
+    }
+    @Test public void literalGuardSkipsAnnouncedPayload() throws Exception {
+        String inner = "{1048577}\r\n{1048577+}\r\n";
+        drain("* 1 FETCH (BODY[] {" + inner.length() + "}\r\n" + inner + ")\r\nA1 OK\r\n");
+        assertThrows(java.io.IOException.class, () -> drain("* 1 FETCH (BODY[] {1048577}\r\n"));
+        assertThrows(java.io.IOException.class, () -> drain("* 1 FETCH (BODY[] {4}\r\nabcd {1048577+}\r\n"));
+    }
 }

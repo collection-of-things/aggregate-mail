@@ -20,14 +20,15 @@ final class MailTransport {
 
     /**
      * Aborts a connection when the wire announces an oversized IMAP literal,
-     * before the provider can allocate for it. A "{n}" marker only counts at
-     * end of line; the same bytes inside genuine message content can trip the
-     * guard, so a violation closes this connection and the previous cache stays.
+     * before the provider can allocate for it. A "{n}" marker only counts when
+     * CRLF follows it. The announced payload is then skipped, so message
+     * content that looks like an announcement never trips the guard.
      */
-    private static final class LiteralGuardInputStream extends InputStream {
+    static final class LiteralGuardInputStream extends InputStream {
         private final InputStream inner;
-        private int state; // 0 plain, 1 digits, 2 after '+', 3 after '}'
+        private int state; // 0 plain, 1 digits, 2 after '+', 3 after '}', 4 after "}\r"
         private long size;
+        private long remaining;
         private boolean big;
         LiteralGuardInputStream(InputStream inner) { this.inner = inner; }
         @Override public int read() throws java.io.IOException {
@@ -41,6 +42,7 @@ final class MailTransport {
             return count;
         }
         private void guard(byte b) throws java.io.IOException {
+            if (remaining > 0) { remaining--; return; }
             if (state == 1) {
                 if (b >= '0' && b <= '9') {
                     if (size <= MAX_LITERAL) size = size * 10 + (b - '0');
@@ -54,7 +56,14 @@ final class MailTransport {
                 state = b == '}' ? 3 : 0;
             } else if (state == 3) {
                 state = 0;
-                if (b == '\r' && big) throw new java.io.IOException("Mail server announced an oversized literal.");
+                if (b == '\r') {
+                    if (big) throw new java.io.IOException("Mail server announced an oversized literal.");
+                    state = 4;
+                    return;
+                }
+            } else if (state == 4) {
+                state = 0;
+                if (b == '\n') { remaining = size; return; }
             }
             if (b == '{') { state = 1; size = 0; big = false; }
         }
