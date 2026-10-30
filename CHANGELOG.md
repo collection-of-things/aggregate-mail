@@ -6,6 +6,8 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+## 0.2.23 - 2026-10-30
+
 ### Added
 
 - Search cached mail from the CLI and MCP with the app's field, phrase, exclusion,
