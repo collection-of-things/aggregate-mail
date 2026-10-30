@@ -42,5 +42,6 @@ export const Redact = memo(function Redact({ text, segments }: { text: string; s
   if (!on || !text) return <>{text}</>;
   return <>{(segments ?? segmentPrivateText(text, names)).map((part, index) => part.kind === "text" ?
     <Fragment key={index}>{segments ? <Redact text={part.text} /> : part.text}</Fragment> :
+    part.kind === "hidden" ? <span key={index} className="address veiled locked" style={{ width: "8ch" }} role="img" aria-label="Hidden text" /> :
     <Address key={index} value={segments ? part.value ?? part.text : part.text} kind={part.kind}>{part.text}</Address>)}</>;
 });

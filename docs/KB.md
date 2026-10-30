@@ -39,7 +39,8 @@ results when truncated. An unbound archived destructive move requires an exact
 Message-ID and subject, and an envelope date must match when present; a missing
 envelope date is accepted. Privacy mode hides the entire text when more than 64
 distinct valid names (compared case-insensitively) would exceed the matching
-budget, in rendered text as well as redacted strings.
+budget, in rendered text as well as redacted strings. That fallback has no
+reveal control; turn privacy mode off to read the text.
 
 ## Reviewed unsubscribe
 

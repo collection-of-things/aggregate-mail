@@ -189,7 +189,9 @@ test("name caps apply after validation and redaction fails closed beyond the cap
   assert.equal(redactPrivateText("Hello Nora", [...invalid, "Nora"]), "Hello ••••••••");
   const names = Array.from({ length: 64 }, (_, index) => `Person${index}`);
   assert.equal(redactPrivateText("Hello Nora", [...names, "Nora"]), "••••••••");
-  assert.deepEqual(segmentPrivateText("Hello Nora", [...names, "Nora"]).map(({ kind, text }) => [kind, text]), [["name", "Hello Nora"]]);
+  assert.deepEqual(segmentPrivateText("Hello Nora", [...names, "Nora"]).map(({ kind, text }) => [kind, text]), [["hidden", "Hello Nora"]]);
+  // Leaves share no reveal key, so one control cannot expose the whole message.
+  assert.deepEqual(segmentPrivateParts(["Hello ", "Nora"], [...names, "Nora"]).flat().map(({ kind, value }) => [kind, value]), [["hidden", ""], ["hidden", ""]]);
   assert.equal(redactPrivateText("Hello Nora", [...names.slice(1), ...names.slice(1).map((name) => name.toUpperCase()), "Nora"]), "Hello ••••••••");
 });
 

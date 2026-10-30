@@ -3,14 +3,15 @@ type RecipientHeaders = { to?: string; cc?: string };
 export type PrivacyRange = {
   start: number;
   end: number;
-  kind: "address" | "name";
+  // "hidden" covers text the matcher could not check; it is never revealable.
+  kind: "address" | "name" | "hidden";
   value: string;
 };
 export type PrivacySegment = {
   start: number;
   end: number;
   text: string;
-  kind: "text" | "address" | "name";
+  kind: "text" | PrivacyRange["kind"];
   value?: string;
 };
 
@@ -121,8 +122,9 @@ const validNames = (names: readonly string[]) => [...new Map(names.map(cleanName
 export function privateRanges(text: string, names: readonly string[] = []): PrivacyRange[] {
   const candidates = validNames(names);
   // Candidate size is bounded so matching cannot grow with crafted input. When
-  // more names exist than the matcher covers, hide the whole text instead.
-  if (candidates.length > PRIVATE_NAMES_MAX) return text ? [{ start: 0, end: text.length, kind: "name", value: text }] : [];
+  // more names exist than the matcher covers, hide the whole text without a
+  // reveal control, since one click would otherwise expose every private value.
+  if (candidates.length > PRIVATE_NAMES_MAX) return text ? [{ start: 0, end: text.length, kind: "hidden", value: "" }] : [];
   const { decoded, offsets } = text.includes("%") ? decodedText(text) : { decoded: text, offsets: null };
   const ranges: PrivacyRange[] = [];
   const add = (start: number, end: number, kind: PrivacyRange["kind"], value: string) => {
@@ -213,7 +215,7 @@ export function redactPrivateText(text: string, names: readonly string[] = []): 
 // Returned offsets are local to each leaf; reveal keys keep the whole source token.
 export function segmentPrivateParts(parts: readonly string[], names: readonly string[] = []): PrivacySegment[][] {
   const segments = segmentPrivateText(parts.join(""), names)
-    .map((segment) => segment.kind === "text" ? segment : { ...segment, value: segment.text });
+    .map((segment) => segment.kind === "text" || segment.kind === "hidden" ? segment : { ...segment, value: segment.text });
   let offset = 0;
   let cursor = 0;
   return parts.map((part) => {
