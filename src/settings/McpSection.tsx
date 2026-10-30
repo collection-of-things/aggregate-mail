@@ -91,7 +91,7 @@ export function McpSection({
                   </div>
                   <button
                     className="button"
-                    disabled={busy || !value}
+                    disabled={busy || (!value && !window.desktop?.copyMcpEndpoint)}
                     onClick={() => void (async () => {
                       try {
                         if (window.desktop?.copyMcpEndpoint) await window.desktop.copyMcpEndpoint();
