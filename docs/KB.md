@@ -2907,6 +2907,27 @@ When inline conversation reading is combined with Forward, only the selected
 message receives the callback bound to the current action target. Other
 expanded messages must first use Select for actions.
 
+## Direct task completion
+
+Today and Projects provide a task completion checkbox. Task details in Today,
+Projects and Calendar offer Mark complete. Both send the current revision with
+the existing commitment update, retain its reason and evidence, and append
+history. Failed or uncertain writes use the existing refresh and review gate.
+The status-only completion request is allowed during mail sync; other task
+edits retain the sync guard.
+Completion leaves unfinished project decision text and evidence selected. It uses
+the workspace mutation guard without acknowledging unrelated form drafts. The
+status announces success without taking focus from another control; when the
+completion control disappears, focus returns to a nearby task or detail action.
+Closing completed task details restores a connected visible row, or the work
+content when the list is empty. A successful automatic workspace refresh also
+finishes acknowledged-save cleanup, so completion cannot stay silently blocked.
+Reader return retains a connected visible source-email trigger. Project decision
+source tests open Supporting emails before following the link, matching the
+reachable interface rather than clicking a control inside a closed disclosure.
+Completion does not change mail or local work sessions. Reopening and cancelling
+remain in Edit task. See [ADR 0107](adr/0107-direct-task-completion.md).
+
 ## Local mail Undo
 
 Single-message Pin and Unpin run during a mail sync and remain tracked by the

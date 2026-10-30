@@ -214,7 +214,7 @@ async function mount(mode: "actions"|"calendar"|"projects"|"agents"|"assistants"
     else if(url==="/commitments"&&method==="POST"){
       if(failure)throw new Error("Synthetic conflict");const input=body as any;const item:Commitment={...input,id:"c1",revision:1,updatedAt:1,history:[{at:1,status:input.status,text:input.text,reason:input.reason,evidenceMailIds:input.evidenceMailIds}]};workspace.commitments.push(item);result=item;
     }else if(url==="/commitments/c1"&&method==="PATCH"){
-      if(failure)throw new Error("Synthetic conflict");const input=body as any;assert.equal(input.revision,workspace.commitments[0].revision);workspace.commitments[0]={...workspace.commitments[0],...input,revision:input.revision+1,history:[...workspace.commitments[0].history,{at:2,status:input.status,text:input.text,reason:input.reason,evidenceMailIds:input.evidenceMailIds}]};result=workspace.commitments[0];
+      if(failure)throw new Error("Synthetic conflict");const input=body as any;const current=workspace.commitments[0];assert.equal(input.revision,current.revision);workspace.commitments[0]={...current,...input,revision:input.revision+1,history:[...current.history,{at:2,status:input.status??current.status,text:input.text??current.text,reason:input.reason??current.reason,evidenceMailIds:input.evidenceMailIds??current.evidenceMailIds}]};result=workspace.commitments[0];
     }else if(url==="/projects"&&method==="POST") {const input=body as any;assert.deepEqual(input.confirmAccountIds,["a","b"]);const item={...input,id:"p1",accountIds:["a","b"],crossAccountConfirmed:true,revision:1,updatedAt:1};workspace.projects.push(item);result=item;}
     else if(url.endsWith("/decisions")&&method==="POST") { if(failure)throw new Error("Synthetic decision failure");throw new Error("Unexpected decision save"); }
     else if(url.endsWith("/approve")){const input=body as any;assert.equal(input.digest,workspace.proposals[0].digest);workspace.proposals[0].status="succeeded";result=workspace.proposals[0];}
@@ -1200,6 +1200,127 @@ test("quitting with a dirty event form uses the same unload guard as a draft", a
   assert.equal(unload(), true, "a changed edit event form blocks quit");
   await ui.click(ui.button("Cancel"));
   assert.equal(unload(), false, "Cancel returns to the saved event without the guard");
+ } finally { await ui.close(); }
+});
+
+test("complete a waiting task directly from Today, Projects and Calendar", async () => {
+ for (const mode of ["actions", "projects", "calendar"] as const) {
+  const ui = await mount(mode);
+  try {
+   ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Synthetic task", reason: "Synthetic reason", status: "waiting", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [] });
+   if (mode === "projects") {
+    ui.workspace.projects.push({ id: "p1", name: "Synthetic project", sourceMailIds: ["in-a"], accountIds: ["a"], crossAccountConfirmed: false, revision: 1, updatedAt: 1 });
+    ui.workspace.commitments[0].projectId = "p1";
+   }
+   await ui.click(ui.button("Refresh workspace"));
+   if (mode === "projects") await ui.click(ui.button("Synthetic project"));
+   if (mode !== "calendar") {
+    const checkbox = ui.container.querySelector<HTMLInputElement>('input[aria-label="Mark task complete"]');
+    assert.ok(checkbox);
+    await ui.click(checkbox);
+   } else {
+    await ui.click(ui.button("Agenda"));
+    const task = [...ui.container.querySelectorAll<HTMLButtonElement>(".calendar-agenda button")].find(button => button.textContent?.includes("Synthetic task"));
+    assert.ok(task); await ui.click(task);
+    await ui.click(ui.button("Mark complete"));
+   }
+   assert.deepEqual(ui.requests.filter(request => request.method === "PATCH").map(({ url, body }) => ({ url, body })), [{ url: "/commitments/c1", body: { revision: 1, status: "done" } }]);
+   assert.equal(ui.workspace.commitments[0].status, "done");
+   assert.equal(ui.workspace.commitments[0].reason, "Synthetic reason");
+   assert.equal(ui.workspace.commitments[0].history.at(-1)?.status, "done");
+   assert.match(ui.container.textContent!, /Task completed/);
+  } finally { await ui.close(); }
+ }
+});
+
+test("task completion preserves an unfinished project decision and its evidence", async () => {
+ const ui = await mount("projects");
+ try {
+  ui.workspace.projects.push({ id: "p1", name: "Synthetic project", sourceMailIds: ["in-a"], accountIds: ["a"], crossAccountConfirmed: false, revision: 1, updatedAt: 1 });
+  ui.workspace.commitments.push({ id: "c1", projectId: "p1", accountId: "a", sourceMailId: "in-a", text: "Synthetic task", reason: "Synthetic reason", status: "waiting", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [] });
+  await ui.click(ui.button("Refresh workspace")); await ui.click(ui.button("Synthetic project"));
+  await ui.click(ui.container.querySelector<HTMLElement>(".project-decisions summary")!);
+  await ui.fill("What was agreed", "Keep the delivery date");
+  const source = ui.container.querySelector<HTMLInputElement>('.project-decisions input[type="checkbox"]')!;
+  await ui.click(source);
+  await ui.click(ui.container.querySelector<HTMLInputElement>('input[aria-label="Mark task complete"]')!);
+  assert.equal(ui.workspace.commitments[0].status, "done");
+  assert.equal(ui.field("What was agreed").value, "Keep the delivery date");
+  assert.equal(source.isConnected && source.checked, true);
+  assert.equal(ui.requests.filter(request => request.method !== "GET").length, 1);
+ } finally { await ui.close(); }
+});
+
+for (const moved of [false, true]) test(`task completion ${moved ? "preserves focus moved during the request" : "restores focus to the next task"}`, async () => {
+ const ui = await mount("actions");
+ try {
+  const base: Commitment = { id: "c1", accountId: "a", sourceMailId: "in-a", text: "Middle task", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [], dueDate: "2030-01-02" };
+  ui.workspace.commitments.push(base, { ...base, id: "first", text: "First task", dueDate: "2030-01-01" }, { ...base, id: "last", text: "Last task", dueDate: "2030-01-03" });
+  await ui.click(ui.button("Refresh workspace"));
+  const row = (id: string) => ui.container.querySelector(`#work-task-${id}`)!.closest("article")!;
+  const origin = row("c1").querySelector<HTMLInputElement>("input")!;
+  const next = row("last").querySelector<HTMLInputElement>("input")!;
+  await act(async () => origin.focus()); ui.holdWorkspace(); await ui.click(origin);
+  const other = ui.container.querySelectorAll<HTMLButtonElement>(".work-view-tabs button")[1];
+  if (moved) await act(async () => other.focus());
+  await act(async () => ui.heldReads.at(-1)!.release());
+  assert.equal(ui.workspace.commitments[0].status, "done");
+  assert.equal(document.activeElement, moved ? other : next);
+  assert.match(ui.container.textContent!, /Task completed/);
+ } finally { await ui.close(); }
+});
+
+test("automatic refresh finishes an acknowledged save before task completion", async () => {
+ const ui = await mount("actions");
+ try {
+  await ui.click(ui.button("Add task"));
+  await ui.fill("What needs to happen", "Saved once"); await ui.fill("Why track this or change it", "Confirmed source");
+  await ui.click(ui.container.querySelector<HTMLInputElement>('input[type="radio"]')!);
+  ui.failRefresh(true); await ui.submit();
+  assert.equal(ui.workspace.commitments.length, 1);
+  assert.match(ui.container.textContent!, /Change was saved, but workspace refresh failed/);
+  ui.failRefresh(false);
+  await act(async () => ui.dom.window.dispatchEvent(new ui.dom.window.Event("focus")));
+  assert.ok(ui.container.querySelector(".work-form") === null, "successful automatic refresh acknowledges the saved form");
+  const completion = ui.container.querySelector<HTMLInputElement>('input[aria-label="Mark task complete"]')!;
+  assert.equal(completion.disabled, false); await ui.click(completion);
+  assert.equal(ui.workspace.commitments[0].status, "done");
+  assert.equal(ui.requests.filter(request => request.url === "/commitments" && request.method === "POST").length, 1);
+  assert.equal(ui.requests.filter(request => request.method === "PATCH").length, 1);
+ } finally { await ui.close(); }
+});
+
+for (const mode of ["actions", "projects"] as const) for (const remaining of [false, true]) test(`Back after completing ${mode} task details restores focus with ${remaining ? "another task" : "an empty list"}`, async () => {
+ const ui = await mount(mode);
+ try {
+  const task: Commitment = { id: "c1", projectId: "p1", accountId: "a", sourceMailId: "in-a", text: "Synthetic task", reason: "Synthetic reason", status: "waiting", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [] };
+  ui.workspace.commitments.push(task);
+  if (remaining) ui.workspace.commitments.push({ ...task, id: "next", text: "Next task" });
+  if (mode === "projects") ui.workspace.projects.push({ id: "p1", name: "Synthetic project", sourceMailIds: ["in-a"], accountIds: ["a"], crossAccountConfirmed: false, revision: 1, updatedAt: 1 });
+  await ui.click(ui.button("Refresh workspace"));
+  if (mode === "projects") await ui.click(ui.button("Synthetic project"));
+  const origin = ui.container.querySelector<HTMLButtonElement>(".work-select")!;
+  await act(async () => origin.focus()); await ui.click(origin);
+  await act(async () => ui.button("Mark complete").focus()); await ui.click(ui.button("Mark complete"));
+  assert.equal(origin.isConnected, false);
+  await act(async () => ui.button("Back to work list").focus()); await ui.click(ui.button("Back to work list"));
+  const expected = remaining ? ui.container.querySelector(".work-select") : ui.container.querySelector(".work-content");
+  assert.ok(document.activeElement === expected, "Back focuses a connected work-list target");
+  assert.equal(ui.container.querySelector('[aria-label="Commitment details"]'), null);
+ } finally { await ui.close(); }
+});
+
+test("an unconfirmed completion keeps the task and prevents another write", async () => {
+ const ui = await mount("actions");
+ try {
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Synthetic task", reason: "Synthetic reason", status: "waiting", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [] });
+  await ui.click(ui.button("Refresh workspace")); ui.fail();
+  await ui.click(ui.container.querySelector<HTMLInputElement>('input[aria-label="Mark task complete"]')!);
+  assert.equal(ui.workspace.commitments[0].status, "waiting");
+  assert.match(ui.container.textContent!, /previous change has an unknown outcome/i);
+  assert.doesNotMatch(ui.container.textContent!, /Task completed/);
+  assert.equal(ui.container.querySelector<HTMLInputElement>('input[aria-label="Mark task complete"]')!.disabled, true);
+  assert.equal(ui.requests.filter(request => request.method === "PATCH").length, 1);
  } finally { await ui.close(); }
 });
 

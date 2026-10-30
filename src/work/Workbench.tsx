@@ -228,14 +228,34 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   const [detailOpen, setDetailOpen] = useState(false);
   const inspector = useRef<HTMLElement>(null);
   const selectedRow = useRef<HTMLButtonElement | null>(null);
+  const workContent = useRef<HTMLDivElement>(null);
+  const restoreListFocus = useRef(false);
+  const taskNotice = useRef<HTMLParagraphElement | null>(null);
+  const completionFocus = useRef<{ origin: HTMLElement; nearby: HTMLElement[] } | null>(null);
+  const [taskStatus, setTaskStatus] = useState("");
+  useEffect(() => {
+    if (!taskStatus || pending) return;
+    const focus = completionFocus.current;
+    completionFocus.current = null;
+    if (!focus || document.activeElement !== focus.origin && document.activeElement !== document.body) return;
+    const target = [focus.origin, ...focus.nearby].find(control => control.isConnected && !control.matches(":disabled") && !control.closest("details:not([open]), [hidden]"));
+    (target || taskNotice.current)?.focus({ preventScroll: true });
+  }, [taskStatus, pending]);
   const wasReading = useRef(readerOpened);
   useEffect(() => {
     if (wasReading.current && !readerOpened && (mode === "actions" || mode === "projects")) {
-      if (!missingSelection.current) { setDetailOpen(false); selectedRow.current?.focus({ preventScroll: true }); }
+      if (!missingSelection.current) { restoreListFocus.current = true; setDetailOpen(false); }
       missingSelection.current = false;
     }
     wasReading.current = readerOpened;
   }, [readerOpened, mode]);
+  useEffect(() => {
+    if (!restoreListFocus.current || detailOpen || readerOpened || mode === "calendar") return;
+    restoreListFocus.current = false;
+    const rows = [...(workContent.current?.querySelectorAll<HTMLButtonElement>(".work-select") || [])];
+    const target = [selectedRow.current, ...rows].find(row => row?.isConnected && !row.matches(":disabled") && !row.closest("details:not([open]), [hidden]"));
+    (target || workContent.current)?.focus({ preventScroll: true });
+  }, [detailOpen, readerOpened, mode]);
   const [projectEditor, setProjectEditor] = useState<Project | "new" | null>(null);
   const [projectId, setProjectId] = useState("");
   const [decision, setDecision] = useState("");
@@ -263,6 +283,9 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
     setEditor(null); setDraft(undefined); setProjectEditor(null); setDecision(""); setDecisionSources([]);
     setAgentName(""); setGrantAccounts([]); setGrantTools([]);
   };
+  useEffect(() => {
+    if (loaded && !stale && !pending && !work.refreshing) finishAcknowledged();
+  }, [workspace, loaded, stale, pending, work.refreshing]);
   const load = useCallback(async () => {
     if (mode === "calendar") void calendar.refresh();
     const ok = await work.refresh();
@@ -297,9 +320,24 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   useEffect(() => { onModalChange?.(!!editor || !!projectEditor || !!eventEditor || !!eventDelete || sessionModal); return () => onModalChange?.(false); }, [!!editor, !!projectEditor, !!eventEditor, !!eventDelete, sessionModal, onModalChange]);
   useEffect(() => { onEventDirtyChange?.(eventDirty || sessions.dirty || sessions.locked); return () => onEventDirtyChange?.(false); }, [eventDirty, sessions.dirty, sessions.locked, onEventDirtyChange]);
   const accountName = (item: Commitment) => { const index = state.accounts.findIndex((account) => account.id === item.accountId); return index < 0 ? "Account unavailable" : accountLabel(state.accounts[index], index, privacy); };
+  const completeTask = async (item: Commitment, origin: HTMLElement) => {
+    if (!openCommitment(item) || blocked || work.refreshing || sessionModal || acknowledged.current) return;
+    const controls = [...(origin.closest(".work-content")?.querySelectorAll<HTMLElement>(".work-row-complete, .work-summary-bar button") || [])];
+    const index = controls.indexOf(origin);
+    completionFocus.current = document.activeElement === origin
+      ? { origin, nearby: [...controls.slice(index + 1), ...controls.slice(0, index).reverse()] } : null;
+    setTaskStatus("");
+    // Completing a task must not acknowledge or clear another form's draft.
+    if (await work.mutate(() => api(`/commitments/${encodeURIComponent(item.id)}`, "PATCH", { revision: item.revision, status: "done" }))) {
+      setTaskStatus("Task completed.");
+    }
+  };
   const itemRow = (item: Commitment) => <article key={item.id} className={`work-item work-row${selectedId === item.id ? " selected" : ""}`}>
+    <input className="work-row-complete" type="checkbox" aria-label="Mark task complete" aria-describedby={`work-task-${encodeURIComponent(item.id)}`}
+      checked={item.status === "done"} disabled={!openCommitment(item) || blocked || work.refreshing || sessionModal}
+      onChange={(event) => void completeTask(item, event.currentTarget)} />
     <button type="button" className="work-select" aria-pressed={selectedId === item.id} onClick={(event) => { selectedRow.current = event.currentTarget; if (sessionModal) return; setSelectedId(item.id); setDetailOpen(true); if (mode === "actions" || mode === "projects") { const mail = state.messages.find((mail) => mail.id === item.sourceMailId && mail.accountId === item.accountId && state.accounts.some((account) => account.id === mail.accountId)); if (mail) { missingSelection.current = false; onOpen(mail); } else { missingSelection.current = true; onCloseReader?.(); } } }}>
-      <span className="work-row-marker" aria-hidden="true" /><strong><Redact text={item.text} /></strong>
+      <strong id={`work-task-${encodeURIComponent(item.id)}`}><Redact text={item.text} /></strong>
       <span className="work-meta">{`${statusNames[item.status]} · `}<Redact text={accountName(item)} />{deadlineDate(item) && ` · Due ${deadlineDate(item)}`}{item.followUpAt === undefined ? "" : ` · Remind ${new Date(item.followUpAt).toLocaleString()}`}</span>
     </button>
   </article>;
@@ -309,13 +347,14 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
     <h3>Source and evidence</h3>{[...new Set([selected.sourceMailId, ...selected.evidenceMailIds])].map((id) => <Source key={id} id={id} state={state} onOpen={onOpen} />)}
     <details><summary>Change history ({selected.history.length})</summary>{selected.history.map((change, index) => <div className="work-item" key={index}><p>{new Date(change.at).toLocaleString()} · {statusNames[change.status]}</p><p><Redact text={change.text} /> · <Redact text={change.reason} /></p><p>Deadline: {deadlineDate(change) || "Not set"} · Follow up: {change.followUpAt === undefined ? "Not set" : new Date(change.followUpAt).toLocaleString()}</p>{change.evidenceMailIds?.map((id) => <Source key={id} id={id} state={state} onOpen={onOpen} />)}</div>)}</details>
   </>;
-  const closeDetail = () => { if (sessionModal) return; setDetailOpen(false); missingSelection.current = false; onCloseReader?.(); if (mode !== "calendar") selectedRow.current?.focus({ preventScroll: true }); };
+  const closeDetail = () => { if (sessionModal) return; restoreListFocus.current = mode !== "calendar"; setDetailOpen(false); missingSelection.current = false; onCloseReader?.(); };
   const detail = selected && detailOpen && <section className={mode === "calendar" ? "work-inspector" : "work-summary"} aria-label="Commitment details" ref={inspector} tabIndex={-1}
     onKeyDown={(event) => { if (mode === "calendar" && event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); closeDetail(); } }}>
     <div className="work-summary-bar">
       <button type="button" className="icon" aria-label={mode === "calendar" ? "Back to calendar" : "Back to work list"} title={mode === "calendar" ? "Back to calendar" : "Back to work list"} onClick={closeDetail}><ArrowLeft size={15} /></button>
       <span className="work-status">{statusNames[selected.status]}</span>
       <strong><Redact text={selected.text} /></strong>
+      {openCommitment(selected) && <button type="button" disabled={blocked || work.refreshing || sessionModal} onClick={(event) => void completeTask(selected, event.currentTarget)}>Mark complete</button>}
       <button type="button" disabled={blocked} onClick={() => setEditor(selected)}>Edit task</button>
       <button type="button" disabled={blocked || sessions.locked || !sessions.value?.available} onClick={() => sessions.open(selected)}>Plan work</button>
     </div>
@@ -382,7 +421,8 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
         choices={[{ id: "review", label: `Review queue (${workspace.proposals.filter((item) => item.status === "pending").length})` }, { id: "activity", label: "Activity" }]}
         onChange={setAgentTab} /></div>}
     </>)}
-    <div className={`work-content work-${mode}${mode === "actions" || mode === "projects" ? " today-content" : ""}`}>
+    <div ref={workContent} tabIndex={-1} className={`work-content work-${mode}${mode === "actions" || mode === "projects" ? " today-content" : ""}`}>
+    {taskStatus && <p ref={taskNotice} tabIndex={-1} role="status" className="work-meta">{taskStatus}</p>}
     {error && !editor && <p role="alert">{error}</p>}
     {(mode === "agents" || mode === "assistants") && agentError && <p role="alert">{agentError}</p>}
     {!loaded && !error && <p role="status">Loading confirmed work…</p>}

@@ -287,6 +287,9 @@ test("Projects resets reading after creation and task reassignment, and decision
     await ui.refresh(); await ui.click(ui.sidebar("Projects"));
     await ui.click(ui.container.querySelector<HTMLButtonElement>(".project-filters button")!);
     const source = ui.container.querySelector<HTMLButtonElement>(".project-decisions .work-source")!;
+    const supporting = source.closest("details")!;
+    await ui.click(supporting.querySelector("summary")!);
+    assert.ok(supporting.open, "source link is visible before opening its email");
     await ui.click(source); await ui.click(ui.button("Close email"));
     assert.ok(document.activeElement === source, "return to the decision source");
     await ui.click(ui.container.querySelector<HTMLButtonElement>(".work-select")!);

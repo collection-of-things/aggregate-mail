@@ -112,6 +112,7 @@ test("update quiesce drains renderer sends and queued sync/mutations, approved a
     const drain = backend.quiesceMail(1000).then(() => { drained = true; });
     assert.equal(actions.mailIsQuiesced(), true);
     assert.equal((await submit()).status, 503);
+    assert.equal((await fetch(`${base}/api/commitments/synthetic`, { method: "PATCH", headers, body: JSON.stringify({ revision: 1, status: "done" }) })).status, 503);
     await assert.rejects(actions.sendMail({}), /paused/);
     await assert.rejects(actions.updateMessage("a:1", { action: "archive" }), /paused/);
     await assert.rejects(backend.syncMail(), /paused/);
