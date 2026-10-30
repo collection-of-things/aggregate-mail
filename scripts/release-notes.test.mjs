@@ -38,6 +38,8 @@ test("manual releases require their section; push releases may use Unreleased", 
   const empty = changelog.replace("### Fixed\n\n- Unreleased fix.\n\n", "");
   assert.throws(() => releaseNotes(empty, "0.1.13", { allowUnreleased: true }), /no release notes/);
   assert.throws(() => releaseNotes(changelog.replace("- Twelve.", ""), "0.1.12"), /no release notes/);
+  assert.throws(() => releaseNotes(changelog.replace("- Twelve.", "<!-- pending -->"), "0.1.12"), /no release notes/);
+  assert.throws(() => releaseNotes(changelog.replace("- Twelve.", "Some prose without an entry."), "0.1.12"), /no release notes/);
   assert.equal(releaseNotes(changelog.replace("- Twelve.", ""), "0.1.12", { allowUnreleased: true }), "### Fixed\n\n- Unreleased fix.\n");
   for (const version of ["", "v0.1.12", "0.1", "01.1.12", "0.1.12-beta.1"]) assert.throws(() => releaseNotes(changelog, version), /Invalid stable version/);
 });

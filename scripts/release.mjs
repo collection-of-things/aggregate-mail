@@ -118,7 +118,7 @@ try {
   console.log(`\nPublished ${tag} to ${repo}.`);
 } catch {
   console.log(
-    `\nCould not publish to ${repo}. Check that it exists and that gh is signed in, then retry:\n  gh release create ${tag} release/*.exe --repo ${repo} --notes-file ${notesPath}`,
+    `\nCould not publish to ${repo}. Check that it exists and that gh is signed in, then retry:\n  gh release create ${tag} release/*.exe --repo ${repo} --notes-file "${notesPath}"`,
   );
 }
 console.log(

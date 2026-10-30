@@ -20,9 +20,10 @@ the Releases page mixed curated notes with PR-title lists.
   `gh release create --notes-file`.
 - A manual stable-tag release requires its exact version section. A push
   release chooses its version while running, so it falls back to the
-  Unreleased section when no version section exists.
-- Missing or empty notes fail the job before the release tag is created or
-  the release is published. `.github/release.yml` is removed.
+  Unreleased section when the version section is missing or has no list
+  entries. Headings and HTML comments alone do not count as notes.
+- Notes that are still missing after that fail the job before the release
+  tag is created or the release is published. `.github/release.yml` is removed.
 - The local `npm run release` path uses the same notes, falling back to
   Unreleased, and fails before building when there are none.
 
