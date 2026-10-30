@@ -58,8 +58,8 @@ subject. Compact narrow rows use a 72px size token shared with list windowing.
 
 Today groups open work into overdue, due today, upcoming, undated and waiting
 sections. Open, Waiting and Completed views change only the visible local
-list. Every row retains its status. Existing source-opening and explicit
-completion or reopening operations remain unchanged.
+list. Every row retains its status. A checkbox completes an open task directly;
+task details also offer Mark complete. Reopening remains in Edit task.
 
 Today has a workspace context pane before selection. Projects has an overview
 above tasks and conversations, with project decisions in its context pane.
