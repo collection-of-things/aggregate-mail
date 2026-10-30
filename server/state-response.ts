@@ -1,10 +1,8 @@
 import type { Request, Response } from "express";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { createGzip, gzip } from "node:zlib";
-import { promisify } from "node:util";
+import { createDeflateRaw, crc32 } from "node:zlib";
 
-const gzipAsync = promisify(gzip);
 const threshold = 16 * 1024;
 const yieldLoop = () => new Promise<void>(resolve => setImmediate(resolve));
 
@@ -49,21 +47,39 @@ export async function writeStateResponse(req: Request, res: Response, envelope: 
     await pipeline(Readable.from(body()), res, { signal });
     return;
   }
-  // RFC 1952 permits concatenated gzip members. Keep the status envelope,
-  // including its existing CSRF field, in a level-zero member. The messages
-  // use a fresh compression dictionary with no status or authentication tokens.
-  const status = await gzipAsync(prefix, { level: 0 });
+  // Some HTTP decoders stop after the first gzip member, so send exactly one.
+  // Keep the status envelope, including its existing CSRF field, in stored
+  // DEFLATE blocks. The messages follow as a raw DEFLATE stream with a fresh
+  // dictionary that holds no status or authentication tokens.
+  const status = Buffer.from(prefix);
+  let crc = crc32(status), size = status.length;
+  const stored: Buffer[] = [Buffer.from([0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 0xff])];
+  for (let i = 0; i < status.length; i += 0xffff) {
+    const block = status.subarray(i, i + 0xffff), header = Buffer.alloc(5);
+    header.writeUInt16LE(block.length, 1); header.writeUInt16LE(~block.length & 0xffff, 3);
+    stored.push(header, block);
+  }
   signal.throwIfAborted();
   res.set("Content-Encoding", "gzip");
   // One pipeline owns response backpressure, cancellation and error cleanup.
   async function* encoded() {
-    yield status;
-    const source = Readable.from(body());
-    const zip = createGzip({ level: 1 });
+    yield Buffer.concat(stored);
+    async function* counted() {
+      for await (const chunk of body()) {
+        const bytes = Buffer.from(chunk);
+        crc = crc32(bytes, crc); size += bytes.length;
+        yield bytes;
+      }
+    }
+    const source = Readable.from(counted());
+    const zip = createDeflateRaw({ level: 1 });
     const pumping = pipeline(source, zip, { signal });
     void pumping.catch(() => {});
     try { yield* zip; await pumping; }
     finally { source.destroy(); zip.destroy(); await pumping.catch(() => {}); }
+    const trailer = Buffer.alloc(8);
+    trailer.writeUInt32LE(crc >>> 0, 0); trailer.writeUInt32LE(size >>> 0, 4);
+    yield trailer;
   }
   await pipeline(Readable.from(encoded()), res, { signal });
 }

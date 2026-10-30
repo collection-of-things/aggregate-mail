@@ -6,6 +6,10 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Fixed
+
+- Fix "Unexpected end of JSON input" when loading large cached-mail snapshots in clients that decode only the first gzip member of a compressed response ([#168](https://github.com/collection-of-things/aggregate-mail/pull/168)).
+
 ## 0.2.21 - 2026-10-29
 
 ### Changed
