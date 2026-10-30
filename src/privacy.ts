@@ -111,20 +111,30 @@ function decodedText(text: string) {
   return { decoded, offsets };
 }
 
-const PRIVATE_NAMES_MAX = 64;
-// Usable names, deduplicated case-insensitively because matching ignores case.
-const validNames = (names: readonly string[]) => [...new Map(names.map(cleanName).filter((name) => {
-  const words = name.split(/[\s+]+/u).filter(Boolean);
-  return words.length > 0 && name.length <= 160 && words.length <= 16;
-}).map((name) => [name.toLowerCase(), name])).values()];
+const PRIVATE_NAMES_MAX = 64, PRIVATE_NAME_LENGTH_MAX = 160, PRIVATE_NAME_WORDS_MAX = 16;
+// Names the bounded matcher can check, deduplicated case-insensitively because
+// matching ignores case. Returns null when any name exceeds the limits.
+function matchableNames(names: readonly string[]): string[] | null {
+  const unique = new Map<string, string>();
+  for (const name of names.map(cleanName)) {
+    const words = name.split(/[\s+]+/u).filter(Boolean);
+    if (!words.length) continue;
+    if (name.length > PRIVATE_NAME_LENGTH_MAX || words.length > PRIVATE_NAME_WORDS_MAX) return null;
+    unique.set(folded(name), name);
+  }
+  return unique.size > PRIVATE_NAMES_MAX ? null : [...unique.values()];
+}
+// Lowercase with both sigma forms folded together, as /iu matching does.
+// Same-length replacement keeps offsets aligned.
+function folded(text: string) { return text.toLowerCase().replace(/ς/g, "σ"); }
 
 // Offsets use UTF-16, like String.slice. Values are sensitive and never for attrs.
 export function privateRanges(text: string, names: readonly string[] = []): PrivacyRange[] {
-  const candidates = validNames(names);
+  const candidates = matchableNames(names);
   // Candidate size is bounded so matching cannot grow with crafted input. When
-  // more names exist than the matcher covers, hide the whole text without a
+  // a name falls outside what the matcher covers, hide the whole text without a
   // reveal control, since one click would otherwise expose every private value.
-  if (candidates.length > PRIVATE_NAMES_MAX) return text ? [{ start: 0, end: text.length, kind: "hidden", value: "" }] : [];
+  if (!candidates) return text ? [{ start: 0, end: text.length, kind: "hidden", value: "" }] : [];
   const { decoded, offsets } = text.includes("%") ? decodedText(text) : { decoded: text, offsets: null };
   const ranges: PrivacyRange[] = [];
   const add = (start: number, end: number, kind: PrivacyRange["kind"], value: string) => {
@@ -140,7 +150,7 @@ export function privateRanges(text: string, names: readonly string[] = []): Priv
     const length = at + 1 + suffix.index + suffix[0].length;
     add(match.index, match.index + length, "address", match[0].slice(0, length));
   }
-  const lower = decoded.toLowerCase();
+  const lower = folded(decoded);
   // toLowerCase keeps offsets only when no character expands; otherwise the
   // bounded expression preserves the Unicode case-folded match positions.
   const aligned = lower.length === decoded.length;
@@ -152,7 +162,7 @@ export function privateRanges(text: string, names: readonly string[] = []): Priv
   for (const name of candidates) {
     // Words never contain a separator character, so matching stays linear.
     const words = name.split(/[\s+]+/u).filter(Boolean);
-    const lowered = words.map((word) => word.toLowerCase());
+    const lowered = words.map(folded);
     if (aligned) {
       const first = lowered[0];
       let at = 0;

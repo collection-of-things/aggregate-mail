@@ -184,9 +184,12 @@ test("previews drop plain-text image placeholders but keep ordinary brackets", a
 });
 
 
-test("name caps apply after validation and redaction fails closed beyond the cap", () => {
-  const invalid = Array.from({ length: 64 }, (_, index) => `invalid${index}${"x".repeat(161)}`);
-  assert.equal(redactPrivateText("Hello Nora", [...invalid, "Nora"]), "Hello ••••••••");
+test("names beyond the matcher's limits hide the whole text", () => {
+  const long = `Nora ${"x".repeat(160)}`;
+  const wordy = Array.from({ length: 17 }, (_, index) => `Word${index}`).join(" ");
+  assert.equal(redactPrivateText(`Hello ${long}`, [long, "Lane"]), "••••••••");
+  assert.equal(redactPrivateText(`Hello ${wordy}`, [wordy]), "••••••••");
+  assert.equal(redactPrivateText("Hello Nora", ["   ", "Nora"]), "Hello ••••••••");
   const names = Array.from({ length: 64 }, (_, index) => `Person${index}`);
   assert.equal(redactPrivateText("Hello Nora", [...names, "Nora"]), "••••••••");
   assert.deepEqual(segmentPrivateText("Hello Nora", [...names, "Nora"]).map(({ kind, text }) => [kind, text]), [["hidden", "Hello Nora"]]);
@@ -197,4 +200,9 @@ test("name caps apply after validation and redaction fails closed beyond the cap
 
 test("Unicode expansion does not hide original name from fallback matching", () => {
   assert.equal(redactPrivateText("Hello İpek", ["İpek"]), "Hello ••••••••");
+});
+
+test("both Greek sigma forms match, like case-insensitive Unicode matching", () => {
+  assert.equal(redactPrivateText("Γεια Νίκοσ", ["Νίκος"]), "Γεια ••••••••");
+  assert.equal(redactPrivateText("Γεια Νίκος Λάμπρος", ["ΝΊΚΟΣ ΛΆΜΠΡΟΣ"]), "Γεια ••••••••");
 });
