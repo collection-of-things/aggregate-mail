@@ -10,11 +10,14 @@ unversioned history without treating it as a release record.
 
 - Search cached mail from the CLI and MCP with the app's field, phrase, exclusion,
   read-state and date syntax. Filter local pins and inspect snooze return times;
-  older apps reject unsupported options instead of silently widening results. ([#175](https://github.com/collection-of-things/aggregate-mail/issues/175))
+  the CLI rejects unsupported options on older apps to prevent silently widened results. ([#175](https://github.com/collection-of-things/aggregate-mail/issues/175))
 - Prepare reviewed CLI draft proposals with multiple To recipients and Bcc.
   Approval preserves the recipients in editable Drafts and never sends mail. ([#175](https://github.com/collection-of-things/aggregate-mail/issues/175))
 
 ### Fixed
+
+- Identify malformed MCP app queries with a stable validation code and guidance
+  to check quotes, fields and dates. ([#175](https://github.com/collection-of-things/aggregate-mail/issues/175))
 
 - Bound PDF preview parsing and page rendering with a worker budget so a stalled or malicious file cannot pin the renderer. ([#167](https://github.com/collection-of-things/aggregate-mail/pull/167))
 

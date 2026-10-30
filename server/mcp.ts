@@ -62,10 +62,12 @@ const filters = {
   limit,
   offset: z.number().int().min(0).default(0),
 };
+class InvalidSearchError extends Error {}
+
 function page(input: z.infer<z.ZodObject<typeof filters>>, allowedAccounts: string[], query?: string, syntax = "substring") {
   const search = query && syntax === "app"
     ? compileMailSearch(query, all("account").filter((a) => allowedAccounts.includes(a.id))) : undefined;
-  if (search?.error) throw new Error(search.error);
+  if (search?.error) throw new InvalidSearchError();
   const now = Date.now();
   const matches = all("mail")
     .filter(
@@ -101,6 +103,8 @@ export function createMcpServer(
     try {
       return json(await run());
     } catch (error) {
+      if (error instanceof InvalidSearchError)
+        return json({ code: "MCP_INVALID_QUERY", error: "Invalid search. Check quotes, fields, and dates." }, true);
       if (error instanceof AgentPermissionError)
         return json(agentId ? {
           code: "MCP_PERMISSION_REQUIRED",

@@ -85,8 +85,8 @@ emc2 list --view all
 ```
 
 Results include `nextOffset`;
-pass that value as the next offset until it is null. Search uses the MCP
-case-insensitive substring contract, not the desktop's advanced search syntax.
+pass that value as the next offset until it is null. Default search uses the
+MCP case-insensitive substring contract.
 Only cached mail is covered. The CLI does not refresh the provider.
 
 Use `--syntax app` to match the app's query language: combined words, quoted
@@ -96,6 +96,8 @@ YYYY-MM-DD boundaries. Plain unquoted words tolerate one typo; phrases, field
 terms, addresses and exclusions remain exact. Account aliases resolve only
 within the connection's granted accounts. Mail tools do not search saved drafts.
 Omitting `--syntax` preserves literal case-insensitive substring matching.
+Direct MCP clients receive `isError: true` with `code: "MCP_INVALID_QUERY"`
+for malformed app queries, plus guidance to check quotes, fields and dates.
 
 `list` and `search` also accept `--pinned` to show only local pins. Combine it
 with `--category snoozed` or `--category archive` to narrow existing views.
