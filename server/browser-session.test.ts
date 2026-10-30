@@ -43,6 +43,9 @@ test("the browser target requires its expiring gate session before serving /api"
     const cookie = opened.headers.get("set-cookie")!.split(";")[0];
     const state = await request("/api/state", { headers: { Cookie: cookie } });
     assert.equal(state.status, 200);
+    const settings = await request("/api/mcp", { headers: { Cookie: cookie } });
+    assert.equal(settings.status, 200);
+    assert.equal((await settings.json()).endpoint, `${origin}/mcp`);
     const { csrf } = await state.json();
     assert.equal(typeof csrf, "string");
     assert.equal((await request("/api/oauth/google/start", { method: "POST", headers: { Cookie: cookie, Origin: origin, "Content-Type": "application/json" }, body: "{}" })).status, 403);

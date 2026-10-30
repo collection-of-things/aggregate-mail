@@ -130,6 +130,14 @@ function OpenCodeSetup({ token, enabled, api, onEnabled, onNotice }: {
   const [phase, setPhase] = useState<"idle" | "pending" | "saved">("idle");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [copyEndpoint, setCopyEndpoint] = useState("");
+  useEffect(() => {
+    let active = true;
+    if (!window.desktop?.copyOpenCodeConfig) void api<McpSettings>("/mcp")
+      .then((settings) => { if (active) setCopyEndpoint(settings.endpoint || ""); })
+      .catch(() => { if (active) setCopyEndpoint(""); });
+    return () => { active = false; };
+  }, [api]);
   const mounted = useRef(true);
   const latest = useRef(token);
   useEffect(() => {
@@ -162,7 +170,11 @@ function OpenCodeSetup({ token, enabled, api, onEnabled, onNotice }: {
   const copy = async () => {
     try {
       if (window.desktop?.copyOpenCodeConfig) await window.desktop.copyOpenCodeConfig(token);
-      else await navigator.clipboard.writeText(openCodeConfig(token));
+      else {
+        // Start the clipboard write in the click gesture, including in Safari.
+        if (!copyEndpoint) throw new Error("unavailable");
+        await navigator.clipboard.writeText(openCodeConfig(token, copyEndpoint));
+      }
       setCopied(true);
     } catch { setCopied(false); onNotice("OpenCode config could not be copied."); }
   };

@@ -84,6 +84,21 @@ function isolatedConfig(directory: string, source: string, prototype?: "ordinary
   assert.equal(child.status, 0, child.stdout + child.stderr);
 }
 
+test("an inherited effective provider keeps its saved key", () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "emc2-config-provider-"));
+  try {
+    isolatedConfig(directory, `
+      import assert from 'node:assert/strict';
+      process.env.TYPESAFE_PROVIDER = 'vercel';
+      const c = await import('./server/config.ts'); const s = await import('./server/store.ts');
+      s.put('config', 'connection', { TYPESAFE_PROVIDER: 'openrouter', TYPESAFE_API_KEY: 'synthetic-key' });
+      c.saveConfiguration({ TYPESAFE_PROVIDER: 'vercel' });
+      assert.equal(s.get('config', 'connection').TYPESAFE_API_KEY, 'synthetic-key');
+      s.closeStore();
+    `);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test("empty and missing configuration accept both parser prototypes", async (t) => {
   for (const prototype of ["ordinary", "null"] as const) for (const present of [false, true]) await t.test(`${prototype}, ${present ? "empty" : "missing"}`, () => {
     const directory = mkdtempSync(path.join(tmpdir(), "emc2-config-empty-"));

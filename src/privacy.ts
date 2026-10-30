@@ -3,14 +3,15 @@ type RecipientHeaders = { to?: string; cc?: string };
 export type PrivacyRange = {
   start: number;
   end: number;
-  kind: "address" | "name";
+  // "hidden" covers text the matcher could not check; it is never revealable.
+  kind: "address" | "name" | "hidden";
   value: string;
 };
 export type PrivacySegment = {
   start: number;
   end: number;
   text: string;
-  kind: "text" | "address" | "name";
+  kind: "text" | PrivacyRange["kind"];
   value?: string;
 };
 
@@ -110,8 +111,30 @@ function decodedText(text: string) {
   return { decoded, offsets };
 }
 
+const PRIVATE_NAMES_MAX = 64, PRIVATE_NAME_LENGTH_MAX = 160, PRIVATE_NAME_WORDS_MAX = 16;
+// Names the bounded matcher can check, deduplicated case-insensitively because
+// matching ignores case. Returns null when any name exceeds the limits.
+function matchableNames(names: readonly string[]): string[] | null {
+  const unique = new Map<string, string>();
+  for (const name of names.map(cleanName)) {
+    const words = name.split(/[\s+]+/u).filter(Boolean);
+    if (!words.length) continue;
+    if (name.length > PRIVATE_NAME_LENGTH_MAX || words.length > PRIVATE_NAME_WORDS_MAX) return null;
+    unique.set(folded(name), name);
+  }
+  return unique.size > PRIVATE_NAMES_MAX ? null : [...unique.values()];
+}
+// Lowercase with both sigma forms folded together, as /iu matching does.
+// Same-length replacement keeps offsets aligned.
+function folded(text: string) { return text.toLowerCase().replace(/ς/g, "σ"); }
+
 // Offsets use UTF-16, like String.slice. Values are sensitive and never for attrs.
 export function privateRanges(text: string, names: readonly string[] = []): PrivacyRange[] {
+  const candidates = matchableNames(names);
+  // Candidate size is bounded so matching cannot grow with crafted input. When
+  // a name falls outside what the matcher covers, hide the whole text without a
+  // reveal control, since one click would otherwise expose every private value.
+  if (!candidates) return text ? [{ start: 0, end: text.length, kind: "hidden", value: "" }] : [];
   const { decoded, offsets } = text.includes("%") ? decodedText(text) : { decoded: text, offsets: null };
   const ranges: PrivacyRange[] = [];
   const add = (start: number, end: number, kind: PrivacyRange["kind"], value: string) => {
@@ -127,19 +150,43 @@ export function privateRanges(text: string, names: readonly string[] = []): Priv
     const length = at + 1 + suffix.index + suffix[0].length;
     add(match.index, match.index + length, "address", match[0].slice(0, length));
   }
-  for (const name of new Set(names.map(cleanName).filter(Boolean))) {
+  const lower = folded(decoded);
+  // toLowerCase keeps offsets only when no character expands; otherwise the
+  // bounded expression preserves the Unicode case-folded match positions.
+  const aligned = lower.length === decoded.length;
+  const withinBounds = (start: number, end: number) => {
+    const before = Array.from(decoded.slice(Math.max(0, start - 2), start)).at(-1) || "";
+    const after = String.fromCodePoint(decoded.codePointAt(end) || 0);
+    return !wordCharacter.test(before) && !wordCharacter.test(after);
+  };
+  for (const name of candidates) {
     // Words never contain a separator character, so matching stays linear.
     const words = name.split(/[\s+]+/u).filter(Boolean);
-    if (!words.length) continue;
+    const lowered = words.map(folded);
+    if (aligned) {
+      const first = lowered[0];
+      let at = 0;
+      while (at <= lower.length - first.length) {
+        const start = lower.indexOf(first, at);
+        if (start < 0) break;
+        at = start + 1;
+        let end = start + first.length, matched = true;
+        for (let index = 1; index < lowered.length; index++) {
+          const gap = end;
+          while (end < lower.length && /[\s+]/.test(lower[end])) end++;
+          if (end === gap || !lower.startsWith(lowered[index], end)) { matched = false; break; }
+          end += lowered[index].length;
+        }
+        if (matched && withinBounds(start, end)) add(start, end, "name", name);
+      }
+      continue;
+    }
     const pattern = words
       .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[\\s+]+");
     for (const match of decoded.matchAll(new RegExp(pattern, "giu"))) {
       const start = match.index;
       const end = start + match[0].length;
-      const before = Array.from(decoded.slice(Math.max(0, start - 2), start)).at(-1) || "";
-      const after = String.fromCodePoint(decoded.codePointAt(end) || 0);
-      if (!wordCharacter.test(before) && !wordCharacter.test(after))
-        add(start, end, "name", name);
+      if (withinBounds(start, end)) add(start, end, "name", name);
     }
   }
   ranges.sort((left, right) => left.start - right.start || right.end - left.end);
@@ -178,7 +225,7 @@ export function redactPrivateText(text: string, names: readonly string[] = []): 
 // Returned offsets are local to each leaf; reveal keys keep the whole source token.
 export function segmentPrivateParts(parts: readonly string[], names: readonly string[] = []): PrivacySegment[][] {
   const segments = segmentPrivateText(parts.join(""), names)
-    .map((segment) => segment.kind === "text" ? segment : { ...segment, value: segment.text });
+    .map((segment) => segment.kind === "text" || segment.kind === "hidden" ? segment : { ...segment, value: segment.text });
   let offset = 0;
   let cursor = 0;
   return parts.map((part) => {

@@ -28,6 +28,7 @@ test("account onboarding keeps transport identities and Gmail mailbox semantics"
   t.mock.method(ImapFlow.prototype, "connect", async function (this: ImapFlow) {
     connections.push(this);
     this.usable = true;
+    this.capabilities = new Map([["MOVE", true]]);
     if (validationFailure) throw new Error("synthetic authentication failure");
   });
   t.mock.method(ImapFlow.prototype, "mailboxOpen", async () => ({}));

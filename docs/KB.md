@@ -29,6 +29,20 @@ guarded CRUD. Saved-view cases in `src/navigation.test.tsx` exercise Commands,
 filter restoration, rename/delete and privacy. Native and installed acceptance
 are separate from these synthetic checks.
 
+## Provider, search and privacy safeguards
+
+Browser MCP configuration reports the current loopback listener port. Agent
+provider DNS is resolved once within the request deadline and all answers must
+be public; the connector can try the validated addresses without another DNS
+lookup. IMAP searches retain the newest bounded UIDs and report incomplete
+results when truncated. An unbound archived destructive move requires an exact
+Message-ID and subject, and an envelope date must match when present; a missing
+envelope date is accepted. Privacy mode hides the entire text when there are
+more than 64 distinct names (compared case-insensitively) or any name is longer
+than 160 characters or 16 words, in rendered text as well as redacted strings.
+That fallback has no reveal control; turn privacy mode off to read the text.
+Name matching treats both Greek sigma forms as the same letter.
+
 ## Reviewed unsubscribe
 
 Provider MIME parsing stores bounded `List-Unsubscribe` metadata on full
@@ -437,10 +451,12 @@ refuses an ambiguous or unsafe location and reports codes only, never a path or
 credential. The renderer enables MCP on the same click through the existing
 settings API. The `copy-opencode-config` clipboard action and the fixed-endpoint
 fragment stay for the Advanced: manual setup fallback: it composes the same
-`emc2` entry for the fixed loopback endpoint, validates the credential before
-writing and keeps the on-screen preview and notices free of the credential. The
-browser target writes the identical shared fragment through its clipboard API.
-No non-local origin, project config or automatic external write is involved.
+`emc2` entry for the loopback endpoint the running app verifies, validates the
+credential before writing and keeps the on-screen preview and notices free of
+the credential. The browser target reads that endpoint from the settings API
+and refuses to copy without it, then writes the identical shared fragment
+through its clipboard API. No non-local origin, project config or automatic
+external write is involved.
 
 ## Agent review provider keys
 
@@ -464,10 +480,13 @@ MCP settings are unchanged. The existing approval path still requires MCP on.
 The source fingerprint, preview, current account, grant and provider revision
 are rechecked after the external request. A per-grant guard rejects concurrent
 preparation. HTTPS destinations reject credentials, query, fragment, local
-names and private literal hosts; public DNS resolution is not pinned. Fetch
-refuses redirects and retries, times out after 30 seconds, and bounds response
-bytes and reply length. Provider errors and response bodies never become error
-diagnostics. No API key is returned in settings or proposal responses.
+names and private literal hosts. Provider hostnames resolve once before the
+request and every answer must be a public address; the connection pins that
+address while the hostname still drives TLS and SNI, so a name that later
+answers a private address cannot redirect the key. Fetch refuses redirects and
+retries, times out after 30 seconds, and bounds response bytes and reply
+length. Provider errors and response bodies never become error diagnostics.
+No API key is returned in settings or proposal responses.
 
 `src/work/AgentProvider.tsx` provides the compact disclosure before optional
 OpenCode setup. It reuses the bounded `SourceSelect` and privacy controls, clears
@@ -738,7 +757,7 @@ The viewport window retains the complete filtered array, bounds mounted rows wit
 
 Row Trash actions use visibility for hover/focus disclosure. The shared disabled-button opacity cannot reveal an idle action over its timestamp while sync disables the buttons. Devices without hover retain visible actions and timestamp spacing.
 
-Move to Trash uses the existing authenticated message action route and serialized mail-work queue. Gmail uses `messages.trash`. IMAP requires native MOVE support (including active IMAP4rev2) and exactly one server-declared Trash folder; it does not use ImapFlow's COPY/Deleted/EXPUNGE fallback. Inbox actions validate UIDVALIDITY and UID, plus Message-ID when available. Folder checks compare raw server flags case-insensitively, reject mixed-case duplicate declarations and exclude name-based guesses. Archived mail is resolved through a unique server-declared archive folder and an exact Message-ID match. The encrypted cache entry is removed only after provider success. Confirmed IMAP moves remain successful if connection cleanup throws. Missing folders, unsupported MOVE and unsafe identities fail without a mailbox mutation. See [ADR 0017](adr/0017-safe-trash-and-visible-mail-actions.md).
+Move to Trash uses the existing authenticated message action route and serialized mail-work queue. Gmail uses `messages.trash`. IMAP requires native MOVE support (including active IMAP4rev2) and exactly one server-declared Trash folder; it does not use ImapFlow's COPY/Deleted/EXPUNGE fallback. Archive applies the same MOVE requirement. Inbox actions validate UIDVALIDITY and UID, plus Message-ID when available. Folder checks compare raw server flags case-insensitively, reject mixed-case duplicate declarations and exclude name-based guesses. Archived mail opens the mailbox recorded at its confirmed archive move when one exists, otherwise a unique server-declared archive folder with an exact Message-ID match; a recovered match must also agree on Date and Subject before a destructive move. The encrypted cache entry is removed only after provider success. Confirmed IMAP moves remain successful if connection cleanup throws. Missing folders, unsupported MOVE and unsafe identities fail without a mailbox mutation. See [ADR 0017](adr/0017-safe-trash-and-visible-mail-actions.md).
 
 The [public-feedback report](ux-feedback-2026-10-12.md) records 13 inspected reports, their age/resolution limits and proposed UX priorities. It does not establish complaint prevalence, native behavior or live-provider verification.
 
@@ -2820,10 +2839,14 @@ remain separate proof.
 ## Unread and Inbox restoration
 
 The serialized single-message PATCH route accepts `unread` and `inbox`. Gmail
-adds UNREAD or INBOX. IMAP resolves archived mail by its exact Message-ID before
-restoring it; UIDPLUS, a unique flagged archive folder and MOVE are required.
-Gmail over IMAP copies from All Mail instead. Destination identifiers map back
-to the same local ID during sync. Shift+U and V are editable defaults, preserving
+adds UNREAD or INBOX. IMAP resolves archived mail by the exact mailbox binding
+recorded at its confirmed archive move, or by an exact Message-ID match when no
+binding exists. Restoring to Inbox requires UIDPLUS and a unique flagged
+archive folder (All Mail on Gmail). Other IMAP servers also need MOVE; Gmail
+over IMAP copies from All Mail into INBOX instead. Marking archived mail read or
+unread needs none of these. A recovered Message-ID match must also agree on Subject,
+and on Date when the envelope has one, before a destructive move. Destination
+identifiers map back to the same local ID during sync. Shift+U and V are editable defaults, preserving
 U for return-to-list and B for snooze. Commands and message actions use the same
 eligibility checks. An open reader stays unread after the action.
 See [ADR 0095](adr/0095-single-message-unread-and-inbox.md).

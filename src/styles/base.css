@@ -258,6 +258,11 @@ input[type="checkbox"][role="switch"]:disabled {
 .address.veiled:hover {
   background: var(--veil-hover);
 }
+/* Text hidden past the name budget has no reveal control. */
+.address.veiled.locked {
+  cursor: default;
+  background: var(--veil);
+}
 .private .compose-form :is(select, input[type="email"]):not(:focus) {
   filter: blur(5px);
 }

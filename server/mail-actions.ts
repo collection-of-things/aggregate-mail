@@ -5,6 +5,7 @@ import { updateLocalMail, restoreLocalMail } from "./local-mail-undo.js";
 import { MAX_MAIL_BATCH, type MailBatchResponse } from "../shared/bulk-mail.js";
 import { all, get, account, put, remove, holdAttachments, releaseAttachmentHold, cleanupUploads } from "./store.js";
 import { providers, sendSchema, SentCopyError, updateGmailLabels, type SendInput } from "./providers.js";
+import type { Mail } from "../shared/types.js";
 import { recordRecentRecipients } from "./contacts.js";
 
 let mailWork = Promise.resolve();
@@ -111,7 +112,7 @@ export async function updateMessage(
       put("mail", m.id, updated);
       return updated;
     }
-    let identity: void | { remoteId: string } = undefined;
+    let identity: void | { remoteId?: string; mailbox?: Mail["mailbox"] } = undefined;
     if (input.action === "read" || input.action === "unread" || input.action === "inbox" || input.action === "archive") {
       const a = account(m.accountId);
       providerStarted?.();
@@ -121,6 +122,8 @@ export async function updateMessage(
     const removedLabel = input.action === "read" ? "UNREAD" : input.action === "archive" ? "INBOX" : null;
     const updated = {
       ...latest,
+      // Restoring to Inbox ends the recorded archive-folder binding.
+      ...(input.action === "inbox" ? { mailbox: undefined } : {}),
       ...(identity || {}),
       labelIds: removedLabel ? latest.labelIds?.filter((labelId) => labelId !== removedLabel) : input.action === "unread" || input.action === "inbox" ? [...new Set([...(latest.labelIds || []), input.action === "unread" ? "UNREAD" : "INBOX"])] : latest.labelIds,
       unread: input.action === "read" ? false : input.action === "unread" ? true : latest.unread,

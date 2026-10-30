@@ -15,6 +15,11 @@ test("summary-first search decrypts only unresolved bodies and preserves exact o
   const parse = JSON.parse;
   let decoded = 0;
   try {
+    const attached = { ...mails[0], attachments: [{ id: 'file', filename: 'file.txt', contentType: 'text/plain', size: 4, contentId: undefined }] };
+    store.put('mail', attached.id, attached);
+    const saved = store.get('mailSummary', attached.id)!.summary;
+    assert.equal(store.sameMailSummary(attached, saved), true);
+    assert.equal(store.sameMailSummary({ ...attached, attachments: [{ ...attached.attachments[0], size: 5 }] }, saved), false);
     for (const m of mails) store.put('mail', m.id, m);
     await store.mailSummaryChanges();
     JSON.parse = ((value: string, ...args: unknown[]) => { if (value.includes('"body":')) decoded++; return Reflect.apply(parse, JSON, [value, ...args]); }) as typeof JSON.parse;

@@ -19,7 +19,7 @@ import path from "node:path";
 import express from "express";
 import { google } from "./google-api.js";
 import { z } from "zod";
-import { all, get, syncMailCache, mailSummaryChanges, mailSummary, searchMail, draftChangeToken, count, put, putBatch, remove, removeAccountAttachments, account, transaction, compactStore, storageStats, type StoredAccount, eraseUpload } from "./store.js";
+import { all, get, syncMailCache, mailSummaryChanges, mailSummary, searchMail, draftChangeToken, count, put, putBatch, remove, removeAccountAttachments, account, transaction, compactStore, storageStats, type StoredAccount, eraseUpload, sameMailSummary } from "./store.js";
 import { matchesRule } from "../shared/rules.js";
 import { mountWorkspace } from "./workspace.js";
 import { mountAgentProvider } from "./agent-provider.js";
@@ -735,9 +735,27 @@ async function syncAccount(
   const saveBatch: NonNullable<Parameters<typeof providers.gmail.list>[2]> = (batch) => {
     if (!currentAccount()) return;
     const changed: [string, Mail][] = [];
-    for (const incoming of batch) {
+    for (const entry of batch) {
+      // Summary rows name unchanged cached mail; count presence, skip the record.
+      if (!("body" in entry)) {
+        const summary = existing.peek(entry.id);
+        if (summary) received.add(summary.id);
+        continue;
+      }
+      const incoming = entry;
+      const summary = existing.peek(incoming.id);
+      if (summary) {
+        const savedSummary = {
+          ...incoming, category: summary.category, relevance: summary.relevance, reason: summary.reason,
+          archived: false, snoozedUntil: summary.snoozedUntil || null,
+          ...(summary.pinned ? { pinned: true } : {}),
+        };
+        // The summary projection is what a save would leave visible; identical
+        // rows need no decrypt, sort or write.
+        if (sameMailSummary(savedSummary, summary)) { received.add(summary.id); continue; }
+      }
       const previous = existing.get(incoming.id);
-      const m = previous ? { ...incoming, id: previous.id } : incoming;
+      const m = previous ? { ...previous, ...incoming, id: previous.id } : incoming;
       if (received.has(m.id)) continue;
       received.add(m.id);
       const saved = {

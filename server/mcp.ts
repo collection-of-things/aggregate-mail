@@ -315,7 +315,12 @@ export function mountMcp(
   assertNotSyncing: () => void,
   changed: () => void,
 ) {
-  app.get("/api/mcp", (_req, res) => res.json(mcpSettings()));
+  app.get("/api/mcp", (req, res) => {
+    const { localAddress, localPort } = req.socket;
+    if (!localPort || !["127.0.0.1", "::ffff:127.0.0.1"].includes(localAddress || ""))
+      return res.status(503).json({ error: "MCP endpoint is unavailable." });
+    return res.json({ ...mcpSettings(), endpoint: `http://127.0.0.1:${localPort}/mcp` });
+  });
   app.patch("/api/mcp", (req, res) => {
     const input = z
       .object({

@@ -40,9 +40,10 @@ export function McpSection({
       | { regenerateToken: boolean },
   ) =>
     void perform(async () => {
-      setSettings(await api<McpSettings>("/mcp", "PATCH", input));
+      const updated = await api<McpSettings>("/mcp", "PATCH", input);
+      setSettings((previous) => ({ ...updated, endpoint: previous?.endpoint }));
     });
-  const endpoint = "http://127.0.0.1:32145/mcp";
+  const endpoint = settings?.endpoint || "";
   const snippets = [["Endpoint", endpoint]];
   return (
     <section className="mcp-settings">
@@ -86,11 +87,11 @@ export function McpSection({
                 <div className="mcp-copy" key={label}>
                   <div>
                     <strong>{label}</strong>
-                    <pre>{value}</pre>
+                    <pre>{value || "Unavailable"}</pre>
                   </div>
                   <button
                     className="button"
-                    disabled={busy}
+                    disabled={busy || (!value && !window.desktop?.copyMcpEndpoint)}
                     onClick={() => void (async () => {
                       try {
                         if (window.desktop?.copyMcpEndpoint) await window.desktop.copyMcpEndpoint();

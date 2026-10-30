@@ -11,8 +11,25 @@ export function needsEmbeddedContentRecovery(mail: Pick<Mail, "html" | "attachme
 }
 
 export const MAIL_HTML_LIMIT = 256_000;
-// Plain-text conversion leaves image sources as [url]; previews drop them, including one cut off by the stored preview length.
-export const previewText = (text: string) => text.replace(/\[(?:https?|cid):[^\]\s]*(?:\]|$)/gi, " ").replace(/\s+/g, " ").trim();
+// Plain-text conversion leaves image sources as [url]; previews drop them,
+// including one cut off by the stored preview length. One left-to-right pass
+// drops markers; the expression rescanned runs of unmatched "[" once each.
+export const previewText = (text: string) => {
+  const bounded = text.slice(0, 8192);
+  let result = "", at = 0;
+  while (at < bounded.length) {
+    const open = bounded.indexOf("[", at);
+    if (open < 0) { result += bounded.slice(at); break; }
+    const prefix = bounded.slice(open + 1, open + 7).toLowerCase();
+    const marker = prefix.startsWith("https:") ? 7 : prefix.startsWith("http:") ? 6 : prefix.startsWith("cid:") ? 5 : 0;
+    if (!marker) { result += bounded.slice(at, open + 1); at = open + 1; continue; }
+    let close = open + marker;
+    while (close < bounded.length && bounded[close] !== "]" && !/\s/.test(bounded[close])) close++;
+    if (close >= bounded.length || bounded[close] === "]") { result += `${bounded.slice(at, open)} `; at = close + 1; }
+    else { result += bounded.slice(at, open + 1); at = open + 1; }
+  }
+  return result.replace(/\s+/g, " ").trim();
+};
 export const MAIL_NODE_LIMIT = 4_000;
 // Newsletters nest tables about 50 deep; the node limit bounds the total work.
 export const MAIL_DEPTH_LIMIT = 96;
@@ -81,7 +98,9 @@ export function mailStyle(value: string): Record<string, string | number> {
     if (colon < 0) continue;
     const name = declaration.slice(0, colon).trim().toLowerCase();
     // Inline styles cannot be overridden here, so the priority flag carries no meaning.
-    const input = declaration.slice(colon + 1).trim().toLowerCase().replace(/\s*!\s*important$/, "");
+    let input = declaration.slice(colon + 1).trim().toLowerCase();
+    const priority = input.lastIndexOf("!");
+    if (priority >= 0 && /^\s*important\s*$/.test(input.slice(priority + 1))) input = input.slice(0, priority).trimEnd();
     let output: string | number | null = null;
     if (["color", "background-color", "border-color"].includes(name)) output = color(input);
     if (name === "background") output = color(input);
@@ -127,7 +146,8 @@ function color(value: string): string | null {
 }
 function length(value: string, maximum: number, percent = false): string | null {
   if (value === "0") return "0";
-  const match = /^(\d*\.?\d+)(px|pt|em|rem|ex|ch|%)$/.exec(value);
+  // The digit groups cannot overlap, so a non-match fails without backtracking.
+  const match = value.length <= 32 && /^(\d+(?:\.\d+)?|\.\d+)(px|pt|em|rem|ex|ch|%)$/.exec(value);
   if (!match) return null;
   const amount = Number(match[1]);
   if (match[2] === "%") return percent && amount <= 100 ? value : null;

@@ -182,3 +182,27 @@ test("previews drop plain-text image placeholders but keep ordinary brackets", a
   assert.equal(previewText("[https://cdn.example.test/logo.png] We didn't process  your transfer [cid:img1]\n[Action required]"), "We didn't process your transfer [Action required]");
   assert.equal(previewText("Transfer returned [https://www.example.test/content/da"), "Transfer returned");
 });
+
+
+test("names beyond the matcher's limits hide the whole text", () => {
+  const long = `Nora ${"x".repeat(160)}`;
+  const wordy = Array.from({ length: 17 }, (_, index) => `Word${index}`).join(" ");
+  assert.equal(redactPrivateText(`Hello ${long}`, [long, "Lane"]), "••••••••");
+  assert.equal(redactPrivateText(`Hello ${wordy}`, [wordy]), "••••••••");
+  assert.equal(redactPrivateText("Hello Nora", ["   ", "Nora"]), "Hello ••••••••");
+  const names = Array.from({ length: 64 }, (_, index) => `Person${index}`);
+  assert.equal(redactPrivateText("Hello Nora", [...names, "Nora"]), "••••••••");
+  assert.deepEqual(segmentPrivateText("Hello Nora", [...names, "Nora"]).map(({ kind, text }) => [kind, text]), [["hidden", "Hello Nora"]]);
+  // Leaves share no reveal key, so one control cannot expose the whole message.
+  assert.deepEqual(segmentPrivateParts(["Hello ", "Nora"], [...names, "Nora"]).flat().map(({ kind, value }) => [kind, value]), [["hidden", ""], ["hidden", ""]]);
+  assert.equal(redactPrivateText("Hello Nora", [...names.slice(1), ...names.slice(1).map((name) => name.toUpperCase()), "Nora"]), "Hello ••••••••");
+});
+
+test("Unicode expansion does not hide original name from fallback matching", () => {
+  assert.equal(redactPrivateText("Hello İpek", ["İpek"]), "Hello ••••••••");
+});
+
+test("both Greek sigma forms match, like case-insensitive Unicode matching", () => {
+  assert.equal(redactPrivateText("Γεια Νίκοσ", ["Νίκος"]), "Γεια ••••••••");
+  assert.equal(redactPrivateText("Γεια Νίκος Λάμπρος", ["ΝΊΚΟΣ ΛΆΜΠΡΟΣ"]), "Γεια ••••••••");
+});

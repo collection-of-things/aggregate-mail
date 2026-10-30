@@ -6,6 +6,22 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Fixed
+
+- Bound PDF preview parsing and page rendering with a worker budget so a stalled or malicious file cannot pin the renderer. ([#167](https://github.com/collection-of-things/aggregate-mail/pull/167))
+
+- Make reply-prefix stripping, notification tag removal, message preview markers, inline style checks, inbox code detection, sorting phrases, privacy name hiding, contact import validation, compose list conversion and workspace backup account matching linear or bounded on untrusted input. ([#167](https://github.com/collection-of-things/aggregate-mail/pull/167))
+
+- Resolve agent provider hosts once and pin the connection to a validated public address so DNS changes cannot redirect API keys to private addresses. Never send a saved decision-provider key to a different provider; the key is cleared when the provider changes. ([#167](https://github.com/collection-of-things/aggregate-mail/pull/167))
+
+- Answer IMAP flag and label questions from summary metadata instead of reopening encrypted records, cap IMAP search result counts, reuse the confirmed archive-move binding for archived actions, require an independent date and subject match for recovered archived mail before a destructive move, and refuse Archive when the server cannot confirm a MOVE. ([#167](https://github.com/collection-of-things/aggregate-mail/pull/167))
+
+- Verify the live MCP endpoint the app reports before copying an OpenCode configuration, and keep provider credentials out of isolated test and benchmark processes. ([#167](https://github.com/collection-of-things/aggregate-mail/pull/167))
+
+- On Android, verify TLS certificate hostnames with the platform's strict single-label wildcard rules before credentials are sent, reject oversized IMAP literal announcements (without misreading message content as one) and MIME boundary declarations before allocation, and keep the send-confirmation recipient off screenshots. ([#167](https://github.com/collection-of-things/aggregate-mail/pull/167))
+
+- Preserve bounded partial IMAP search results and allow recovery of an unbound archived message when its subject matches and its envelope date is absent; a present date must match. Privacy mode hides the whole text when there are more names, or longer names, than its bounded matcher covers, instead of leaving them visible. ([#167](https://github.com/collection-of-things/aggregate-mail/pull/167))
+
 ## 0.2.22 - 2026-10-30
 
 ### Fixed

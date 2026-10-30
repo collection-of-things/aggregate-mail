@@ -2,6 +2,7 @@ import { existsSync, readFileSync, openSync, writeFileSync, fsyncSync, closeSync
 import { parseEnv, isDeepStrictEqual } from "node:util";
 import { randomUUID } from "node:crypto";
 import { get, put, transaction } from "./store.js";
+import { jevProviderOf } from "../shared/types.js";
 
 const names = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "OPENAI_API_KEY", "TYPESAFE_API_KEY", "TYPESAFE_PROVIDER"] as const;
 type Settings = Partial<Record<(typeof names)[number], string>>;
@@ -84,11 +85,24 @@ export function saveConfiguration(updates: Settings) {
   const legacy = legacySettings();
   const cleaned = withoutManagedSettings(legacy.text, legacy.values);
   const settings: Settings = { ...get("config", "connection") };
+  const previousProvider = process.env.TYPESAFE_PROVIDER ?? settings.TYPESAFE_PROVIDER ?? legacy.values.TYPESAFE_PROVIDER;
   for (const name of names) {
     if (settings[name] === undefined && legacy.values[name] !== undefined) settings[name] = legacy.values[name];
     if (updates[name]) settings[name] = updates[name];
   }
+  // A provider change cannot carry the previous vendor's API key; a vendor key
+  // left in place would be sent to the newly selected provider.
+  if (
+    updates.TYPESAFE_PROVIDER && !updates.TYPESAFE_API_KEY &&
+    settings.TYPESAFE_API_KEY !== undefined &&
+    jevProviderOf(updates.TYPESAFE_PROVIDER) !== jevProviderOf(previousProvider)
+  )
+    delete settings.TYPESAFE_API_KEY;
   persist(settings);
   cleanLegacy(legacy.text, cleaned);
-  for (const name of names) if (!inherited.has(name) && settings[name] !== undefined) process.env[name] = settings[name];
+  for (const name of names) {
+    if (inherited.has(name)) continue;
+    if (settings[name] !== undefined) process.env[name] = settings[name];
+    else delete process.env[name];
+  }
 }

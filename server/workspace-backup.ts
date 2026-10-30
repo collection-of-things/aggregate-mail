@@ -49,7 +49,7 @@ const kinds = Object.keys(schemas) as Kind[];
 const accountSchema = z.object({ id, email: z.string().max(320), provider: z.enum(["gmail", "gmail-imap", "icloud", "fastmail", "yahoo", "imap"]) }).strict();
 const payloadSchema = z.object({
   manifest: z.object({ formatVersion: z.literal(1), appVersion: z.string().max(100), createdAt: z.iso.datetime(), counts: z.record(z.string(), z.number().int().nonnegative()) }).strict(),
-  accounts: z.array(accountSchema),
+  accounts: z.array(accountSchema).max(10000),
   records: z.array(z.object({ kind: z.enum(kinds as [Kind, ...Kind[]]), id, value: z.unknown() }).strict()).max(100000),
 }).strict();
 type Payload = z.infer<typeof payloadSchema>;
@@ -156,8 +156,17 @@ function prepare(payload: Payload) {
     if (matches.length === 1) mapping.set(source.id, matches[0].id);
   }
   const accountId = (source: string) => mapping.get(source) ?? source;
+  // Account ids may contain ':'; the first listed account whose id prefixes the
+  // reference wins, matching the original sequential find. Colon positions keep
+  // each lookup to the few candidates a reference can name.
+  const accountIndexes = new Map(payload.accounts.map((source, index) => [source.id, index]));
   const mailId = (source: string) => {
-    const original = payload.accounts.find(a => source.startsWith(`${a.id}:`));
+    let best: number | undefined;
+    for (let colon = source.indexOf(":"); colon >= 0; colon = source.indexOf(":", colon + 1)) {
+      const index = accountIndexes.get(source.slice(0, colon));
+      if (index !== undefined && (best === undefined || index < best)) best = index;
+    }
+    const original = best === undefined ? undefined : payload.accounts[best];
     return original ? `${accountId(original.id)}:${source.slice(original.id.length + 1)}` : source;
   };
   const required = new Set<string>();

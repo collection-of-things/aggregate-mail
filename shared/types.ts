@@ -267,6 +267,8 @@ export type McpSettings = {
   enabled: boolean;
   allowSending: boolean;
   token: string | null;
+  // The running app's verified loopback endpoint; absent in stored settings.
+  endpoint?: string;
 };
 
 // Only explicit HTTPS URLs on public-looking DNS names can leave the reader.

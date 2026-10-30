@@ -73,6 +73,9 @@ test("provider evidence: bounded Sent, exact threads and encrypted attachment ro
       const before = connects.mock.callCount();
       for (const action of ["read", "archive", "trash"] as const) await assert.rejects(providers.imap.update(imapAccount, mail as Mail, action), /Sent|unsupported/i);
       assert.equal(connects.mock.callCount(), before);
+      await assert.rejects(providers.imap.content(imapAccount, mail as Mail), /Sent/);
+      await assert.rejects(providers.imap.content(imapAccount, { ...mail, direction: undefined, remoteId: "1:1", archived: true } as Mail), /older archived/);
+      assert.equal(connects.mock.callCount(), before);
       folders = [{ path: "Sent", flags: new Set() }];
       await assert.rejects(providers.imap.sent(imapAccount, 1), /unique|Sent/i);
     });

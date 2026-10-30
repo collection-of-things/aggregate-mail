@@ -210,7 +210,7 @@ async function mount(mode: "actions"|"calendar"|"projects"|"agents"|"assistants"
     else if(url.startsWith("/agent/grants/")&&method==="PATCH"){const id=decodeURIComponent(url.slice("/agent/grants/".length));const grant=grants.find(grant=>grant.id===id)!;Object.assign(grant,body);result=structuredClone(grant);}
     else if(url.startsWith("/agent/grants/")&&method==="DELETE"){const id=decodeURIComponent(url.slice("/agent/grants/".length));const index=grants.findIndex(grant=>grant.id===id);if(index>=0)grants.splice(index,1);result={};}
     else if(url==="/mcp"&&method==="PATCH"){if(mcpPatchFails)throw new Error("Synthetic MCP failure");const input=body as any;if(input.enabled!==undefined)enabled=input.enabled;if(input.allowSending!==undefined)allowSending=input.allowSending;result={enabled,allowSending:allowSending??enabled,token:null};}
-    else if(url==="/mcp")result={enabled,allowSending:allowSending??enabled,token:null};
+    else if(url==="/mcp")result={enabled,allowSending:allowSending??enabled,token:null,endpoint:"http://127.0.0.1:32145/mcp"};
     else if(url==="/commitments"&&method==="POST"){
       if(failure)throw new Error("Synthetic conflict");const input=body as any;const item:Commitment={...input,id:"c1",revision:1,updatedAt:1,history:[{at:1,status:input.status,text:input.text,reason:input.reason,evidenceMailIds:input.evidenceMailIds}]};workspace.commitments.push(item);result=item;
     }else if(url==="/commitments/c1"&&method==="PATCH"){
@@ -540,7 +540,10 @@ test("OpenCode manual setup uses the browser clipboard with the shared config wh
   const copied:string[]=[];
   Object.defineProperty(ui.dom.window.navigator,"clipboard",{configurable:true,value:{writeText:async(value:string)=>{copied.push(value);}}});
   await ui.click(ui.container.querySelector<HTMLElement>("details.work-opencode-manual > summary")!);
+  const reads = ui.requests.filter(request => request.url === "/mcp" && request.method === "GET").length;
+  assert.ok(reads > 0, "the endpoint is fetched before the click");
   await ui.click(ui.button("Copy OpenCode config"));
+  assert.equal(ui.requests.filter(request => request.url === "/mcp" && request.method === "GET").length, reads);
   assert.deepEqual(copied,[opencodeConfigJSON(token)],"the browser fallback copies the same fragment");
   assert.deepEqual(ui.notices,[]);
  }finally{await ui.close();}

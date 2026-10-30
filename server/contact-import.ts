@@ -2,9 +2,11 @@ import { z } from "zod";
 
 export const MAX_CONTACT_FILE_BYTES = 512 * 1024;
 const MAX_ENTRIES = 5000;
+const contactName = z.string().refine(value => !/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(value), "Use a single-line name without control characters.").trim().max(200);
+const contactEmail = z.email().max(320);
 export const contactSchema = z.object({
-  name: z.string().refine(value => !/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(value), "Use a single-line name without control characters.").trim().max(200),
-  email: z.email().max(320),
+  name: contactName,
+  email: contactEmail,
 }).strict();
 
 export const contactImportSchema = z.object({
@@ -96,11 +98,21 @@ export function parseContactImport(content: string, format: "csv" | "vcf") {
   const contacts: Entry[] = [];
   const seen = new Set<string>();
   let skipped = 0;
+  // A vCard reuses one name across every address. Validate each distinct name
+  // once, with a length check before the control-character scan.
+  const names = new Map<string, string | null>();
   for (const entry of raw) {
-    const parsed = contactSchema.safeParse(entry);
+    let name = names.get(entry.name);
+    if (name === undefined) {
+      const parsed = entry.name.trim().length <= 200 ? contactName.safeParse(entry.name) : { success: false as const };
+      name = parsed.success ? parsed.data : null;
+      names.set(entry.name, name);
+    }
     const key = entry.email.toLowerCase();
-    if (!parsed.success || seen.has(key)) { skipped++; continue; }
-    seen.add(key); contacts.push(parsed.data);
+    if (name === null || seen.has(key)) { skipped++; continue; }
+    const email = contactEmail.safeParse(entry.email);
+    if (!email.success) { skipped++; continue; }
+    seen.add(key); contacts.push({ name, email: email.data });
   }
   return { contacts, skipped };
 }

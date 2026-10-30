@@ -21,7 +21,7 @@ test("MCP endpoint Copy uses the desktop bridge when browser clipboard permissio
   const notices: string[] = [], errors: string[] = [];
   try {
     await act(async () => root.render(<McpSection busy={false}
-      api={async <T,>() => ({ enabled: true, allowSending: false } as T)}
+      api={async <T,>(_url: string, method = "GET") => ({ enabled: true, allowSending: false, ...(method === "GET" ? { endpoint: "http://127.0.0.1:3001/mcp" } : {}) } as T)}
       perform={async (task, message) => {
         try { await task(); if (message) notices.push(message); }
         catch (error) { errors.push((error as Error).message); }
@@ -48,8 +48,13 @@ test("MCP endpoint Copy uses the desktop bridge when browser clipboard permissio
     const copied: string[] = [];
     dom.navigator.clipboard.writeText = async (text) => { copied.push(text); };
     await act(async () => copy.click());
-    assert.deepEqual(copied, ["http://127.0.0.1:32145/mcp"]);
-    assert.equal(notices.length, 2);
+    assert.deepEqual(copied, ["http://127.0.0.1:3001/mcp"]);
+    // PATCH responses omit the endpoint; the previously verified listener remains in use.
+    const toggle = [...container.querySelectorAll("input")].find((input) => input.getAttribute("role") === "switch")!;
+    await act(async () => toggle.click());
+    await act(async () => copy.click());
+    assert.deepEqual(copied, ["http://127.0.0.1:3001/mcp", "http://127.0.0.1:3001/mcp"]);
+    assert.equal(notices.length, 3);
   } finally {
     await act(async () => root.unmount());
     await dom.happyDOM.close();
