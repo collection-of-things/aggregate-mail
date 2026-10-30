@@ -2922,6 +2922,9 @@ completion control disappears, focus returns to a nearby task or detail action.
 Closing completed task details restores a connected visible row, or the work
 content when the list is empty. A successful automatic workspace refresh also
 finishes acknowledged-save cleanup, so completion cannot stay silently blocked.
+Reader return retains a connected visible source-email trigger. Project decision
+source tests open Supporting emails before following the link, matching the
+reachable interface rather than clicking a control inside a closed disclosure.
 Completion does not change mail or local work sessions. Reopening and cancelling
 remain in Edit task. See [ADR 0107](adr/0107-direct-task-completion.md).
 
