@@ -151,5 +151,6 @@ for (const archived of [false, true]) test(`row shows only applicable actions in
   {id:'reply', label:'Reply', run(){}}, {id:'archive', label:'Archive', run(){}}, {id:'snooze', label:'Snooze', run(){}}, {id:'trash', label:'Move to Trash', run(){}},
  ]} />);
  const labels = [...html.matchAll(/aria-label="([^"]+)"/g)].map((match) => match[1]).filter((label) => label !== 'Email actions' && label !== 'More actions');
+ assert.equal(labels.length, 7, 'one read-state action plus six applicable actions');
  assert.deepEqual(labels.slice(-6), [archived ? 'Move to Inbox' : 'Archive', 'Snooze', 'Move to Trash', 'Reply', 'Mark as read', 'Pin email']);
 });

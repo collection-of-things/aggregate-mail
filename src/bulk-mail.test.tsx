@@ -197,3 +197,14 @@ test("selection stays available during sync while bulk actions wait for it", asy
     await ui.click("Archive"); assert.equal(calls.length, 0);
   } finally { await ui.close(); }
 });
+
+test("a sync refresh keeps a still-listed range anchor", async () => {
+  const ui = await mount();
+  try {
+    const check = (id: string, shiftKey = false) => act(async () => document.getElementById(`mail-${id}`)!.previousElementSibling!
+      .dispatchEvent(new ui.dom.window.MouseEvent("click", { shiftKey, bubbles: true })));
+    await ui.render(messages.slice(0, 10)); await check("local-3");
+    await ui.render([{ ...messages[0], id: "new-0", remoteId: "new" }, ...messages.slice(0, 10)]);
+    await check("local-5", true); assert.match(ui.count()!, /^3 messages selected/);
+  } finally { await ui.close(); }
+});

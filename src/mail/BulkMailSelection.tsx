@@ -29,6 +29,7 @@ export function BulkMailSelection({ messages, accounts, scope, selectedId, onSel
   const [limit, setLimit] = useState(false);
   const lock = useRef(false);
   const anchor = useRef<string | null>(null);
+  const anchorScope = useRef(scope);
   const { on: privacy } = useContext(PrivacyContext);
   const available = new Set(messages.map(selectionKey));
   const items = selection.scope === scope ? selection.items.filter(item => available.has(selectionKey(item))) : [];
@@ -39,7 +40,9 @@ export function BulkMailSelection({ messages, accounts, scope, selectedId, onSel
   const membership = JSON.stringify(messages.map(selectionKey));
   useEffect(() => {
     setSelection(current => ({ scope, items: current.scope === scope ? current.items.filter(item => available.has(selectionKey(item))) : [] }));
-    anchor.current = null;
+    // Sync refreshes keep a range anchor that is still listed.
+    if (anchorScope.current !== scope || (anchor.current && !available.has(anchor.current))) anchor.current = null;
+    anchorScope.current = scope;
     setConfirmation(null); setSnoozing(false); setLimit(false);
   }, [scope, membership]);
   useEffect(() => {
@@ -151,6 +154,7 @@ export function BulkMailSelection({ messages, accounts, scope, selectedId, onSel
         <p>Move exactly {confirmation.length} messages to Trash? Recovery depends on your provider.</p>
         <div className="dialog-actions"><button className="button" onClick={() => setConfirmation(null)}>Cancel</button>
           <button className="button" disabled={disabled || syncing} onClick={() => void execute("trash", confirmation)}>Move {confirmation.length} messages to Trash</button></div>
+        {syncing && <p role="status">Waiting for sync…</p>}
       </Dialog>, document.body)}
       {snoozing && createPortal(<Dialog title="Snooze selected messages" onClose={() => setSnoozing(false)}>
         <form onSubmit={event => { event.preventDefault(); const field = event.currentTarget.elements.namedItem("until") as HTMLInputElement;
@@ -159,6 +163,7 @@ export function BulkMailSelection({ messages, accounts, scope, selectedId, onSel
           void execute("snooze", items, until); }}>
           <label>Snooze until <input required name="until" type="datetime-local" onChange={event => event.currentTarget.setCustomValidity("")} /></label>
           <p>Choose a future time within the next year.</p><button className="button" disabled={disabled || syncing} type="submit">Snooze {items.length} messages</button>
+          {syncing && <p role="status">Waiting for sync…</p>}
         </form>
       </Dialog>, document.body)}
     </div>
