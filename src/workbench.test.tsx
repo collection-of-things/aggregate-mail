@@ -1203,13 +1203,18 @@ test("quitting with a dirty event form uses the same unload guard as a draft", a
  } finally { await ui.close(); }
 });
 
-test("complete a waiting task directly from Today and Calendar", async () => {
- for (const mode of ["actions", "calendar"] as const) {
+test("complete a waiting task directly from Today, Projects and Calendar", async () => {
+ for (const mode of ["actions", "projects", "calendar"] as const) {
   const ui = await mount(mode);
   try {
    ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Synthetic task", reason: "Synthetic reason", status: "waiting", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [] });
+   if (mode === "projects") {
+    ui.workspace.projects.push({ id: "p1", name: "Synthetic project", sourceMailIds: ["in-a"], accountIds: ["a"], crossAccountConfirmed: false, revision: 1, updatedAt: 1 });
+    ui.workspace.commitments[0].projectId = "p1";
+   }
    await ui.click(ui.button("Refresh workspace"));
-   if (mode === "actions") {
+   if (mode === "projects") await ui.click(ui.button("Synthetic project"));
+   if (mode !== "calendar") {
     const checkbox = ui.container.querySelector<HTMLInputElement>('input[aria-label="Mark task complete"]');
     assert.ok(checkbox);
     await ui.click(checkbox);
