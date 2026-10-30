@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import http from "node:http";
-import { gunzipSync } from "node:zlib";
+import { gunzipSync, inflateRawSync } from "node:zlib";
 import express from "express";
 import { writeStateResponse } from "./state-response.js";
 
@@ -24,7 +24,9 @@ test("state transport negotiates gzip, preserves JSON and cancels disconnected r
         if (req.query.fail && written > 128) throw Error("synthetic-serialization-failure");
         return { id, body: "synthetic".repeat(100) };
       } }));
-      await writeStateResponse(req, res, envelope, selected, controller.signal);
+      // Over 64 KiB of status spans several stored DEFLATE blocks.
+      const status = req.query.largeStatus ? { ...envelope, accounts: Array.from({ length: 2000 }, (_, id) => ({ id: `synthetic-account-${id}`, label: "Synthetic account label" })) } : envelope;
+      await writeStateResponse(req, res, status, selected, controller.signal);
     } catch (error) {
       if (controller.signal.aborted) stopped = true;
       else if (!res.destroyed) res.destroy(error as Error);
@@ -53,9 +55,21 @@ test("state transport negotiates gzip, preserves JSON and cancels disconnected r
       assert.equal(response.headers["cache-control"], "no-store");
       assert.match(String(response.headers.vary), /Accept-Encoding/i);
       assert.deepEqual(gunzipSync(response.bytes), expected);
+      // HTTP decoders can stop at the first gzip member. Its DEFLATE payload
+      // must contain the complete JSON, rather than only the status prefix.
+      const firstMember = inflateRawSync(response.bytes.subarray(10), { info: true }) as unknown as { buffer: Buffer; engine: { bytesWritten: number } };
+      assert.deepEqual(JSON.parse(firstMember.buffer.toString()), { ...envelope, messages });
+      assert.equal(firstMember.engine.bytesWritten + 18, response.bytes.length, "one gzip header, payload and trailer");
       assert.ok(response.bytes.includes(Buffer.from(envelope.csrf)), "CSRF stays literal in the stored status member");
       assert.ok(response.bytes.length < expected.length / 4);
     }
+    const largeStatus = await get("gzip", "?largeStatus=1");
+    const largeExpected = { ...envelope, accounts: Array.from({ length: 2000 }, (_, id) => ({ id: `synthetic-account-${id}`, label: "Synthetic account label" })), messages };
+    assert.ok(JSON.stringify(largeExpected.accounts).length > 0xffff);
+    const largeMember = inflateRawSync(largeStatus.bytes.subarray(10), { info: true }) as unknown as { buffer: Buffer; engine: { bytesWritten: number } };
+    assert.deepEqual(JSON.parse(largeMember.buffer.toString()), largeExpected);
+    assert.equal(largeMember.engine.bytesWritten + 18, largeStatus.bytes.length);
+    assert.deepEqual(JSON.parse(gunzipSync(largeStatus.bytes).toString()), largeExpected);
     for (const encoding of ["identity", "gzip;q=0", "gzip;q=0, *;q=1", "*;q=0", "br"]) {
       const response = await get(encoding); assert.equal(response.headers["content-encoding"], undefined); assert.deepEqual(response.bytes, expected);
     }

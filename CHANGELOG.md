@@ -6,6 +6,10 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Fixed
+
+- Fix "Unexpected end of JSON input" when loading large cached-mail snapshots in clients that decode only the first gzip member of a compressed response.
+
 ## 0.2.21 - 2026-10-29
 
 ### Changed
