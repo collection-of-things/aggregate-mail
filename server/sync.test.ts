@@ -169,6 +169,19 @@ if (!process.env.EMC2_SYNC_TEST_CHILD) {
         assert.equal(all("account").find((account) => account.id === a.id)?.credentials.refreshToken, "new-synthetic");
         clear();
       });
+      await t.test("pin changes survive a delayed sync batch", async () => {
+        const a = fixture("pin-sync"); put("account", a.id, a);
+        const cached = mail(a); put("mail", cached.id, cached);
+        const entered = deferred(), release = deferred();
+        providers.imap.list = async () => { entered.resolve(); await release.promise; return [cached]; };
+        const pending = request("/sync"); await entered.promise;
+        try {
+          const response = await request(`/messages/${cached.id}`, { action: "pin" }, "PATCH");
+          assert.equal(response.status, 200);
+          assert.equal(all("mail").find(item => item.id === cached.id)?.pinned, true);
+        } finally { release.resolve(); await pending; }
+        assert.equal(all("mail").find(item => item.id === cached.id)?.pinned, true);
+      });
       await t.test("fetched Gmail batches are visible while later fetching and every configured AI judgement are pending", async () => {
         const a = fixture("progress", "gmail"); put("account", a.id, a);
         const fetched = deferred(), finishFetch = deferred(), sorting = deferred(), finishSorting = deferred();
@@ -193,6 +206,7 @@ if (!process.env.EMC2_SYNC_TEST_CHILD) {
           finishFetch.resolve(); await sorting.promise;
           assert.equal((await state()).messages.length, 18);
           assert.equal((await state()).syncing, true);
+          assert.equal((await request(`/messages/${a.id}:one`, { action: "pin" }, "PATCH")).status, 200);
         } finally {
           finishFetch.resolve(); finishSorting.resolve(); await pending;
           globalThis.fetch = networkFetch; process.env.TYPESAFE_API_KEY = "";
@@ -200,6 +214,7 @@ if (!process.env.EMC2_SYNC_TEST_CHILD) {
         assert.equal(modelCalls, 18); assert.equal(modelPeak, 6);
         console.log("synthetic Gmail first sync: 1 visible during fetch, 18 visible during AI, 18 AI calls, peak 6");
         assert.ok((await state()).messages.every((m) => m.reason === "Newsletter"));
+        assert.equal((await state()).messages.find(m => m.id === `${a.id}:one`)?.pinned, true, "AI sorting preserves a pin made while classification is pending");
         clear();
       });
       await t.test("provider failure keeps cached mail, exposes error, clears flags and allows retry", async () => {

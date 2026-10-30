@@ -2909,6 +2909,12 @@ expanded messages must first use Select for actions.
 
 ## Local mail Undo
 
+Single-message Pin and Unpin run during a mail sync and remain tracked by the
+update drain. Sync batches read current local pin state and AI sorting merges
+into the current message. Synthetic coverage in `server/pin-during-sync.test.ts`
+and `server/sync.test.ts` checks both paths. Batch actions and Undo retain their
+existing sync guards.
+
 Single-message Pin/Unpin and Snooze/Return confirmations offer Undo. Commands
 keeps Undo last action available when confirmations are off and independently
 of the selected message. Batch, archive, trash and send actions have no Undo.
