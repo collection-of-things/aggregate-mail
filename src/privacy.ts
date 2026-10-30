@@ -110,13 +110,19 @@ function decodedText(text: string) {
   return { decoded, offsets };
 }
 
-const validNames = (names: readonly string[]) => [...new Set(names.map(cleanName).filter(Boolean))].filter((name) => {
+const PRIVATE_NAMES_MAX = 64;
+// Usable names, deduplicated case-insensitively because matching ignores case.
+const validNames = (names: readonly string[]) => [...new Map(names.map(cleanName).filter((name) => {
   const words = name.split(/[\s+]+/u).filter(Boolean);
   return words.length > 0 && name.length <= 160 && words.length <= 16;
-});
+}).map((name) => [name.toLowerCase(), name])).values()];
 
 // Offsets use UTF-16, like String.slice. Values are sensitive and never for attrs.
 export function privateRanges(text: string, names: readonly string[] = []): PrivacyRange[] {
+  const candidates = validNames(names);
+  // Candidate size is bounded so matching cannot grow with crafted input. When
+  // more names exist than the matcher covers, hide the whole text instead.
+  if (candidates.length > PRIVATE_NAMES_MAX) return text ? [{ start: 0, end: text.length, kind: "name", value: text }] : [];
   const { decoded, offsets } = text.includes("%") ? decodedText(text) : { decoded: text, offsets: null };
   const ranges: PrivacyRange[] = [];
   const add = (start: number, end: number, kind: PrivacyRange["kind"], value: string) => {
@@ -141,11 +147,9 @@ export function privateRanges(text: string, names: readonly string[] = []): Priv
     const after = String.fromCodePoint(decoded.codePointAt(end) || 0);
     return !wordCharacter.test(before) && !wordCharacter.test(after);
   };
-  // Candidate size is bounded so matching cannot grow with crafted input.
-  for (const name of validNames(names).slice(0, 64)) {
+  for (const name of candidates) {
     // Words never contain a separator character, so matching stays linear.
     const words = name.split(/[\s+]+/u).filter(Boolean);
-    if (!words.length || name.length > 160 || words.length > 16) continue;
     const lowered = words.map((word) => word.toLowerCase());
     if (aligned) {
       const first = lowered[0];
@@ -201,8 +205,6 @@ export function segmentPrivateText(text: string, names: readonly string[] = []):
 }
 
 export function redactPrivateText(text: string, names: readonly string[] = []): string {
-  // Mask the whole value when the bounded matcher cannot cover every name.
-  if (validNames(names).length > 64) return text ? "••••••••" : "";
   return segmentPrivateText(text, names)
     .map((segment) => segment.kind === "text" ? segment.text : "••••••••").join("");
 }

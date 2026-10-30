@@ -50,7 +50,7 @@ test("MCP endpoint Copy uses the desktop bridge when browser clipboard permissio
     await act(async () => copy.click());
     assert.deepEqual(copied, ["http://127.0.0.1:3001/mcp"]);
     // PATCH responses omit the endpoint; the previously verified listener remains in use.
-    const toggle = container.querySelector<HTMLInputElement>('input[role="switch"]')!;
+    const toggle = [...container.querySelectorAll("input")].find((input) => input.getAttribute("role") === "switch")!;
     await act(async () => toggle.click());
     await act(async () => copy.click());
     assert.deepEqual(copied, ["http://127.0.0.1:3001/mcp", "http://127.0.0.1:3001/mcp"]);

@@ -37,8 +37,9 @@ be public; the connector can try the validated addresses without another DNS
 lookup. IMAP searches retain the newest bounded UIDs and report incomplete
 results when truncated. An unbound archived destructive move requires an exact
 Message-ID and subject, and an envelope date must match when present; a missing
-envelope date is accepted. Privacy redaction masks the entire text if more than
-64 valid names would exceed the matching budget.
+envelope date is accepted. Privacy mode hides the entire text when more than 64
+distinct valid names (compared case-insensitively) would exceed the matching
+budget, in rendered text as well as redacted strings.
 
 ## Reviewed unsubscribe
 
