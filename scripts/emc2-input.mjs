@@ -21,7 +21,9 @@ const schemas = {
   }).strict().refine((input) => input.dueDate === undefined || input.dueAt === undefined),
   // shortcut: plain-text draft content only; expand when attachments are in CLI scope.
   'propose-draft': z.object({ accountId: z.string().min(1), sourceMailId: z.string().optional(),
-    content: z.object({ to: z.string().max(10000), cc: z.array(z.string().max(320)).max(100).optional(),
+    content: z.object({ to: z.union([z.string().max(10000),
+      z.array(z.string().max(10000)).max(100).refine(values => values.join(',').length <= 10000)]),
+      bcc: z.array(z.string().max(320)).max(100).optional(), cc: z.array(z.string().max(320)).max(100).optional(),
       subject: z.string().max(998), body: z.string().max(1000000),
       inReplyTo: z.string().max(998).optional(), threadId: z.string().max(100).optional(),
       references: z.array(z.string().max(998)).max(100).optional(),

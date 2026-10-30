@@ -377,6 +377,15 @@ within grants before paging. Summaries include received/sent direction.
 capability before calling `reply_to_email`. Approval saves editable Drafts;
 the CLI never sends or approves. Each operation still checks its explicit grant.
 See [ADR 0070](adr/0070-cli-mcp-capability-contract.md).
+CLI `search --syntax app` reuses `shared/mail-search.ts` against granted
+accounts only. Default search stays case-insensitive substring matching.
+`list/search --pinned` narrows local pins before paging; summaries include
+`pinned` and nullable `snoozedUntil`. Additive version 1 capabilities
+`searchSyntax: ["substring", "app"]` and `mailFilters: ["pinnedOnly"]` prevent
+older apps silently ignoring explicit options. Existing mail grants apply;
+mail tools exclude saved drafts and never search providers. CLI plain draft
+files accept string or bounded array To recipients and optional Bcc, preserving
+both through proposal review. See [ADR 0108](adr/0108-cli-mcp-cached-mail-parity.md).
 Run `node --test scripts/emc2.test.mjs` for the isolated synthetic CLI checks.
 
 

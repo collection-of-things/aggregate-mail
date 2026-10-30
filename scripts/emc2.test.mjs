@@ -25,7 +25,7 @@ test('help, validation and private input fail before connecting without echoing 
   for (const args of [ ['unknown-secret'], ['archive', 'id'], ['read'], ['list', '--limit', '0'],
     ['list', '--limit', '1e2'], ['list', '--offset', '-1'], ['list', '--category', 'invalid'],
     ['list', '--view', ''], ['search', 'query', '--view', 'invalid'], ['read', 'id', '--view', 'all'],
-    ['read', 'id', '--unread'], ['accounts', 'extra'], ['accounts', '--confirm'],
+    ['read', 'id', '--unread'], ['read', 'id', '--pinned'], ['list', '--syntax', 'app'], ['search', 'x', '--syntax', 'invalid'], ['accounts', 'extra'], ['accounts', '--confirm'],
     ['status', '--token', 'secret'], ['status', '--url', 'https://127.0.0.1/mcp'],
     ['status', '--url', 'http://example.com/mcp'], ['status', '--url', 'http://secret@localhost/mcp'],
     ['status', '--url', 'http://localhost/mcp?secret'], ['status', '--url', 'http://localhost/api/state'] ]) {
@@ -62,7 +62,7 @@ test('CLI uses the real authenticated MCP contract with isolated synthetic encry
     put('account', 'fixture-account', { id:'fixture-account', email:'user@example.com', provider:'gmail', credentials:{refreshToken:'fixture-hidden-credential'} });
     const mail = { id:'fixture-mail', accountId:'fixture-account', remoteId:'1', sender:'Alice', address:'alice@example.com', to:'user@example.com', subject:'Synthetic meeting', preview:'Preview', body:'Synthetic full body', date:1700000000000, unread:true, category:'important', relevance:3, reason:'Team', archived:false, snoozedUntil:null };
     put('mail', mail.id, mail);
-    for (const [id, fields] of [['expired', {direction:'received', snoozedUntil:Date.now()-1}], ['sent', {direction:'sent'}], ['archived', {archived:true}], ['snoozed', {snoozedUntil:Date.now()+60000}]]) {
+    for (const [id, fields] of [['expired', {direction:'received', pinned:true, snoozedUntil:Date.now()-1}], ['sent', {direction:'sent'}], ['archived', {archived:true}], ['snoozed', {snoozedUntil:Date.now()+60000}]]) {
       put('mail', id, {...mail, ...fields, id, threadId:id, date:mail.date - (1 + ['expired','sent','archived','snoozed'].indexOf(id))*1000});
     }
     put('account', 'foreign', {id:'foreign', email:'foreign@example.test', provider:'gmail', credentials:{}});
@@ -128,6 +128,29 @@ test('CLI uses the real authenticated MCP contract with isolated synthetic encry
       assert.equal((await call([...command, '--view', 'all', '--account', 'foreign'])).code, 1);
       assert.equal((await call([...command, '--view', 'all'], {env:{EMC2_MCP_TOKEN:'synthetic-global-discovery-token'}})).code, 1);
     }
+    const advanced = await call(['search', 'from:alice@example.com subject:"Synthetic meeting" -body:absent', '--syntax', 'app', '--pinned', '--limit', '1']);
+    assert.equal(advanced.code, 0, advanced.stderr);
+    const pinned = JSON.parse(advanced.stdout);
+    assert.deepEqual(pinned.emails.map(m => m.id), ['expired']);
+    assert.equal(pinned.emails[0].pinned, true);
+    assert.ok(pinned.emails[0].snoozedUntil < Date.now());
+    assert.equal(pinned.nextOffset, null);
+    assert.equal((await call(['search', 'subject:"broken', '--syntax', 'app'])).code, 1);
+    assert.equal(JSON.parse((await call(['search', 'subject:meeting'])).stdout).emails.length, 0, 'Default keeps literal substring search');
+    assert.equal((await call(['search', 'meeting', '--syntax', 'app'], {env:{EMC2_MCP_TOKEN:'synthetic-global-discovery-token'}})).code, 1);
+    const foreignSearch = await call(['search', 'account:foreign@example.test', '--syntax', 'app']);
+    assert.equal(foreignSearch.code, 0, foreignSearch.stderr);
+    assert.deepEqual(JSON.parse(foreignSearch.stdout).emails, []);
+    assert.equal(JSON.parse((await call(['list', '--pinned'])).stdout).emails.length, 1);
+    await inputFile(async (filename, save) => {
+      await save({...draftInput, content:{...draftInput.content, to:['one@example.test', 'two@example.test'], bcc:['hidden@example.test']}});
+      const draft = await call(['propose-draft', filename, '--confirm']);
+      assert.equal(draft.code, 0, draft.stderr);
+      const proposal = JSON.parse(draft.stdout);
+      assert.equal(proposal.status, 'pending');
+      assert.deepEqual(proposal.payload.to, ['one@example.test', 'two@example.test']);
+      assert.deepEqual(proposal.payload.bcc, ['hidden@example.test']);
+    });
     await inputFile(async (filename, save) => {
       await save({id:'fixture-mail', body:'Reviewed reply', replyAll:true, cc:['extra@example.com']});
       const reply = await call(['reply', filename, '--confirm']);
@@ -279,6 +302,10 @@ test('work and draft validation rejects unsafe input before connecting and does 
       ['track-commitment', { ...commitmentInput, evidenceMailIds: [''] }],
       ['propose-draft', { ...draftInput, content: { ...draftInput.content, sendUnknown: true } }],
       ['propose-draft', { ...draftInput, content: { ...draftInput.content, attachments: [] } }],
+      ['propose-draft', {...draftInput, content:{...draftInput.content, to:Array(101).fill('a')}}],
+      ['propose-draft', {...draftInput, content:{...draftInput.content, to:['a'.repeat(5000), 'b'.repeat(5000)]}}],
+      ['propose-draft', {...draftInput, content:{...draftInput.content, bcc:Array(101).fill('a')}}],
+      ['propose-draft', {...draftInput, content:{...draftInput.content, bcc:['a'.repeat(321)]}}],
       ['reply', { id: 'fixture-mail', body: '' }],
       ['reply', { id: ' ', body: 'private-fixture' }],
       ['reply', { id: 'x'.repeat(301), body: 'private-fixture' }],
@@ -396,7 +423,7 @@ test('feature-detected work commands preserve caller UUID, scoped reads, immedia
 test('explicit views and replies require a valid versioned contract; old commands keep working', async () => {
   const contract = {
     version: 1,
-    capabilities: { mailViews: ['inbox', 'sent', 'all'], reply: { mode: 'proposal', approval: 'draft', sendsMail: false } },
+    capabilities: { searchSyntax: ['substring', 'app'], mailFilters: ['pinnedOnly'], mailViews: ['inbox', 'sent', 'all'], reply: { mode: 'proposal', approval: 'draft', sendsMail: false } },
     permissions: { tools: ['list_emails', 'search_emails', 'reply_to_email'], accountCount: 1 },
   };
   let advertised = true, value = contract, contractError = false, targetMode = 'success';
@@ -437,7 +464,7 @@ test('explicit views and replies require a valid versioned contract; old command
       const withoutConfirm = await call(['reply', filename]);
       assert.equal(withoutConfirm.code, 2);
       assert.equal(statusCalls, 0);
-      for (const args of [['list', '--view', 'inbox'], ['search', 'meeting', '--view', 'sent'], ['reply', filename, '--confirm']]) {
+      for (const args of [['list', '--view', 'inbox'], ['search', 'meeting', '--view', 'sent'], ['search', 'subject:meeting', '--syntax', 'app'], ['list', '--pinned'], ['reply', filename, '--confirm']]) {
         const before = targetCalls;
         advertised = false;
         assert.equal((await call(args)).code, 1, 'Advertised legacy tools do not guarantee semantics');
@@ -445,6 +472,8 @@ test('explicit views and replies require a valid versioned contract; old command
         const invalidContracts = [
           null, 'not a contract', {}, {...contract, version:2}, {...contract, permissions:{tools:[], accountCount:-1}},
           {...contract, capabilities:{}},
+          {...contract, capabilities:{mailViews:[], searchSyntax:[], mailFilters:[]}},
+          {...contract, capabilities:{searchSyntax:'app', mailFilters:'pinnedOnly'}},
           {...contract, capabilities:{mailViews:['all'], reply:{mode:'immediate', approval:'draft', sendsMail:false}}},
           {...contract, capabilities:{mailViews:[], reply:{mode:'proposal', approval:'send', sendsMail:false}}},
           {...contract, capabilities:{reply:{mode:'proposal', approval:'draft', sendsMail:true}}},
@@ -464,6 +493,7 @@ test('explicit views and replies require a valid versioned contract; old command
       for (const [args, tool, input] of [
         [['list', '--view', 'inbox'], 'list_emails', {limit:25, offset:0, unreadOnly:false, view:'inbox'}],
         [['search', 'meeting', '--view', 'sent'], 'search_emails', {limit:25, offset:0, unreadOnly:false, view:'sent', query:'meeting'}],
+        [['search', 'subject:meeting', '--syntax', 'app', '--pinned'], 'search_emails', {limit:25, offset:0, unreadOnly:false, query:'subject:meeting', syntax:'app', pinnedOnly:true}],
         [['reply', filename, '--confirm'], 'reply_to_email', {id:'fixture', body:'Private reply', replyAll:false}],
       ]) {
         expectedTool = tool; expectedInput = input;
