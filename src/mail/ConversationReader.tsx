@@ -95,14 +95,14 @@ export function ConversationReader({ mail, gmail, api, busy, onChanged, onSelect
       {multiple && <span>{ordered.length} messages in this conversation</span>}
       {canExpand && <button type="button" className="link" disabled={pending || busy} onClick={() => void fetchRest()}>{pending ? "Loading conversation…" : "Load full conversation"}</button>}
       {error && <span role="alert">{error}</span>}
-      <details className="conversation-notes">
+      {(multiple || !!error || !!conversation?.gaps.length) && <details className="conversation-notes">
         <summary>Why some messages may be missing</summary>
         <ul>
           <li>Older or Sent messages may be missing. Local Inbox and bounded Sent history do not prove completeness.</li>
           {!gmail && <li>IMAP history uses cached Message-ID references only. Remote thread expansion is unavailable.</li>}
           {conversation?.gaps.map((gap, index) => <li key={index}><Redact text={gap} /></li>)}
         </ul>
-      </details>
+      </details>}
     </div>}
     {/* A lone message keeps the same keyed .conversation-message wrapper it would have in a
         stack, so resolving the fetch cannot remount the expanded article mid-view. */}

@@ -294,6 +294,19 @@ test("a single Gmail message keeps expansion and coverage notes without a count 
   } finally { await ui.close(); }
 });
 
+test("a lone Gmail email keeps Load full conversation but no coverage notes", async () => {
+  const ui = await fixture(async <T,>() => ({ accountId: "a", messages: [message()], gaps: [] }) as T);
+  try {
+    await ui.render();
+    const bar = ui.container.querySelector<HTMLElement>(".conversation-bar")!;
+    assert.ok(bar, "Gmail singleton keeps its expansion bar");
+    assert.match(bar.textContent!, /Load full conversation/);
+    assert.equal(bar.querySelector(".conversation-notes"), null, "no disclosure without coverage notes or gaps");
+    assert.equal(ui.container.querySelectorAll(".conversation-toggle").length, 0);
+    assert.doesNotMatch(ui.container.textContent!, /messages in this conversation|Why some messages may be missing/);
+  } finally { await ui.close(); }
+});
+
 test("late initial cache cannot overwrite a completed expansion", async () => {
   const initial = deferred<unknown>();
   const ui = await fixture(async <T,>(_path: string, method?: string) =>

@@ -1844,7 +1844,7 @@ expanded. See [ADR 0048](adr/0048-v2-persistent-navigation.md).
 
 ## V2 visual correction
 
-The V2 sidebar uses separate Mail and Workspace groups (Mail first) at 196px, with Settings
+The V2 sidebar uses separate Mail and Workspace groups (Mail first) at 208px, with Settings
 anchored at the bottom. Agent review keeps existing assistant cards above a
 collapsible add form. Permissions, BYOK and external connection setup stay in
 each card; hiding a section preserves its state and approval guards. Projects
@@ -2888,7 +2888,8 @@ Conversation history diagnostics, keyboard guidance and bounded Gmail fetch live
 in the compact bar above the stack: the count, the expansion control and a
 collapsed "Why some messages may be missing" disclosure carrying the coverage
 caveats and gaps; the keyboard guidance stays visually hidden on each toggle's
-`aria-describedby`. A single cached message renders without that chrome. Message
+`aria-describedby`. A single cached message renders without that chrome; a Gmail
+one keeps only its Load full conversation link while notes and gaps stay empty. Message
 rows separate sender, preview and relative date from selected/unread state;
 Select for actions stays outside the expansion button. Row hover actions
 show Mark as read for unread mail or Mark as unread for read mail, with an envelope
@@ -2901,7 +2902,8 @@ ID tie-breaking. Cache counts and reported gaps do not establish complete
 history. Gmail fetch remains capped at 100 messages; IMAP has no remote expansion.
 A muted line above the stack carries the count, the expansion control and a
 collapsed "Why some messages may be missing" disclosure with the coverage
-caveats and gaps; one cached message renders without thread chrome.
+caveats and gaps; one cached message renders without thread chrome, apart from
+Gmail's Load full conversation link.
 
 Malformed response envelopes or message entries retain the opened mail with an
 unavailable-evidence notice. Late results from another opening cannot replace

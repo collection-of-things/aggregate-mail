@@ -503,7 +503,9 @@ shortcuts and native text-selection behavior.
 One muted line above the stack carries the message count, the bounded expansion
 control and a collapsed "Why some messages may be missing" disclosure that keeps
 the coverage caveats and reported gaps. An opened email with no other cached
-messages shows the message alone, without thread chrome.
+messages shows the message alone, without thread chrome; a Gmail email keeps
+only the Load full conversation link, since the provider may hold more of the
+thread.
 
 The opened message is marked Selected for actions. Select for actions uses the
 existing opening operation, including mark-read, to change the toolbar target.

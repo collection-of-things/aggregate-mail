@@ -20,7 +20,7 @@ unversioned history without treating it as a release record.
 - Replace Size rows by importance with a small filled importance marker before the sender on high-relevance mail, in the sorting-reason color. Every row keeps one height in each density.
 - The sidebar lists Mail views before Workspace views.
 - Category tabs and bulk selection share one rail with a select-all checkbox.
-- The conversation reader hides its coverage notes behind a disclosure and shows single emails without thread chrome.
+- The conversation reader hides its coverage notes behind a disclosure and shows single emails without thread chrome, apart from Gmail's Load full conversation link.
 
 ### Fixed
 
