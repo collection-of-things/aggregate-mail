@@ -236,3 +236,28 @@ test("master checkbox reports none, mixed and all selected, and clears when all 
     assert.equal(ui.master().getAttribute("aria-checked"), "false");
   } finally { await ui.close(); }
 });
+
+test("a 200-item range outside the first batch reads mixed, and the master then selects the first 200", async () => {
+  const ui = await mount();
+  try {
+    const list = document.querySelector<HTMLElement>(".list")!;
+    const scrollTo = async (top: number) => act(async () => {
+      list.scrollTop = top;
+      list.dispatchEvent(new ui.dom.window.Event("scroll"));
+    });
+    await scrollTo(1600);
+    const middle = document.querySelector<HTMLButtonElement>('[data-mail-id="local-50"] [role="checkbox"]');
+    assert.ok(middle, "row local-50 mounts once the window scrolls to it");
+    await act(async () => middle.click());
+    assert.match(ui.count()!, /^1 messages selected/);
+    await scrollTo(8100);
+    const last = document.getElementById("mail-local-249");
+    assert.ok(last, "row local-249 mounts once the window scrolls to it");
+    await act(async () => last.dispatchEvent(new ui.dom.window.MouseEvent("click", { shiftKey: true, bubbles: true })));
+    assert.match(ui.count()!, /^200 messages selected/);
+    assert.equal(ui.master().getAttribute("aria-checked"), "mixed", "a range outside the first 200 is not all-selected");
+    await act(async () => ui.master().click());
+    assert.match(ui.count()!, /^200 messages selected/);
+    assert.equal(ui.master().getAttribute("aria-checked"), "true", "the master selects the first 200");
+  } finally { await ui.close(); }
+});

@@ -2995,3 +2995,15 @@ test("saved view names and queries stay hidden in privacy mode", async () => {
     assert.equal(search.value, "");
   } finally { await app.close(); }
 });
+
+test("selecting mail from an Inbox tab moves focus to the rail checkbox", async () => {
+  const app = await mount();
+  try {
+    const tab = app.container.querySelector<HTMLButtonElement>(".inbox-tabs button")!;
+    await act(async () => tab.focus());
+    assert.equal(app.window.document.activeElement, tab);
+    await app.key("a", { metaKey: true });
+    const master = app.container.querySelector<HTMLButtonElement>('[aria-label="Select all visible (up to 200)"]')!;
+    assert.equal(app.window.document.activeElement, master, "focus leaves the hidden tabs for the master checkbox");
+  } finally { await app.close(); }
+});

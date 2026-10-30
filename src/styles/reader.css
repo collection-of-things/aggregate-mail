@@ -266,7 +266,7 @@ article.message {
 .conversation-message:only-of-type { border: 0; }
 .conversation-toggle {
   display: grid;
-  grid-template-columns: 14px 150px minmax(0, 1fr) auto;
+  grid-template-columns: 14px minmax(0, 150px) minmax(0, 1fr) auto;
   column-gap: 10px;
   align-items: center;
   width: 100%;

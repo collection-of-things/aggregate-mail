@@ -449,7 +449,7 @@
 .bulk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; border-bottom: 1px solid var(--line); }
 .bulk-result { padding: 8px; border-bottom: 1px solid var(--line); }
 .mail-select.rail-master { position: static; transform: none; opacity: 1; flex-shrink: 0; cursor: pointer; }
-.rail-triage { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; min-width: 0; overflow-x: auto; }
+.rail-triage { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; min-width: 0; overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--line-3) transparent; }
 .rail-triage > * { flex-shrink: 0; white-space: nowrap; }
 .rail-triage > span { color: var(--text-3); font-size: calc(11.5px * var(--text-scale, 1)); }
 .rail-count { margin-right: 10px; }
@@ -457,11 +457,12 @@
 .rail-tools { display: flex; align-items: center; gap: 2px; margin-left: 8px; padding-left: 8px; border-left: 1px solid var(--line); }
 .rail-triage .tool { height: 28px; min-width: 28px; padding: 0 8px; font-size: calc(12px * var(--text-scale, 1)); }
 .mail-row:has(.mail-select) > .row { padding-left: 30px; }
-.mail-select { position: absolute; z-index: 2; left: 5px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; padding: 0; border: 1px solid var(--line-3); border-radius: 4px; background: var(--surface); color: var(--text); display: grid; place-items: center; font-size: 11px; line-height: 1; }
+.mail-select { position: absolute; z-index: 2; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; padding: 0; border: 1px solid var(--line-3); border-radius: 4px; background: var(--surface); color: var(--text); display: grid; place-items: center; font-size: 11px; line-height: 1; }
 /* Card rows are taller, so the checkbox centers on the sender's first line. */
 .mail-row:has(> .row.card) .mail-select { top: 10px; transform: none; }
-/* With the checkbox column present, the unread dot centers under it. */
-.mail-row:has(.mail-select) .unread-dot { left: 9.5px; }
+/* With the checkbox column present, the unread dot sits left of the checkbox. */
+.mail-row:has(.mail-select) .unread-dot { left: 2px; width: 6px; height: 6px; margin-top: -3px; }
+.mail-row:has(.mail-select) > .row.card .unread-dot { top: 14.5px; margin-top: 0; }
 .mail-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .mail-row.bulk-selected > .row:not(:focus-visible) { background: var(--selected); }
 @media (hover: hover) and (pointer: fine) {

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useContext, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Account, RendererMail } from "../../shared/types";
 import { MAX_MAIL_BATCH, type BulkMailAction, type MailBatchResponse, type MailBatchResult, type MailIdentity } from "../../shared/bulk-mail";
 import { createPortal } from "react-dom";
@@ -121,8 +121,16 @@ export function BulkMailSelection({ messages, accounts, scope, selectedId, onSel
     return index < 0 ? "Unavailable account" : accountLabel(accounts[index], index, privacy, accounts);
   };
   const resultMail = new Map(outcome?.items.map(mail => [selectionKey(mail), mail]));
-  const allSelected = items.length > 0 && items.length === Math.min(messages.length, MAX_MAIL_BATCH);
-  const master = <button type="button" role="checkbox" className="mail-select rail-master"
+  const firstBatch = messages.slice(0, MAX_MAIL_BATCH);
+  const allSelected = firstBatch.length > 0 && items.length === firstBatch.length && firstBatch.every(mail => selected.has(selectionKey(mail)));
+  const masterRef = useRef<HTMLButtonElement>(null);
+  // Selecting hides the Inbox tabs; move focus to the master when it was on one.
+  useLayoutEffect(() => {
+    if (!(items.length > 0)) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && railSelect?.closest(".mail-category-bar")?.querySelector(".inbox-tabs")?.contains(active)) masterRef.current?.focus();
+  }, [items.length > 0]);
+  const master = <button type="button" role="checkbox" className="mail-select rail-master" ref={masterRef}
     aria-checked={allSelected ? "true" : items.length ? "mixed" : "false"}
     aria-label={`Select all visible (up to ${MAX_MAIL_BATCH})`} title={`Select all visible (up to ${MAX_MAIL_BATCH})`}
     disabled={blocked || !messages.length} onClick={() => { if (allSelected) clear(); else all(); }}>
