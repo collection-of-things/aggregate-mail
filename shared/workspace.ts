@@ -58,6 +58,7 @@ export type Conversation = {
   gaps: string[];
   coverage?: SentCoverage;
 };
+export const LOCAL_EVIDENCE_CAVEAT = "Local evidence only. Inbox and bounded Sent imports do not prove conversation completeness.";
 export type AgentTool = "list_accounts" | "list_emails" | "search_emails" | "read_email" | "get_thread" | "reply_to_email" | "archive_email" | "mark_read" | "propose_draft" | "list_projects" | "list_commitments" | "create_project" | "track_commitment";
 export type AgentGrant = {
   id: string;

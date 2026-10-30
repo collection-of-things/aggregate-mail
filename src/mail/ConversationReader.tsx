@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { RendererMail as Mail } from "../../shared/types";
-import type { Conversation } from "../../shared/workspace";
+import { LOCAL_EVIDENCE_CAVEAT, type Conversation } from "../../shared/workspace";
 import type { Api } from "../api";
 import { ChevronDown, ChevronRight } from "../ui/icons";
 import { MailPrivacy, Redact } from "../ui/Privacy";
@@ -88,6 +88,8 @@ export function ConversationReader({ mail, gmail, api, busy, onChanged, onSelect
   const ordered: Mail[] = [...messages, mail].sort((a, b) => a.date - b.date || a.id.localeCompare(b.id));
   const multiple = ordered.length > 1;
   const canExpand = Boolean(gmail && mail.threadId);
+  // The server's generic caveat is already covered by the client's own first bullet.
+  const gaps = (conversation?.gaps ?? []).filter(gap => gap !== LOCAL_EVIDENCE_CAVEAT);
   const hints = `${region}-hints`;
   return <section className="conversation-reader" aria-label="Conversation">
     {multiple && <p id={hints} className="visually-hidden">Enter or click expands a message. Reader toolbar and shortcuts apply to the selected message. Use Select for actions to change it; each message has its own context menu.</p>}
@@ -95,12 +97,12 @@ export function ConversationReader({ mail, gmail, api, busy, onChanged, onSelect
       {multiple && <span>{ordered.length} messages in this conversation</span>}
       {canExpand && <button type="button" className="link" disabled={pending || busy} onClick={() => void fetchRest()}>{pending ? "Loading conversation…" : "Load full conversation"}</button>}
       {error && <span role="alert">{error}</span>}
-      {(multiple || !!error || !!conversation?.gaps.length) && <details className="conversation-notes">
+      {(multiple || !!error || gaps.length > 0) && <details className="conversation-notes">
         <summary>Why some messages may be missing</summary>
         <ul>
           <li>Older or Sent messages may be missing. Local Inbox and bounded Sent history do not prove completeness.</li>
           {!gmail && <li>IMAP history uses cached Message-ID references only. Remote thread expansion is unavailable.</li>}
-          {conversation?.gaps.map((gap, index) => <li key={index}><Redact text={gap} /></li>)}
+          {gaps.map((gap, index) => <li key={index}><Redact text={gap} /></li>)}
         </ul>
       </details>}
     </div>}

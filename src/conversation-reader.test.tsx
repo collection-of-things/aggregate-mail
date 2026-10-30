@@ -10,6 +10,7 @@ import type { Mail } from "../shared/types";
 import type { Api } from "./api";
 import { Reader } from "./mail/Reader";
 import { conversationMembers } from "../server/conversation-members";
+import { LOCAL_EVIDENCE_CAVEAT } from "../shared/workspace";
 
 for (const gmail of [true, false]) test(`${gmail ? "Gmail" : "IMAP"} inline stack ordering, keyboard, consent, privacy and coverage`, async () => {
   const dom = new JSDOM('<div id="root"></div>');
@@ -295,7 +296,7 @@ test("a single Gmail message keeps expansion and coverage notes without a count 
 });
 
 test("a lone Gmail email keeps Load full conversation but no coverage notes", async () => {
-  const ui = await fixture(async <T,>() => ({ accountId: "a", messages: [message()], gaps: [] }) as T);
+  const ui = await fixture(async <T,>() => ({ accountId: "a", messages: [message()], gaps: [LOCAL_EVIDENCE_CAVEAT] }) as T);
   try {
     await ui.render();
     const bar = ui.container.querySelector<HTMLElement>(".conversation-bar")!;

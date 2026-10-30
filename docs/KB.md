@@ -2889,7 +2889,8 @@ in the compact bar above the stack: the count, the expansion control and a
 collapsed "Why some messages may be missing" disclosure carrying the coverage
 caveats and gaps; the keyboard guidance stays visually hidden on each toggle's
 `aria-describedby`. A single cached message renders without that chrome; a Gmail
-one keeps only its Load full conversation link while notes and gaps stay empty. Message
+one keeps only its Load full conversation link, and the disclosure appears for a
+lone email only on a reported gap or an error. Message
 rows separate sender, preview and relative date from selected/unread state;
 Select for actions stays outside the expansion button. Row hover actions
 show Mark as read for unread mail or Mark as unread for read mail, with an envelope
@@ -2902,8 +2903,9 @@ ID tie-breaking. Cache counts and reported gaps do not establish complete
 history. Gmail fetch remains capped at 100 messages; IMAP has no remote expansion.
 A muted line above the stack carries the count, the expansion control and a
 collapsed "Why some messages may be missing" disclosure with the coverage
-caveats and gaps; one cached message renders without thread chrome, apart from
-Gmail's Load full conversation link.
+caveats and specific gaps; the generic local-evidence caveat is filtered out. One
+cached message renders without thread chrome, apart from Gmail's Load full
+conversation link and any reported gap or error.
 
 Malformed response envelopes or message entries retain the opened mail with an
 unavailable-evidence notice. Late results from another opening cannot replace
