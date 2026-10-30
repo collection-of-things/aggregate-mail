@@ -175,6 +175,10 @@ test("release notes come from CHANGELOG.md before tagging or publishing", () => 
   const publish = job("publish");
   assert.equal(existsSync(new URL("../.github/release.yml", import.meta.url)), false);
   assert.doesNotMatch(workflow, /--generate-notes/);
+  const local = readFileSync(new URL("./release.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(local, /--generate-notes/);
+  assert.match(local, /releaseNotes\(.*, \{ allowUnreleased: true \}\)/);
+  assert.match(local, /"--notes-file",\n\s+notesPath,/);
   assert.match(publish, /if \[ "\$GITHUB_EVENT_NAME" = push \]; then args\+=\(--allow-unreleased\); fi/);
   assert.match(publish, /node scripts\/release-notes\.mjs "\$\{RELEASE_VERSION:-\$\{GITHUB_REF_NAME#v\}\}" "\$\{args\[@\]\}" > "\$RUNNER_TEMP\/release-notes\.md"/);
   assert.match(publish, /--notes-file "\$RUNNER_TEMP\/release-notes\.md"/);

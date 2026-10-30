@@ -6,10 +6,6 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
-### Changed
-
-- GitHub release notes now use the matching CHANGELOG.md version section instead of a generated list of pull request titles. A release without notes stops before it is tagged or published.
-
 ## 0.2.22 - 2026-10-30
 
 ### Fixed

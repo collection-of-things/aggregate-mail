@@ -23,6 +23,8 @@ the Releases page mixed curated notes with PR-title lists.
   Unreleased section when no version section exists.
 - Missing or empty notes fail the job before the release tag is created or
   the release is published. `.github/release.yml` is removed.
+- The local `npm run release` path uses the same notes, falling back to
+  Unreleased, and fails before building when there are none.
 
 ## Consequences
 
