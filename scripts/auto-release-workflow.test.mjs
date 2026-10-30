@@ -171,9 +171,19 @@ test("publication needs all four successful builds and validates artifacts befor
   assert.match(workflow, /cancel-in-progress: false/);
 });
 
-test("release notes configuration omits category groups and excludes dependabot", () => {
-  const releaseConfig = readFileSync(new URL("../.github/release.yml", import.meta.url), "utf8");
-  assert.match(releaseConfig, /exclude:\s*\n\s*authors:\s*\n\s*-\s*dependabot/);
-  assert.doesNotMatch(releaseConfig, /categories:/);
-  assert.doesNotMatch(releaseConfig, /Other changes/i);
+test("release notes come from CHANGELOG.md before tagging or publishing", () => {
+  const publish = job("publish");
+  assert.equal(existsSync(new URL("../.github/release.yml", import.meta.url)), false);
+  assert.doesNotMatch(workflow, /--generate-notes/);
+  const local = readFileSync(new URL("./release.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(local, /--generate-notes/);
+  assert.match(local, /releaseNotes\(.*, \{ allowUnreleased: true \}\)/);
+  assert.match(local, /"--notes-file",\n\s+notesPath,/);
+  assert.match(publish, /if \[ "\$GITHUB_EVENT_NAME" = push \]; then args\+=\(--allow-unreleased\); fi/);
+  assert.match(publish, /node scripts\/release-notes\.mjs "\$\{RELEASE_VERSION:-\$\{GITHUB_REF_NAME#v\}\}" "\$\{args\[@\]\}" > "\$RUNNER_TEMP\/release-notes\.md"/);
+  assert.match(publish, /--notes-file "\$RUNNER_TEMP\/release-notes\.md"/);
+  const notes = publish.indexOf("name: Write release notes from CHANGELOG.md");
+  assert.ok(publish.indexOf("actions/checkout@") < notes);
+  assert.ok(notes < publish.indexOf("name: Create the release tag"));
+  assert.ok(notes < publish.indexOf("gh release create"));
 });

@@ -1,6 +1,0 @@
-# Generated release notes. No categories, so pull requests are listed
-# directly under "What's Changed".
-changelog:
-  exclude:
-    authors:
-      - dependabot
