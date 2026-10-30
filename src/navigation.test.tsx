@@ -1883,7 +1883,7 @@ test('assistant management stays in Settings and Agent review only shows review 
 });
 
 test("compose keeps toolbar search and privacy usable without losing the draft or settings", async () => {
-  const stored = JSON.stringify({ mode: "light", theme: "midnight", accent: "purple", transparency: "glass", glassOpacity: 35, reading: "full", sizeByImportance: false });
+  const stored = JSON.stringify({ mode: "light", theme: "midnight", accent: "purple", transparency: "glass", glassOpacity: 35, reading: "full" });
   const app = await mount(true, (_state, storage) => storage.setItem("emc2.appearance.v1", stored), { platform: "darwin", materials: true });
   try {
     await app.click(app.button("New message"));
@@ -1917,7 +1917,7 @@ test("compose improvements preserve device settings and account preferences thro
   const { notificationDefaults } = await import("./notifications");
   const theme = sampleTheme();
   const settings: Record<string, string> = {
-    "emc2.appearance.v1": JSON.stringify({ mode: "light", theme: theme.id, accent: "purple", transparency: "glass", glassOpacity: 35, reading: "full", sizeByImportance: false, customThemes: [theme] }),
+    "emc2.appearance.v1": JSON.stringify({ mode: "light", theme: theme.id, accent: "purple", transparency: "glass", glassOpacity: 35, reading: "full", customThemes: [theme] }),
     "emc2.interaction.v1": JSON.stringify({ ...defaults, opening: "single" }),
     "emc2.notifications.v1": JSON.stringify({ ...notificationDefaults, position: "top-right", duration: 10000, sound: "off" }),
     "emc2.text-scale": "1.2", privacy: "on", sidebar: "open", "sidebar-folded": '["accounts"]', "window-controls": "right",

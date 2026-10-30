@@ -1,8 +1,6 @@
 /* The opened email: actions, header, body, images and formatted sender content. */
 article.message {
-  max-width: 820px;
   padding: 20px clamp(16px, 2vw, 24px) 40px;
-  margin: 0 auto;
   width: 100%;
 }
 /* Actions for the selected or opened email: quiet tools with an icon and a label. */
@@ -247,22 +245,46 @@ article.message {
 .attachment-preview canvas { max-width: 100%; height: auto; display: block; margin-top: 8px; background: white; }
 
 .conversation-reader { min-width: 0; }
-.conversation-coverage { color: var(--text-3); }
-.conversation-details { margin: 12px 20px 20px; color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); overflow-wrap: anywhere; }
-.conversation-details summary { cursor: pointer; padding-block: 6px; }
-.conversation-details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.conversation-details p { margin-block: 8px; }
-.conversation-error { margin: 12px 20px; }
+.conversation-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  padding: 16px var(--reader-gutter, 32px) 12px;
+  color: var(--text-3);
+  font-size: calc(12.5px * var(--text-scale, 1));
+}
+.conversation-bar [role="alert"] { color: var(--danger); }
+.conversation-notes > summary { cursor: pointer; color: var(--text-3); }
+.conversation-notes > summary:hover { color: var(--text-2); }
+.conversation-notes > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.conversation-notes[open] { flex-basis: 100%; }
+.conversation-notes ul { margin: 6px 0 0; padding-left: 18px; }
+.conversation-notes li { margin: 2px 0; }
 .conversation-message { border-top: 1px solid var(--line); }
-.conversation-message:first-child { border-top: 0; }
-.conversation-header { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; padding: 10px 20px; }
-.conversation-toggle { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px 12px; flex: 1 1 240px; min-width: 0; text-align: left; background: transparent; color: inherit; border: 0; padding: 4px 0; cursor: pointer; }
-.conversation-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.conversation-sender, .conversation-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.conversation-sender { font-weight: 600; }
-.conversation-toggle time, .conversation-state { color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
-.conversation-toggle time { text-align: right; }
-.conversation-snippet { color: var(--text-2); font-size: calc(12px * var(--text-scale, 1)); }
-.conversation-state { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-.conversation-state strong { font-weight: 500; color: var(--text-2); }
-.conversation-select { padding: 6px 0; font-size: calc(11px * var(--text-scale, 1)); }
+.conversation-message:last-of-type { border-bottom: 1px solid var(--line); }
+.conversation-message:only-of-type { border: 0; }
+.conversation-toggle {
+  display: grid;
+  grid-template-columns: 14px 150px minmax(0, 1fr) auto;
+  column-gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 8px var(--reader-gutter, 32px);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: calc(13px * var(--text-scale, 1));
+}
+.conversation-toggle:hover { background: var(--hover); }
+.conversation-toggle:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.conversation-chevron { grid-column: 1; display: inline-flex; align-self: center; color: var(--text-3); }
+.conversation-sender { grid-column: 2; display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text); }
+.conversation-unread { display: inline-block; width: 7px; height: 7px; margin-right: 6px; vertical-align: middle; border-radius: 50%; background: var(--accent); }
+.conversation-snippet { grid-column: 3; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: calc(11.5px * var(--text-scale, 1)); }
+.conversation-meta { grid-column: 4; display: flex; align-items: center; gap: 8px; color: var(--text-3); font-size: calc(11.5px * var(--text-scale, 1)); white-space: nowrap; }
+.conversation-selected { padding: 1px 8px; border-radius: 20px; background: var(--hover); color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
+.conversation-select { display: block; width: fit-content; margin: 0 0 8px calc(var(--reader-gutter, 32px) + 24px); font-size: calc(12px * var(--text-scale, 1)); }
+.reader-scroll .conversation-message:has(> .conversation-toggle) .message { padding-top: 8px; }

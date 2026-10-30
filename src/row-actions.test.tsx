@@ -24,7 +24,7 @@ import { act, createRef } from 'react';
 import { JSDOM } from 'jsdom';
 
 async function mountRows(messages: Mail[] = [mail, {...mail, id:'b:1', relevance:3 as const}, {...mail, id:'c:1', relevance:1 as const}],
-  options: {density?: 'comfortable'|'compact'; narrow?: boolean; sizeByImportance?: boolean; selected?: string; touch?: boolean} = {}) {
+  options: {density?: 'comfortable'|'compact'; narrow?: boolean; selected?: string; touch?: boolean} = {}) {
  const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'http://localhost/' });
  if (options.touch) Object.defineProperty(dom.window, 'matchMedia', {value: (query: string) => ({matches: query === '(hover: none)', addEventListener() {}, removeEventListener() {}})});
  const { HTMLElement } = dom.window;
@@ -38,7 +38,7 @@ async function mountRows(messages: Mail[] = [mail, {...mail, id:'b:1', relevance
  const events:{kind:string;id:string}[]=[];
  const render=async(props:Partial<Parameters<typeof MailList>[0]>={})=>act(async()=>root.render(<div className={`list ${options.density||'comfortable'}`} ref={ref}>
    <MailList messages={messages} selectedId={options.selected} density={options.density||'comfortable'} narrow={!!options.narrow}
-     sizeByImportance={options.sizeByImportance??true} sort="relevance" opening="double" accounts={[]} listRef={ref} focusSelection={false}
+     sort="relevance" opening="double" accounts={[]} listRef={ref} focusSelection={false}
      onOpen={()=>events.push({kind:'open',id:''})} onSelect={(id)=>events.push({kind:'select',id})}
      onMenu={(_event,target)=>events.push({kind:'menu',id:target.id})} onMenuKey={(_event,target)=>events.push({kind:'menukey',id:target.id})}
      {...props}/></div>));
@@ -101,7 +101,7 @@ test('snoozed rows replace Snooze with Return to inbox and expose local pin stat
  } finally { await ui.close(); }
 });
 
-const layouts=(mode:{density?:'comfortable'|'compact';narrow?:boolean;sizeByImportance?:boolean})=>({...mode});
+const layouts=(mode:{density?:'comfortable'|'compact';narrow?:boolean})=>({...mode});
 test('touch and narrow lists do not reserve a persistent action strip', async () => {
  for (const narrow of [false, true]) for (const density of ['comfortable', 'compact'] as const) {
   const ui = await mountRows([mail, {...mail, id: 'b:1'}], {touch: true, narrow, density});
@@ -113,25 +113,24 @@ test('touch and narrow lists do not reserve a persistent action strip', async ()
   } finally { await ui.close(); }
  }
 });
-test('the rendered row layout and the windowing height agree for every sizing combination',async()=>{
- for(const narrow of [false,true])for(const density of ['comfortable','compact']as const)for(const sizeByImportance of [true,false]){
-  const ui=await mountRows(undefined,layouts({narrow,density,sizeByImportance}));try{
+test('the rendered row layout and the windowing height agree in every density and width',async()=>{
+ for(const narrow of [false,true])for(const density of ['comfortable','compact']as const){
+  const ui=await mountRows(undefined,layouts({narrow,density}));try{
    const rows=ui.rows();
    const heights=rows.map((row,index)=>index+1<rows.length?parseFloat(ui.rows()[index+1].style.top)-parseFloat(row.style.top):0);
-   const expectedClass=(relevance:number)=>density==='compact'?(narrow?'card':'inline')
-     :!sizeByImportance?(narrow?'card':'inline')
-     :narrow?'card':relevance===3?'stacked':relevance===2?'inline':'brief';
-   const expectedHeight=(relevance:number)=>(density==='compact'?(narrow?72:24)
-     :!sizeByImportance?(narrow?100:34)
-     :narrow?(relevance===1?80:100):relevance===3?48:relevance===2?34:28);
+   const expectedClass=narrow?'card':'inline';
+   const expectedHeight=density==='compact'?(narrow?72:24):(narrow?100:34);
    for(const[index,row]of rows.entries()){
     const button=row.querySelector<HTMLElement>('.row')!;
     const relevance=index===0?2:index===1?3:1;
-    assert.ok(button.classList.contains(expectedClass(relevance)),`${JSON.stringify({narrow,density,sizeByImportance})} r${relevance} -> ${expectedClass(relevance)}`);
-    assert.ok(button.classList.contains(`r${sizeByImportance?relevance:2}`),`r${relevance} keeps medium styling when uniform`);
-    if(index+1<rows.length)assert.equal(heights[index],expectedHeight(relevance),`${JSON.stringify({narrow,density,sizeByImportance})} r${relevance} height`);
+    assert.ok(button.classList.contains(expectedClass),`${JSON.stringify({narrow,density})} r${relevance} -> ${expectedClass}`);
+    assert.ok(button.classList.contains(`r${relevance}`),`r${relevance} keeps its text hierarchy styling`);
+    assert.equal(button.classList.contains('important'),relevance===3,`r${relevance} importance class`);
+    assert.equal(!!button.querySelector('.row-important'),relevance===3,`r${relevance} importance marker`);
+    assert.equal(button.getAttribute('aria-label')!.startsWith('Important:'),relevance===3,`r${relevance} accessible name`);
+    if(index+1<rows.length)assert.equal(heights[index],expectedHeight,`${JSON.stringify({narrow,density})} r${relevance} height`);
    }
-   assert.equal(parseFloat(document.querySelector<HTMLElement>('.mail-window')!.style.height),rows.reduce((height,row,index)=>height+expectedHeight(index===0?2:index===1?3:1),0));
+   assert.equal(parseFloat(document.querySelector<HTMLElement>('.mail-window')!.style.height),rows.length*expectedHeight);
   }finally{await ui.close();}
  }
 });

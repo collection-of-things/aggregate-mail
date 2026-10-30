@@ -36,11 +36,12 @@ rounded:
 ## Application layout
 
 The app uses a 208px source rail, one view name in the persistent toolbar and
-separate working columns. Inbox category and Drafts account tabs sit directly
-below that toolbar. Other views show secondary bars only for actions or cache
-controls. Work headings remain available to assistive technology, and Settings
-retains its distinct section titles. Mail category tabs span the working area
-above the list and reader.
+separate working columns. Mail views share one 42px rail above the list: a
+select-all checkbox aligned with the row checkboxes, Inbox category tabs, and,
+while messages are selected, the bulk count and triage actions. Drafts account
+tabs sit directly below that toolbar. Other views show secondary bars only for
+actions or cache controls. Work headings remain available to assistive
+technology, and Settings retains its distinct section titles.
 The reader keeps the subject and sender above the body, with secondary label,
 reply-all and scheduling controls below it. Narrow mail rows include account
 context within the same measured virtual row.
@@ -50,7 +51,7 @@ Account names stay neutral and use the existing privacy-safe labels. A small
 dot matches the same account in the sidebar; colour supplements the name.
 The four dot colours repeat for additional accounts in sidebar order. Sender
 avatars carry no provider overlay. Existing high-importance sorting reasons
-remain status labels, independent of the row-sizing preference. May need uses
+remain status labels. May need uses
 the reason colour; other statuses use secondary text. A blank status stays
 blank. Selecting one account hides the redundant account column.
 Narrow rows place account and status together below the sender, before the
@@ -271,7 +272,7 @@ explicit, with refresh and review before further edits. See [ADR 0046](docs/adr/
 
 ## Themes and transparency
 
-Settings, Appearance offers a Mode (System, Light or Dark; Dark by default), four themes (Black, shown as White in light mode, Graphite, Midnight and Forest), six accent colors, a Transparency choice (Off, Subtle, Glass), a Reading pane choice (Side by side or Full width) and a Size rows by importance switch (on by default; off gives every mail row the medium layout and height), stored on the device. Themes tint the window frame and sidebar; the mail list, reader and Settings stay close to neutral so the theme never crowds the mail. Text tones are set per mode so contrast holds. Light mode uses deeper accent shades so links and selection read on white; dark-mode links mix the accent with white. See [ADR 0025](docs/adr/0025-light-mode-and-reading-pane.md).
+Settings, Appearance offers a Mode (System, Light or Dark; Dark by default), four themes (Black, shown as White in light mode, Graphite, Midnight and Forest), six accent colors, a Transparency choice (Off, Subtle, Glass) and a Reading pane choice (Side by side or Full width), stored on the device. Themes tint the window frame and sidebar; the mail list, reader and Settings stay close to neutral so the theme never crowds the mail. Text tones are set per mode so contrast holds. Light mode uses deeper accent shades so links and selection read on white; dark-mode links mix the accent with white. See [ADR 0025](docs/adr/0025-light-mode-and-reading-pane.md).
 
 Custom themes appear beside the built-ins with palette previews. The theme picker supports arrow keys, Home and End. Create theme starts from the current theme; Edit, Duplicate, Export and Delete act on the selected custom theme. Each custom theme includes light and dark palettes and its own accent. The editor previews the selected palette across the app without saving it. Background and accent generate matching colors; Advanced exposes individual surface, text, link, border, sorting-reason, error and opaque privacy-bar colors. Editing an existing theme starts in Advanced to preserve its colors. Save commits both palettes and restores the selected appearance mode; Cancel, Escape and closing the editor restore the saved appearance. Import accepts an Emc² JSON file or pasted JSON and creates a separate copy. Delete requires confirmation and returns to Black/White. A failed save keeps the editor and draft available. See [ADR 0036](docs/adr/0036-custom-theme-library.md).
 
@@ -281,7 +282,7 @@ Transparency uses the operating system's own material behind the window. On Wind
 
 - A persistent 52px toolbar holds mail search and Commands above the working panes, with the Filters and privacy buttons at its right while the mail list shows; only the privacy button stays for Settings, Drafts and work views. Each pane retains a 48px title header, one height under the 52px toolbar so the hairlines line up across panes, and secondary controls such as category tabs, cached-mail notes and work-view controls share the title line. Headers drag the window apart from their controls; double-clicking maximizes it. The sidebar toggle sits first in the top-left header and moves into the toolbar when the sidebar is closed. Drawn window controls belong to the sidebar and toolbar, so they stay in the window corners as the reader pane changes. Windows-style controls reserve 150px at the toolbar’s right edge. macOS-style drawn controls use the configured left or right corner and existing IPC actions. The app-update control follows the pane tools in the toolbar flow, before the window controls, instead of floating over them.
 - On macOS, the native traffic lights sit at (20px, 20px). The app draws no dots of its own there. The header of the leftmost pane, the sidebar or the mail or Settings header while the sidebar is closed, reserves 84px for them. Native application, File, Edit and Window menus provide standard Command shortcuts.
-- The 208px sidebar runs the full window height. Its header holds the app name, collapse toggle and platform window-control space. New Message and Drafts come first. Workspace and Mail views remain in separate folding groups, followed by account filters and Add account. Settings and sync share a fixed footer. The current view and account use a neutral selection wash. Navigation rows are 34px with outline icons, 8px radii and muted counts. Account labels may truncate within the rail. Keyboard account hints remain in the shortcuts help. Snoozed appears when it has mail or is open.
+- The 208px sidebar runs the full window height. Its header holds the app name, collapse toggle and platform window-control space. New Message and Drafts come first. Mail views come next, then Workspace views, in separate folding groups, followed by account filters and Add account. Settings and sync share a fixed footer. The current view and account use a neutral selection wash. Navigation rows are 34px with outline icons, 8px radii and muted counts. Account labels may truncate within the rail. Keyboard account hints remain in the shortcuts help. Snoozed appears when it has mail or is open.
 - The sidebar toggle hides or shows the sidebar and remembers the choice between launches. When the sidebar is closed, the toggle moves into the persistent toolbar at the same spot. The sidebar collapses and expands by width on a spring; its content keeps a fixed width so it clips instead of reflowing. Below 760px window width the sidebar is hidden and its toggle with it.
 - Settings floats in a compact modal above the mounted mail or work view. The
   background sidebar and toolbar are inert. Its header keeps Back, Forward and
@@ -292,11 +293,11 @@ Transparency uses the operating system's own material behind the window. On Wind
   pending-save locks survive section changes and closing. Search shortcuts leave
   Settings for cached mail; Privacy shortcuts remain available outside editors
   and shortcut-capture fields. Nested dialogs retain keyboard ownership.
-- Inbox shows six category tabs in its header beside the title: Primary, Social, Promotions, Newsletters, Transactions and Updates, each with an outline icon and a muted unread count. The tabs fill the header's 48px height in secondary text; the active tab reads in primary text at weight 600, and a 2px accent underline on the header's bottom hairline marks it - exactly as wide as the tab's icon, label and count, sliding between tabs on the spring. Search spans every tab, so the strip hides while searching. See [ADR 0024](docs/adr/0024-inbox-category-tabs.md). Beside the reader the inactive tabs show only their icon and count (only the icon below a 400px column); the name stays in the accessible label and tooltip.
+- Inbox shows six category tabs in its list rail beside the select-all checkbox: Primary, Social, Promotions, Newsletters, Transactions and Updates, each with an outline icon and a muted unread count. The tabs fill the rail's 42px height in secondary text; the active tab reads in primary text at weight 600, and a 2px accent underline on the rail's bottom hairline marks it - exactly as wide as the tab's icon, label and count, sliding between tabs on the spring. While messages are selected the tabs hide so the bulk count and triage actions keep the rail. Search spans every tab, so the strip hides while searching. See [ADR 0024](docs/adr/0024-inbox-category-tabs.md). Beside the reader the inactive tabs show only their icon and count (only the icon below a 400px column); the name stays in the accessible label and tooltip.
 - Sliding lists (sidebar groups, Settings sections and the tabs) draw one hover wash that glides under the pointer on a 320ms spring and fades out when the pointer leaves, instead of a per-item hover background.
-- The mail list sits under its header and scrolls on its own. The Filters button, in the persistent toolbar, opens a 300px popover under it with labeled dropdowns for read status (Show), relevance, sort (Sort by) and Gmail label, plus Reset filters and sort. The popover stays open while choices change and closes on Escape (before Escape closes an email) or a click elsewhere. While any choice differs from its default, the button stays accent-colored with a small dot. Rows run edge to edge with no insets, corner radii or vertical margins, so hover and selected washes meet the pane dividers: high relevance 48px on two lines, medium 34px inline, low 28px; compact density uses 24px rows. Appearance's Size rows by importance switch (on by default) can instead give every row the medium layout and height. Sender sits in a 150px column with an 8px gap before the subject; two-line previews align under the subject. Circular avatars (22px, 18px on low rows): the sender's company logo on a light disc when the domain has one, otherwise a gray initial, each with a small provider badge. The sender is context and stays muted while the subject carries the message in near-white; unread is a bold subject plus a white time. The selected row takes a 22% accent tint, keeping its normal text colors, while the list has focus, and a gray wash otherwise; hover is a 3% wash. Unread mail has a 7px accent dot in the row's left gutter. Hairlines inset to the text divide rows and give way around the selected and hovered rows and before date headings. High-relevance reasons use the theme's sorting-reason color before the time: peach in dark mode and rust in light mode.
-- Reading pane. Side by side (the default) keeps the list in a column (30% of the window, 320–440px) and opens mail in a reader pane beside it. The reader's header holds the email toolbar and, at its right, an `Esc` close control; before anything is opened the pane says No email open, with the open shortcut when an email is selected. Rows in the column become cards: avatar, sender and time on the first line, then the subject, then a preview for medium and high relevance in comfortable density. Unread cards bold the sender and subject. Full width, and any window narrower than 980px, opens mail in place of the list as before.
-- The opened email shows its subject at 22px semibold, then one sender line: a 36px avatar, the name with its address beside it and the recipient beneath, and a short date at the right (time for today, day and time this year, full date before; the full timestamp is the tooltip). Gmail labels follow as one muted line with Edit labels. Image consent is a single quiet strip above the body: the warning text, then Show images. The column is 820px wide with 28px top and 36px side padding.
+- The mail list sits under its header and scrolls on its own. The Filters button, in the persistent toolbar, opens a 300px popover under it with labeled dropdowns for read status (Show), relevance, sort (Sort by) and Gmail label, plus Reset filters and sort. The popover stays open while choices change and closes on Escape (before Escape closes an email) or a click elsewhere. While any choice differs from its default, the button stays accent-colored with a small dot. Rows run edge to edge with no insets, corner radii or vertical margins, so hover and selected washes meet the pane dividers: every row is 34px, or 24px in compact density. Sender sits in a 150px column with an 8px gap before the subject; high-relevance mail shows a small filled importance marker in the sorting-reason color inside that column, so subjects stay aligned. Circular avatars (22px, 18px in compact): the sender's company logo on a light disc when the domain has one, otherwise a gray initial, each with a small provider badge. The sender is context and stays muted while the subject carries the message in near-white; unread is a bold subject plus a white time. The selected row takes a 22% accent tint, keeping its normal text colors, while the list has focus, and a gray wash otherwise; hover is a 3% wash. Unread mail has a 7px accent dot in the row's left gutter. Hairlines inset to the text divide rows and give way around the selected and hovered rows and before date headings. High-relevance reasons use the theme's sorting-reason color before the time: peach in dark mode and rust in light mode.
+- Reading pane. Side by side (the default) keeps the list in a column (30% of the window, 320–440px) and opens mail in a reader pane beside it. The reader's header holds the email toolbar and, at its right, an `Esc` close control; before anything is opened the pane says No email open, with the open shortcut when an email is selected. Rows in the column become cards: avatar, sender and time on the first line, then the subject, then a preview in comfortable density. Unread cards bold the sender and subject. Full width, and any window narrower than 980px, opens mail in place of the list as before.
+- The opened email shows its subject at 22px semibold, then one sender line: a 36px avatar, the name with its address beside it and the recipient beneath, and a short date at the right (time for today, day and time this year, full date before; the full timestamp is the tooltip). Gmail labels follow as one muted line with Edit labels. Image consent is a single quiet strip above the body: the warning text, then Show images. The subject, sender line, labels, image strip and attachments span the reader width at the existing padding, left-aligned like Gmail; a plain-text body keeps a 65ch measure, and sender-formatted mail uses the full width so its own centered tables stay centered.
 - Sticky date headers (Today, Yesterday, This week, This month, Earlier) in 12px faint text, pinned to the top of the list with no history-toolbar offset. Their padding is 8px above, 4px below and 18px horizontally, aligned with row avatars.
 - No sender panel. The window holds at most the sidebar, the mail list and the reader; sender details stay in the reader header ([ADR 0056](docs/adr/0056-remove-sender-panel.md)).
 - Gmail label filter follows account filters and applies within the current view. When all accounts are shown, label names include their account. Opened Gmail mail shows custom labels as plain text and offers Edit labels in a checkbox dialog. System labels are available for filtering but cannot be edited here.
@@ -492,22 +493,25 @@ visible after selection clears, including partial and unknown results.
 ## Inline conversation reader
 
 Read the existing account-scoped conversation as a chronological stack. Only the
-opened message starts expanded; each collapsed line shows sender, date and
-preview. Enter or click toggles a message. Up/Down and Home/End move between
-message headings; Left/Right collapse or expand. Modified keys retain their
-existing shortcuts and native text-selection behavior.
+opened message starts expanded; each collapsed row shows sender, snippet and a
+short date, with an accent dot for unread and a muted pill marking Selected for
+actions. Enter or click toggles a message. Up/Down and Home/End move between
+message rows; Left/Right collapse or expand. Modified keys retain their existing
+shortcuts and native text-selection behavior.
 
-The opened message in a multi-message stack is marked Active, with Selected for
-actions available to assistive technology. A single email has no duplicate
-conversation heading. Select for actions uses the
+One muted line above the stack carries the message count, the bounded expansion
+control and a collapsed "Why some messages may be missing" disclosure that keeps
+the coverage caveats and reported gaps. An opened email with no other cached
+messages shows the message alone, without thread chrome.
+
+The opened message is marked Selected for actions. Select for actions uses the
 existing opening operation, including mark-read, to change the toolbar target.
 Each message retains its own pointer and keyboard context menu. Expanding or
 moving focus alone does not mark mail read. Snooze return/change-time, reply-all,
 labels and follow-up tools stay attached to the selected message.
 
-Keep cached counts, service-reported missing references and keyboard guidance
-in collapsed Conversation details below the messages, without inventing a total.
-Errors remain visible. Gmail offers the existing explicit fetch capped at 100 messages; IMAP
+Show cached counts and service-reported missing references without inventing a
+total. Gmail offers the existing explicit fetch capped at 100 messages; IMAP
 uses cached references only. Each expanded message uses the allowlisted reader
 and its own privacy context. Collapse or another opening discards image consent;
 enabling privacy revokes consent in every expanded message. Inbox list grouping

@@ -19,14 +19,13 @@ const message: Mail = {
 };
 
 function render(options: { narrow?: boolean; density?: "comfortable" | "compact";
-  privacy?: boolean; accounts?: Account[]; messages?: Mail[]; showAccount?: boolean;
-  sizeByImportance?: boolean } = {}) {
+  privacy?: boolean; accounts?: Account[]; messages?: Mail[]; showAccount?: boolean } = {}) {
   const listAccounts = options.accounts ?? accounts;
   const html = renderToStaticMarkup(
     <PrivacyContext.Provider value={{ on: !!options.privacy, revealed: new Set(), toggle() {}, accounts: listAccounts }}>
       <MailList messages={options.messages ?? [message, { ...message, id: "b:1", accountId: "b" }]}
         accounts={listAccounts} narrow={!!options.narrow} density={options.density ?? "comfortable"}
-        showAccount={options.showAccount} sizeByImportance={options.sizeByImportance}
+        showAccount={options.showAccount}
         selectedId={undefined} listRef={{ current: null }} focusSelection={false}
         sort="newest" opening="double" onOpen={() => {}} onSelect={() => {}}
         onMenu={() => {}} onMenuKey={() => {}} />
@@ -71,8 +70,8 @@ test("privacy-safe duplicate labels, address-only names and unavailable accounts
   assert.equal(missing.querySelector(".row-account")?.textContent, "Account unavailable");
 });
 
-test("row sizing preferences do not change status meaning or invent missing labels", () => {
-  const row = render({ sizeByImportance: false }).querySelector("button.row")!;
+test("uniform row sizing keeps status meaning and never invents missing labels", () => {
+  const row = render().querySelector("button.row")!;
   assert.equal(row.querySelector(".row-label")?.textContent, "May need");
   for (const relevance of [1, 2] as const) {
     assert.equal(render({ messages: [{ ...message, relevance }] }).querySelector(".row-label"), null);

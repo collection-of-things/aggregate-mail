@@ -50,6 +50,14 @@ export function Pin(props: IconProps) {
   return <Outline {...props}><path d="m16 3 5 5-4 1-3 6-2-2-5 5-1-1 5-5-2-2 6-3Z" /></Outline>;
 }
 
+export function Important({ size = 24, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" {...props}>
+      <path d="M3 5h12l5 7-5 7H3l4-7z" />
+    </svg>
+  );
+}
+
 export function Check(props: IconProps) {
   return <Outline {...props}><path d="m5 12 4 4L19 6" /></Outline>;
 }

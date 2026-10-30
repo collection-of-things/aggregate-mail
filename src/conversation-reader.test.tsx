@@ -32,18 +32,23 @@ for (const gmail of [true, false]) test(`${gmail ? "Gmail" : "IMAP"} inline stac
   const cards = () => [...container.querySelectorAll<HTMLElement>('.conversation-message')];
   try {
     await render();
-    const details = container.querySelector<HTMLDetailsElement>(".conversation-details");
-    assert.ok(details, "history diagnostics belong in a disclosure");
-    assert.equal(details.open, false, "diagnostics start collapsed");
-    assert.ok(details.querySelector(".conversation-coverage"));
-    assert.ok(details.textContent!.includes("Sent coverage is bounded"));
+    const bar = container.querySelector<HTMLElement>(".conversation-bar")!;
+    assert.ok(bar, "conversation chrome lives in one compact bar");
+    assert.match(bar.textContent!, /3 messages in this conversation/);
+    const notes = bar.querySelector<HTMLDetailsElement>(".conversation-notes")!;
+    assert.ok(notes, "history diagnostics belong in a disclosure");
+    assert.equal(notes.open, false, "diagnostics start collapsed");
+    assert.ok(notes.textContent!.includes("Sent coverage is bounded"));
     assert.deepEqual(cards().map(node => node.dataset.messageId), [older.id, base.id, latest.id]);
     assert.deepEqual(toggles().map(node => node.getAttribute('aria-expanded')), ["false", "true", "false"]);
-    assert.equal(container.querySelector<HTMLDetailsElement>('.conversation-details')!.open, false);
-    assert.ok(container.querySelector('.conversation-details')!.compareDocumentPosition(cards()[0]) & dom.window.Node.DOCUMENT_POSITION_PRECEDING);
-    assert.match(container.textContent!, /Older or Sent messages may be missing/);
-    assert.match(container.textContent!, /Sent coverage is bounded/);
-    if (!gmail) assert.match(container.textContent!, /cached Message-ID references only/);
+    assert.ok(bar.compareDocumentPosition(cards()[0]) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING, "the bar precedes the messages");
+    assert.match(notes.textContent!, /Older or Sent messages may be missing/);
+    if (!gmail) assert.match(notes.textContent!, /cached Message-ID references only/);
+    const describedBy = toggles().map(node => node.getAttribute("aria-describedby"));
+    const hint = container.ownerDocument.getElementById(describedBy[0]!);
+    assert.ok(hint?.classList.contains("visually-hidden"), "toggle instructions stay visually hidden");
+    assert.match(hint!.textContent!, /Enter or click expands a message/);
+    toggles().forEach(node => assert.equal(node.getAttribute("aria-describedby"), describedBy[0]));
     assert.equal(container.querySelectorAll('img').length, 0);
     await click(toggles()[0]);
     await click([...cards()[0].querySelectorAll('button')].find(node => node.textContent === 'Show images')!);
@@ -63,7 +68,7 @@ for (const gmail of [true, false]) test(`${gmail ? "Gmail" : "IMAP"} inline stac
     assert.doesNotMatch(container.innerHTML, /sender@example.test|reader@example.test/);
     assert.equal(container.querySelectorAll('img').length, 0);
     if (gmail) {
-      await click([...container.querySelectorAll('button')].find(node => node.textContent?.startsWith('Fetch bounded'))!);
+      await click([...container.querySelectorAll('button')].find(node => node.textContent?.startsWith('Load full conversation'))!);
       assert.ok(calls.includes('/messages/a%3A2/conversation/expand')); assert.equal(changed, 1);
     }
   } finally {
@@ -132,6 +137,7 @@ for (const bad of [undefined, {}, { messages: [], gaps: [] },
   try {
     await ui.render();
     assert.equal(ui.container.querySelectorAll(".conversation-message").length, 1);
+    assert.equal(ui.container.querySelectorAll(".conversation-toggle").length, 0);
     assert.match(ui.container.textContent!, /Cached conversation could not be loaded/);
     assert.match(ui.container.textContent!, /Synthetic body/);
     assert.doesNotMatch(ui.container.textContent!, /Foreign secret/);
@@ -148,12 +154,12 @@ test("bounded expansion rejects malformed data and failures, preserves cache, an
   const ui = await fixture(api);
   try {
     await ui.render(message(), true);
-    assert.equal(ui.button("Fetch bounded").disabled, true);
-    await ui.click(ui.button("Fetch bounded")); assert.equal(posts, 0);
+    assert.equal(ui.button("Load full conversation").disabled, true);
+    await ui.click(ui.button("Load full conversation")); assert.equal(posts, 0);
     await ui.render();
-    await ui.click(ui.button("Fetch bounded"));
-    assert.equal(ui.button("Fetching conversation").disabled, true);
-    await ui.click(ui.button("Fetching conversation")); assert.equal(posts, 1);
+    await ui.click(ui.button("Load full conversation"));
+    assert.equal(ui.button("Loading conversation").disabled, true);
+    await ui.click(ui.button("Loading conversation")); assert.equal(posts, 1);
     await act(async () => gate.resolve({ accountId: "a", messages: [null], gaps: [] }));
     assert.match(ui.container.textContent!, /refresh could not be completed/);
     assert.equal(ui.container.querySelectorAll(".conversation-message").length, 2);
@@ -166,7 +172,7 @@ test("failed GET and failed Gmail expansion keep the opened mail without retryin
   const ui = await fixture(async () => { calls++; throw Error("Synthetic offline"); });
   try {
     await ui.render(); assert.equal(calls, 1);
-    await ui.click(ui.button("Fetch bounded")); assert.equal(calls, 2);
+    await ui.click(ui.button("Load full conversation")); assert.equal(calls, 2);
     assert.match(ui.container.textContent!, /Synthetic body/);
     assert.match(ui.container.textContent!, /refresh could not be completed/);
   } finally { await ui.close(); }
@@ -179,7 +185,7 @@ for (const expand of [false, true]) test(`late ${expand ? "POST" : "GET"} cannot
     return conversation([message("a:9")]) as T;
   });
   try {
-    await ui.render(); if (expand) await ui.click(ui.button("Fetch bounded"));
+    await ui.render(); if (expand) await ui.click(ui.button("Load full conversation"));
     await ui.render(message("a:9"));
     await act(async () => gate.resolve(conversation([message("late")])));
     assert.deepEqual([...ui.container.querySelectorAll<HTMLElement>(".conversation-message")].map(node => node.dataset.messageId), ["a:9"]);
@@ -205,7 +211,7 @@ test("keyboard boundaries, modified arrows, explicit selection and focused conte
     assert.deepEqual(ui.selected, [], "expanding and moving never marks another message read");
     await ui.key(toggles[0], "F10", { shiftKey: true }); assert.deepEqual(ui.menus, [older.id]);
     await ui.click(ui.button("Select for actions")); assert.deepEqual(ui.selected, [older.id]);
-    assert.equal(ui.container.querySelectorAll("strong").length, 1);
+    assert.equal(ui.container.querySelectorAll(".conversation-selected").length, 1);
   } finally { await ui.close(); }
 });
 
@@ -220,7 +226,7 @@ for (const gmail of [false, true]) test(`actual ${gmail ? "Gmail thread" : "IMAP
     assert.deepEqual([...ui.container.querySelectorAll<HTMLElement>(".conversation-message")].map(node => node.dataset.messageId), [older.id, base.id]);
     assert.match(ui.container.textContent!, /Referenced message unavailable/);
     assert.match(ui.container.textContent!, /do not prove completeness/);
-    if (!gmail) assert.equal(ui.container.textContent!.includes("Fetch bounded"), false);
+    if (!gmail) assert.equal(ui.container.textContent!.includes("Load full conversation"), false);
   } finally { await ui.close(); }
 });
 
@@ -232,8 +238,9 @@ test("equal dates sort by id and an empty valid cache still retains the opened m
     assert.deepEqual([...ui.container.querySelectorAll<HTMLElement>(".conversation-message")].map(node => node.dataset.messageId), ["a:1", "a:2", "a:3"]);
     empty = true; await ui.render(message("a:9"));
     assert.equal(ui.container.querySelectorAll(".conversation-message").length, 1);
-    assert.match(ui.container.textContent!, /Selected for actions/);
-    assert.equal(ui.container.querySelectorAll(".conversation-toggle").length, 0, "a single email has no redundant heading");
+    assert.equal(ui.container.querySelectorAll(".conversation-toggle").length, 0, "a single email renders without thread chrome");
+    assert.match(ui.container.textContent!, /Synthetic body/);
+    assert.doesNotMatch(ui.container.textContent!, /Selected for actions/);
   } finally { await ui.close(); }
 });
 
@@ -260,13 +267,40 @@ test("Reader preserves selected snooze/reply/label callbacks and never applies t
   } finally { await ui.close(); }
 });
 
+test("a single cached IMAP message renders without conversation chrome", async () => {
+  const ui = await fixture(async <T,>() => conversation([message("a:2", { threadId: undefined })]) as T);
+  try {
+    await ui.render(message("a:2", { threadId: undefined }));
+    assert.equal(ui.container.querySelectorAll(".conversation-toggle").length, 0);
+    assert.equal(ui.container.querySelectorAll(".conversation-bar").length, 0);
+    assert.doesNotMatch(ui.container.textContent!, /Selected for actions|messages in this conversation|Why some messages may be missing/);
+    assert.match(ui.container.textContent!, /Synthetic body/);
+  } finally { await ui.close(); }
+});
+
+test("a single Gmail message keeps expansion and coverage notes without a count or rows", async () => {
+  const ui = await fixture(async <T,>() => conversation([message()]) as T);
+  try {
+    await ui.render();
+    assert.equal(ui.container.querySelectorAll(".conversation-toggle").length, 0);
+    assert.doesNotMatch(ui.container.textContent!, /Selected for actions|messages in this conversation/);
+    const bar = ui.container.querySelector<HTMLElement>(".conversation-bar")!;
+    assert.match(bar.textContent!, /Load full conversation/);
+    const notes = bar.querySelector<HTMLDetailsElement>(".conversation-notes")!;
+    assert.equal(notes.hasAttribute("open"), false, "coverage notes start collapsed");
+    assert.match(notes.textContent!, /do not prove completeness/);
+    assert.match(notes.textContent!, /Referenced message unavailable/);
+    assert.equal(notes.textContent!.includes("Message-ID references"), false, "IMAP note stays hidden for Gmail");
+  } finally { await ui.close(); }
+});
+
 test("late initial cache cannot overwrite a completed expansion", async () => {
   const initial = deferred<unknown>();
   const ui = await fixture(async <T,>(_path: string, method?: string) =>
     (method === "POST" ? conversation([message(), message("a:new")]) : await initial.promise) as T);
   try {
     await ui.render();
-    await ui.click(ui.button("Fetch bounded"));
+    await ui.click(ui.button("Load full conversation"));
     assert.equal(ui.container.querySelectorAll(".conversation-message").length, 2);
     await act(async () => initial.resolve(conversation([message()])));
     assert.equal(ui.container.querySelectorAll(".conversation-message").length, 2);

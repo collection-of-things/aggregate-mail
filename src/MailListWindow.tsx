@@ -3,7 +3,7 @@ import type { RendererMail as Mail } from "../shared/types";
 import type { MailLocation } from "./navigation";
 import { dayGroup } from "./mail/format";
 
-export function MailListWindow<T extends Mail>({ messages, selectedId, focusSelection, density, sort, listRef, narrow = false, sizeByImportance = true, children }: {
+export function MailListWindow<T extends Mail>({ messages, selectedId, focusSelection, density, sort, listRef, narrow = false, children }: {
   messages: T[];
   selectedId: string | undefined;
   focusSelection: boolean;
@@ -11,12 +11,11 @@ export function MailListWindow<T extends Mail>({ messages, selectedId, focusSele
   sort: MailLocation["sort"];
   listRef: RefObject<HTMLElement | null>;
   narrow?: boolean;
-  sizeByImportance?: boolean;
   children: (mail: T, index: number) => ReactNode;
 }) {
   const windowRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ top: 0, height: 600, offset: 0 });
-  const [sizes, setSizes] = useState({ low: 28, medium: 34, high: 48, compact: 24, group: 30 });
+  const [sizes, setSizes] = useState({ medium: 34, compact: 24, group: 30 });
   const [measured, setMeasured] = useState(false);
   const geometry = useMemo(() => {
     let height = 0;
@@ -29,14 +28,12 @@ export function MailListWindow<T extends Mail>({ messages, selectedId, focusSele
         height += sizes.group;
       }
       const top = height;
-      height += density === "compact" ? sizes.compact :
-        !sizeByImportance ? sizes.medium :
-        mail.relevance === 3 ? sizes.high : mail.relevance === 2 ? sizes.medium : sizes.low;
+      height += density === "compact" ? sizes.compact : sizes.medium;
       return { top, bottom: height };
     });
     if (groups.length) groups[groups.length - 1].height = height - groups[groups.length - 1].top;
     return { rows, groups, height };
-  }, [messages, density, sort, sizes, sizeByImportance]);
+  }, [messages, density, sort, sizes]);
   const windowOffset = useCallback(() => {
     let offset = 0;
     let element: HTMLElement | null = windowRef.current;
@@ -54,9 +51,7 @@ export function MailListWindow<T extends Mail>({ messages, selectedId, focusSele
     const scale = parseFloat(style.getPropertyValue("--text-scale")) || 1;
     const token = (name: string, fallback: number) => (parseFloat(style.getPropertyValue(`--mail-row-${narrow ? "card-" : ""}${name}`)) || fallback) * scale;
     const nextSizes = {
-      low: token("low", narrow ? 80 : 28),
       medium: token("medium", narrow ? 100 : 34),
-      high: token("high", narrow ? 100 : 48),
       compact: token("compact", narrow ? 72 : 24),
       group: (parseFloat(style.getPropertyValue("--mail-group-height")) || 30) * scale,
     };
@@ -90,7 +85,7 @@ export function MailListWindow<T extends Mail>({ messages, selectedId, focusSele
     const list = listRef.current;
     if (!list || !measured) return;
     if (selectedIndex < 0) { lastSelection.current = undefined; return; }
-    const layout = JSON.stringify([density, narrow, sizeByImportance, sizes]);
+    const layout = JSON.stringify([density, narrow, sizes]);
     const selectionChanged = lastSelection.current !== selectedId;
     const layoutChanged = lastLayout.current !== layout;
     // Density and text sizing keep selection visible; refresh and passive scroll do not snap it back.
@@ -111,7 +106,7 @@ export function MailListWindow<T extends Mail>({ messages, selectedId, focusSele
         !active.closest("input, textarea, select, [contenteditable], [role=menu], [role=dialog]"))))
       document.getElementById(`mail-${selectedId}`)?.focus({ preventScroll: true });
     measure();
-  }, [selectedId, selectedIndex, geometry, focusSelection, measured, measure, sizes, sort, windowOffset, density, narrow, sizeByImportance]);
+  }, [selectedId, selectedIndex, geometry, focusSelection, measured, measure, sizes, sort, windowOffset, density, narrow]);
   const top = Math.max(0, viewport.top - viewport.offset - 300);
   const bottom = viewport.top - viewport.offset + viewport.height + 300;
   const firstAfter = (position: number) => {
