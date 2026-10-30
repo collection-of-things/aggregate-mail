@@ -54,7 +54,7 @@ test("bounded sequential batches preserve per-item success, failure and uncertai
   let release = () => {};
   const gate = runMailWork(() => new Promise<void>(resolve => { release = resolve; }));
   await Promise.resolve();
-  const queued = updateMessages({ items: [{ id: "last", accountId: "b" }], operation: { action: "pin" } });
+  const queued = updateMessages({ items: [{ id: "last", accountId: "b" }], operation: { action: "read" } });
   put("mail", "last", mail("last", "a")); release(); await gate;
   assert.equal((await queued).results[0].status, "failed");
   // Start with no accounts so the HTTP checks cannot open provider watchers.

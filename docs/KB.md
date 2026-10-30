@@ -1391,7 +1391,7 @@ after import. See [ADR 0081](adr/0081-provider-search-beyond-cache.md).
 
 App owns the compose-preference save lock and pending state. Leaving or reopening Settings cannot start a second save while the first is pending. Success updates the saved baseline; failure keeps the editable draft and reports the error even after navigation. Mounted deferred-response regressions in `src/navigation.test.tsx` cover both outcomes and the next save.
 
-`pin` and `unpin` message actions run through the existing mail queue and never call a provider mutation. Pins live in the encrypted mail record, survive provider refresh, and clear with the cached mail. They do not reorder results or change Inbox categories.
+`pin` and `unpin` message actions run as tracked local work outside the serialized sync queue and never call a provider mutation. Pins live in the encrypted mail record, survive provider refresh, and clear with the cached mail. They do not reorder results or change Inbox categories.
 
 Find pinned mail is a cached `is:pinned` search, not a separate state. The Filters popover and Commands both call App's `findPinned`, which either keeps the current view or switches to All cached. Both keep the selected account, unlike typing a new search, which widens to all accounts. All cached is the only scope that reaches pins after Archive, Done or Snooze move them out of Inbox. A mounted synthetic test in `src/navigation.test.tsx` covers both scopes, account retention, the help text and the Commands entries.
 
@@ -2908,6 +2908,12 @@ message receives the callback bound to the current action target. Other
 expanded messages must first use Select for actions.
 
 ## Local mail Undo
+
+Single-message Pin and Unpin run during a mail sync and remain tracked by the
+update drain. Sync batches read current local pin state and AI sorting merges
+into the current message. Synthetic coverage in `server/pin-during-sync.test.ts`
+and `server/sync.test.ts` checks both paths. Batch actions and Undo retain their
+existing sync guards.
 
 Single-message Pin/Unpin and Snooze/Return confirmations offer Undo. Commands
 keeps Undo last action available when confirmations are off and independently

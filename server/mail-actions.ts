@@ -86,10 +86,18 @@ export async function updateMessage(
   providerStarted?: () => void,
   captureUndo?: (receipt: LocalMailUndo) => void,
 ) {
+  // Pinning is one local transaction, so it need not wait behind a long sync.
+  // Sync writers re-read each record before writing, which keeps the pin.
+  if (input.action === "pin" || input.action === "unpin")
+    return trackMailWork(async () => {
+      beforeExecution?.();
+      findMail(id);
+      return updateLocalMail(id, input.action, undefined, captureUndo);
+    });
   return runMailWork(async () => {
     beforeExecution?.();
     const m = findMail(id);
-    if (input.action === "pin" || input.action === "unpin" || input.action === "snooze" || input.action === "unsnooze")
+    if (input.action === "snooze" || input.action === "unsnooze")
       return updateLocalMail(id, input.action, "until" in input ? input.until : undefined, captureUndo);
     if (input.action === "read" && !m.unread || input.action === "unread" && m.unread || input.action === "inbox" && !m.archived) return m;
     if (input.action === "trash") {

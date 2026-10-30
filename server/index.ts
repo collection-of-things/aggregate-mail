@@ -767,6 +767,8 @@ async function syncAccount(
         snoozedUntil: previous?.snoozedUntil || null,
         ...(previous?.pinned ? { pinned: true } : {}),
       };
+      // A provider batch may contain a pre-Unpin copy of the cached message.
+      if (!previous?.pinned) delete saved.pinned;
       if (!isDeepStrictEqual(previous, saved)) changed.push([m.id, saved]);
     }
     putBatch("mail", changed);
@@ -816,7 +818,9 @@ async function syncAccount(
         if (!m || m.accountId !== a.id) continue;
         try {
           const sorting = await classify(m, rules);
-          if (currentAccount()) put("mail", m.id, { ...m, ...sorting });
+          // Read current state again so a pin made during classification is kept.
+          const current = get("mail", m.id);
+          if (currentAccount() && current?.accountId === a.id) put("mail", m.id, { ...current, ...sorting });
         } catch (sortingFailure) {
           if (stopped) return;
           stopped = true;

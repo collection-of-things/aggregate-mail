@@ -21,6 +21,7 @@ unversioned history without treating it as a release record.
 - On Android, verify TLS certificate hostnames with the platform's strict single-label wildcard rules before credentials are sent, reject oversized IMAP literal announcements (without misreading message content as one) and MIME boundary declarations before allocation, and keep the send-confirmation recipient off screenshots. ([#167](https://github.com/collection-of-things/aggregate-mail/pull/167))
 
 - Preserve bounded partial IMAP search results and allow recovery of an unbound archived message when its subject matches and its envelope date is absent; a present date must match. Privacy mode hides the whole text when there are more names, or longer names, than its bounded matcher covers, instead of leaving them visible. ([#167](https://github.com/collection-of-things/aggregate-mail/pull/167))
+- Pin and unpin a message without waiting for an ongoing mail sync to finish ([#171](https://github.com/collection-of-things/aggregate-mail/issues/171)).
 
 ## 0.2.22 - 2026-10-30
 
