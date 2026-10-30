@@ -379,8 +379,9 @@ the CLI never sends or approves. Each operation still checks its explicit grant.
 See [ADR 0070](adr/0070-cli-mcp-capability-contract.md).
 CLI `search --syntax app` reuses `shared/mail-search.ts` against granted
 accounts only. Default search stays case-insensitive substring matching.
-Malformed app queries return `MCP_INVALID_QUERY` with static validation guidance;
-permission checks still run first, and other failures retain sanitized errors.
+Direct MCP clients receive `MCP_INVALID_QUERY` with static guidance for malformed
+app queries. The CLI prints a generic rejection and exits 1. Permission checks
+run first, and other MCP failures retain sanitized errors.
 `list/search --pinned` narrows local pins before paging; summaries include
 `pinned` and nullable `snoozedUntil`. Additive version 1 capabilities
 `searchSyntax: ["substring", "app"]` and `mailFilters: ["pinnedOnly"]` prevent
