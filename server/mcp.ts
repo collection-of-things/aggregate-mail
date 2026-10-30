@@ -9,6 +9,7 @@ import type { AgentTool } from "../shared/workspace.js";
 import { AgentPermissionError, agentCommitmentSchema, agentProjectSchema, assertAgent, conversation, createAgentProject, listAgentCommitments, listAgentProjects, propose, trackAgentCommitment } from "./workspace.js";
 import { plainContentSchema } from "./drafts.js";
 import type { Mail, McpSettings } from "../shared/types.js";
+import { compileMailSearch } from "../shared/mail-search.js";
 import { all, account, put } from "./store.js";
 import { findMail } from "./mail-actions.js";
 
@@ -37,6 +38,8 @@ const summary = (m: Mail) => ({
   relevance: m.relevance,
   accountId: m.accountId,
   direction: m.direction || "received",
+  pinned: m.pinned === true,
+  snoozedUntil: m.snoozedUntil ?? null,
 });
 const full = (m: Mail) => ({
   ...summary(m),
@@ -55,10 +58,16 @@ const filters = {
   category: z.enum(["important", "other", "snoozed", "archive"]).optional(),
   accountId: z.string().optional(),
   unreadOnly: z.boolean().default(false),
+  pinnedOnly: z.boolean().default(false),
   limit,
   offset: z.number().int().min(0).default(0),
 };
-function page(input: z.infer<z.ZodObject<typeof filters>>, allowedAccounts: string[], query?: string) {
+class InvalidSearchError extends Error {}
+
+function page(input: z.infer<z.ZodObject<typeof filters>>, allowedAccounts: string[], query?: string, syntax = "substring") {
+  const search = query && syntax === "app"
+    ? compileMailSearch(query, all("account").filter((a) => allowedAccounts.includes(a.id))) : undefined;
+  if (search?.error) throw new InvalidSearchError();
   const now = Date.now();
   const matches = all("mail")
     .filter(
@@ -69,10 +78,11 @@ function page(input: z.infer<z.ZodObject<typeof filters>>, allowedAccounts: stri
         (!input.category || category(m) === input.category) &&
         (!input.accountId || m.accountId === input.accountId) &&
         (!input.unreadOnly || m.unread) &&
-        (!query ||
+        (!input.pinnedOnly || m.pinned === true) &&
+        (!query || (search ? search.matches(m) :
           [m.sender, m.address, m.subject, m.body].some((v) =>
             v.toLowerCase().includes(query.toLowerCase()),
-          )),
+          ))),
     )
     .sort((a, b) => b.date - a.date || a.id.localeCompare(b.id));
   const end = input.offset + input.limit;
@@ -93,6 +103,8 @@ export function createMcpServer(
     try {
       return json(await run());
     } catch (error) {
+      if (error instanceof InvalidSearchError)
+        return json({ code: "MCP_INVALID_QUERY", error: "Invalid search. Check quotes, fields, and dates." }, true);
       if (error instanceof AgentPermissionError)
         return json(agentId ? {
           code: "MCP_PERMISSION_REQUIRED",
@@ -128,6 +140,8 @@ export function createMcpServer(
         version: 1,
         capabilities: {
           mailViews: ["inbox", "sent", "all"],
+          searchSyntax: ["substring", "app"],
+          mailFilters: ["pinnedOnly"],
           reply: { mode: "proposal", approval: "draft", sendsMail: false },
         },
         permissions: {
@@ -157,7 +171,7 @@ export function createMcpServer(
     "list_emails",
     {
       description:
-        "List cached mail, newest first. Optional inbox, sent or all view filters before offset pagination; omitted view preserves all cached mail. Category includes archive and snoozed.",
+        "List cached mail, newest first. Optional inbox, sent or all view filters before offset pagination; omitted view preserves all cached mail. Category includes archive and snoozed; pinnedOnly filters local pins. Summaries include pins and local snooze times.",
       inputSchema: filters,
       annotations: readOnly,
     },
@@ -167,11 +181,11 @@ export function createMcpServer(
     "search_emails",
     {
       description:
-        "Search cached sender, address, subject and plain-text body (case-insensitive substring), within the optional inbox, sent or all view before pagination.",
-      inputSchema: { ...filters, query: z.string().trim().min(1).max(2000) },
+        "Search cached mail within grants and filters before pagination. Default syntax substring matches sender, address, subject and body. Opt-in syntax app uses the app query language (fields, phrases, exclusions, read/pin state and UTC dates). Saved drafts and provider history are excluded.",
+      inputSchema: { ...filters, query: z.string().trim().min(1).max(2000), syntax: z.enum(["substring", "app"]).default("substring") },
       annotations: readOnly,
     },
-    async (input) => safe(() => page(input, grant("search_emails", input.accountId).accountIds, input.query))(),
+    async (input) => safe(() => page(input, grant("search_emails", input.accountId).accountIds, input.query, input.syntax))(),
   );
   server.registerTool(
     "read_email",

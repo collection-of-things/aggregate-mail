@@ -13,7 +13,7 @@ const help = `Usage: emc2 <command> [arguments] [options]
   status                    Check connection, tools and current permissions
   accounts                  List accounts without credentials
   list                      List cached mail, newest first
-  search <query>            Search cached sender, address, subject and body
+  search <query>            Search cached mail (substring by default)
   read <id>                 Read cached mail without marking it read
   thread <id>               Read a cached conversation
   mark-read <id> --confirm   Request mark-read through the app's existing gate
@@ -33,12 +33,14 @@ Options:
   --category <c>   important, other, snoozed or archive (list/search)
   --view <view>    inbox, sent or all cached mail (list/search; needs capability)
   --unread         Only unread mail (list/search)
+  --pinned         Only locally pinned mail (list/search; needs capability)
+  --syntax <mode>  substring or app query syntax (search; needs capability)
   --limit <n>      Page size, 1..100 (default 25)
   --offset <n>     Page offset, 0 or greater (default 0)
   --confirm        Explicitly request an action or creation; never approves proposals
   --help, -h       Show help
 
-Enable MCP in Emc² Settings and keep the app running. Supply its bearer token
+Enable MCP in Emc² Settings, AI and agents, and keep the app running. Supply its bearer token
 with --token-stdin or the transient EMC2_MCP_TOKEN environment variable.
 Actions may complete immediately on legacy apps or return pending proposals on
 V2. Inspect the result and review proposals in Emc². Never assume completion.
@@ -52,6 +54,8 @@ contract. After an uncertain action, check Emc² first.
 const connectionSchema = z.object({
   version: z.literal(1),
   capabilities: z.object({
+    searchSyntax: z.array(z.string()).optional(),
+    mailFilters: z.array(z.string()).optional(),
     mailViews: z.array(z.enum(['inbox', 'sent', 'all'])).optional(),
     reply: z.object({ mode: z.string(), approval: z.string(), sendsMail: z.boolean() }).optional(),
   }),
@@ -63,7 +67,7 @@ function command(args) {
     help: { type: 'boolean', short: 'h' }, json: { type: 'boolean' },
     url: { type: 'string' }, 'token-stdin': { type: 'boolean' },
     account: { type: 'string' }, category: { type: 'string' }, view: { type: 'string' },
-    unread: { type: 'boolean' }, limit: { type: 'string' }, offset: { type: 'string' },
+    unread: { type: 'boolean' }, pinned: { type: 'boolean' }, syntax: { type: 'string' }, limit: { type: 'string' }, offset: { type: 'string' },
     confirm: { type: 'boolean' },
   } });
   const [name = 'help', argument] = positionals;
@@ -81,7 +85,8 @@ function command(args) {
   const mutation = file || ['mark-read', 'archive'].includes(name);
   for (const option of Object.keys(values)) {
     if (option === 'account' && !paged && !scoped) throw new Error();
-    if (['category', 'view', 'unread', 'limit', 'offset'].includes(option) && !paged) throw new Error();
+    if (['category', 'view', 'unread', 'pinned', 'limit', 'offset'].includes(option) && !paged) throw new Error();
+    if (option === 'syntax' && name !== 'search') throw new Error();
     if (option === 'confirm' && !mutation) throw new Error();
   }
   if (mutation && !values.confirm) throw new Error();
@@ -105,10 +110,15 @@ function command(args) {
     }
     if (values.account) input.accountId = values.account;
     input.unreadOnly = !!values.unread;
+    if (values.pinned) input.pinnedOnly = true;
   }
   if (name === 'search') {
     if (argument.trim().length > 2000) throw new Error();
     input.query = argument;
+    if (values.syntax !== undefined) {
+      if (!['substring', 'app'].includes(values.syntax)) throw new Error();
+      input.syntax = values.syntax;
+    }
   } else if (needsArgument && !file) input.id = argument;
   if (name === 'read') input.markRead = false;
   const url = new URL(values.url || 'http://127.0.0.1:32145/mcp');
@@ -160,7 +170,7 @@ export async function run(args, { env = process.env, stdin = process.stdin, out 
       cursor = page.nextCursor;
     } while (cursor);
     let connection;
-    const needsContract = request.input.view !== undefined || request.name === 'reply';
+    const needsContract = request.input.view !== undefined || request.input.syntax !== undefined || request.input.pinnedOnly || request.name === 'reply';
     if ((request.name === 'status' || needsContract) && names.includes('get_connection_status')) {
       const response = await client.callTool({ name: 'get_connection_status', arguments: {} });
       const parsed = connectionSchema.safeParse(response.structuredContent ?? (() => {
@@ -174,10 +184,12 @@ export async function run(args, { env = process.env, stdin = process.stdin, out 
       }
       connection = parsed.data;
     }
-    if (needsContract && (!connection || (request.input.view !== undefined
-      ? !connection.capabilities.mailViews?.includes(request.input.view)
-      : connection.capabilities.reply?.mode !== 'proposal' || connection.capabilities.reply?.approval !== 'draft' || connection.capabilities.reply?.sendsMail !== false))) {
-      err.write('This app does not guarantee the requested cached view or reviewed reply to Drafts. No operation requested.\n'); return 1;
+    if (needsContract && (!connection ||
+      (request.input.view !== undefined && !connection.capabilities.mailViews?.includes(request.input.view)) ||
+      (request.input.syntax !== undefined && !connection.capabilities.searchSyntax?.includes(request.input.syntax)) ||
+      (request.input.pinnedOnly && !connection.capabilities.mailFilters?.includes('pinnedOnly')) ||
+      (request.name === 'reply' && (connection.capabilities.reply?.mode !== 'proposal' || connection.capabilities.reply?.approval !== 'draft' || connection.capabilities.reply?.sendsMail !== false)))) {
+      err.write('This app does not guarantee the requested mail filters, search syntax or reviewed reply to Drafts. No operation requested.\n'); return 1;
     }
     let result;
     if (request.name === 'status') result = { connected: true, tools: names, ...(connection ? { connection } : {}) };

@@ -12,7 +12,7 @@ The examples below use the direct Node entrypoint and work without linking.
 
 ## Connect privately
 
-Open Emc² Settings, MCP, and enable MCP. On legacy apps, use the shared MCP
+Open Emc² Settings, AI and agents, and enable MCP. On legacy apps, use the shared MCP
 bearer token. On V2, create or select an agent grant, choose the permitted account
 and required tools, and use **that agent grant's bearer token** for the CLI.
 The shared MCP token can authenticate `status` without an agent identity, but
@@ -85,9 +85,35 @@ emc2 list --view all
 ```
 
 Results include `nextOffset`;
-pass that value as the next offset until it is null. Search uses the MCP
-case-insensitive substring contract, not the desktop's advanced search syntax.
+pass that value as the next offset until it is null. Default search uses the
+MCP case-insensitive substring contract.
 Only cached mail is covered. The CLI does not refresh the provider.
+
+Use `--syntax app` to match the app's query language: combined words, quoted
+phrases, exclusions, `from:`, `to:` (To/Cc), `subject:`, `body:`, `account:`,
+`is:read`, `is:unread`, `is:pinned`, `before:` and `after:`. Dates use UTC
+YYYY-MM-DD boundaries. Plain unquoted words tolerate one typo; phrases, field
+terms, addresses and exclusions remain exact. Account aliases resolve only
+within the connection's granted accounts. Mail tools do not search saved drafts.
+Omitting `--syntax` preserves literal case-insensitive substring matching.
+Direct MCP clients receive `isError: true` with `code: "MCP_INVALID_QUERY"`
+for malformed app queries, plus guidance to check quotes, fields and dates.
+
+`list` and `search` also accept `--pinned` to show only local pins. Combine it
+with `--category snoozed` or `--category archive` to narrow existing views.
+All filters apply before pagination. Summaries include boolean `pinned` and
+`snoozedUntil` (epoch milliseconds or null); neither changes provider flags.
+
+```sh
+emc2 search 'from:alice@example.test subject:"project update" -body:cancelled' --syntax app
+emc2 search 'is:unread after:2026-10-01' --syntax app --pinned
+emc2 list --category snoozed --pinned
+```
+
+Explicit `--syntax` requires `connection.capabilities.searchSyntax` to include
+the selected mode. `--pinned` requires `mailFilters` to include `pinnedOnly`.
+Missing or malformed guarantees fail before calling the mail tool, including
+when the requested option would otherwise be ignored by an older app.
 
 `read` always sends `markRead: false`. These commands output private mail and
 addresses on request; the desktop's hidden-text preference does not redact CLI
@@ -183,6 +209,12 @@ still validate. An edited record or changed payload can conflict. A sanitized
 error does not reliably distinguish a denied grant from a conflict.
 
 ## Draft proposals
+
+Draft proposal `content.to` accepts a string or up to 100 strings, with at
+most 10,000 characters including joining commas. Optional `content.bcc` accepts
+up to 100 strings of at most 320 characters, like `content.cc`. These fields
+are retained through review into editable Drafts; approval never sends them.
+Files still reject attachments, HTML and send-state fields.
 
 ```sh
 emc2 propose-draft draft.json --confirm

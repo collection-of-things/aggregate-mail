@@ -254,7 +254,7 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
         const discoveryStatus = decode(await call("get_connection_status"));
         assert.deepEqual(discoveryStatus, {
           version: 1,
-          capabilities: { mailViews: ["inbox", "sent", "all"], reply: { mode: "proposal", approval: "draft", sendsMail: false } },
+          capabilities: { searchSyntax: ["substring", "app"], mailFilters: ["pinnedOnly"], mailViews: ["inbox", "sent", "all"], reply: { mode: "proposal", approval: "draft", sendsMail: false } },
           permissions: { tools: [], accountCount: 0 },
         });
         const grantResponse = await fetch(`${base}/api/agent/grants`, { method: "POST", headers: settingsHeaders, body: JSON.stringify({ name: "Synthetic scoped agent", accountIds: ["a"], tools: ["list_accounts", "list_emails", "search_emails", "read_email", "get_thread", "reply_to_email", "archive_email", "mark_read", "propose_draft"] }) });
@@ -311,6 +311,8 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
               relevance: 3,
               accountId: "a",
               direction: "received",
+              pinned: false,
+              snoozedUntil: null,
             },
           ],
           nextOffset: null,
@@ -356,7 +358,7 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
       assert.deepEqual((await rpc("tools/list")).result.tools!.find((tool) => tool.name === "get_connection_status")!.annotations,
         { readOnlyHint: true, destructiveHint: false, openWorldHint: false });
       assert.doesNotMatch(JSON.stringify(await status()), /Synthetic scoped agent|example|secret|accountIds|token/);
-      put("mail", "a:view-expired", { ...mail, id: "a:view-expired", direction: "received", date: mail.date + 2000, snoozedUntil: Date.now() - 1 });
+      put("mail", "a:view-expired", { ...mail, id: "a:view-expired", pinned: true, direction: "received", date: mail.date + 2000, snoozedUntil: Date.now() - 1 });
       put("mail", "a:view-sent", { ...mail, id: "a:view-sent", direction: "sent", date: mail.date + 3000, archived: true, snoozedUntil: Date.now() + 60000 });
       try {
         for (const tool of ["list_emails", "search_emails"]) {
@@ -381,10 +383,25 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
           assert.equal((await call(tool, { ...query, view: "all", accountId: "b" })).isError, true);
           assert.equal((await call(tool, { ...query, view: "invalid" })).isError, true);
         }
+        const advanced = decode(await call("search_emails", { query: 'is:pinned -subject:absent', syntax: "app", limit: 1 })) as { emails: { id: string; pinned: boolean; snoozedUntil: number }[]; nextOffset: number | null };
+        assert.deepEqual(advanced.emails.map(m => m.id), ["a:view-expired"]);
+        assert.equal(advanced.emails[0].pinned, true);
+        assert.ok(advanced.emails[0].snoozedUntil < Date.now());
+        assert.equal(advanced.nextOffset, null);
+        const invalidSearch = await call("search_emails", { query: 'subject:"broken', syntax: "app" });
+        assert.equal(invalidSearch.isError, true);
+        assert.deepEqual(decode(invalidSearch), { code: "MCP_INVALID_QUERY", error: "Invalid search. Check quotes, fields, and dates." });
+        const missingMail = decode(await call("read_email", { id: "missing" })) as { error: string; code?: string };
+        assert.equal(missingMail.code, undefined);
+        assert.match(missingMail.error, /Check the account connection and wait for sync/);
+        assert.equal((await call("search_emails", { query: "x", syntax: "invalid" })).isError, true);
+        assert.deepEqual((decode(await call("search_emails", { query: "account:b", syntax: "app" })) as { emails: unknown[] }).emails, []);
         assert.equal((await call("reply_to_email", { id: "b:secret", body: "No authority" })).isError, true);
         put("agent", current.id, { ...current, tools: ["read_email"] });
         assert.deepEqual((await status()).permissions.tools, ["read_email"]);
         assert.equal((await call("list_emails", { view: "all" })).isError, true, "Discovery still advertises a denied tool");
+        const deniedSearch = decode(await call("search_emails", { query: 'subject:"broken', syntax: "app" })) as { code: string };
+        assert.equal(deniedSearch.code, "MCP_PERMISSION_REQUIRED", "Permission checks precede query validation");
         assert.equal((await call("reply_to_email", { id: mail.id, body: "No authority" })).isError, true);
         put("agent", current.id, { ...current, accountIds: [] });
         assert.equal((await status()).permissions.accountCount, 0);
@@ -592,6 +609,17 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
         assert.deepEqual(sent[0], proposed.payload);
       },
     );
+    await t.test("draft proposal review preserves recipient arrays and Bcc without sending", async () => {
+      const content = { to: ["one@example.test", "two@example.test"], bcc: ["hidden@example.test"], subject: "Synthetic draft", body: "Review first" };
+      const proposed = decode(await call("propose_draft", { accountId: "a", sourceMailId: mail.id, content })) as { id: string; digest: string };
+      const before = sent.length;
+      const response = await fetch(`${base}/api/agent/proposals/${proposed.id}/approve`, { method: "POST", headers: settingsHeaders, body: JSON.stringify({ digest: proposed.digest }) });
+      assert.equal(response.status, 200);
+      const receipt = await response.json() as { receipt: { draftId: string } };
+      const draft = await (await fetch(`${base}/api/accounts/a/drafts/${receipt.receipt.draftId}`, { headers: settingsHeaders })).json();
+      for (const [key, value] of Object.entries(content)) assert.deepEqual(draft[key], value);
+      assert.equal(sent.length, before, "Draft proposal approval never sends");
+    });
     await t.test("reply proposals on Sent use original recipients instead of the account itself", async () => {
       put("mail", "a:sent", { ...mail, id: "a:sent", remoteId: "sent", direction: "sent", address: "me@example.com", to: "Bob <bob@example.com>, Other <other@example.com>", cc: "Carol <carol@example.com>, Me <me@example.com>" });
       const result = decode(await call("reply_to_email", { id: "a:sent", body: "Follow up", replyAll: true })) as { payload: SendInput };
