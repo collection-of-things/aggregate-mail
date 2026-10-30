@@ -61,7 +61,8 @@ sections. Open, Waiting and Completed views change only the visible local
 list. Every row retains its status. A checkbox completes an open task directly;
 task details also offer Mark complete. Success announcements preserve focus on
 another control or restore it near the completed task. Unfinished project
-decisions retain their text and evidence. Reopening remains in Edit task.
+decisions retain their text and evidence. Back from completed task details
+returns focus to a visible row or the empty work list. Reopening remains in Edit task.
 
 Today has a workspace context pane before selection. Projects has an overview
 above tasks and conversations, with project decisions in its context pane.

@@ -1270,6 +1270,46 @@ for (const moved of [false, true]) test(`task completion ${moved ? "preserves fo
  } finally { await ui.close(); }
 });
 
+test("automatic refresh finishes an acknowledged save before task completion", async () => {
+ const ui = await mount("actions");
+ try {
+  await ui.click(ui.button("Add task"));
+  await ui.fill("What needs to happen", "Saved once"); await ui.fill("Why track this or change it", "Confirmed source");
+  await ui.click(ui.container.querySelector<HTMLInputElement>('input[type="radio"]')!);
+  ui.failRefresh(true); await ui.submit();
+  assert.equal(ui.workspace.commitments.length, 1);
+  assert.match(ui.container.textContent!, /Change was saved, but workspace refresh failed/);
+  ui.failRefresh(false);
+  await act(async () => ui.dom.window.dispatchEvent(new ui.dom.window.Event("focus")));
+  assert.ok(ui.container.querySelector(".work-form") === null, "successful automatic refresh acknowledges the saved form");
+  const completion = ui.container.querySelector<HTMLInputElement>('input[aria-label="Mark task complete"]')!;
+  assert.equal(completion.disabled, false); await ui.click(completion);
+  assert.equal(ui.workspace.commitments[0].status, "done");
+  assert.equal(ui.requests.filter(request => request.url === "/commitments" && request.method === "POST").length, 1);
+  assert.equal(ui.requests.filter(request => request.method === "PATCH").length, 1);
+ } finally { await ui.close(); }
+});
+
+for (const mode of ["actions", "projects"] as const) for (const remaining of [false, true]) test(`Back after completing ${mode} task details restores focus with ${remaining ? "another task" : "an empty list"}`, async () => {
+ const ui = await mount(mode);
+ try {
+  const task: Commitment = { id: "c1", projectId: "p1", accountId: "a", sourceMailId: "in-a", text: "Synthetic task", reason: "Synthetic reason", status: "waiting", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [] };
+  ui.workspace.commitments.push(task);
+  if (remaining) ui.workspace.commitments.push({ ...task, id: "next", text: "Next task" });
+  if (mode === "projects") ui.workspace.projects.push({ id: "p1", name: "Synthetic project", sourceMailIds: ["in-a"], accountIds: ["a"], crossAccountConfirmed: false, revision: 1, updatedAt: 1 });
+  await ui.click(ui.button("Refresh workspace"));
+  if (mode === "projects") await ui.click(ui.button("Synthetic project"));
+  const origin = ui.container.querySelector<HTMLButtonElement>(".work-select")!;
+  await act(async () => origin.focus()); await ui.click(origin);
+  await act(async () => ui.button("Mark complete").focus()); await ui.click(ui.button("Mark complete"));
+  assert.equal(origin.isConnected, false);
+  await act(async () => ui.button("Back to work list").focus()); await ui.click(ui.button("Back to work list"));
+  const expected = remaining ? ui.container.querySelector(".work-select") : ui.container.querySelector(".work-content");
+  assert.ok(document.activeElement === expected, "Back focuses a connected work-list target");
+  assert.equal(ui.container.querySelector('[aria-label="Commitment details"]'), null);
+ } finally { await ui.close(); }
+});
+
 test("an unconfirmed completion keeps the task and prevents another write", async () => {
  const ui = await mount("actions");
  try {

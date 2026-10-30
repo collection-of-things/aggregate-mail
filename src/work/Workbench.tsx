@@ -228,6 +228,8 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   const [detailOpen, setDetailOpen] = useState(false);
   const inspector = useRef<HTMLElement>(null);
   const selectedRow = useRef<HTMLButtonElement | null>(null);
+  const workContent = useRef<HTMLDivElement>(null);
+  const restoreListFocus = useRef(false);
   const taskNotice = useRef<HTMLParagraphElement | null>(null);
   const completionFocus = useRef<{ origin: HTMLElement; nearby: HTMLElement[] } | null>(null);
   const [taskStatus, setTaskStatus] = useState("");
@@ -242,11 +244,18 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   const wasReading = useRef(readerOpened);
   useEffect(() => {
     if (wasReading.current && !readerOpened && (mode === "actions" || mode === "projects")) {
-      if (!missingSelection.current) { setDetailOpen(false); selectedRow.current?.focus({ preventScroll: true }); }
+      if (!missingSelection.current) { restoreListFocus.current = true; setDetailOpen(false); }
       missingSelection.current = false;
     }
     wasReading.current = readerOpened;
   }, [readerOpened, mode]);
+  useEffect(() => {
+    if (!restoreListFocus.current || detailOpen || readerOpened || mode === "calendar") return;
+    restoreListFocus.current = false;
+    const rows = [...(workContent.current?.querySelectorAll<HTMLButtonElement>(".work-select") || [])];
+    const target = [selectedRow.current, ...rows].find(row => row?.isConnected && !row.matches(":disabled") && !row.closest("details:not([open]), [hidden]"));
+    (target || workContent.current)?.focus({ preventScroll: true });
+  }, [detailOpen, readerOpened, mode]);
   const [projectEditor, setProjectEditor] = useState<Project | "new" | null>(null);
   const [projectId, setProjectId] = useState("");
   const [decision, setDecision] = useState("");
@@ -274,6 +283,9 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
     setEditor(null); setDraft(undefined); setProjectEditor(null); setDecision(""); setDecisionSources([]);
     setAgentName(""); setGrantAccounts([]); setGrantTools([]);
   };
+  useEffect(() => {
+    if (loaded && !stale && !pending && !work.refreshing) finishAcknowledged();
+  }, [workspace, loaded, stale, pending, work.refreshing]);
   const load = useCallback(async () => {
     if (mode === "calendar") void calendar.refresh();
     const ok = await work.refresh();
@@ -335,7 +347,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
     <h3>Source and evidence</h3>{[...new Set([selected.sourceMailId, ...selected.evidenceMailIds])].map((id) => <Source key={id} id={id} state={state} onOpen={onOpen} />)}
     <details><summary>Change history ({selected.history.length})</summary>{selected.history.map((change, index) => <div className="work-item" key={index}><p>{new Date(change.at).toLocaleString()} · {statusNames[change.status]}</p><p><Redact text={change.text} /> · <Redact text={change.reason} /></p><p>Deadline: {deadlineDate(change) || "Not set"} · Follow up: {change.followUpAt === undefined ? "Not set" : new Date(change.followUpAt).toLocaleString()}</p>{change.evidenceMailIds?.map((id) => <Source key={id} id={id} state={state} onOpen={onOpen} />)}</div>)}</details>
   </>;
-  const closeDetail = () => { if (sessionModal) return; setDetailOpen(false); missingSelection.current = false; onCloseReader?.(); if (mode !== "calendar") selectedRow.current?.focus({ preventScroll: true }); };
+  const closeDetail = () => { if (sessionModal) return; restoreListFocus.current = mode !== "calendar"; setDetailOpen(false); missingSelection.current = false; onCloseReader?.(); };
   const detail = selected && detailOpen && <section className={mode === "calendar" ? "work-inspector" : "work-summary"} aria-label="Commitment details" ref={inspector} tabIndex={-1}
     onKeyDown={(event) => { if (mode === "calendar" && event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); closeDetail(); } }}>
     <div className="work-summary-bar">
@@ -409,7 +421,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
         choices={[{ id: "review", label: `Review queue (${workspace.proposals.filter((item) => item.status === "pending").length})` }, { id: "activity", label: "Activity" }]}
         onChange={setAgentTab} /></div>}
     </>)}
-    <div className={`work-content work-${mode}${mode === "actions" || mode === "projects" ? " today-content" : ""}`}>
+    <div ref={workContent} tabIndex={-1} className={`work-content work-${mode}${mode === "actions" || mode === "projects" ? " today-content" : ""}`}>
     {taskStatus && <p ref={taskNotice} tabIndex={-1} role="status" className="work-meta">{taskStatus}</p>}
     {error && !editor && <p role="alert">{error}</p>}
     {(mode === "agents" || mode === "assistants") && agentError && <p role="alert">{agentError}</p>}

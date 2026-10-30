@@ -2919,6 +2919,9 @@ Completion leaves unfinished project decision text and evidence selected. It use
 the workspace mutation guard without acknowledging unrelated form drafts. The
 status announces success without taking focus from another control; when the
 completion control disappears, focus returns to a nearby task or detail action.
+Closing completed task details restores a connected visible row, or the work
+content when the list is empty. A successful automatic workspace refresh also
+finishes acknowledged-save cleanup, so completion cannot stay silently blocked.
 Completion does not change mail or local work sessions. Reopening and cancelling
 remain in Edit task. See [ADR 0107](adr/0107-direct-task-completion.md).
 
