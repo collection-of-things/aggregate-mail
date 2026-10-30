@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
-import { BlockList, isIP } from "node:net";
+import { BlockList, isIP, type LookupFunction } from "node:net";
 import { Agent } from "undici";
 import express from "express";
 import addressparser from "nodemailer/lib/addressparser/index.js";
@@ -70,28 +70,43 @@ function reply(mail: ReturnType<typeof source>) {
 }
 const inFlight = new Set<string>();
 type Address = { address: string; family: number };
-// Resolve once, require every answer to be a public address, then pin the
-// connection to a validated address while the hostname still drives TLS and
-// SNI. The URL check alone cannot stop a name that later answers a private IP.
-async function providerAddress(host: string): Promise<Address> {
+type Resolver = (host: string, options: { all: true; verbatim: true }) => Promise<Address[]>;
+type ProviderDependencies = { resolve?: Resolver; deadline?: () => AbortSignal };
+// Resolve once, validate every answer, and pin the connector to that set.
+async function providerAddresses(host: string, signal: AbortSignal, resolve: Resolver): Promise<Address[]> {
   const ip = isIP(host);
-  const addresses: Address[] = ip
-    ? [{ address: host, family: ip }]
-    : await lookup(host, { all: true, verbatim: true }).catch(() => [] as Address[]);
-  if (!addresses.length || addresses.some((resolved) => !isIP(resolved.address) || blockedAddress(resolved.address, resolved.family)))
+  let addresses: Address[];
+  if (ip) addresses = [{ address: host, family: ip }];
+  else {
+    signal.throwIfAborted();
+    let abort!: () => void;
+    const cancelled = new Promise<never>((_, reject) => {
+      abort = () => reject(signal.reason);
+      signal.addEventListener("abort", abort, { once: true });
+    });
+    try { addresses = await Promise.race([resolve(host, { all: true, verbatim: true }).catch(() => []), cancelled]); }
+    finally { signal.removeEventListener("abort", abort); }
+  }
+  if (!addresses.length || addresses.some(({ address, family }) => isIP(address) !== family || blockedAddress(address, family)))
     return fail(502, "Provider request failed. No proposal was created.");
-  return addresses[0];
+  return addresses;
 }
-async function completion(config: StoredAgentProvider, mail: ReturnType<typeof source>, instruction: string) {
+export function pinnedProviderLookup(addresses: Address[]): LookupFunction {
+  return (_host, options, callback) => {
+    if (options.all) callback(null, addresses);
+    else callback(null, addresses[0].address, addresses[0].family);
+  };
+}
+async function completion(config: StoredAgentProvider, mail: ReturnType<typeof source>, instruction: string, dependencies: ProviderDependencies) {
   // Email is context only. The provider cannot choose a recipient or execute tools.
   const context = { subject: mail.subject.slice(0, 998), from: mail.address.slice(0, 2000), to: mail.to.slice(0, 2000), body: (mail.body || mail.preview).slice(0, 24000) };
-  const signal = AbortSignal.timeout(30000);
+  const signal = dependencies.deadline?.() ?? AbortSignal.timeout(30000);
   try {
     const target = new URL(`${endpoint(config.baseURL)}/chat/completions`);
-    const address = await providerAddress(target.hostname.replace(/^\[|\]$/g, ""));
+    const addresses = await providerAddresses(target.hostname.replace(/^\[|\]$/g, ""), signal, dependencies.resolve ?? lookup);
     // The dispatcher pins DNS to the validated address, so a name cannot answer
     // differently between the public-address check and the connection.
-    const dispatcher = new Agent({ connect: { lookup: (_host, _options, callback) => callback(null, address.address, address.family) } });
+    const dispatcher = new Agent({ connect: { autoSelectFamily: true, lookup: pinnedProviderLookup(addresses) } });
     const init: RequestInit & { dispatcher: Agent } = {
       method: "POST", redirect: "error", signal, dispatcher,
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key(config.apiKey)}` },
@@ -132,7 +147,7 @@ async function completion(config: StoredAgentProvider, mail: ReturnType<typeof s
       signal.aborted || (error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name)) ? "Provider request timed out. No proposal was created." : "Provider request failed. No proposal was created.");
   }
 }
-export function mountAgentProvider(app: express.Express) {
+export function mountAgentProvider(app: express.Express, dependencies: ProviderDependencies = {}) {
   const router = express.Router();
   router.get("/:id/provider", (req, res) => {
     grant(req.params.id);
@@ -179,7 +194,7 @@ export function mountAgentProvider(app: express.Express) {
     const account = JSON.stringify(get("account", mail.accountId));
     inFlight.add(id);
     try {
-      const body = await completion(config, mail, instruction);
+      const body = await completion(config, mail, instruction, dependencies);
       const currentSource = source(id, sourceMailId);
       if (currentSource.preview !== mail.preview || get("agentProvider", id)?.revision !== revision || JSON.stringify(grant(id)) !== permission || JSON.stringify(get("account", mail.accountId)) !== account || fingerprint(sourceMailId) !== evidence)
         return fail(409, "Source, permission or provider changed. Prepare a fresh proposal.");

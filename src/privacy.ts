@@ -110,6 +110,11 @@ function decodedText(text: string) {
   return { decoded, offsets };
 }
 
+const validNames = (names: readonly string[]) => [...new Set(names.map(cleanName).filter(Boolean))].filter((name) => {
+  const words = name.split(/[\s+]+/u).filter(Boolean);
+  return words.length > 0 && name.length <= 160 && words.length <= 16;
+});
+
 // Offsets use UTF-16, like String.slice. Values are sensitive and never for attrs.
 export function privateRanges(text: string, names: readonly string[] = []): PrivacyRange[] {
   const { decoded, offsets } = text.includes("%") ? decodedText(text) : { decoded: text, offsets: null };
@@ -137,7 +142,7 @@ export function privateRanges(text: string, names: readonly string[] = []): Priv
     return !wordCharacter.test(before) && !wordCharacter.test(after);
   };
   // Candidate size is bounded so matching cannot grow with crafted input.
-  for (const name of [...new Set(names.map(cleanName).filter(Boolean))].slice(0, 64)) {
+  for (const name of validNames(names).slice(0, 64)) {
     // Words never contain a separator character, so matching stays linear.
     const words = name.split(/[\s+]+/u).filter(Boolean);
     if (!words.length || name.length > 160 || words.length > 16) continue;
@@ -160,7 +165,7 @@ export function privateRanges(text: string, names: readonly string[] = []): Priv
       }
       continue;
     }
-    const pattern = lowered
+    const pattern = words
       .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[\\s+]+");
     for (const match of decoded.matchAll(new RegExp(pattern, "giu"))) {
       const start = match.index;
@@ -196,6 +201,8 @@ export function segmentPrivateText(text: string, names: readonly string[] = []):
 }
 
 export function redactPrivateText(text: string, names: readonly string[] = []): string {
+  // Mask the whole value when the bounded matcher cannot cover every name.
+  if (validNames(names).length > 64) return text ? "••••••••" : "";
   return segmentPrivateText(text, names)
     .map((segment) => segment.kind === "text" ? segment.text : "••••••••").join("");
 }

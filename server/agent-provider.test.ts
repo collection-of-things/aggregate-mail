@@ -17,8 +17,11 @@ test("BYOK settings and reviewed drafts preserve provider, account and evidence 
   process.env.TYPESAFE_API_KEY = ""; process.env.OPENAI_API_KEY = "";
   const store = await import("./store.js");
   const { mountWorkspace } = await import("./workspace.js");
-  const { mountAgentProvider } = await import("./agent-provider.js");
-  const app = express(); app.use(express.json()); mountWorkspace(app); mountAgentProvider(app);
+  const { mountAgentProvider, pinnedProviderLookup } = await import("./agent-provider.js");
+  let resolveAddresses = async (_host: string): Promise<{ address: string; family: number }[]> => [{ address: "8.8.8.8", family: 4 }];
+  let deadline = () => AbortSignal.timeout(30000);
+  const app = express(); app.use(express.json()); mountWorkspace(app);
+  mountAgentProvider(app, { resolve: (host) => resolveAddresses(host), deadline: () => deadline() });
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>((resolve) => server.once("listening", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
@@ -51,6 +54,7 @@ test("BYOK settings and reviewed drafts preserve provider, account and evidence 
     store.put("mail", "unrelated", { ...mail, id: "unrelated", accountId: "b", body: "UNRELATED-SECRET", subject: "Other account" });
     store.put("mail", "neighbor", { ...mail, id: "neighbor", messageId: "<neighbor@example.test>", inReplyTo: mail.messageId, body: "NEIGHBOR-SECRET" });
     calls.length = 0; respond = () => success();
+    resolveAddresses = async () => [{ address: "8.8.8.8", family: 4 }]; deadline = () => AbortSignal.timeout(30000);
     const created = await request<AgentGrant>("/agent/grants", "POST", { name: "Synthetic agent", accountIds: ["a"], tools });
     assert.equal(created.status, 201); agent = created.body;
     return `/agent/grants/${agent.id}/provider`;
@@ -128,6 +132,36 @@ test("BYOK settings and reviewed drafts preserve provider, account and evidence 
       assert.ok("to" in result.body.payload); assert.deepEqual(result.body.payload.to, ["reply@example.test"]); assert.equal(result.body.payload.body, body);
       assert.equal(JSON.parse(JSON.parse(String(calls[0].options.body)).messages[1].content).email.body.length, 24000);
       assert.equal(store.all("draft").length, 0);
+    });
+    await t.test("connector receives every validated address when requested", () => {
+      const answers = [{ address: "8.8.8.8", family: 4 }, { address: "2001:4860:4860::8888", family: 6 }];
+      const pinned = pinnedProviderLookup(answers);
+      pinned("provider.example", { all: true }, (error, addresses) => {
+        assert.equal(error, null); assert.deepEqual(addresses, answers);
+      });
+      pinned("provider.example", {}, (error, address, family) => {
+        assert.equal(error, null); assert.equal(address, answers[0].address); assert.equal(family, 4);
+      });
+    });
+    await t.test("stalled DNS times out and releases the in-flight guard", async () => {
+      const route = await fixture(); const config = await save(route);
+      const controller = new AbortController(); deadline = () => controller.signal;
+      let entered!: () => void;
+      const started = new Promise<void>((resolve) => { entered = resolve; });
+      resolveAddresses = () => { entered(); return new Promise(() => {}); };
+      const pending = prepare(route, config); await started;
+      assert.equal((await prepare(route, config)).status, 409);
+      controller.abort(new DOMException("timed out", "TimeoutError"));
+      assert.equal((await pending).status, 504);
+      deadline = () => AbortSignal.timeout(30000);
+      resolveAddresses = async () => [{ address: "8.8.8.8", family: 4 }];
+      assert.equal((await prepare(route, config)).status, 201);
+    });
+    await t.test("mixed public and private DNS answers are rejected", async () => {
+      const route = await fixture(); const config = await save(route);
+      resolveAddresses = async () => [{ address: "8.8.8.8", family: 4 }, { address: "127.0.0.1", family: 4 }];
+      assert.equal((await prepare(route, config)).status, 502);
+      assert.equal(calls.length, 0);
     });
     await t.test("provider failures remain generic and never create proposals", async () => {
       const route = await fixture(); const config = await save(route);

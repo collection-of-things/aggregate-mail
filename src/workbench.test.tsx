@@ -540,7 +540,10 @@ test("OpenCode manual setup uses the browser clipboard with the shared config wh
   const copied:string[]=[];
   Object.defineProperty(ui.dom.window.navigator,"clipboard",{configurable:true,value:{writeText:async(value:string)=>{copied.push(value);}}});
   await ui.click(ui.container.querySelector<HTMLElement>("details.work-opencode-manual > summary")!);
+  const reads = ui.requests.filter(request => request.url === "/mcp" && request.method === "GET").length;
+  assert.ok(reads > 0, "the endpoint is fetched before the click");
   await ui.click(ui.button("Copy OpenCode config"));
+  assert.equal(ui.requests.filter(request => request.url === "/mcp" && request.method === "GET").length, reads);
   assert.deepEqual(copied,[opencodeConfigJSON(token)],"the browser fallback copies the same fragment");
   assert.deepEqual(ui.notices,[]);
  }finally{await ui.close();}

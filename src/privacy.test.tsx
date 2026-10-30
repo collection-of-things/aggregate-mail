@@ -182,3 +182,15 @@ test("previews drop plain-text image placeholders but keep ordinary brackets", a
   assert.equal(previewText("[https://cdn.example.test/logo.png] We didn't process  your transfer [cid:img1]\n[Action required]"), "We didn't process your transfer [Action required]");
   assert.equal(previewText("Transfer returned [https://www.example.test/content/da"), "Transfer returned");
 });
+
+
+test("name caps apply after validation and redaction fails closed beyond the cap", () => {
+  const invalid = Array.from({ length: 64 }, (_, index) => `invalid${index}${"x".repeat(161)}`);
+  assert.equal(redactPrivateText("Hello Nora", [...invalid, "Nora"]), "Hello ••••••••");
+  const names = Array.from({ length: 64 }, (_, index) => `Person${index}`);
+  assert.equal(redactPrivateText("Hello Nora", [...names, "Nora"]), "••••••••");
+});
+
+test("Unicode expansion does not hide original name from fallback matching", () => {
+  assert.equal(redactPrivateText("Hello İpek", ["İpek"]), "Hello ••••••••");
+});

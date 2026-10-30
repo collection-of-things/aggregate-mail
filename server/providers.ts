@@ -298,9 +298,28 @@ type CachedMail = Pick<ReadonlyMap<string, Mail>, "size" | "get" | "has"> & { pe
 // Sync batches may carry a stored summary for unchanged mail instead of its
 // full record.
 type SyncBatch = Incoming | MailSummary;
-// One search response cannot return more identifiers than this; anything
-// larger is treated as a server fault, not a workload.
+// Bound the identifiers retained from each IMAP search response.
 const IMAP_SEARCH_RESULTS_MAX = 10000;
+// Keep a bounded min-heap so an oversized response does not require another
+// full-size array or sorting every returned UID.
+function newestSearchUids(found: number[]): number[] {
+  const heap = found.slice(0, IMAP_SEARCH_RESULTS_MAX);
+  const siftDown = (start: number) => {
+    let parent = start;
+    while (parent * 2 + 1 < heap.length) {
+      let child = parent * 2 + 1;
+      if (child + 1 < heap.length && heap[child + 1] < heap[child]) child++;
+      if (heap[parent] <= heap[child]) break;
+      [heap[parent], heap[child]] = [heap[child], heap[parent]];
+      parent = child;
+    }
+  };
+  for (let index = Math.floor(heap.length / 2) - 1; index >= 0; index--) siftDown(index);
+  for (let index = IMAP_SEARCH_RESULTS_MAX; index < found.length; index++) {
+    if (found[index] > heap[0]) { heap[0] = found[index]; siftDown(0); }
+  }
+  return heap;
+}
 // `known` receives a cache ID and Message-ID so cached matches are not downloaded again.
 export type ProviderSearchOptions = { limit: number; signal: AbortSignal; known: (id: string, messageId?: string) => boolean };
 type ProviderSearchFetch = Pick<ProviderSearchResult, "examined" | "complete" | "narrowed" | "mailboxes"> & { messages: Incoming[] };
@@ -682,8 +701,12 @@ function imapProvider() {
               signal.throwIfAborted();
               const found = await imapOperation(client, () => client.search(group, { uid: true }));
               if (!found) throw new Error("The IMAP server rejected this search.");
-              if (found.length > IMAP_SEARCH_RESULTS_MAX) throw new Error("The IMAP server returned too many search results.");
-              uids = new Set(uids ? found.filter((uid) => uids!.has(uid)) : found);
+              let bounded = found;
+              if (found.length > IMAP_SEARCH_RESULTS_MAX) {
+                complete = false;
+                bounded = newestSearchUids(found);
+              }
+              uids = new Set(uids ? bounded.filter((uid) => uids!.has(uid)) : bounded);
             }
             const newest = [...uids!].filter((uid) => Number.isSafeInteger(uid) && uid > 0).sort((x, y) => y - x);
             const chosen = newest.slice(0, limit - examined);
@@ -817,7 +840,7 @@ function imapProvider() {
       return (await providers[a.provider].content(a, m)).images;
     },
     async content(a: StoredAccount, m: Mail) {
-      if (m.direction === "sent" || m.mailbox || m.remoteId.startsWith("sent:")) throw new Error("Content recovery for this Sent email is unsupported. Sync Sent again.");
+      if (m.direction === "sent" || m.remoteId.startsWith("sent:")) throw new Error("Content recovery for this Sent email is unsupported. Sync Sent again.");
       // An archived UID belongs to the old INBOX, never to the archive folder.
       if (m.archived) throw new Error("Content is unavailable for this older archived IMAP email.");
       const identifiers = /^(\d+):([1-9]\d*)$/.exec(m.remoteId);
@@ -923,8 +946,8 @@ function imapProvider() {
             if (!candidate || ((action === "trash" || action === "inbox") && String(candidate.uid) !== uid) || !candidate.headers || (await simpleParser(candidate.headers)).messageId !== m.messageId)
               throw new Error("Could not identify this archived email. Change it in your provider.");
             // A recovered match without a move binding is not identity for a
-            // destructive move unless the independent Date and Subject agree.
-            if (!bound && (action === "trash" || action === "inbox") && (candidate.envelope?.date?.getTime() !== m.date || (candidate.envelope?.subject ?? "") !== m.subject))
+            // destructive move unless the Subject and any available Date agree.
+            if (!bound && (action === "trash" || action === "inbox") && ((candidate.envelope?.date && candidate.envelope.date.getTime() !== m.date) || (candidate.envelope?.subject || "(No subject)") !== m.subject))
               throw new Error("Could not confirm this archived email. Change it in your provider.");
           } else if (
             !client.mailbox ||

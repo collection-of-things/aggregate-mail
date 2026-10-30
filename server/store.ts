@@ -97,7 +97,7 @@ export type StoredAccount = Account & {
 // The attachment fields a summary carries; kept in one place so projection and
 // comparison can never disagree about the shape.
 const summaryAttachment = ({ id, filename, contentType, size, unavailable, contentId, uploadId, sourceIndex, remotePart, sizeIsEstimate }: MailAttachment) =>
-  ({ id, filename, contentType, size, unavailable, contentId, uploadId, sourceIndex, remotePart, sizeIsEstimate });
+  Object.fromEntries(Object.entries({ id, filename, contentType, size, unavailable, contentId, uploadId, sourceIndex, remotePart, sizeIsEstimate }).filter(([, value]) => value !== undefined)) as MailAttachment;
 export function mailSummary(mail: Mail, rules: Rule[] = all("rule")): MailSummary {
   return {
     id: mail.id, accountId: mail.accountId, remoteId: mail.remoteId, sender: mail.sender,

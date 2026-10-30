@@ -101,6 +101,9 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
       await fetch(`${base}/api/state`, { headers: desktopHeaders })
     ).json()) as { csrf: string };
     const settingsHeaders = { ...desktopHeaders, "X-CSRF-Token": state.csrf };
+    const reported = await fetch(`${base}/api/mcp`, { headers: desktopHeaders });
+    assert.equal(reported.status, 200);
+    assert.equal((await reported.json() as McpSettings).endpoint, `${base}/mcp`);
     const configure = async (input: object) => {
       const response = await fetch(`${base}/api/mcp`, {
         method: "PATCH",

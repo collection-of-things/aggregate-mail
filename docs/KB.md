@@ -29,6 +29,17 @@ guarded CRUD. Saved-view cases in `src/navigation.test.tsx` exercise Commands,
 filter restoration, rename/delete and privacy. Native and installed acceptance
 are separate from these synthetic checks.
 
+## Provider, search and privacy safeguards
+
+Browser MCP configuration reports the current loopback listener port. Agent
+provider DNS is resolved once within the request deadline and all answers must
+be public; the connector can try the validated addresses without another DNS
+lookup. IMAP searches retain the newest bounded UIDs and report incomplete
+results when truncated. An unbound archived destructive move requires an exact
+Message-ID and subject, and an envelope date must match when present; a missing
+envelope date is accepted. Privacy redaction masks the entire text if more than
+64 valid names would exceed the matching budget.
+
 ## Reviewed unsubscribe
 
 Provider MIME parsing stores bounded `List-Unsubscribe` metadata on full

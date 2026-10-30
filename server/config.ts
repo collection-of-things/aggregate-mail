@@ -85,7 +85,7 @@ export function saveConfiguration(updates: Settings) {
   const legacy = legacySettings();
   const cleaned = withoutManagedSettings(legacy.text, legacy.values);
   const settings: Settings = { ...get("config", "connection") };
-  const previousProvider = settings.TYPESAFE_PROVIDER ?? legacy.values.TYPESAFE_PROVIDER;
+  const previousProvider = process.env.TYPESAFE_PROVIDER ?? settings.TYPESAFE_PROVIDER ?? legacy.values.TYPESAFE_PROVIDER;
   for (const name of names) {
     if (settings[name] === undefined && legacy.values[name] !== undefined) settings[name] = legacy.values[name];
     if (updates[name]) settings[name] = updates[name];

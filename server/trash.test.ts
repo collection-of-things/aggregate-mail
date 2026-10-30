@@ -39,6 +39,8 @@ test("Trash actions use synthetic providers, safe targets and confirmed cache re
   let matches: number[] = [77];
   let header = "Message-ID: <synthetic@example.com>\r\n\r\n";
   let candidateUid: number | undefined;
+  let candidateDate: Date | undefined = new Date(mail.date);
+  let candidateSubject: string | undefined = mail.subject;
   let missingCandidate = false;
   let moveFails = false, logoutFails = false, releaseFails = false;
   let moveGate: Promise<void> | undefined;
@@ -78,7 +80,7 @@ test("Trash actions use synthetic providers, safe targets and confirmed cache re
     assert.deepEqual((query as { headers: string[] }).headers, ["message-id"]);
     assert.ok((query as { envelope?: boolean }).envelope === undefined || (query as { envelope?: boolean }).envelope === true);
     assert.deepEqual(options, { uid: true });
-    return missingCandidate ? false : { seq: 1, uid: candidateUid ?? Number(uid), headers: Buffer.from(header), envelope: { date: new Date(mail.date), subject: mail.subject } } as FetchMessageObject;
+    return missingCandidate ? false : { seq: 1, uid: candidateUid ?? Number(uid), headers: Buffer.from(header), envelope: { date: candidateDate, subject: candidateSubject } } as FetchMessageObject;
   });
   t.mock.method(ImapFlow.prototype, "messageMove", async (uid: string, target: string, options: object) => {
     assert.equal(locked, true);
@@ -292,6 +294,20 @@ test("Trash actions use synthetic providers, safe targets and confirmed cache re
       assert.deepEqual(moves.at(-1), { uid: "77", target: "Google Bin" });
       validity = 1n;
       folders = [{ path: "Bin", specialUse: "\\Trash", flags: new Set(["\\Trash"]) }, { path: "Saved", specialUse: "\\Archive", flags: new Set(["\\Archive"]) }];
+    });
+
+    await t.test("unbound archive matches check subject and any available date", async () => {
+      const archived = { ...mail, archived: true };
+      try {
+        candidateDate = undefined; candidateSubject = mail.subject;
+        await providers.imap.update(account, archived, "trash");
+        candidateDate = new Date(mail.date + 1);
+        await assert.rejects(providers.imap.update(account, archived, "trash"), /confirm/);
+        candidateDate = undefined; candidateSubject = "Different";
+        await assert.rejects(providers.imap.update(account, archived, "trash"), /confirm/);
+        candidateSubject = "";
+        await providers.imap.update(account, { ...archived, subject: "(No subject)" }, "trash");
+      } finally { candidateDate = new Date(mail.date); candidateSubject = mail.subject; }
     });
 
     await t.test("failed moves retain mail; confirmed moves survive release/logout errors without retries", async () => {

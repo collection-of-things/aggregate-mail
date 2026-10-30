@@ -9,7 +9,6 @@ import type { AgentTool } from "../shared/workspace.js";
 import { AgentPermissionError, agentCommitmentSchema, agentProjectSchema, assertAgent, conversation, createAgentProject, listAgentCommitments, listAgentProjects, propose, trackAgentCommitment } from "./workspace.js";
 import { plainContentSchema } from "./drafts.js";
 import type { Mail, McpSettings } from "../shared/types.js";
-import { OPENCODE_ENDPOINT } from "../shared/opencode.js";
 import { all, account, put } from "./store.js";
 import { findMail } from "./mail-actions.js";
 
@@ -316,7 +315,12 @@ export function mountMcp(
   assertNotSyncing: () => void,
   changed: () => void,
 ) {
-  app.get("/api/mcp", (_req, res) => res.json({ ...mcpSettings(), endpoint: OPENCODE_ENDPOINT }));
+  app.get("/api/mcp", (req, res) => {
+    const { localAddress, localPort } = req.socket;
+    if (!localPort || !["127.0.0.1", "::ffff:127.0.0.1"].includes(localAddress || ""))
+      return res.status(503).json({ error: "MCP endpoint is unavailable." });
+    return res.json({ ...mcpSettings(), endpoint: `http://127.0.0.1:${localPort}/mcp` });
+  });
   app.patch("/api/mcp", (req, res) => {
     const input = z
       .object({

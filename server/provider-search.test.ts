@@ -188,6 +188,16 @@ test("IMAP search examines Archive and Sent read-only, intersects UID searches a
     assert.deepEqual(ranges.flat().sort((a, b) => a - b), Array.from({ length: 100 }, (_, i) => i + 51));
   });
 
+  await t.test("oversized search responses retain newest UIDs for intersection", async () => {
+    archive = { invoice: Array.from({ length: 10005 }, (_, i) => i + 1), march: [1, 10004, 10005] };
+    searches.length = fetches.length = 0;
+    const result = await searchProviderMail({ accountId: "i", query: "invoice march", signal: new AbortController().signal });
+    assert.equal(result.complete, false);
+    assert.equal(result.examined, 3); // Two archive matches and one Sent match.
+    const range = fetches.find(([box, , query]) => box === "Old mail" && "envelope" in query)?.[1];
+    assert.equal(range, "10005,10004");
+  });
+
   await t.test("cancelling closes the connection before any download", async () => {
     archive = { invoice: [300] };
     searches.length = fetches.length = 0;
