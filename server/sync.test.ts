@@ -170,17 +170,20 @@ if (!process.env.EMC2_SYNC_TEST_CHILD) {
         clear();
       });
       await t.test("pin changes survive a delayed sync batch", async () => {
-        const a = fixture("pin-sync"); put("account", a.id, a);
-        const cached = mail(a); put("mail", cached.id, cached);
-        const entered = deferred(), release = deferred();
-        providers.imap.list = async () => { entered.resolve(); await release.promise; return [cached]; };
-        const pending = request("/sync"); await entered.promise;
-        try {
-          const response = await request(`/messages/${cached.id}`, { action: "pin" }, "PATCH");
-          assert.equal(response.status, 200);
-          assert.equal(all("mail").find(item => item.id === cached.id)?.pinned, true);
-        } finally { release.resolve(); await pending; }
-        assert.equal(all("mail").find(item => item.id === cached.id)?.pinned, true);
+        for (const action of ["pin", "unpin"] as const) {
+          clear();
+          const a = fixture("pin-sync"); put("account", a.id, a);
+          const cached = { ...mail(a), ...(action === "unpin" ? { pinned: true } : {}) }; put("mail", cached.id, cached);
+          const entered = deferred(), release = deferred();
+          providers.imap.list = async () => { entered.resolve(); await release.promise; return [cached]; };
+          const pending = request("/sync"); await entered.promise;
+          try {
+            const response = await request(`/messages/${cached.id}`, { action }, "PATCH");
+            assert.equal(response.status, 200);
+            assert.equal(all("mail").find(item => item.id === cached.id)?.pinned, action === "pin" ? true : undefined);
+          } finally { release.resolve(); await pending; }
+          assert.equal(all("mail").find(item => item.id === cached.id)?.pinned, action === "pin" ? true : undefined);
+        }
       });
       await t.test("fetched Gmail batches are visible while later fetching and every configured AI judgement are pending", async () => {
         const a = fixture("progress", "gmail"); put("account", a.id, a);

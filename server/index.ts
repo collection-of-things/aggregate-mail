@@ -767,6 +767,8 @@ async function syncAccount(
         snoozedUntil: previous?.snoozedUntil || null,
         ...(previous?.pinned ? { pinned: true } : {}),
       };
+      // A provider batch may contain a pre-Unpin copy of the cached message.
+      if (!previous?.pinned) delete saved.pinned;
       if (!isDeepStrictEqual(previous, saved)) changed.push([m.id, saved]);
     }
     putBatch("mail", changed);
