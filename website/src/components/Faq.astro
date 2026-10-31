@@ -1,0 +1,53 @@
+---
+import { CAFE_REPO, GITHUB_REPO } from "../lib/site";
+
+// The seven questions visitors actually ask, as a quiet reading list.
+const items: { q: string; a: string }[] = [
+  {
+    q: "What does Emc² cost?",
+    a: "Nothing. It is open source under the MIT licence. The installers on the releases page are free, and the source builds the same app.",
+  },
+  {
+    q: "Where does my mail live?",
+    a: "In one database on your own disk, encrypted with a key your system keychain protects. There is no Emc² server and no cloud copy.",
+  },
+  {
+    q: "Which accounts can I connect?",
+    a: "Gmail through Google sign-in, and any IMAP server: iCloud, Fastmail, Yahoo or your own host. Replies go out through the same account.",
+  },
+  {
+    q: "Why does my system warn me on first launch?",
+    a: "The Windows installer is unsigned and the macOS app is signed locally, without a paid certificate. Each release lists SHA-256 checksums, and the source builds the identical app.",
+  },
+  {
+    q: "Is there a Mac build for Intel?",
+    a: "Yes. Every release has one DMG for Apple silicon and one for Intel, and Linux gets an AppImage. The app updates itself from the same releases.",
+  },
+  {
+    q: "Can my AI assistant use it?",
+    a: "Only if you allow it. A local MCP server is off by default, grants are per client and per account, and sending needs its own separate opt-in.",
+  },
+  {
+    q: "How do I report a bug or contribute?",
+    a: "Open an issue or a pull request on git.cafe (collection-of-devs) or GitHub (collection-of-things). They are the same project under two organisation names, synced both ways. Leave personal details and private mail out of anything you post.",
+  },
+];
+---
+<section class="faq wrap" id="faq">
+  <h2 class="h2" data-reveal>Questions</h2>
+  <div class="faq-list">
+    {items.map((item, index) => (
+      <details class="faq-t" name="faq" data-reveal style={`--i:${index}`}>
+        <summary class="faq-t-q">
+          {item.q}
+          <span aria-hidden="true" class="plus"><i /><i /></span>
+        </summary>
+        <p class="faq-t-a">{item.a}</p>
+      </details>
+    ))}
+    <p class="faq-more" data-reveal style={`--i:${items.length}`}>
+      Source on <a href={CAFE_REPO} rel="noreferrer" target="_blank">git.cafe (collection-of-devs)</a>{" "}and{" "}
+      <a href={GITHUB_REPO} rel="noreferrer" target="_blank">GitHub (collection-of-things)</a>
+    </p>
+  </div>
+</section>

@@ -1,88 +1,95 @@
-# Lakebed app instructions
+# Landing page instructions
 
-Treat this capsule directory as the whole app. Use Lakebed's built-in APIs and CLI.
+This folder is a static Astro site with no server. Treat it as separate from
+the Electron app in the repository root: do not import root code, and expect
+root tests to touch only `scripts/website-downloads.test.mjs` and
+`scripts/website-release.test.mjs`, which import `src/lib/downloads.ts` and
+`src/lib/release.ts` from here.
 
-## Limits to check first
+## Commands
 
-- The public alpha is not production-ready.
-- App code cannot use arbitrary npm packages or Node built-ins. Do not install app dependencies.
-- Database fields support `string()`, `boolean()`, `number()`, `id(...)`, and `userId()`. Chain `.optional()` or `.default(value)` on any field.
-- Local database data and uploaded files reset when the dev server restarts.
-- Hosted server secrets and outbound server-side `fetch` require a claimed deploy.
-- Unclaimed deploys expire. Use the expiry printed by the CLI. Claimed deploys do not expire.
-
-## App structure and APIs
-
-- `server/index.ts` exports the default `capsule()` definition. Put server code in `server/`. Import from `lakebed/server` or relative server and shared files.
-- `client/index.tsx` exports `App`. Put client code in `client/`. Import from `lakebed/client`, `preact`, `preact/hooks`, `preact/jsx-runtime`, `preact/jsx-dev-runtime`, or relative client and shared files.
-- Keep `shared/` pure TypeScript. Do not import DOM APIs, Node built-ins, env values, or Lakebed runtimes there.
-- In client code, use `import type app from "../server/index"` and `createClient<typeof app>()` for typed queries, mutations, and actions. Query hooks return `undefined` until the first result arrives.
-- Database calls are async. Await or return every database operation. Declare indexes with `.index(name, fields)` and query with `withIndex`. Use `by_creation` for unfiltered creation-order queries. Do not use legacy `where`, `orderBy`, `limit`, or `all`.
-- Queries and actions cannot write to the database. Use mutations or endpoints for writes. Filter user-owned data by the caller's `userId` and check ownership again before updates or deletes.
-- Guests get protected browser sessions without setup. Use `ctx.auth` on the server and `useAuth()` on the client. A user ID is not a credential. Do not invent guest IDs or check their prefixes.
-- Use `ctx.auth.requireIdentity()` for data that belongs to a guest or signed-in user. Use `ctx.auth.requireSignedIn()` for account-only operations. `isGuest` and `isSignedIn` are separate checks. Neither is true without a session.
-- Set `auth: { requireSignIn: true }` in `capsule()` to block all app data operations until sign-in. Client UI checks alone do not protect data. On the client, gate data components on `canAccessApp()` from `lakebed/client`.
-- If `auth.error` blocks access, show `retryAuth()` and Google sign-in. Retry cannot renew an expired or revoked token for a pending guest upgrade. Keep data components unmounted until auth recovers.
-- Declare Lakebed user fields with `userId()` from `lakebed/server`, never `string()`. When a guest signs in, declared `userId()` fields follow them to their account. `userId()` does not grant access. Keep owner filters and ownership checks. Make shared data intentional with a shared query, not a fake global user.
-- Use `auth.onGuestUpgrade` only for app-specific merge rules. It runs before automatic reference transfer in the same transaction. Plain strings, profile text, and external data do not transfer automatically.
-- Add Google sign-in with `SignInWithGoogle` or `signInWithGoogle()` from `lakebed/client`. For custom endpoints, send the identity token from `getIdentity().token` in the `X-Lakebed-Token` header. `Authorization` belongs to the app. Same-origin guest cookies work without that header.
-- Read server secrets through `ctx.env`, with values in `.env.lakebed.server`. They are not available at build time. Never put secrets in client or shared code. Deploy sync replaces hosted env with the file contents after the deploy is claimed.
-- Use complete Tailwind class names in JSX. Lakebed compiles CSS automatically from client files and their imports. Use inline styles for values loaded at runtime. Do not add CSS files, CSS modules, PostCSS, or a separate Tailwind build step.
-- Use the router from `lakebed/client` for pages. There is no file-based routing. Use `endpoint({ method, path }, handler)` from `lakebed/server` for webhooks and external HTTP clients. Request helpers include `headers.get(name)`, `query`, `json()`, `text()`, and `bytes()`.
-- Static capsule assets are limited to the favicon. Use `favicon.svg`, `favicon.ico`, or the `favicon` option in `capsule()`. Use `client.storage` for user uploads.
-
-## External data and dashboards
-
-Use global `fetch(url, options)` inside a handler, not `ctx.fetch`. Queries, mutations, actions, and endpoints can fetch locally and on claimed deploys. A mutation or writable endpoint can fetch external data and write rows in the same call. Data does not need to pass through the browser. Fetch shares the handler time budget and can hold up other writes, so ingest one small batch per call.
-
-Lakebed has no built-in scheduler or durable continuation queue yet. For periodic ingest, use an external scheduler to call a protected `POST` endpoint. Return a cursor for the caller to advance across separate requests. Keep `auth.requireSignIn` off for public reads and check an app secret in the ingest endpoint. CLI deploy tokens do not authenticate app endpoint callers.
-
-Database read budgets apply to the whole handler. A loop over `paginate()` does not bypass them. For totals larger than one handler can read, maintain summary rows during ingest. Store timestamps with `number()` as epoch milliseconds. See the [handler capability table](https://docs.lakebed.dev/capsule-api/index.md#handler-capabilities), [dashboard ingest example](https://docs.lakebed.dev/database/index.md#dashboard-counts), and [resource limits](https://docs.lakebed.dev/limits/index.md) before planning a backfill.
-
-## Run and verify
-
-Run commands from this capsule directory with `npx lakebed`.
-
-Start dev in a terminal session that can stay open:
+Run from this directory:
 
 ```sh
-npx lakebed dev
+npm run dev      # local dev server
+npm run build    # static build to dist/
+npm run preview  # serve dist/
 ```
 
-Keep that process running. Edit the starter to build the requested app, then test its behavior at the URL printed by dev. Use another terminal to inspect logs and data:
+From the repository root, `node --test scripts/website-downloads.test.mjs
+scripts/website-release.test.mjs` covers the download-count and release
+logic; keep it green when touching `src/lib`.
 
-```sh
-npx lakebed logs --port 3000
-npx lakebed db dump --port 3000
-```
+## Rules
 
-Use the dev server's port if it differs from 3000. Fix compile errors and runtime errors before deploying. Check user-owned data with separate browser profiles or the `?lakebed_guest=<name>` local test override when the app stores private data. Named overrides are local test identities and cannot upgrade to an account.
-
-## Deploy and verify
-
-After local checks pass, deploy from another terminal:
-
-```sh
-npx lakebed deploy
-```
-
-If the CLI requires a claim for server secrets or outbound fetch, follow its claim instructions and deploy again. A claim-required preview is not a working app.
-
-Open the returned URL and test the requested behavior. Inspect the deployed app from this capsule directory, using its returned ID or URL:
-
-```sh
-npx lakebed inspect <deploy-id-or-url>
-npx lakebed logs <deploy-id-or-url>
-```
-
-Hosted inspection is private by default. The CLI uses saved credentials. Report the working URL, the checks you ran, and the expiry if the deploy is unclaimed. Default app URLs use `lakebed.app` subdomains.
-
-## Read when needed
-
-- For server and client API details, read the [capsule API](https://docs.lakebed.dev/capsule-api/index.md).
-- For indexes and queries, read the [database guide](https://docs.lakebed.dev/database/index.md).
-- For Google sign-in and identity, read the [auth guide](https://docs.lakebed.dev/auth/index.md).
-- For user uploads, read the [storage guide](https://docs.lakebed.dev/storage/index.md).
-- For claiming, domains, and other CLI commands, read the [reference](https://docs.lakebed.dev/reference/index.md).
-- For an older capsule using synchronous database calls, read the [migration guide](https://docs.lakebed.dev/database-migration/index.md).
-- For anything else, read the [docs index](https://docs.lakebed.dev/llms.txt). It lists every page and section so you can fetch only the one you need.
+- Keep the page static: counts are read in the browser from the public GitHub
+  API and hidden when unavailable. The latest release (installer links,
+  sizes, SHA-256) is read once at build time and re-read in the browser via
+  `src/lib/release.ts`; everything degrades quietly when the read fails.
+  No secrets, no server code. `SITE_URL` optionally sets the canonical
+  origin for og:url and the canonical link at build time.
+- The design system lives in `src/styles/global.css` as tokens: a sky-blue
+  `#047FAC` base (`--sky`) with a calmer `#3D95B9` ground (`--bg`, the
+  field) drawn by the fluted fractal field behind every
+  section, white `#FCFFFF` text (`--ink`), deep-pink `#E0117F` accents and
+  pill CTAs (`--cta`), the header and frame on `--surface`, and near-white
+  content cards (bento, privacy, download) with dark ink re-pinned inside
+  them in the light theme, plus a `--line` hairline — no glass, no
+  backdrop-filter,
+  Newsreader headings over a Geist body, and radii 24px panels / 18px cards
+  / pills. Reference tokens; do not hardcode colours or sizes.
+- Two themes: `:root[data-theme="dark"]` re-points the tokens to a neutral
+  black field and grey surfaces with no hue; white text and the pink stay. An inline head script in
+  `index.astro` sets `data-theme` before first paint from the saved
+  `emc2-theme` choice or the system setting, and `src/lib/theme.ts` owns
+  the header toggle, saving and change events. Without script the page is
+  light. A new colour or surface needs a value in both themes.
+- Every painting has a night counterpart passed to `Painting.astro` as
+  `dark`, graded near-monochrome and dim so it carries no hue. Each theme's layer gets its own shader canvas (`data-art`), and
+  only the active pair displays; the other layer's image and shader load
+  the first time its theme shows.
+- App fragments (the hero inbox window, the command fragments, the bento
+  crops, the privacy vignettes) carry `data-ui` and use the app's own light
+  theme from `src/styles/tokens.css`, or its dark scheme under the dark
+  theme. Everything outside `data-ui` follows
+  the page rules: no emoji, no eyebrow labels, no glass and no
+  backdrop-filter; depth comes from the surface step and the hairline, with
+  the single soft shadow reserved for framed windows; the fluted fractal
+  field (`src/lib/fluted-field.ts`, the fixed WebGL canvas behind the page)
+  is the one deliberate spectacle — it drifts slowly and parallaxes at a
+  quarter of scroll speed (the shader repaints at ~20fps; a per-frame
+  transform on the overhanging canvas carries the parallax between paints); no monospace outside real code. Keys the
+  product answers to are shown as the one small keycap (`.keycap`), in
+  prose and in the command list alike. Headlines, subheads, labels, buttons
+  and captions end without a period; only multi-sentence paragraphs keep
+  them. The sticky bar is 52px, 48px at 1024px and below (`--bar-h`), with 32px controls.
+- Motion respects `prefers-reduced-motion`: the hero load rise, the hero
+  panel rise, the live mail arrival, the slow painting drift, the fluted
+  field's drift and scroll parallax, the card entrances and the
+  auto-advancing command demo all settle to their final state under it.
+  Content is in the HTML on first paint; never hide content behind
+  script.
+- Demo mail is synthetic. Never add real mail, credentials, private hostnames
+  or personal data to components, fixtures or screenshots.
+- The interactive pieces are Preact islands: `InboxWindow.tsx` in the hero
+  is a working demo — folders, tabs, reader actions (archive, trash, snooze,
+  reply, read, pin, teach) move mail between lists with undo toasts, New
+  message and Drafts open a fake-send composer, and it answers the app's
+  own keys. `FeaturesDemo.tsx` is the command demo: a hairline-separated
+  feature list (icon, title, keycap, always-on note) that auto-advances
+  one item every 4.5s while the hairline under the active item fills
+  pink; a click or arrow key picks and restarts. `RailCrop` in the bento
+  is a clickable account list. The other bento crops are still pictures
+  of the app (`.bcrop.still`: inert, aria-hidden, no hover or focus). The
+  shared app fragments and bento crops live in
+  `src/components/app/fragments.tsx`. The compare table reads as a solid
+  white card, not glass. The footer painting (Boudin by day, Whistler by night) has the
+  gentle breathe pass; its top edge fades into the fluted field over the
+  paint box's first 220px (the box reaches 200px up under the last
+  section), and the merged footer card — solid CTA tab on a full-width
+  links bar, concave fillets, 1px overlap, one drop shadow — sits on it.
+  The rest of the page is static Astro plus one behaviour script. Prefer
+  the existing helpers over new dependencies.
+- Paintings live in `src/assets/art/` and ship through `Painting.astro` as
+  responsive AVIF/WebP (JPEG fallback) with inline placeholders; they are
+  public-domain/CC0, keep their credits in the footer when changing them.

@@ -1,0 +1,89 @@
+---
+import InboxWindow from "./InboxWindow";
+import Painting from "./Painting.astro";
+import { osMarks, osOrder } from "../lib/os";
+import { formatDate, type LatestRelease } from "../lib/release";
+import { GITHUB_REPO } from "../lib/site";
+import sky from "../assets/art/sky.jpg";
+import skyDark from "../assets/art/sky-dark.jpg";
+import { artPlaceholders } from "../lib/art";
+
+interface Props {
+  release: LatestRelease | null;
+}
+const { release } = Astro.props;
+const macX64Url = release?.assets["mac-x64"]?.url ?? `${GITHUB_REPO}/releases/latest`;
+---
+<section class="hero wrap" id="top" data-os="mac">
+  <div class="hero-stage">
+    <div class="hero-frame">
+      <h1 class="hero-h">One inbox for every account</h1>
+      <p class="hero-sub">
+        Emc² is a free, open-source email client for Windows, macOS and Linux. Gmail,
+        iCloud, Fastmail, Yahoo and any IMAP account in one inbox that sorts itself
+        and stays encrypted on your machine.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-fill" data-hero-download href="#download">
+          <svg class="hero-osmark" data-hero-osmark hidden viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+            <path fill="currentColor" />
+          </svg>
+          <span data-hero-label>Download</span>
+        </a>
+        <a class="btn btn-ghost" href={GITHUB_REPO} rel="noreferrer" target="_blank">View on GitHub</a>
+        <span class="hero-side">
+          <span class="os-switch" role="radiogroup" aria-label="Window style">
+            {osOrder.map((key, index) => (
+              <button
+                aria-checked={index === 1 ? "true" : "false"}
+                aria-label={osMarks[key].label}
+                class={`os-seg${index === 1 ? " on" : ""}`}
+                data-os-switch={key}
+                role="radio"
+                title={osMarks[key].label}
+                type="button"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <defs>
+                    <linearGradient id={`os-logo-${key}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="var(--os-logo-top, currentColor)" />
+                      <stop offset="1" stop-color="var(--os-logo-bottom, currentColor)" />
+                    </linearGradient>
+                  </defs>
+                  <path d={osMarks[key].path} fill={`url(#os-logo-${key})`} />
+                </svg>
+              </button>
+            ))}
+          </span>
+        </span>
+      </div>
+      <p class="hero-meta">
+        <span class="hm-item" data-release-only hidden={!release}>
+          Version <span data-release-version>{release?.version}</span>
+        </span>
+        <span class="hm-item" data-release-only hidden={!release}>
+          <span data-release-date>{release ? formatDate(release.publishedAt) : null}</span>
+        </span>
+        <span class="hm-item" data-hero-platform hidden />
+        <a class="hm-item" data-hero-intel href={macX64Url} rel="noreferrer" hidden>Intel Mac?</a>
+        <a class="hm-item" href={`${GITHUB_REPO}/blob/main/CHANGELOG.md`} rel="noreferrer" target="_blank">Changelog</a>
+        <a class="hm-item" href="#download">All downloads</a>
+      </p>
+      <div class="hero-panel">
+        <Painting
+          src={sky}
+          placeholder={artPlaceholders.sky}
+          sizes="100vw"
+          widths={[640, 960, 1280, 1600, 1920, 2560]}
+          position="center 35%"
+          dark={{ src: skyDark, placeholder: artPlaceholders.skyDark, position: "center 30%" }}
+          quality={30}
+          priority
+        />
+        <div class="hero-win">
+          <InboxWindow client:load />
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { githubDownloads } from "../website/server/downloads.ts";
+import { githubDownloads } from "../website/src/lib/downloads.ts";
 
 test("download totals include all desktop installers and keep the last complete count on failure", async (t) => {
   let now = 1;
