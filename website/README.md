@@ -158,4 +158,10 @@ they do not affect the built bundle.
 ## Deployment
 
 Any static host serves `dist/`. The previous Lakebed capsule deployment is
-retired; wiring a host (GitHub Pages, Cloudflare, Vercel) is a follow-up.
+retired; wiring a host is a follow-up.
+
+The page includes Vercel Web Analytics. On a Vercel deployment with
+Analytics enabled in the project dashboard it records cookieless page views
+through `/_vercel/insights/script.js`. It sends nothing in `npm run dev`,
+and on any other host that script request returns 404 and the page is
+unaffected.

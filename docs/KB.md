@@ -1780,7 +1780,9 @@ until it loads. Installer links, sizes and SHA-256 checksums come from the lates
 time through `website/src/lib/release.ts` and refreshed in the browser when a newer release exists. It
 adds no desktop telemetry. `npm test` includes `scripts/website-downloads.test.mjs` and
 `scripts/website-release.test.mjs`, which import those modules. The website build is separate: `cd
-website` followed by `npm run build`; any static host serves `dist/`. No host is wired up yet. Browser and
+website` followed by `npm run build`; any static host serves `dist/`. No host is wired up yet. The page
+includes Vercel Web Analytics, which records cookieless page views only on a Vercel deployment with
+Analytics enabled. Browser and
 live deployment verification remain separate from these checks.
 
 The site has light and dark themes, chosen before first paint from a saved `emc2-theme` value or the

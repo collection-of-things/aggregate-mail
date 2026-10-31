@@ -28,6 +28,10 @@ logic; keep it green when touching `src/lib`.
   `src/lib/release.ts`; everything degrades quietly when the read fails.
   No secrets, no server code. `SITE_URL` optionally sets the canonical
   origin for og:url and the canonical link at build time.
+- Vercel Web Analytics (`@vercel/analytics/astro` in `index.astro`) is the
+  only analytics: cookieless page views, reported only from a Vercel
+  deployment with Analytics enabled in the project dashboard. Do not add
+  custom events that carry visitor input, and add no other trackers.
 - The design system lives in `src/styles/global.css` as tokens: a sky-blue
   `#047FAC` base (`--sky`) with a calmer `#3D95B9` ground (`--bg`, the
   field) drawn by the fluted fractal field behind every
