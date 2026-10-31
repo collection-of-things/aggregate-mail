@@ -6,6 +6,10 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Fixed
+
+- Delete saved drafts without waiting for a full mail-cache scan. Unused attachments still count toward storage limits until cleanup, normally during the daily idle inventory; compact storage to reclaim them sooner. ([#180](https://github.com/collection-of-things/aggregate-mail/issues/180))
+
 ## 0.2.23 - 2026-10-30
 
 ### Added
@@ -25,8 +29,6 @@ unversioned history without treating it as a release record.
 - The conversation reader hides its coverage notes behind a disclosure and shows single emails without thread chrome, apart from Gmail's Load full conversation link.
 
 ### Fixed
-
-- Delete saved drafts without waiting for a full mail-cache scan. Unused attachment cleanup runs through existing storage maintenance. ([#180](https://github.com/collection-of-things/aggregate-mail/issues/180))
 
 - Keep mail selection checkboxes and Select all usable while mail syncs; bulk actions wait for sync and say so. ([#178](https://github.com/collection-of-things/aggregate-mail/pull/178))
 

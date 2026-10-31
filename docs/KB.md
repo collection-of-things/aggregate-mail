@@ -3146,7 +3146,9 @@ Cleanup removes only unreferenced uploads older than one hour. This grace period
 protects uploads awaiting the first autosave and separate-copy recovery. Draft
 deletion commits without scanning the mail cache. Discarded uploads wait for
 drained storage maintenance or confirmed-send cleanup, which still checks every
-record reference before removing bytes. Interrupted
+record reference before removing bytes. Automatic inventory is due every 24 hours
+and waits for an idle service; manual storage compaction can reclaim discarded
+uploads sooner when they count toward storage limits. Interrupted
 uploads remove partial chunks immediately; process-crash leftovers expire through
 normal inventory. Explicit account removal purges that account's uploads and holds
 with its drafts/outbox, while preserving other accounts' bytes. Legacy attachment inventory keeps its existing fail-closed
