@@ -2315,6 +2315,14 @@ with 3072 MiB and a 420-second deadline. It reports process-cold API status and
 full-mail availability separately. It does not prove browser paint, real-provider
 behavior, installed performance or an immediate complete mail list.
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:da3f21ced0279cd6829e961f2ad242deedfd09968390ddc7b76eaf3d650b7678 -->
+
+The bootstrap benchmark uses a per-run desktop token and clears inherited model and Google credentials in its synthetic child processes.
+
+<!-- /coderabbit-ai-generated:v1 -->
+
 ## Encrypted connection settings and storage compaction
 
 `server/config.ts` stores managed Google OAuth, OpenAI and Typesafe settings in

@@ -6,6 +6,16 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Security
+
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:d708b975ce17828595f0e8f3b4c2eb6ae94a3afe5d320ccf77f54aafd96ca9b3 -->
+
+- Protect the synthetic bootstrap benchmark with a per-run session token and keep provider credentials out of its child processes.
+
+<!-- /coderabbit-ai-generated:v1 -->
+
 ## 0.2.23 - 2026-10-30
 
 ### Added
