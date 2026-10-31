@@ -2313,6 +2313,8 @@ with 3072 MiB and a 420-second deadline. It reports process-cold API status and
 full-mail availability separately. It does not prove browser paint, real-provider
 behavior, installed performance or an immediate complete mail list.
 
+The bootstrap benchmark uses a per-run desktop token and clears inherited model and Google credentials in its synthetic child processes.
+
 ## Encrypted connection settings and storage compaction
 
 `server/config.ts` stores managed Google OAuth, OpenAI and Typesafe settings in
