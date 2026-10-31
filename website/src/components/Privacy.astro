@@ -1,0 +1,74 @@
+---
+// Three privacy cards, each with a small live vignette of the app.
+const rows3 = [
+  {
+    sentence: "AI sorting",
+    on: "Sends sender, subject and preview to the provider you chose.",
+    off: "Nothing leaves this machine for sorting.",
+    checked: false,
+  },
+  {
+    sentence: "Agent access (MCP)",
+    on: "Granted clients may read and archive, each account you allow.",
+    off: "Local agents cannot reach your mail.",
+    checked: false,
+  },
+];
+---
+<section class="priv wrap" id="privacy">
+  <h2 class="h2" data-reveal>Private by design</h2>
+  <p class="lead" data-reveal style="--i:1">
+    Your mail lives in one encrypted database on your disk. There is no Emc²
+    server and no cloud copy.
+  </p>
+  <div class="priv-cards">
+    <article class="pcard" data-reveal>
+      <div class="vig" data-ui>
+        <div class="switch-row on" data-band>
+          <span class="switch-text">
+            <span class="switch-s">Encrypt mail on disk</span>
+            <span class="switch-c" data-on="Mail.db is encrypted; the key never leaves the keychain." data-off="Mail.db is encrypted; the key never leaves the keychain.">Mail.db is encrypted; the key never leaves the keychain.</span>
+          </span>
+          <button class="toggle" type="button" aria-checked="true" aria-disabled="true" aria-label="Encrypt mail on disk"><i /></button>
+        </div>
+      </div>
+      <h3>Encrypted on disk</h3>
+      <p>Mail is stored encrypted with a key your system keychain protects. If encryption is unavailable, Emc² stops instead of saving plain text.</p>
+    </article>
+    <article class="pcard" data-reveal style="--i:1">
+      <div class="vig" data-ui>
+        <div class="conn">
+          <i class="acct-dot" />
+          imap.fastmail.com
+          <small>TLS · Direct</small>
+        </div>
+      </div>
+      <h3>No server in between</h3>
+      <p>The app talks straight to Gmail or your IMAP server. Nothing is copied to a cloud of ours, because there isn't one.</p>
+    </article>
+    <article class="pcard" data-reveal style="--i:2">
+      <div class="vig" data-ui>
+        {rows3.map((band) => (
+          <div class={`switch-row${band.checked ? " on" : ""}`} data-band>
+            <span class="switch-text">
+              <span class="switch-s">{band.sentence}</span>
+              <span class="switch-c" data-on={band.on} data-off={band.off}>{band.checked ? band.on : band.off}</span>
+            </span>
+            <button class="toggle" type="button" aria-checked={band.checked ? "true" : "false"} aria-label={band.sentence}><i /></button>
+          </div>
+        ))}
+      </div>
+      <h3>AI and agents stay off</h3>
+      <p>
+        AI sorting uses a key you add: OpenAI, or TypeSafe's Jev model through TypeSafe, OpenRouter or Vercel AI
+        Gateway. Local agent access (MCP) is off by default, and sending needs its own opt-in.
+      </p>
+      <p class="payload-cap">Each new message, as Jev receives it:</p>
+      <pre class="payload"><code>From: priya@studio-north.com
+Subject: Can we move Thursday's review?
+
+Something came up on my side. Does Friday at 10:00 work instead?</code></pre>
+      <p class="payload-note">OpenAI also receives the cached message content and metadata</p>
+    </article>
+  </div>
+</section>

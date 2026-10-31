@@ -6,6 +6,12 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Changed
+
+- Rebuild the marketing site as a static Astro page, replacing the Lakebed capsule. It leads with a working demo inbox over a public-domain painting, then a keyboard command demo, interface crops, privacy cards, a comparison with Thunderbird, Mailspring and Spark, per-platform downloads and an FAQ. Download buttons link the exact installer for the visitor's system with its size and SHA-256 checksum from the latest release. Star and download counts load in the browser from the public GitHub API and stay hidden when unavailable. The header and footer link both GitHub and git.cafe. Any static host can serve the build. ([#184](https://github.com/collection-of-things/aggregate-mail/pull/184))
+- Count marketing-site page views with Vercel Web Analytics, which sets no cookies and reports only from a Vercel deployment with Analytics enabled. The desktop app still sends no telemetry. ([#184](https://github.com/collection-of-things/aggregate-mail/pull/184))
+- Give the marketing site light and dark themes. It follows the system setting until the visitor picks one with the header toggle, which is remembered. The dark theme is neutral black with white text, the demo inbox switches to the app's dark scheme, and each painting swaps to a public-domain night counterpart. ([#184](https://github.com/collection-of-things/aggregate-mail/pull/184))
+
 ### Fixed
 
 - Delete saved drafts without waiting for a full mail-cache scan. Unused attachments still count toward storage limits until cleanup, normally during the daily idle inventory; compact storage to reclaim them sooner. ([#180](https://github.com/collection-of-things/aggregate-mail/issues/180))

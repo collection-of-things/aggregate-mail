@@ -1,0 +1,56 @@
+---
+import { Picture } from "astro:assets";
+import type { ImageMetadata } from "astro";
+
+interface Variant {
+  src: ImageMetadata;
+  placeholder: string;
+  position?: string;
+}
+
+interface Props {
+  src: ImageMetadata;
+  placeholder: string;
+  sizes: string;
+  widths: number[];
+  /* the night counterpart shown under the dark theme */
+  dark?: Variant;
+  priority?: boolean;
+  position?: string;
+  quality?: number;
+}
+
+const { src, placeholder, sizes, widths, dark, priority = false, position = "center", quality = 40 } = Astro.props;
+
+/* Only the active theme's layer is displayed. The hidden layer stays lazy,
+   so the browser fetches it only once the theme switches to it. */
+const layers = [
+  { theme: "light", src, placeholder, position, eager: priority },
+  ...(dark
+    ? [{ theme: "dark", src: dark.src, placeholder: dark.placeholder, position: dark.position ?? position, eager: false }]
+    : []),
+];
+---
+
+{layers.map((layer) => (
+  <div
+    class="art"
+    data-art={dark ? layer.theme : undefined}
+    aria-hidden="true"
+    style={`background-image:url(${layer.placeholder});background-size:cover;background-position:${layer.position}`}
+  >
+    <Picture
+      src={layer.src}
+      formats={["avif", "webp"]}
+      widths={widths}
+      sizes={sizes}
+      alt=""
+      class="art-i"
+      style={`object-position:${layer.position}`}
+      quality={quality}
+      {...(layer.eager
+        ? { loading: "eager", fetchpriority: "high", decoding: "async" }
+        : { loading: "lazy", onload: "this.classList.add('ok')" })}
+    />
+  </div>
+))}

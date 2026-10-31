@@ -1,0 +1,134 @@
+---
+import { osMarks } from "../lib/os";
+import { formatDate, formatSize, shortSha, type Installer, type LatestRelease, type ReleaseAsset } from "../lib/release";
+import { CAFE_REPO, GITHUB_REPO, RELEASES } from "../lib/site";
+
+interface Props {
+  release: LatestRelease | null;
+}
+const { release } = Astro.props;
+
+const asset = (key: Installer): ReleaseAsset | undefined => release?.assets[key];
+const href = (key: Installer) => asset(key)?.url ?? RELEASES;
+
+// One compact size + checksum line under a download button. Hidden until the
+// asset is known; the SHA half hides again when the release lists no digest.
+const fileLine = (key: Installer) => {
+  const a = asset(key);
+  return { size: a ? formatSize(a.size) : "", sha: a?.sha256 ?? null, short: a?.sha256 ? shortSha(a.sha256) : "" };
+};
+const win = fileLine("windows");
+const arm = fileLine("mac-arm64");
+const x64 = fileLine("mac-x64");
+const lin = fileLine("linux");
+---
+<section class="dl wrap" id="download">
+  <h2 class="h2" data-reveal>Free on every desktop</h2>
+  <p class="lead" data-reveal style="--i:1">
+    MIT licensed{" "}
+    <span data-release-lead hidden={!release}>
+      · Version <span data-release-version>{release?.version}</span>, released{" "}
+      <span data-release-date>{release ? formatDate(release.publishedAt) : null}</span>
+    </span>
+    <span data-release-fallback hidden={!!release}>· Every release lists SHA-256 checksums</span>
+  </p>
+  <div class="dl-cards">
+    <article class="dl-card" data-os-card="windows" data-reveal>
+      <svg class="osmark" aria-hidden="true" viewBox="0 0 24 24"><path d={osMarks.windows.path} fill="currentColor" /></svg>
+      <h3>Windows</h3>
+      <p>Windows installer</p>
+      <a class="btn btn-ghost dl-btn" data-installer="windows" href={href("windows")} rel="noreferrer">Download .exe</a>
+      <p class="dl-file" data-file="windows" hidden={!release?.assets.windows}>
+        <span data-asset-size="windows">{win.size}</span>{" "}
+        <span class="dl-sha" data-sha-block="windows" hidden={!win.sha}
+          >· SHA-256{" "}
+          <code data-sha="windows" title={win.sha ?? undefined}>{win.short}</code>{" "}
+          <button class="dl-copy" type="button" data-copy="windows" data-sha-value={win.sha ?? ""} aria-live="polite"
+            >Copy</button
+          >
+        </span>
+      </p>
+      <details class="dl-warn">
+        <summary>Seeing a warning?</summary>
+        <p>
+          SmartScreen may show “Windows protected your PC”. Select <b>More info</b>, then{" "}
+          <b>Run anyway</b>. The installer is not code-signed yet, so compare its SHA-256 first
+        </p>
+      </details>
+    </article>
+    <article class="dl-card" data-os-card="mac" data-reveal style="--i:1">
+      <svg class="osmark" aria-hidden="true" viewBox="0 0 24 24"><path d={osMarks.mac.path} fill="currentColor" /></svg>
+      <h3>macOS</h3>
+      <p>Signed locally on first launch</p>
+      <span class="dl-btn-pair">
+        <a class="btn btn-ghost dl-btn" data-installer="mac-arm64" href={href("mac-arm64")} rel="noreferrer">Apple silicon</a>
+        <a class="btn btn-ghost dl-btn" data-installer="mac-x64" href={href("mac-x64")} rel="noreferrer">Intel</a>
+      </span>
+      <p class="dl-file" data-file="mac-arm64" hidden={!release?.assets["mac-arm64"]}>
+        <b>Apple silicon</b> · <span data-asset-size="mac-arm64">{arm.size}</span>{" "}
+        <span class="dl-sha dl-sha-own" data-sha-block="mac-arm64" hidden={!arm.sha}
+          >SHA-256{" "}
+          <code data-sha="mac-arm64" title={arm.sha ?? undefined}>{arm.short}</code>{" "}
+          <button class="dl-copy" type="button" data-copy="mac-arm64" data-sha-value={arm.sha ?? ""} aria-live="polite"
+            >Copy</button
+          >
+        </span>
+      </p>
+      <p class="dl-file" data-file="mac-x64" hidden={!release?.assets["mac-x64"]}>
+        <b>Intel</b> · <span data-asset-size="mac-x64">{x64.size}</span>{" "}
+        <span class="dl-sha dl-sha-own" data-sha-block="mac-x64" hidden={!x64.sha}
+          >SHA-256{" "}
+          <code data-sha="mac-x64" title={x64.sha ?? undefined}>{x64.short}</code>{" "}
+          <button class="dl-copy" type="button" data-copy="mac-x64" data-sha-value={x64.sha ?? ""} aria-live="polite"
+            >Copy</button
+          >
+        </span>
+      </p>
+      <details class="dl-warn">
+        <summary>Seeing a warning?</summary>
+        <p>Emc² is not notarized by Apple, so macOS may stop the first launch</p>
+        <ul>
+          <li>
+            macOS 14 or earlier: Control-click (or right-click) Emc² in Applications, choose <b>Open</b>, then{" "}
+            <b>Open</b> again
+          </li>
+          <li>
+            macOS 15 or later: try to open Emc² once, then go to{" "}
+            <b>System Settings → Privacy &amp; Security</b> and choose <b>Open Anyway</b>
+          </li>
+        </ul>
+        <p>Compare the SHA-256 first</p>
+      </details>
+    </article>
+    <article class="dl-card" data-os-card="linux" data-reveal style="--i:2">
+      <svg class="osmark" aria-hidden="true" viewBox="0 0 24 24"><path d={osMarks.linux.path} fill="currentColor" /></svg>
+      <h3>Linux</h3>
+      <p>AppImage</p>
+      <a class="btn btn-ghost dl-btn" data-installer="linux" href={href("linux")} rel="noreferrer">Download .AppImage</a>
+      <p class="dl-file" data-file="linux" hidden={!release?.assets.linux}>
+        <span data-asset-size="linux">{lin.size}</span>{" "}
+        <span class="dl-sha" data-sha-block="linux" hidden={!lin.sha}
+          >· SHA-256{" "}
+          <code data-sha="linux" title={lin.sha ?? undefined}>{lin.short}</code>{" "}
+          <button class="dl-copy" type="button" data-copy="linux" data-sha-value={lin.sha ?? ""} aria-live="polite"
+            >Copy</button
+          >
+        </span>
+      </p>
+      <details class="dl-warn">
+        <summary>Seeing a warning?</summary>
+        <p>
+          If the AppImage does not open, make it executable: right-click it, choose{" "}
+          <b>Properties → Permissions</b> and allow running it as a program, or run <code>chmod +x</code> on the file
+        </p>
+        <p>Some distributions also need the <b>libfuse2</b> package</p>
+      </details>
+    </article>
+  </div>
+  <p class="dl-note" data-reveal>
+    Source on <a href={CAFE_REPO} rel="noreferrer" target="_blank">git.cafe (collection-of-devs)</a>, where the core
+    team works, and <a href={GITHUB_REPO} rel="noreferrer" target="_blank">GitHub (collection-of-things)</a>, which
+    mirrors it both ways and hosts releases
+    <span class="dl-counts" hidden>· <span data-count="stars">0</span> stars · <span data-count="downloads">0</span> downloads</span>
+  </p>
+</section>

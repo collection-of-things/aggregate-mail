@@ -1,0 +1,82 @@
+---
+import {
+  CalendarCrop,
+  ComposeCrop,
+  MaskedRowsCrop,
+  RailCrop,
+  SearchCrop,
+  TabsCrop,
+  TeachFragment,
+} from "./app/fragments";
+
+const cards = [
+  {
+    title: "Inbox tabs",
+    text: "Primary, Social, Promotions, Newsletters, Transactions and Updates. Mail that may need you gets a taller row.",
+    wide: true,
+    Crop: TabsCrop,
+  },
+  {
+    title: "Unified accounts",
+    text: "Gmail through Google sign-in, everything else over IMAP. Filter to one account or see them all.",
+    wide: false,
+    Crop: RailCrop,
+    interactive: true,
+  },
+  {
+    title: "Search",
+    text: "One query across every account and folder. It forgives a typo.",
+    wide: false,
+    Crop: SearchCrop,
+  },
+  {
+    title: "Teach sorting",
+    text: "Correct one sender and preview the rule before it applies. Your rules win over the AI sorter.",
+    wide: true,
+    compact: true,
+    Crop: TeachFragment,
+  },
+  {
+    title: "Templates & signatures",
+    text: "Plain-text templates and a signature per account, kept in the encrypted store.",
+    wide: false,
+    Crop: ComposeCrop,
+  },
+  {
+    title: "Privacy mode",
+    text: 'Press <kbd class="keycap">p</kbd> before you share your screen. Names, subjects and previews hide; accounts show by number.',
+    wide: false,
+    Crop: MaskedRowsCrop,
+  },
+  {
+    title: "Calendar follow-ups",
+    text: "Date-only deadlines and optional follow-ups in month and agenda views, kept on this machine.",
+    wide: false,
+    Crop: CalendarCrop,
+  },
+];
+---
+<section class="bento-section wrap" id="inside">
+  <h2 class="h2" data-reveal>Everything in its place</h2>
+  <p class="lead" data-reveal style="--i:1">
+    Six tabs, every account, and the tools to keep it that way
+  </p>
+  <div class="bento">
+    {cards.map((card, index) => (
+      <article class={`bcard${card.wide ? " wide" : ""}`} data-reveal style={`--i:${index}`}>
+        {card.interactive ? (
+          <div class="bcrop">
+            <RailCrop client:idle />
+          </div>
+        ) : (
+          /* every other crop is a picture of the app: no hover, no focus */
+          <div class="bcrop still" inert aria-hidden="true">
+            {card.compact ? <TeachFragment compact /> : <card.Crop />}
+          </div>
+        )}
+        <h3>{card.title}</h3>
+        <p set:html={card.text} />
+      </article>
+    ))}
+  </div>
+</section>

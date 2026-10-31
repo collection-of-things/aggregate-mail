@@ -1,0 +1,25 @@
+---
+import FeaturesDemo from "./FeaturesDemo";
+import Painting from "./Painting.astro";
+import wheat from "../assets/art/wheat.jpg";
+import wheatDark from "../assets/art/wheat-dark.jpg";
+import { artPlaceholders } from "../lib/art";
+---
+<section class="feat wrap" id="features">
+  <h2 class="h2" data-reveal>Built for the keyboard</h2>
+  <p class="lead" data-reveal style="--i:1">
+    Every action has a single key, and <kbd class="keycap">⌘K</kbd> /
+    <kbd class="keycap">Ctrl K</kbd> finds the rest
+  </p>
+  <p class="feat-touch" data-reveal style="--i:2">Shortcuts are for the desktop app</p>
+  <FeaturesDemo client:idle>
+    <Painting
+      slot="art"
+      src={wheat}
+      placeholder={artPlaceholders.wheat}
+      dark={{ src: wheatDark, placeholder: artPlaceholders.wheatDark }}
+      sizes="(min-width: 900px) 50vw, 100vw"
+      widths={[640, 960, 1280, 1600]}
+    />
+  </FeaturesDemo>
+</section>

@@ -1,0 +1,102 @@
+---
+// A straight comparison against the three desktop clients visitors ask about.
+// Each cell states its answer in text; the mark only reinforces it.
+type Cell = { kind: "yes" | "no" | "partial"; text: string };
+const y = (text: string): Cell => ({ kind: "yes", text });
+const n = (text: string): Cell => ({ kind: "no", text });
+const p = (text: string): Cell => ({ kind: "partial", text });
+
+const rows: { label: string; cells: [Cell, Cell, Cell, Cell] }[] = [
+  {
+    label: "Free",
+    cells: [y("Yes"), y("Yes"), y("Yes, Pro is paid"), y("Yes, Premium is paid")],
+  },
+  {
+    label: "Open source",
+    cells: [y("MIT"), y("MPL 2.0"), y("GPLv3"), n("No")],
+  },
+  {
+    label: "Local-only storage",
+    cells: [y("Yes"), y("Yes"), p("Mail is local; Pro features sync metadata"), n("No, servers hold account access for push")],
+  },
+  {
+    label: "Encrypted on disk",
+    cells: [y("Yes"), n("No"), n("No"), p("Not stated")],
+  },
+  {
+    label: "Unified inbox",
+    cells: [y("Yes"), y("Yes"), y("Yes"), y("Yes")],
+  },
+  {
+    label: "AI sorting with your own key",
+    cells: [y("Yes"), n("No"), n("No"), n("No")],
+  },
+  {
+    label: "Keyboard-first",
+    cells: [y("Yes"), p("Shortcuts"), p("Shortcut sets"), p("Shortcuts")],
+  },
+  {
+    label: "MCP for AI agents",
+    cells: [y("Built in, off by default"), p("Third-party add-ons"), y("Built in, off by default"), y("Through Spark CLI")],
+  },
+];
+
+const sources = [
+  { label: "Thunderbird storage", href: "https://source-docs.thunderbird.net/en/latest/backend/folder_storage.html" },
+  { label: "Mailspring ID", href: "https://www.getmailspring.com/docs/what-is-a-mailspring-id" },
+  { label: "Mailspring MCP", href: "https://www.getmailspring.com/setup/access-gmail-email-via-mcp" },
+  { label: "Spark accounts", href: "https://readdle.com/blog/how-we-handle-your-account-information-in-spark" },
+  { label: "Spark CLI", href: "https://sparkmailapp.com/blog/introducing-spark-cli" },
+];
+---
+<section class="compare wrap" id="compare">
+  <h2 class="h2" data-reveal>Why switch</h2>
+  <p class="lead" data-reveal style="--i:1">
+    How Emc² compares with three popular desktop clients
+  </p>
+  <div class="cmp-wrap" data-reveal style="--i:2">
+    <table class="cmp">
+      <caption class="visually-hidden">Feature comparison of Emc², Thunderbird, Mailspring and Spark</caption>
+      <thead>
+        <tr>
+          <th scope="col"><span class="visually-hidden">Feature</span></th>
+          <th class="cmp-us" scope="col">Emc²</th>
+          <th scope="col">Thunderbird</th>
+          <th scope="col">Mailspring</th>
+          <th scope="col">Spark</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr>
+            <th scope="row">{row.label}</th>
+            {row.cells.map((cell, index) => (
+              <td class={index === 0 ? "cmp-us" : undefined}>
+                <span class={`cmp-cell cmp-${cell.kind}`}>
+                  {cell.kind === "yes" && (
+                    <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.2 6.4 4.8 9 9.8 3" /></svg>
+                  )}
+                  {cell.kind === "partial" && (
+                    <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.5c1.6-2.2 5.4 2.2 7 0" /></svg>
+                  )}
+                  {cell.kind === "no" && (
+                    <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6h7" /></svg>
+                  )}
+                  {cell.text}
+                </span>
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+  <p class="cmp-src" data-reveal style="--i:3">
+    Checked October 2026 against each project's documentation:{" "}
+    {sources.map((source, index) => (
+      <>
+        <a href={source.href} rel="noreferrer" target="_blank">{source.label}</a>{index < sources.length - 1 ? ", " : "."}
+      </>
+    ))}
+  </p>
+</section>

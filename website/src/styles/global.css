@@ -1,0 +1,4988 @@
+/* ================================================================
+   Emc² landing page — light, product-led.
+   Page tokens first, then the app fragments (data-ui) in the app's own
+   light theme, then the motion layer.
+   ================================================================ */
+
+:root {
+  /* page palette: sky blue field, white text, deep pink accents. The pink
+     is DeepPink's hue taken a step darker so white button text keeps 4.5:1 */
+  --sky: #047fac;
+  --field-sky: #3d95b9; /* a calmer, deeper sky; the darker frame stays distinct */
+  --white: #fcffff;
+  --pink: #e0117f;
+  --field-pink: var(--pink);
+  --bg: var(--field-sky);
+  --ink: #fcffff;
+  --soft: rgba(252, 255, 255, 0.86);
+  --faint: rgba(252, 255, 255, 0.7);
+  --line: rgba(252, 255, 255, 0.16);
+  --surface: #1a88b5; /* opaque surface step: frame, header and footer tab */
+  --raised: #2a90b8; /* ghost buttons, switch, keycaps, chips */
+  --accent: var(--pink);
+  --cta: var(--pink);
+  --cta-ink: #fcffff;
+  /* the browser chrome colour the head script sets per theme */
+  --theme-color: #1880ab;
+
+  /* radii */
+  --radius-lg: 24px;
+  --radius: 18px;
+  --pill: 999px;
+
+  /* type */
+  --font: "Geist Variable", "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --serif: "Newsreader Variable", "Newsreader", Georgia, "Times New Roman", serif;
+  --fs-display: clamp(40px, 4.4vw, 60px);
+  --fs-h2: clamp(32px, 3vw, 44px);
+  --fs-h3: 18px;
+  --fs-body: 17px;
+  --fs-small: 14px;
+
+  /* frame */
+  --pad: clamp(20px, 4vw, 56px);
+  --max: 1240px;
+  --section-gap: clamp(96px, 12vh, 160px);
+  --bar-h: 52px;
+  --bar-control-h: 32px;
+  --bar-control-radius: 10px;
+  --bar-ink: var(--ink);
+  --bar-control-bg: var(--frame, var(--surface));
+
+  /* motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-press: 140ms;
+  --t-hover: 180ms;
+  --t-ui: 240ms;
+  --t-reveal: 700ms;
+  --stagger: 60ms;
+
+  /* depth is a surface step plus a hairline; the one soft shadow is for
+     framed windows floating over the page */
+  --shadow-win: 0 1px 2px rgba(0, 40, 70, 0.1), 0 12px 32px rgba(0, 40, 70, 0.16);
+
+  /* the app's own light theme (src/styles/tokens.css [data-scheme="light"]) */
+  --app-bg: #f2f2f4;
+  --app-surface: #fff;
+  --app-hover: rgba(0, 0, 0, 0.04);
+  --app-selected: rgba(0, 0, 0, 0.06);
+  --app-line: rgba(0, 0, 0, 0.08);
+  --app-line-2: rgba(0, 0, 0, 0.13);
+  --app-text: #1d1d1f;
+  --app-text-2: #48484d;
+  --app-text-3: #636368;
+  --app-faintest: #737379;
+  --app-reason: #a4512f;
+  --app-accent: #6b9cff;
+  --app-avatar: #e8e8ec;
+  --app-avatar-text: #636368;
+  --app-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+}
+
+/* Dark theme: a neutral black page. Black field and grey surfaces with no
+   hue, white text, the deep pink kept for accents, and the paintings swap to
+   desaturated night counterparts. App fragments take the app's own dark
+   scheme (src/styles/tokens.css). */
+:root[data-theme="dark"] {
+  --sky: #000000;
+  --field-sky: #050505;
+  --field-pink: #8a0c52; /* blooms dimmed so they glow low on the black */
+  --surface: #121212;
+  --raised: #1e1e1e;
+  --line: rgba(255, 255, 255, 0.12);
+  --ink: #ffffff;
+  --soft: rgba(255, 255, 255, 0.82);
+  --faint: rgba(255, 255, 255, 0.62);
+  --theme-color: #0a0a0a;
+  --shadow-win: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.6);
+
+  --app-bg: #000;
+  --app-surface: #0e0e10;
+  --app-hover: rgba(255, 255, 255, 0.04);
+  --app-selected: rgba(255, 255, 255, 0.07);
+  --app-line: rgba(255, 255, 255, 0.08);
+  --app-line-2: rgba(255, 255, 255, 0.12);
+  --app-text: #fff;
+  --app-text-2: #a0a0a6;
+  --app-text-3: #88888f;
+  --app-faintest: #82828a;
+  --app-reason: #e3a08b;
+  --app-accent: #6b9cff;
+  --app-avatar: #1c1c1c;
+  --app-avatar-text: #a8a8a8;
+  --app-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html {
+  color-scheme: dark;
+  background: var(--bg);
+}
+
+/* The fluted fractal field paints on a fixed canvas behind everything; the
+   body keeps --bg as the no-WebGL fallback and steps aside once it draws. */
+/* The canvas overhangs the viewport by --field-overhang top and bottom, so
+   the per-frame parallax transform never reveals an edge between paints. */
+.page-field {
+  --field-overhang: 160px;
+  position: fixed;
+  top: calc(-1 * var(--field-overhang));
+  left: 0;
+  width: 100%;
+  height: calc(100% + 2 * var(--field-overhang));
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .page-field {
+    transition: opacity 600ms var(--ease-out);
+  }
+}
+
+html.has-field body {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Lenis inertial wheel scrolling (skipped under reduced motion — the
+   instant path stays in charge). While lenis runs, native smooth
+   scrolling is off because the two would fight. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+/* lenis drives window.scrollTo itself — native smooth would double-smooth */
+html.lenis,
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+
+/* Anchors land clear of the sticky bar. */
+section[id] {
+  scroll-margin-top: var(--bar-h);
+}
+
+body {
+  overflow-x: clip;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--pink) 45%, transparent);
+  color: var(--ink);
+}
+
+body {
+  caret-color: var(--accent);
+  scrollbar-color: var(--raised) var(--bg);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+img,
+svg,
+video {
+  display: block;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.skip {
+  position: absolute;
+  top: -100px;
+  left: 24px;
+  z-index: 50;
+  padding: 8px 16px;
+  border-radius: var(--pill);
+  background: var(--cta);
+  color: var(--cta-ink);
+}
+
+.skip:focus-visible {
+  top: 12px;
+}
+
+/* ------------------------------------------------------------- frame */
+
+.wrap {
+  max-width: var(--max);
+  margin-inline: auto;
+  padding-inline: var(--pad);
+}
+
+section {
+  padding-bottom: var(--section-gap);
+}
+
+.h2 {
+  font-family: var(--serif);
+  font-size: var(--fs-h2);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+}
+
+.lead {
+  margin-top: 16px;
+  max-width: 620px;
+  color: var(--soft);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+}
+
+/* pills */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: var(--pill);
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-fill {
+  background: var(--cta);
+  color: var(--cta-ink);
+}
+
+.btn-ghost {
+  background: var(--raised);
+  color: var(--ink);
+}
+
+.btn-sm {
+  padding: 6px 14px;
+  font-size: 14px;
+}
+
+.btn svg {
+  flex: none;
+}
+
+.link {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 4px;
+  transition: text-decoration-color var(--t-ui) var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .link:hover {
+    text-decoration-color: currentColor;
+  }
+}
+
+.num,
+[data-release-version],
+[data-release-date],
+[data-asset-size],
+.dl-counts {
+  font-variant-numeric: tabular-nums;
+}
+
+[data-count-label],
+[data-oss-counts] {
+  transition: opacity var(--t-ui);
+}
+
+/* --------------------------------------------------------------- bar */
+
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: transparent;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--t-ui), background-color var(--t-ui);
+}
+
+.bar.scrolled {
+  background: var(--bg);
+  border-bottom-color: var(--line);
+}
+
+.bar-inner {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+  height: var(--bar-h);
+}
+
+.bar-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.bar-links {
+  display: flex;
+  gap: 4px;
+}
+
+.bar-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--bar-control-h);
+  padding-inline: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--bar-ink);
+  text-underline-offset: 5px;
+  text-decoration-thickness: 1px;
+  transition: color var(--t-hover);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .bar-links a:hover {
+    text-decoration: underline;
+  }
+}
+
+.bar .bar-mark {
+  justify-self: start;
+  gap: 8px;
+  color: var(--bar-ink);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.bar-actions {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: 12px;
+}
+
+.bar-gh,
+.bar-menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--bar-control-h);
+  border: 1px solid color-mix(in srgb, var(--bar-ink) 14%, transparent);
+  border-radius: var(--bar-control-radius);
+  background: var(--bar-control-bg);
+  color: var(--bar-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.bar-gh {
+  padding-inline: 12px;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.bar-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-left: 1px solid color-mix(in srgb, var(--bar-ink) 18%, transparent);
+  padding-left: 8px;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.bar-gh svg {
+  flex: none;
+}
+
+.bar-gh .num {
+  min-width: 1ch;
+}
+
+.bar .bar-download {
+  height: var(--bar-control-h);
+  padding: 8px 16px;
+  border-radius: var(--bar-control-radius);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.bar :focus-visible {
+  outline-color: var(--bar-ink);
+}
+
+.bar-menu {
+  display: none;
+}
+
+.bar-menu-toggle {
+  width: var(--bar-control-h);
+  padding: 0;
+  list-style: none;
+  cursor: pointer;
+}
+
+.bar-menu-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.bar-menu nav {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: var(--pad);
+  display: grid;
+  gap: 4px;
+  min-width: 200px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--bar-ink) 14%, transparent);
+  border-radius: 12px;
+  background: var(--bar-control-bg);
+  color: var(--bar-ink);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.bar-menu nav a {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding-inline: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  text-underline-offset: 4px;
+}
+
+.bar-menu nav a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --bar-h: 48px;
+  }
+
+  .bar-inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+  }
+
+  .bar-links {
+    display: none;
+  }
+
+  .bar-menu {
+    display: block;
+  }
+}
+
+@media (max-width: 480px) {
+  .bar-actions {
+    gap: 8px;
+  }
+
+  .bar-gh {
+    width: var(--bar-control-h);
+    padding: 0;
+  }
+
+  .bar-gh-label,
+  .bar-stars {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .bar .bar-download {
+    padding-inline: 12px;
+  }
+
+  .bar-download svg {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------------- hero */
+
+.hero {
+  padding-top: clamp(72px, 10vh, 120px);
+}
+
+.hero-h {
+  font-family: var(--serif);
+  font-size: var(--fs-display);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+.hero-sub {
+  margin-top: 20px;
+  max-width: 640px;
+  color: var(--soft);
+  font-size: 19px;
+  line-height: 1.55;
+}
+
+.hero-actions {
+  margin-top: 32px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hero-side {
+  margin-left: auto;
+}
+
+/* the window-style switch sits on the CTA row, right aligned */
+.os-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--pill);
+  background: var(--raised);
+}
+
+.os-seg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--pill);
+  padding: 8px 12px;
+  background: none;
+  color: var(--soft);
+  cursor: pointer;
+  transition: color var(--t-hover);
+}
+
+.os-seg svg {
+  display: block;
+}
+
+.os-seg.on {
+  background: var(--white);
+  color: var(--sky);
+  box-shadow: 0 1px 3px rgba(0, 40, 70, 0.3);
+}
+
+.hero-meta {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  color: var(--faint);
+  font-size: var(--fs-small);
+}
+
+/* A middle dot before each visible item after the first visible one, so
+   hidden items leave no gap. */
+.hero-meta .hm-item:not([hidden]) ~ .hm-item:not([hidden])::before {
+  content: "·";
+  margin-inline: 8px;
+  color: var(--faint);
+}
+
+.hero-meta a {
+  color: var(--soft);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-ui);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hero-meta a:hover {
+    text-decoration-color: currentColor;
+  }
+}
+
+/* the painted panel holding the app window */
+.hero-panel {
+  position: relative;
+  margin-top: 48px;
+  height: 620px;
+  border-radius: var(--radius-lg);
+  overflow: clip;
+}
+
+.art {
+  position: absolute;
+  inset: 0;
+}
+
+.art-i {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* the painting fallbacks carry the same colour grade as their shader so
+   nothing shifts when the canvas fades in */
+.hero-panel .art-i {
+  filter: saturate(1.25) contrast(1.06) brightness(0.88);
+}
+
+.footer-paint .art-i {
+  filter: contrast(1.05) brightness(0.92);
+}
+
+/* lazy paintings fade in over their placeholder once loaded */
+html:not(.no-js) .art-i[loading="lazy"]:not(.ok) {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .art-i {
+    transition: opacity 420ms var(--ease-out);
+  }
+}
+
+/* the panel is picture only: clicks pass through it to the page controls
+   below it, except inside the demo window itself */
+.hero-panel {
+  pointer-events: none;
+}
+
+.hero-win {
+  position: absolute;
+  top: 32px;
+  left: 24px;
+  right: 24px;
+  bottom: 0;
+  pointer-events: auto;
+}
+
+.hero-win .appwin {
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  box-shadow: var(--app-shadow), var(--shadow-win);
+  overflow: hidden;
+}
+
+@media (max-width: 760px) {
+  .hero {
+    padding-top: 56px;
+  }
+
+  .hero-h {
+    font-size: clamp(34px, 9.6vw, 44px);
+  }
+
+  .hero-sub {
+    font-size: 17px;
+  }
+
+  .hero-side {
+    margin-left: 0;
+  }
+
+  .hero-actions {
+    gap: 12px;
+  }
+
+  .hero-panel {
+    height: 440px;
+    margin-top: 40px;
+    border-radius: 18px;
+  }
+
+  .hero-win {
+    top: 20px;
+    left: 12px;
+    right: 12px;
+  }
+}
+
+/* ----------------------------------------------------------- features */
+
+.feat-grid {
+  margin-top: 48px;
+  display: grid;
+  grid-template-columns: 38fr 62fr;
+  gap: 56px;
+  align-items: start;
+}
+
+/* on touch screens the section cannot demo keys; say so once */
+.feat-touch {
+  display: none;
+  margin-top: 12px;
+  font-size: var(--fs-small);
+  color: var(--faint);
+}
+
+@media (hover: none), (max-width: 760px) {
+  .feat-touch {
+    display: block;
+  }
+}
+
+/* the feature list, set like a spec sheet: hairline-separated items whose
+   notes open only for the active one, which reads at full white */
+.feat-list {
+  list-style: none;
+  padding: 0;
+}
+
+.feat-item {
+  position: relative;
+  display: block;
+  padding: 14px 4px 12px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  outline: none;
+}
+
+.feat-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--ink);
+  border-radius: 8px;
+}
+
+.feat-item-h {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink);
+  opacity: 0.55;
+  transition: opacity 420ms var(--ease-out);
+}
+
+.feat-item.on .feat-item-h {
+  opacity: 1;
+}
+
+.feat-item-h svg {
+  flex: none;
+}
+
+.feat-item-t {
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.feat-item-h .keycap {
+  margin-left: auto;
+}
+
+/* only the active item's note is expanded; the others collapse through a
+   0fr→1fr row animation — the text stays in the DOM for first paint */
+.feat-item-dwrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 360ms var(--ease-out),
+    opacity 360ms var(--ease-out);
+}
+
+.feat-item.on .feat-item-dwrap {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.feat-item-d {
+  display: block;
+  min-height: 0;
+  overflow: hidden;
+  padding-left: 30px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+/* the note's gap lives inside the clipped box, so it collapses with it */
+.feat-item-d::before {
+  content: "";
+  display: block;
+  height: 8px;
+}
+
+.keycap {
+  font-family: var(--font);
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: var(--raised);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--soft);
+}
+
+/* keycaps quoted inside running copy shrink to text size */
+.lead .keycap,
+.bcard > p .keycap {
+  min-width: 0;
+  height: 1.5em;
+  padding: 0 0.4em;
+  border-radius: 5px;
+  font-size: 0.78em;
+  vertical-align: -0.15em;
+}
+
+/* the 4.5s dwell shown as the hairline under the active item filling pink,
+   re-keyed by the demo on every selection change so it always restarts */
+.feat-item-prog {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--pink);
+  transform-origin: left;
+  transform: scaleX(0);
+  animation: cmd-prog 4.5s linear forwards;
+}
+
+@keyframes cmd-prog {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feat-item-prog {
+    display: none;
+  }
+
+  /* notes still collapse under reduced motion — instantly, not animated */
+  .feat-item-dwrap {
+    transition: none;
+  }
+}
+
+/* the painted panel holding the command's fragment, centred with even
+   padding like a card floating in the middle of the image */
+.feat-panel {
+  position: relative;
+  height: 560px;
+  border-radius: var(--radius-lg);
+  overflow: clip;
+}
+
+.feat-panel .frag-swap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 56px;
+}
+
+.feat-panel .appwin {
+  width: 100%;
+  max-height: 100%;
+}
+
+.frag-pane {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  max-height: 100%;
+}
+
+@media (max-width: 900px) {
+  .feat-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .feat-panel {
+    height: 480px;
+  }
+
+  .feat-panel .frag-swap {
+    padding: 32px;
+  }
+}
+
+@media (max-width: 640px) {
+  .feat-panel {
+    height: 420px;
+    border-radius: 18px;
+  }
+
+  .feat-panel .frag-swap {
+    padding: 16px;
+  }
+
+  .feat-panel .appwin {
+    min-width: 560px;
+  }
+
+  .feat-item-t {
+    font-size: 19px;
+  }
+}
+
+/* -------------------------------------------------------------- bento */
+
+.bento {
+  margin-top: 48px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.bcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 200ms var(--ease-out), background-color 200ms var(--ease-out);
+}
+
+.bcard.wide {
+  grid-column: span 2;
+}
+
+/* hover is a soft shift only — no movement, so the text never
+   re-rasterises and the card never hops under the cursor */
+@media (hover: hover) and (pointer: fine) {
+  :is(.bcard, .pcard, .dl-card):hover {
+    border-color: rgba(252, 255, 255, 0.22);
+    background-color: color-mix(in srgb, var(--surface), #fff 4%);
+  }
+
+  /* the featured download card keeps its pink ring on hover */
+  .dl-card.featured:hover {
+    border-color: var(--pink);
+  }
+}
+
+.bcard > h3 {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+/* the card's own copy only: fragment <p>s inside the crop keep app metrics */
+.bcard > p {
+  margin-top: 8px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--soft);
+}
+
+/* the tinted well at the top of every card; the crop fills it fully and
+   never bleeds past its edges */
+.bcrop {
+  position: relative;
+  container-type: inline-size;
+  flex: none;
+  height: 256px;
+  margin: 0 0 20px;
+  border-radius: 14px;
+  background: var(--app-bg);
+  overflow: clip;
+}
+
+.bcrop .ctl-mac,
+.bcrop .ctl-win,
+.bcrop .ctl-linux {
+  display: none !important;
+}
+
+.bcrop > * {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+/* a "still" crop is a picture of the app: no hover, no focus, no select */
+.bcrop.still {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* a crop or window fragment dropped into the well loses its own frame */
+.bcrop .crop {
+  border: 0;
+  background: transparent;
+}
+
+.bcrop .appwin.frag {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* the teach card's grey panel is the whole well, not a floating tile on it */
+.bcrop .teach {
+  flex: 1;
+  border-radius: 0;
+}
+
+@media (max-width: 1000px) {
+  .bento {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .bcard {
+    min-height: 380px;
+  }
+
+  .bcard.wide {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .bento {
+    grid-template-columns: 1fr;
+  }
+
+  .bcard.wide {
+    grid-column: auto;
+  }
+}
+
+/* narrow wells drop the tabs that cannot fit whole: no mid-word clipping */
+@container (max-width: 360px) {
+  .bcrop .appwin-tab:nth-child(n + 4) {
+    display: none;
+  }
+}
+
+@container (max-width: 245px) {
+  .bcrop .appwin-tab:nth-child(3) {
+    display: none;
+  }
+}
+
+/* the calendar crop's own sizing is already the well's — nothing extra */
+
+/* ------------------------------------------------------------ privacy */
+
+.priv-cards {
+  margin-top: 48px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* the AI card is twice the content: it takes the right column top to bottom */
+.pcard:last-child {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.pcard {
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  transition: border-color 200ms var(--ease-out), background-color 200ms var(--ease-out);
+}
+
+.pcard h3 {
+  margin-top: 24px;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.pcard > p {
+  margin-top: 8px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--soft);
+}
+
+.vig {
+  border: 1px solid var(--app-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* the exact payload the sorter sends, shown as real code */
+.pcard .payload-cap {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--soft);
+}
+
+/* the pre's own font metrics set each line box's strut; they must match the
+   code inside or lines render at the pre's taller height */
+.pcard .payload {
+  margin-top: 8px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--raised);
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pcard .payload code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pcard .payload-note {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--faint);
+}
+
+@media (max-width: 900px) {
+  .priv-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .pcard:last-child {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+/* ----------------------------------------------------------- compare */
+
+/* a solid white card on the blue field: the page tokens are re-pinned to
+   light values here so every cell reads dark-on-white */
+.cmp-wrap {
+  --ink: #1c1b1f;
+  --soft: #5d5b63;
+  --faint: #8a8890;
+  --line: rgba(0, 0, 0, 0.07);
+  --surface: #fff;
+  --raised: #efeee9;
+  --accent: #2f6fe4;
+  margin-top: 48px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.cmp {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.cmp th,
+.cmp td {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.cmp tbody tr:last-child th,
+.cmp tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.cmp thead th {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.cmp tbody th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.cmp thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+
+/* the Emc² column keeps a faint pink tint; scrolled columns stay opaque */
+.cmp .cmp-us {
+  background: color-mix(in srgb, var(--pink) 8%, var(--surface));
+}
+
+.cmp-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cmp-cell svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cmp-yes {
+  color: var(--ink);
+}
+
+.cmp-yes svg {
+  stroke: var(--pink);
+}
+
+.cmp-partial {
+  color: var(--soft);
+}
+
+.cmp-partial svg {
+  stroke: var(--faint);
+}
+
+.cmp-no {
+  color: var(--soft);
+}
+
+.cmp-no svg {
+  stroke: var(--faint);
+}
+
+/* narrow screens: slim the sticky label column and let each data column
+   keep ~9rem so the next column peeks past the fold as a scroll hint */
+@media (max-width: 640px) {
+  .cmp {
+    min-width: 0;
+  }
+
+  .cmp tbody th,
+  .cmp thead th:first-child {
+    width: 8.5rem;
+    min-width: 8.5rem;
+    white-space: normal;
+  }
+
+  .cmp td,
+  .cmp thead th:not(:first-child) {
+    min-width: 9rem;
+  }
+
+  .cmp th,
+  .cmp td {
+    padding: 12px;
+  }
+}
+
+.cmp-src {
+  margin-top: 20px;
+  font-size: 13px;
+  color: var(--faint);
+}
+
+.cmp-src a {
+  color: var(--soft);
+  text-decoration: underline;
+  text-decoration-color: var(--faint);
+  text-underline-offset: 3px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------ download */
+
+.dl-cards {
+  margin-top: 48px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.dl-card {
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  transition: border-color 200ms var(--ease-out), background-color 200ms var(--ease-out);
+}
+
+.dl-card.featured {
+  border: 2px solid var(--pink);
+}
+
+.dl-card.featured .dl-btn {
+  background: var(--cta);
+  color: var(--cta-ink);
+}
+
+.dl-card .osmark {
+  width: 32px;
+  height: 32px;
+  color: var(--ink);
+}
+
+.dl-card h3 {
+  margin-top: 16px;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.dl-card p {
+  font-size: 14px;
+  color: var(--soft);
+}
+
+.dl-card .btn {
+  margin-top: 20px;
+}
+
+.dl-card .dl-btn-pair {
+  margin-top: 20px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* the buttons inside the pair keep the pair's own top margin only */
+.dl-card .dl-btn-pair .btn {
+  margin-top: 0;
+}
+
+/* one compact size + checksum line under each installer */
+.dl-file {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.dl-file b {
+  font-weight: 500;
+  color: var(--soft);
+}
+
+/* "· SHA-256 <hash> Copy" stays one unbreakable group; it may drop to its
+   own line whole when the card is narrow */
+.dl-sha {
+  white-space: nowrap;
+}
+
+/* the Mac card lists two files, so each checksum gets its own line */
+.dl-sha-own {
+  display: block;
+}
+
+.dl-file code {
+  margin-inline: 4px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--raised);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--soft);
+  white-space: nowrap;
+}
+
+.dl-copy {
+  margin-left: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  color: var(--soft);
+  text-decoration: underline;
+  text-decoration-color: var(--faint);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dl-copy:hover {
+    color: var(--ink);
+  }
+}
+
+/* first-launch help, quiet and closed until needed */
+.dl-warn {
+  margin-top: 16px;
+  font-size: 13px;
+}
+
+.dl-warn summary {
+  cursor: pointer;
+  color: var(--faint);
+  font-size: 13px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dl-warn summary:hover {
+    color: var(--soft);
+  }
+}
+
+.dl-warn p {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--soft);
+}
+
+.dl-warn ul {
+  margin: 8px 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--soft);
+}
+
+.dl-warn b {
+  font-weight: 600;
+}
+
+.dl-warn code {
+  margin-inline: 4px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--raised);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--soft);
+  white-space: nowrap;
+}
+
+.dl-note {
+  margin-top: 32px;
+  text-align: center;
+  font-size: var(--fs-small);
+  color: var(--faint);
+}
+
+.dl-note a {
+  color: var(--soft);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--faint);
+}
+
+@media (max-width: 760px) {
+  .dl-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------------------------------------------------------------- faq */
+
+/* the last section: half the usual bottom gap so the footer painting
+   starts closer, without touching the shared section rhythm */
+.faq {
+  padding-bottom: calc(var(--section-gap) / 2);
+}
+
+.faq-list {
+  margin-top: 48px;
+  margin-inline: auto;
+  max-width: 820px;
+}
+
+.faq-t {
+  border-bottom: 1px solid var(--line);
+}
+
+.faq-t-q {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 20px 4px;
+  border: 0;
+  background: none;
+  font-size: 18px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  list-style: none;
+}
+
+.faq-t-q::-webkit-details-marker {
+  display: none;
+}
+
+.plus {
+  position: relative;
+  margin-left: auto;
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.plus i {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 16px;
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 1px;
+  background: var(--faint);
+}
+
+.plus i:last-child {
+  transform: rotate(90deg);
+  transition: transform var(--t-ui) var(--ease-out);
+}
+
+.faq-t[open] .plus i:last-child {
+  transform: rotate(0deg);
+}
+
+.faq-t-a {
+  padding: 0 4px 24px;
+  max-width: 52ch;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--soft);
+}
+
+.faq-more {
+  margin-top: 24px;
+  margin-inline: auto;
+  max-width: 820px;
+  font-size: var(--fs-small);
+  color: var(--faint);
+}
+
+.faq-more a {
+  color: var(--soft);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--faint);
+}
+
+/* ------------------------------------------------------------- footer */
+
+/* The painted footer: a full-bleed block at the page end — the footer is a
+   body child, so 100% is the viewport width without 100vw scrollbar maths. */
+.footer-paint {
+  position: relative;
+  width: 100%;
+  /* at max scroll the paint's top edge sits right under the sticky bar, so
+     the field-to-image fade is always on screen; the floor keeps ~260px of
+     open wave above the card on short viewports */
+  height: max(calc(100svh - var(--bar-h)), 760px);
+  overflow: clip;
+}
+
+/* the painting rises out of the field as a dome, higher in the middle:
+   its alpha gives way only in the top band — the dissolve completes
+   within ~150px of the paint box's top at the centre, a little deeper
+   at the sides — so most of the painting shows at full strength */
+.footer-paint .art,
+.footer-paint .art-gl {
+  mask-image: radial-gradient(
+    ellipse 95% 88% at 50% 100%,
+    #000 86%,
+    transparent 98%
+  );
+}
+
+/* sky-tint layer over the painting: the painting keeps its luminance
+   texture but takes the page's hue where the colour gives out — a gentle
+   shift at 0.6 alpha, starting only in the top ~30% of the visible area.
+   The tint's mask is intersected with the painting's own dome so it can
+   only recolour painting pixels — outside the dome the field runs
+   clean to the paint box's top edge */
+.footer-tint {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  mix-blend-mode: color;
+  opacity: 0.15;
+  mask-image:
+    radial-gradient(
+      ellipse 90% 78% at 50% 100%,
+      transparent 84%,
+      #000 100%
+    ),
+    radial-gradient(
+      ellipse 95% 88% at 50% 100%,
+      #000 86%,
+      transparent 98%
+    );
+  mask-composite: intersect;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  /* the merged card covers most of the paint at phone widths — a taller
+     box keeps the painting readable above the tab; the dissolve stays a
+     narrow top band */
+  .footer-paint {
+    height: 1600px;
+  }
+}
+
+.footer-stage {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-block: 48px 0;
+}
+
+/* The CTA card and the links bar join into one surface: the narrow card sits
+   flush on the wide one like a folder tab. A single drop shadow on the
+   wrapper follows the merged outline so no seam shows. */
+.footer-card {
+  display: flex;
+  flex-direction: column;
+  filter: drop-shadow(0 1px 2px rgba(0, 40, 70, 0.1))
+    drop-shadow(0 12px 32px rgba(0, 40, 70, 0.16));
+}
+
+.cta-card {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 560px;
+  margin-inline: auto;
+  /* dip 1px over the bar: the same surface on both sides makes the join
+     seamless — no hairline, no subpixel gap */
+  margin-bottom: -1px;
+  padding: 48px;
+  border-radius: 20px 20px 0 0;
+  background: var(--surface);
+  text-align: center;
+}
+
+/* Concave fillets at the two inside junction corners: a surface square beside
+   each bottom corner of the tab, with a quarter circle masked out of its
+   outer top corner. The mask is a shape cut, not a visible gradient. */
+.cta-card::before,
+.cta-card::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  background: var(--surface);
+}
+
+.cta-card::before {
+  left: -20px;
+  mask: radial-gradient(circle at 0 0, transparent 20px, #000 20.5px);
+}
+
+.cta-card::after {
+  right: -20px;
+  mask: radial-gradient(circle at 100% 0, transparent 20px, #000 20.5px);
+}
+
+.cta-card .h2 {
+  font-size: clamp(28px, 3vw, 38px);
+}
+
+.cta-card p {
+  margin-top: 12px;
+  color: var(--soft);
+  font-size: 16px;
+}
+
+.cta-card .hero-actions {
+  margin-top: 28px;
+  justify-content: center;
+}
+
+/* the links bar spans the whole viewport; the brand/link columns stay on the
+   --max grid while the credits row under them runs the bar's full padded
+   width, so they set as a few long lines */
+.footer-links {
+  padding: 19px var(--pad) 16px;
+  background: var(--surface);
+  font-size: var(--fs-small);
+}
+
+.footer-links-inner {
+  position: relative;
+  display: grid;
+  /* the brand column takes the room; the link columns shrink-wrap and sit
+     side by side 96px apart, their group flush with the wrap's right edge */
+  grid-template-columns: 1fr auto auto;
+  column-gap: 96px;
+  max-width: var(--max);
+  margin-inline: auto;
+  container-type: inline-size;
+  /* the wordmark is sized from the available width; the grid keeps enough
+     room below the description for its visible band — the font and the
+     reserved height derive from the same value. --word-fs resolves inside
+     the grid items where cqw is the inner width; the container's own
+     min-height resolves cqw against the viewport, so the px term carries
+     the --max-width value and the cqw term scales it down */
+  --word-fs: 33.7cqw;
+  min-height: calc(53px + min(168px, 12.8cqw));
+}
+
+/* the link columns ride toward the right edge; the left column's empty
+   space below the brand copy carries the embossed wordmark */
+.footer-links nav {
+  justify-self: end;
+}
+
+/* the brand column's content lines up with the embossed E's ink: Geist's
+   E carries ~0.07em of left side bearing (pixel-measured), so the logo
+   and the description indent by that same share of the wordmark's size */
+.footer-brand {
+  position: relative;
+  padding-left: calc(var(--word-fs) * 0.07);
+}
+
+.footer-links h4 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.footer-links nav {
+  font-size: 16px;
+}
+
+.footer-links ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.footer-links a {
+  color: var(--soft);
+  text-decoration: none;
+}
+
+.footer-brand p {
+  font-size: 17px;
+  font-weight: 550;
+  color: var(--ink);
+}
+
+/* a big Geist wordmark pressed into the links surface. The clip starts
+   20px under the description and ends exactly on the credits hairline
+   (24px below the grid cell); the glyphs hang about 45% of their cap
+   height past it, so the line reads as the cut edge — only the bottom is
+   ever clipped. The -row copy lives in the grid for the stacked layout */
+.footer-wordclip {
+  position: absolute;
+  left: 0;
+  /* spans to just short of the Product column — the same width the
+     glyphs occupy, so the right edge never clips them */
+  width: calc(var(--word-fs) * 2.34);
+  right: auto;
+  top: 47px;
+  bottom: -24px;
+  overflow: clip;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* the grid copy is hidden at desktop widths; the brand cell's clip paints */
+.footer-wordclip-row {
+  display: none;
+}
+
+.footer-word {
+  position: absolute;
+  left: 0;
+  bottom: -0.32em;
+  display: block;
+  font-style: normal;
+  font-weight: 800;
+  /* sized from the links grid's width so the glyphs end 24px short of the
+     Product column; the clip's height is reserved by --word-fs above */
+  font-size: var(--word-fs);
+  line-height: 0.85;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--surface), #00131f 9%);
+  text-shadow:
+    -1px -1px 0 rgba(6, 40, 60, 0.5),
+    1px 1px 0 rgba(252, 255, 255, 0.5),
+    0 3px 8px rgba(6, 40, 60, 0.22);
+}
+
+.footer-word sup {
+  font-size: 0.5em;
+  vertical-align: super;
+  line-height: 0;
+}
+
+/* the credits are the bar's bottom row, under a hairline; unlike the grid
+   above they are not boxed into --max — they run the bar's padded width */
+.footer-credits {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--soft);
+}
+
+/* the painting titles keep full ink inside the soft credit text */
+.footer-credits a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.footer-credits a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+  /* taller paint so the wave's crest reads above the merged card */
+  .footer-paint {
+    height: 1300px;
+  }
+
+  .footer-stage {
+    padding-block: 40px 0;
+  }
+
+  /* the tab spans the card, so the join is flush: no fillets, and the links
+     part squares off entirely — its bottom edge is the page's bottom edge */
+  .cta-card {
+    max-width: none;
+    padding: 32px 24px;
+  }
+
+  .cta-card::before,
+  .cta-card::after {
+    content: none;
+  }
+
+  .footer-links {
+    padding: 24px;
+  }
+
+  .footer-links-inner {
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  /* the band wordmark uses the smaller size, so the brand indent follows
+     its own font-size — same 0.07em side bearing as desktop */
+  .footer-brand {
+    padding-left: calc(min(96px, 28cqw) * 0.07);
+  }
+
+  .footer-links nav {
+    justify-self: start;
+  }
+
+  /* below the stacked links the wordmark takes a real full-width row —
+     the in-cell clip is swapped for it; shifted down 24px its bottom edge
+     still lands exactly on the credits hairline */
+  .footer-brand .footer-wordclip {
+    display: none;
+  }
+
+  .footer-wordclip-row {
+    position: relative;
+    left: 0;
+    right: auto;
+    top: auto;
+    bottom: -24px;
+    grid-column: 1 / -1;
+    display: block;
+    height: 118px;
+    margin-top: 8px;
+  }
+
+  .footer-word {
+    font-size: min(96px, 28cqw);
+  }
+}
+
+@media (max-width: 480px) {
+  /* a compact merged card — the wave's crest shows above the tab */
+  .cta-card {
+    padding: 20px;
+  }
+
+  .cta-card .h2 {
+    font-size: 26px;
+  }
+
+  .footer-links {
+    padding: 16px 20px 20px;
+  }
+
+  .footer-links-inner {
+    gap: 16px;
+  }
+
+  .footer-links ul {
+    gap: 6px;
+  }
+
+  .footer-links h4 {
+    margin-bottom: 8px;
+  }
+
+  .footer-credits {
+    columns: 2;
+    column-gap: 24px;
+    line-height: 1.5;
+    padding-top: 16px;
+  }
+}
+
+/* ================================================================
+   App fragments — data-ui. The product's own light theme.
+   ================================================================ */
+
+[data-ui] {
+  color-scheme: light;
+  /* page rules (`.bcard p`, `kbd`, …) still reach inside fragments: pin the
+     page tokens they use to the app's light values so they can never paint
+     page-white text on an app surface */
+  --ink: #1c1b1f;
+  --soft: #5d5b63;
+  --faint: #8a8890;
+  --line: rgba(0, 0, 0, 0.07);
+  --surface: #fff;
+  --raised: #efeee9;
+  --accent: #2f6fe4;
+  background: var(--app-bg);
+  color: var(--app-text);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+  container-type: inline-size;
+}
+
+.appwin {
+  display: flex;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-size: 13px;
+  line-height: 1.45;
+  container-type: inline-size;
+}
+
+.appwin-hero:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--app-accent);
+}
+
+/* --- window controls, per platform --- */
+.ctl-mac {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.ctl-mac i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+
+.ctl-mac i:nth-child(1) { background: #ff5f57; }
+.ctl-mac i:nth-child(2) { background: #febc2e; }
+.ctl-mac i:nth-child(3) { background: #28c840; }
+
+.ctl-win {
+  display: none;
+  align-items: center;
+  margin-left: auto;
+  color: var(--app-text-3);
+}
+
+.ctl-win svg {
+  width: 38px;
+  height: 30px;
+  padding: 9px 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.ctl-linux {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.ctl-linux i {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--app-hover);
+  color: var(--app-text-3);
+}
+
+.ctl-linux svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+
+[data-os="mac"] .ctl-mac,
+[data-os="windows"] .ctl-win,
+[data-os="linux"] .ctl-linux {
+  display: inline-flex;
+}
+
+/* the hero's own switch overrides the document's OS inside its window */
+.appwin-hero .ctl-mac,
+.appwin-hero .ctl-win,
+.appwin-hero .ctl-linux {
+  display: none;
+}
+
+.hero[data-os="mac"] .ctl-mac,
+.hero[data-os="windows"] .ctl-win,
+.hero[data-os="linux"] .ctl-linux {
+  display: inline-flex;
+}
+
+/* --- hero OS skins -------------------------------------------------------
+   the segmented control restyles only the window's chrome and system font;
+   the app content inside stays identical, as the real app's native frame
+   does. Radius, colours and the shadow cross-fade over 220ms; the outer
+   window size never moves. Scoped to the hero's own [data-ui] window */
+.hero [data-ui] {
+  transition:
+    border-radius 220ms var(--ease-out),
+    background-color 220ms var(--ease-out),
+    box-shadow 220ms var(--ease-out);
+}
+
+.hero [data-ui] .side,
+.hero [data-ui] .new-msg,
+.hero [data-ui] .pane-head {
+  transition: background-color 220ms var(--ease-out);
+}
+
+/* macOS: traffic lights top-left in the sidebar's row, translucent light
+   sidebar, soft big shadow over a half-pixel hairline, centred toolbar
+   title, SF text */
+.hero[data-os="mac"] [data-ui] {
+  border-radius: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  box-shadow:
+    0 24px 60px -12px rgba(6, 40, 60, 0.45),
+    0 0 0 0.5px rgba(0, 0, 0, 0.15);
+}
+
+.hero[data-os="mac"] [data-ui] .side {
+  background: rgba(245, 245, 247, 0.92);
+}
+
+.hero[data-os="mac"] [data-ui] .ctl-mac {
+  gap: 8px;
+}
+
+.hero[data-os="mac"] [data-ui] .ctl-mac i {
+  position: relative;
+  width: 12px;
+  height: 12px;
+}
+
+/* the glyphs only show while the lights' row is hovered, as in macOS */
+.hero[data-os="mac"] [data-ui] .ctl-mac i::before {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity 140ms;
+}
+
+.hero[data-os="mac"] [data-ui] .ctl-mac i:nth-child(1)::before { content: "×"; }
+.hero[data-os="mac"] [data-ui] .ctl-mac i:nth-child(2)::before { content: "−"; }
+.hero[data-os="mac"] [data-ui] .ctl-mac i:nth-child(3)::before { content: "+"; }
+
+.hero[data-os="mac"] [data-ui] .side-head:hover .ctl-mac i::before {
+  opacity: 1;
+}
+
+/* the pane title reads centred in its toolbar under macOS and GNOME */
+.hero[data-os="mac"] [data-ui] .pane-head,
+.hero[data-os="linux"] [data-ui] .pane-head {
+  position: relative;
+}
+
+.hero[data-os="mac"] [data-ui] .pane-head .appwin-view,
+.hero[data-os="linux"] [data-ui] .pane-head .appwin-view {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Windows 11: caption buttons top-right — flat 46x32 tiles, the close
+   going accent-red on hover; 8px radius, mica-grey sidebar, Segoe UI */
+.hero[data-os="windows"] [data-ui] {
+  border-radius: 8px;
+  border: 1px solid #e5e5e5;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.12),
+    0 0 0 0.5px rgba(0, 0, 0, 0.04);
+}
+
+.hero[data-os="windows"] [data-ui] .side {
+  background: #f3f3f3;
+}
+
+.hero[data-os="windows"] [data-ui] .new-msg {
+  background: #0067c0;
+}
+
+.hero[data-os="windows"] [data-ui] .ctl-win svg {
+  width: 46px;
+  height: 32px;
+  padding: 10px 18px;
+}
+
+.hero[data-os="windows"] [data-ui] .ctl-win svg:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.hero[data-os="windows"] [data-ui] .ctl-win svg:last-child:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+
+/* GNOME/libadwaita: 46px headerbar, centred bold title, a single round
+   close at top-right (min/max hidden, as in GNOME's default), Cantarell */
+.hero[data-os="linux"] [data-ui] {
+  border-radius: 12px;
+  font-family: Cantarell, "Ubuntu", "Noto Sans", system-ui, sans-serif;
+  box-shadow:
+    0 20px 48px -12px rgba(0, 0, 0, 0.3),
+    0 0 0 0.5px rgba(0, 0, 0, 0.12);
+}
+
+.hero[data-os="linux"] [data-ui] .side {
+  background: #ebebeb;
+}
+
+.hero[data-os="linux"] [data-ui] .new-msg {
+  background: #3584e4;
+}
+
+.hero[data-os="linux"] [data-ui] .pane-head {
+  height: 46px;
+}
+
+.hero[data-os="linux"] [data-ui] .pane-head .appwin-view {
+  font-weight: 700;
+}
+
+.hero[data-os="linux"] [data-ui] .ctl-linux i {
+  display: none;
+}
+
+.hero[data-os="linux"] [data-ui] .ctl-linux i:last-child {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.12);
+  color: var(--app-text);
+}
+
+/* the OS skins settle instantly under reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .hero [data-ui],
+  .hero [data-ui] .side,
+  .hero [data-ui] .new-msg,
+  .hero [data-ui] .pane-head,
+  .hero [data-ui] .ctl-mac i::before {
+    transition: none;
+  }
+}
+
+/* --- sidebar: the app's 208px source list --- */
+.side {
+  width: 208px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--app-bg) 88%, var(--app-surface));
+  border-right: 1px solid var(--app-line);
+}
+
+.side-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 52px;
+  padding: 0 10px 0 14px;
+  flex-shrink: 0;
+}
+
+.sicon {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: none;
+  border-radius: 7px;
+  color: var(--app-text-3);
+}
+
+.sicon:hover {
+  background: var(--app-hover);
+  color: var(--app-text);
+}
+
+.sbrand {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+.side-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 4px 10px 10px;
+}
+
+.new-msg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: #286cf2;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.new-msg svg {
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.sg-h {
+  padding: 0 10px;
+  margin: 16px 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-text-3);
+}
+
+/* folding group heading */
+button.sg-fold {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: 0;
+  background: none;
+}
+
+.sg-fold svg {
+  color: var(--app-faintest);
+  transition: transform 160ms var(--ease-out);
+}
+
+.sg-fold[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+
+.new-msg + .srow + .sg-h {
+  margin-top: 18px;
+}
+
+.srow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--app-text);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.srow svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--app-accent);
+}
+
+.srow:hover {
+  background: var(--app-hover);
+}
+
+.srow.on,
+.srow.sel {
+  background: var(--app-selected);
+}
+
+/* the account shortcut, drawn as a small key chip, not a count */
+.srow kbd {
+  flex: none;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border: 1px solid var(--app-line);
+  border-radius: 4px;
+  background: var(--app-surface);
+  box-shadow: inset 0 -1.5px 0 var(--app-line);
+  font-family: inherit;
+  font-size: 10.5px;
+  line-height: 14px;
+  text-align: center;
+  color: var(--app-text-3);
+}
+
+.sacct {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.acct-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+/* provider marks inside account rows stay small and keep brand colours */
+.srow .pmark,
+.sacct .pmark {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+.snum {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--app-faintest);
+  font-variant-numeric: tabular-nums;
+}
+
+.sadd {
+  color: var(--app-text-3);
+}
+
+.sadd svg {
+  color: var(--app-text-3);
+}
+
+.side-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-top: 1px solid var(--app-line);
+  font-size: 12px;
+  color: var(--app-text-3);
+  flex-shrink: 0;
+}
+
+/* --- the main column: list pane + reader pane --- */
+.main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.appwin-list {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
+}
+
+.pane-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 52px;
+  padding: 0 14px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--app-line);
+  background: var(--app-surface);
+  overflow: hidden;
+}
+
+.appwin-view {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+/* hairline tabs on their own row, as in the app's Inbox */
+.appwin-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 13px;
+  height: 44px;
+  padding: 0 16px;
+  flex: none;
+  overflow: hidden;
+  border-bottom: 1px solid var(--app-line);
+}
+
+.appwin-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  border-radius: 0;
+  font-size: 13px;
+  color: var(--app-text-2);
+  white-space: nowrap;
+}
+
+.appwin-tab svg {
+  width: 14px;
+  height: 14px;
+}
+
+.appwin-tab .n {
+  font-size: 12px;
+  color: var(--app-faintest);
+  font-variant-numeric: tabular-nums;
+}
+
+.appwin-tab.on {
+  color: var(--app-text);
+  font-weight: 600;
+}
+
+.appwin-tab.on::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 1px 1px 0 0;
+  background: var(--app-accent);
+}
+
+.appwin-tab.tick .n {
+  animation: tick 600ms var(--ease-out);
+}
+
+@keyframes tick {
+  30% { color: var(--app-accent); font-weight: 700; }
+}
+
+/* the tools on the right of the list pane head: search, then the privacy
+   toggle with its key hint */
+.pane-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.appwin-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.appwin-search {
+  flex: none;
+  width: 168px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--app-line);
+  background: var(--app-hover);
+  padding: 0 26px 0 10px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--app-text);
+}
+
+.appwin-search::placeholder {
+  color: var(--app-faintest);
+}
+
+.appwin-search:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 1px;
+}
+
+/* the "/" key hint sits inside the search field's right edge */
+.search-key {
+  position: absolute;
+  right: 7px;
+  min-width: 14px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 4px;
+  border: 1px solid var(--app-line);
+  background: var(--app-surface);
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 13px;
+  text-align: center;
+  color: var(--app-faintest);
+  pointer-events: none;
+}
+
+.pkey.on {
+  background: var(--app-selected);
+  color: var(--app-text);
+}
+
+.pkey-hint {
+  min-width: 14px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 4px;
+  border: 1px solid var(--app-line);
+  background: var(--app-surface);
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 13px;
+  text-align: center;
+  color: var(--app-faintest);
+}
+
+@media (hover: none) {
+  .pane-head .search-key,
+  .pane-head .pkey-hint {
+    display: none;
+  }
+}
+
+.mlist {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding-top: 2px;
+}
+
+.mday {
+  height: 28px;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 16px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-faintest);
+}
+
+.appwin-empty {
+  padding: 28px 16px;
+  font-size: 13px;
+  color: var(--app-text-3);
+}
+
+/* --- one mail card: sender + time, subject, preview, reason --- */
+.mrow {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  width: 100%;
+  padding: 11px 16px;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--app-text);
+  cursor: default;
+}
+
+.mrow::after {
+  content: "";
+  position: absolute;
+  left: 49px;
+  right: 14px;
+  bottom: 0;
+  height: 1px;
+  background: var(--app-line);
+}
+
+button.mrow:hover:not(.on) {
+  background: var(--app-hover);
+}
+
+.mrow.on {
+  background: var(--app-selected);
+}
+
+.mrow.on::after,
+.mrow:hover::after {
+  opacity: 0;
+}
+
+.row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.row-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.row-line .from {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.row-line .time {
+  margin-left: auto;
+  flex: none;
+  font-size: 12px;
+  color: var(--app-faintest);
+  font-variant-numeric: tabular-nums;
+}
+
+.row-subject,
+.row-preview {
+  font-size: 13px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.row-preview {
+  color: var(--app-text-3);
+}
+
+.mrow.r1 .row-preview {
+  display: none;
+}
+
+.row-reason {
+  font-size: 12px;
+  color: var(--app-reason);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mrow.unread .from,
+.mrow.unread .row-subject {
+  font-weight: 700;
+}
+
+.udot {
+  position: absolute;
+  left: 4px;
+  top: 19px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--app-accent);
+}
+
+/* avatar + provider badge */
+.ava {
+  position: relative;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+}
+
+.ava > span:first-child {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #ededed;
+}
+
+.ava-lg,
+.ava-lg > span:first-child {
+  width: 36px;
+  height: 36px;
+}
+
+.ava-letter {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--app-avatar-text);
+}
+
+.ava .badge {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--app-surface);
+  box-shadow: 0 0 0 2px var(--app-surface);
+}
+
+.ava-lg .badge {
+  right: -4px;
+  bottom: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+}
+
+/* --- reader pane --- */
+.appwin-reader {
+  width: 348px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--app-line);
+  background: var(--app-surface);
+}
+
+.reader-head {
+  gap: 2px;
+  padding: 0 8px;
+}
+
+/* the action group is icon-only: the reader pane is too narrow for labels */
+.ract {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  height: 28px;
+  padding: 0 7px;
+  border-radius: 7px;
+  font-size: 0;
+  color: var(--app-text-2);
+  white-space: nowrap;
+}
+
+.ract svg {
+  width: 15px;
+  height: 15px;
+}
+
+.rsep {
+  width: 1px;
+  height: 18px;
+  margin: 0 5px;
+  background: var(--app-line);
+  flex: none;
+}
+
+.resc {
+  margin-left: auto;
+  flex: none;
+}
+
+.resc kbd {
+  font-size: 10px;
+  font-family: inherit;
+  padding: 2px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--app-line);
+  color: var(--app-faintest);
+}
+
+.reader-head .ctl-win,
+.reader-head .ctl-linux {
+  margin-left: 6px;
+}
+
+.reader-head .ctl-win svg {
+  width: 30px;
+  height: 26px;
+  padding: 8px 10px;
+}
+
+/* narrow windows: tab labels fold to icon + count on inactive tabs,
+   the reader's low-priority actions hide, Esc and controls stay */
+@container (max-width: 1180px) {
+  .ract.low {
+    display: none;
+  }
+}
+
+@container (max-width: 620px) {
+  .appwin-hero .appwin-tab:not(.on) .tab-label {
+    display: none;
+  }
+}
+
+@container (max-width: 400px) {
+  .appwin-search-wrap {
+    display: none;
+  }
+}
+
+@container (max-width: 340px) {
+  .appwin-list .pane-head {
+    display: none;
+  }
+}
+
+@container (max-width: 760px) {
+  .appwin-hero .side,
+  .appwin-hero .appwin-reader {
+    display: none;
+  }
+}
+
+.reader-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 18px 20px;
+}
+
+.appwin-reader h3 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.appwin-reader .who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.appwin-reader .who b {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.appwin-reader .who small {
+  display: block;
+  font-size: 12px;
+  color: var(--app-text-3);
+}
+
+.appwin-reader .when {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--app-faintest);
+}
+
+.appwin-reader .why {
+  margin-top: 12px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-reason) 9%, var(--app-surface));
+  font-size: 12px;
+  color: var(--app-reason);
+}
+
+.appwin-reader .body {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--app-text-2);
+}
+
+.reader-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.reader-actions button {
+  padding: 4px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--app-line);
+  background: none;
+  font-size: 12px;
+  color: var(--app-text-2);
+  cursor: pointer;
+}
+
+.reader-actions button:hover {
+  background: var(--app-hover);
+  color: var(--app-text);
+}
+
+/* --- live arrival rows + toast --- */
+.arr {
+  overflow: hidden;
+}
+
+.arr .mrow {
+  transform: translateY(6px);
+  opacity: 0;
+  animation: arr-in 620ms var(--ease-out) 60ms forwards;
+}
+
+.arr-in .mrow {
+  transform: none;
+  opacity: 1;
+  animation: none;
+}
+
+.arr-out {
+  height: 0;
+  opacity: 0;
+  transition: height 420ms var(--ease-out) 180ms, opacity 300ms;
+}
+
+.arr-tag {
+  position: absolute;
+  right: 14px;
+  top: 12px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--app-accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  z-index: 1;
+}
+
+.win-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--app-text);
+  color: var(--app-surface);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 2;
+}
+
+/* dialog fragments keep a small window bar */
+.appwin-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--app-line);
+  flex: none;
+  width: 100%;
+}
+
+.appwin-title {
+  font-size: 12px;
+  color: var(--app-text-3);
+  font-weight: 500;
+}
+
+.appwin-bar .ctl-win,
+.appwin-bar .ctl-linux {
+  margin-left: auto;
+}
+
+/* --- fragment window interior --- */
+
+.appwin-work {
+  flex: 1;
+  min-height: 0;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.frag {
+  position: relative;
+  flex-direction: column;
+  border-radius: 14px;
+  box-shadow: var(--app-shadow), var(--shadow-win);
+  overflow: hidden;
+}
+
+.frag-h {
+  padding: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+.frag-note {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--app-text-3);
+}
+
+.frag-pad {
+  padding: 24px;
+}
+
+.frag-btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: var(--app-accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.frag-tabs {
+  display: flex;
+  gap: 15px;
+  height: 42px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--app-line);
+}
+
+/* the app's toast: a raised card overlaying the window's bottom edge —
+   absolute so it never changes the window's layout */
+.frag-toast {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--app-line-2);
+  border-radius: 14px;
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow);
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 500;
+  animation: frag-toast-in 240ms var(--ease-out);
+}
+
+@keyframes frag-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.frag-toast-i {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-accent) 10%, var(--app-surface));
+  color: var(--app-accent);
+}
+
+.frag-toast-a {
+  margin-left: auto;
+  color: var(--app-accent);
+  font-weight: 500;
+}
+
+/* --- search fragment --- */
+
+.frag-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: var(--app-hover);
+  font-size: 13px;
+  color: var(--app-text);
+}
+
+.frag-search-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--app-faintest);
+}
+
+.frag-search-icon::before {
+  content: "";
+  display: block;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+
+.frag-search-icon::after {
+  content: "";
+  display: block;
+  width: 1.5px;
+  height: 5px;
+  background: currentColor;
+  transform: rotate(-45deg);
+  margin-left: 8px;
+  margin-top: -2px;
+}
+
+.frag-search-text {
+  white-space: pre;
+}
+
+.frag-search .caret {
+  width: 2px;
+  height: 16px;
+  background: var(--app-accent);
+}
+
+.frag-preview {
+  margin-top: 4px;
+}
+
+.frag-preview .n {
+  display: block;
+  padding: 10px 16px 4px;
+  font-size: 12px;
+  color: var(--app-faintest);
+}
+
+/* --- sync fragment --- */
+
+.sync-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.sync-row .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.sync-row .grow b {
+  display: block;
+  font-size: 12px;
+  color: var(--app-text);
+}
+
+.sync-row .grow small {
+  display: block;
+  margin: 2px 0 4px;
+  font-size: 12px;
+  color: var(--app-text-3);
+}
+
+.sync-row .acct-tile {
+  width: 24px;
+  height: 24px;
+}
+
+.sync-row .who {
+  width: 148px;
+  flex: none;
+  font-size: 12px;
+  color: var(--app-text-2);
+}
+
+.sync-row .what {
+  flex: 1;
+  min-width: 0;
+}
+
+.sync-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--app-hover);
+  overflow: hidden;
+}
+
+.sync-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--app-accent);
+  transform-origin: left center;
+}
+
+.sync-row .when {
+  flex: none;
+  width: 56px;
+  font-size: 12px;
+  color: var(--app-faintest);
+  text-align: right;
+}
+
+.sync-last {
+  margin-top: 4px;
+}
+
+/* --- connect fragment --- */
+
+.provider-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.provider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--app-surface);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.provider svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.provider small {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--app-text-3);
+}
+
+.provider .grow {
+  min-width: 0;
+}
+
+.frag-preview + .frag-note,
+.provider-grid + .frag-note {
+  margin-top: 12px;
+}
+
+/* --- teach fragment --- */
+
+/* the teach form: a two-column settings grid — fixed label column, field
+   boxes on one baseline, the action aligned to the field column */
+.teach {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-content: start;
+  gap: 10px 12px;
+  border-radius: 12px;
+  background: var(--app-hover);
+  padding: 16px;
+}
+
+.teach .teach-note {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+
+.teach-k {
+  padding-top: 8px;
+  font-size: 12px;
+  color: var(--app-text-3);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.teach-v {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  background: var(--app-surface);
+  font-size: 12px;
+  color: var(--app-text);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.teach .frag-preview {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--app-text-3);
+}
+
+.teach-actions {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.teach-actions .frag-note {
+  margin-top: 0;
+}
+
+/* --- archive fragment --- */
+
+/* six rows render; the list clips at five so the window's height never
+   changes as the top one archives — the sixth slides up into view */
+.frag-arch {
+  overflow: hidden;
+  max-height: 309px;
+}
+
+.arch-row {
+  display: block;
+  transition: transform 360ms var(--ease-out), opacity 360ms var(--ease-out);
+}
+
+.arch-out {
+  transform: translateX(32px);
+  opacity: 0;
+}
+
+/* each row moves by its own height — no pixel row height to go stale */
+.arch-up {
+  transform: translateY(-100%);
+}
+
+/* --- sort fragment --- */
+
+.sort-row {
+  display: block;
+}
+
+/* --- privacy rows in fragments --- */
+
+.priv-swap {
+  position: relative;
+}
+
+.priv-side {
+  transition: opacity 240ms var(--ease-out);
+}
+
+.priv-side.off {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.priv-row .row-subject,
+.priv-row .row-preview,
+.priv-row .from {
+  color: var(--app-faintest);
+  font-weight: 400;
+}
+
+/* --- density fragment: one list whose rows physically shrink and grow --- */
+
+.dense-rows .mrow {
+  transition: padding-block 320ms var(--ease-out);
+}
+
+.dense-row .row-preview,
+.dense-row .row-reason {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows 320ms var(--ease-out),
+    opacity 320ms var(--ease-out);
+}
+
+.dense-row .row-sub {
+  display: block;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.compact .mrow {
+  padding-block: 6px;
+}
+
+/* may-need-you rows (.keep) hold their extra lines in Compact */
+.compact .dense-row:not(.keep) :is(.row-preview, .row-reason) {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+/* --- compose fragment: the app's envelope rows, toolbar, body and footer
+   drawn as a still picture at the app's own metrics --- */
+
+.compose {
+  padding-inline: 18px;
+  font-size: 13px;
+}
+
+.compose-discard {
+  margin-left: auto;
+  margin-right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  font-size: 11px;
+  color: var(--app-text-3);
+}
+
+/* in the composer the action sits directly before the platform controls —
+   the controls' own auto margin stays zeroed so the discard takes the gap */
+.compose-win .ctl-win,
+.compose-win .ctl-linux {
+  margin-left: 0;
+}
+
+.compose-envelope {
+  border-block: 1px solid var(--app-line);
+}
+
+.compose .compose-line {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  border-bottom: 1px solid var(--app-line);
+  font-size: 12px;
+  color: var(--app-text-3);
+}
+
+.compose-envelope .compose-line:last-child {
+  border-bottom: 0;
+}
+
+.compose-k {
+  width: 48px;
+  flex: none;
+}
+
+.compose-v {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 0;
+  color: var(--app-text);
+}
+
+.compose-v svg {
+  color: var(--app-faintest);
+}
+
+.compose-subj .compose-v {
+  font-weight: 600;
+}
+
+.compose-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--app-line);
+  border-radius: 999px;
+  background: var(--app-hover);
+  color: var(--app-text-2);
+}
+
+.compose-cc {
+  flex: none;
+  padding: 8px;
+  font-size: 12px;
+  color: var(--app-text-3);
+}
+
+.compose-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  min-height: 44px;
+}
+
+.compose-attach {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 2px;
+  font-size: 11px;
+  color: var(--app-text);
+}
+
+.compose-limits {
+  font-size: 10px;
+  color: var(--app-faintest);
+}
+
+.compose-body {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--app-text-2);
+  white-space: pre-line;
+}
+
+.compose-sig {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--app-text-3);
+}
+
+.compose-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--app-line);
+}
+
+.compose-act {
+  font-size: 12px;
+  color: var(--app-text-2);
+}
+
+.compose-status {
+  flex: 1;
+  margin-left: auto;
+  text-align: right;
+  font-size: 11px;
+  color: var(--app-faintest);
+}
+
+.compose-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 78px;
+  height: 34px;
+}
+
+.compose .caret {
+  display: inline-block;
+  width: 2px;
+  height: 13px;
+  margin-left: 1px;
+  vertical-align: -2px;
+  background: var(--app-accent);
+}
+
+/* --- switches (privacy panel + vignettes) --- */
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.switch-row + .switch-row {
+  border-top: 1px solid var(--app-line);
+}
+
+.switch-s {
+  font-weight: 500;
+  color: var(--app-text);
+}
+
+.switch-c {
+  font-size: 12px;
+  color: var(--app-text-3);
+  transition: opacity 160ms;
+}
+
+.switch-c.swap {
+  opacity: 0;
+}
+
+.switch-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.switch-text .switch-c {
+  display: block;
+  margin-top: 2px;
+}
+
+.toggle {
+  margin-left: auto;
+  flex: none;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--app-line-2);
+  cursor: pointer;
+  transition: background-color var(--t-ui);
+}
+
+.toggle i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 200ms var(--ease-out);
+}
+
+.toggle[aria-checked="true"] {
+  background: var(--app-accent);
+}
+
+.toggle[aria-checked="true"] i {
+  transform: translateX(14px);
+}
+
+.toggle[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.85;
+}
+
+/* --- bento crops: bare app regions, cropped by the card --- */
+
+.crop {
+  background: var(--app-bg);
+  border-top: 1px solid var(--app-line);
+  padding: 16px;
+  overflow: hidden;
+}
+
+.crop .appwin-tabs {
+  height: 42px;
+  padding: 0 16px;
+  margin: -16px -16px 2px;
+  border-bottom: 1px solid var(--app-line);
+}
+
+.crop .mrow {
+  padding-inline: 8px;
+}
+
+.crop-h {
+  padding: 0 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-faintest);
+}
+
+/* calendar crop — the app's month grid: weekday header, seven equal
+   minmax(0,1fr) columns, fixed-height bordered cells, single-line chips
+   that ellipsise inside their cell */
+.cal {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.cal-wd {
+  padding-bottom: 4px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--app-text-3);
+}
+
+.cal-d {
+  display: flex;
+  flex-direction: column;
+  height: 34px;
+  padding: 3px 4px;
+  border: 1px solid var(--app-line);
+  border-radius: 6px;
+  background: var(--app-surface);
+  overflow: hidden;
+}
+
+.cal-n {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--app-text-3);
+}
+
+.cal-d.dim {
+  opacity: 0.5;
+}
+
+.cal-d.today {
+  box-shadow: inset 0 0 0 1px var(--app-accent);
+}
+
+.cal-d.today .cal-n {
+  color: var(--app-accent);
+  font-weight: 600;
+}
+
+.cal-chip {
+  display: block;
+  margin-top: auto;
+  max-width: 100%;
+  border-radius: 4px;
+  padding: 1px 4px;
+  background: color-mix(in srgb, var(--app-accent) 14%, var(--app-surface));
+  color: var(--app-accent);
+  font-size: 10px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-chip.warn {
+  background: color-mix(in srgb, var(--app-reason) 12%, var(--app-surface));
+  color: var(--app-reason);
+}
+
+/* vignette pieces inside privacy cards */
+
+.vig .conn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--app-text-2);
+}
+
+.vig .conn .acct-dot {
+  background: #2f9e44;
+}
+
+.vig .conn small {
+  margin-left: auto;
+  color: var(--app-text-3);
+}
+
+/* ================================================================
+   Motion — every hidden start state is behind no-js AND no-preference.
+   ================================================================ */
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.no-js) [data-reveal] {
+    opacity: 0;
+    transform: translateY(12px);
+    transition:
+      opacity var(--t-reveal) var(--ease-out) calc(var(--i, 0) * var(--stagger)),
+      transform var(--t-reveal) var(--ease-out) calc(var(--i, 0) * var(--stagger));
+  }
+
+  html:not(.no-js) [data-reveal].in {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* hero load: headline, subcopy, CTAs rise; the panel rises and fades; the
+     window inside settles a beat later. */
+  html:not(.no-js) .hero-h,
+  html:not(.no-js) .hero-sub,
+  html:not(.no-js) .hero-actions,
+  html:not(.no-js) .hero-meta {
+    animation: hero-rise 600ms var(--ease-out) calc(var(--d, 0ms)) backwards;
+  }
+
+  html:not(.no-js) .hero-sub {
+    --d: 70ms;
+  }
+
+  html:not(.no-js) .hero-actions {
+    --d: 140ms;
+  }
+
+  html:not(.no-js) .hero-meta {
+    --d: 210ms;
+  }
+
+  html:not(.no-js) .hero-panel {
+    animation: panel-in 900ms var(--ease-out) 200ms backwards;
+  }
+
+  html:not(.no-js) .hero-win {
+    animation: win-settle 1100ms var(--ease-out) 260ms backwards;
+  }
+
+  /* every swap remounts the pane, so this replays on each command pick */
+  html:not(.no-js) .frag-pane {
+    animation: frag-in 220ms var(--ease-out);
+  }
+
+  @keyframes frag-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+  @keyframes hero-rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+
+  @keyframes panel-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+
+  @keyframes win-settle {
+    from {
+      transform: translateY(12px) scale(0.98);
+    }
+  }
+
+}
+
+/* ================================================================
+   Hero scroll scene: the sticky frame fills the first viewport with
+   the hero text above the painted panel; scrolling opens the panel
+   from its resting box to full bleed. --p (0..1) is driven by a view
+   timeline where supported, else a rAF scroll listener.
+   ================================================================ */
+
+@property --p {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+@keyframes hero-open {
+  from { --p: 0; }
+  to { --p: 1; }
+}
+
+/* The shader canvas layers over the painting's CSS fallback and fades
+   in once its first frame has drawn. */
+.art-gl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transition: opacity 600ms ease;
+}
+
+/* resting geometry; --rest-top is measured by script once loaded */
+.hero {
+  --rest-side: max(var(--pad), calc((100vw - var(--max)) / 2 + var(--pad)));
+  --rest-top: 430px;
+  --win-h: min(760px, calc(100svh - var(--bar-h) - 96px));
+}
+
+@media (max-width: 760px) {
+  .hero {
+    --rest-top: 540px;
+    --win-h: min(760px, calc(100svh - var(--bar-h) - 80px));
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .hero {
+      timeline-scope: --hs;
+      padding-top: 0;
+    }
+
+    .hero-stage {
+      view-timeline-name: --hs;
+      height: 220svh;
+      width: 100vw;
+      margin-left: calc(50% - 50vw);
+      animation-name: hero-open;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: view();
+      animation-range: contain 0% contain 75%;
+    }
+
+    .hero-frame {
+      position: sticky;
+      top: 0;
+      height: 100svh;
+      overflow: clip;
+      padding: clamp(72px, 10vh, 120px) var(--rest-side) 0;
+    }
+
+    .hero-panel {
+      position: absolute;
+      inset: 0;
+      margin: 0;
+      height: auto;
+      border-radius: 0;
+      overflow: visible;
+    }
+
+    /* the clip goes on the media layers, not the panel: an accelerated
+       canvas inside a clip-path'd ancestor composites with a stale clip.
+       The 1.08 rest scale expands the clipped region ~4% each way around
+       centre, so the insets compensate — the visible edges land exactly on
+       the wrap content box at rest and open to the viewport as --p runs */
+    .hero-panel .art,
+    .hero-panel .art-gl {
+      clip-path: inset(
+        calc((1 - var(--p)) * (50svh - (50svh - var(--rest-top)) / 1.08))
+        calc((1 - var(--p)) * (50vw - (50vw - var(--rest-side)) / 1.08))
+        0px
+        calc((1 - var(--p)) * (50vw - (50vw - var(--rest-side)) / 1.08))
+        round calc((1 - var(--p)) * 24px) calc((1 - var(--p)) * 24px) 0px 0px
+      );
+    }
+
+    .hero-panel .art,
+    .hero-panel .art-gl {
+      transform: scale(calc(1.08 - var(--p) * 0.08));
+    }
+
+    .hero-win {
+      top: calc(var(--rest-top) + 32px);
+      left: calc(var(--rest-side) + 24px);
+      right: calc(var(--rest-side) + 24px);
+      bottom: auto;
+      height: var(--win-h);
+      transform: translateY(calc(var(--p) * ((100svh + var(--bar-h) - var(--win-h)) / 2 - var(--rest-top) - 32px)))
+        scale(calc(0.94 + var(--p) * 0.06));
+      transform-origin: 50% 30%;
+    }
+
+    .hero-win .appwin {
+      box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.05),
+        0 calc(12px + var(--p) * 20px) calc(32px + var(--p) * 40px) rgba(0, 0, 0, calc(0.08 + var(--p) * 0.08)),
+        0 0 0 0.5px rgba(0, 0, 0, 0.05);
+    }
+
+    .hero-h,
+    .hero-sub,
+    .hero-actions,
+    .hero-meta {
+      opacity: calc(1 - min(1, var(--p) * 2.86));
+      transform: translateY(calc(-32px * min(1, var(--p) * 2.86)));
+    }
+
+    @media (max-width: 760px) {
+      .hero-stage {
+        height: 170svh;
+      }
+
+      .hero-frame {
+        padding-top: 56px;
+      }
+
+      .hero-win {
+        top: calc(var(--rest-top) + 20px);
+        left: calc(var(--rest-side) + 12px);
+        right: calc(var(--rest-side) + 12px);
+      }
+    }
+  }
+
+  @supports not (animation-timeline: view()) {
+    html:not(.no-js) .hero {
+      padding-top: 0;
+    }
+
+    html:not(.no-js) .hero-stage {
+      height: 220svh;
+      width: 100vw;
+      margin-left: calc(50% - 50vw);
+    }
+
+    html:not(.no-js) .hero-frame {
+      position: sticky;
+      top: 0;
+      height: 100svh;
+      overflow: clip;
+      padding: clamp(72px, 10vh, 120px) var(--rest-side) 0;
+    }
+
+    html:not(.no-js) .hero-panel {
+      position: absolute;
+      inset: 0;
+      margin: 0;
+      height: auto;
+      border-radius: 0;
+      overflow: visible;
+    }
+
+    html:not(.no-js) .hero-panel .art,
+    html:not(.no-js) .hero-panel .art-gl {
+      clip-path: inset(
+        calc((1 - var(--p)) * (50svh - (50svh - var(--rest-top)) / 1.08))
+        calc((1 - var(--p)) * (50vw - (50vw - var(--rest-side)) / 1.08))
+        0px
+        calc((1 - var(--p)) * (50vw - (50vw - var(--rest-side)) / 1.08))
+        round calc((1 - var(--p)) * 24px) calc((1 - var(--p)) * 24px) 0px 0px
+      );
+    }
+
+    html:not(.no-js) .hero-panel .art,
+    html:not(.no-js) .hero-panel .art-gl {
+      transform: scale(calc(1.08 - var(--p) * 0.08));
+    }
+
+    html:not(.no-js) .hero-win {
+      top: calc(var(--rest-top) + 32px);
+      left: calc(var(--rest-side) + 24px);
+      right: calc(var(--rest-side) + 24px);
+      bottom: auto;
+      height: var(--win-h);
+      transform: translateY(calc(var(--p) * ((100svh + var(--bar-h) - var(--win-h)) / 2 - var(--rest-top) - 32px)))
+        scale(calc(0.94 + var(--p) * 0.06));
+      transform-origin: 50% 30%;
+    }
+
+    html:not(.no-js) .hero-win .appwin {
+      box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.05),
+        0 calc(12px + var(--p) * 20px) calc(32px + var(--p) * 40px) rgba(0, 0, 0, calc(0.08 + var(--p) * 0.08)),
+        0 0 0 0.5px rgba(0, 0, 0, 0.05);
+    }
+
+    html:not(.no-js) .hero-h,
+    html:not(.no-js) .hero-sub,
+    html:not(.no-js) .hero-actions,
+    html:not(.no-js) .hero-meta {
+      opacity: calc(1 - min(1, var(--p) * 2.86));
+      transform: translateY(calc(-32px * min(1, var(--p) * 2.86)));
+    }
+
+    @media (max-width: 760px) {
+      html:not(.no-js) .hero-stage {
+        height: 170svh;
+      }
+
+      html:not(.no-js) .hero-frame {
+        padding-top: 56px;
+      }
+
+      html:not(.no-js) .hero-win {
+        top: calc(var(--rest-top) + 20px);
+        left: calc(var(--rest-side) + 12px);
+        right: calc(var(--rest-side) + 12px);
+      }
+    }
+  }
+}
+
+/* --- hero demo: row state tags, inline reply, teach popover, composer,
+   action toast, workspace placeholder views --- */
+
+.row-wrap {
+  position: relative;
+}
+
+.row-tag {
+  position: absolute;
+  right: 14px;
+  top: 12px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--app-hover);
+  border: 1px solid var(--app-line);
+  color: var(--app-text-3);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  z-index: 1;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pin-tag {
+  color: var(--app-accent);
+}
+
+.ract {
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.ract:hover {
+  background: var(--app-hover);
+  color: var(--app-text);
+}
+
+.ract[aria-pressed="true"],
+.ract.on {
+  color: var(--app-accent);
+}
+
+.reply-box {
+  margin-top: 14px;
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--app-surface);
+}
+
+.reply-box textarea {
+  width: 100%;
+  border: 0;
+  outline: none;
+  resize: none;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-text);
+  background: none;
+}
+
+.reply-tools {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.frag-ghost {
+  border: 1px solid var(--app-line);
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: none;
+  font-size: 12px;
+  color: var(--app-text-2);
+  cursor: pointer;
+}
+
+.frag-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.teach-pop {
+  margin-top: 12px;
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+  padding: 8px;
+  background: var(--app-surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.teach-pop-h {
+  padding: 2px 6px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-faintest);
+}
+
+.teach-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font-size: 12px;
+  color: var(--app-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.teach-opt svg {
+  color: var(--app-accent);
+}
+
+.teach-opt:hover {
+  background: var(--app-hover);
+}
+
+.teach-opt.on {
+  color: var(--app-accent);
+  font-weight: 600;
+}
+
+/* the floating compose card, like the app's own composer */
+.compose-pane {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 3;
+  width: min(360px, calc(100% - 32px));
+  border-radius: 12px;
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow), var(--shadow-win);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.compose-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--app-line);
+  font-size: 12px;
+}
+
+.compose-f {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--app-line);
+  font-size: 12px;
+}
+
+.compose-f span {
+  width: 52px;
+  flex: none;
+  color: var(--app-text-3);
+}
+
+.compose-f input,
+.compose-f select {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--app-text);
+  background: none;
+}
+
+.compose-t {
+  border: 0;
+  outline: none;
+  resize: none;
+  padding: 12px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--app-text);
+  background: none;
+}
+
+.compose-pane .reply-tools {
+  padding: 10px 12px;
+  margin-top: 0;
+  border-top: 1px solid var(--app-line);
+}
+
+/* toast with an Undo action */
+.toast-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toast-act button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-accent);
+  cursor: pointer;
+}
+
+/* workspace placeholder views */
+.work-pane {
+  padding: 14px 18px;
+}
+
+.work-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--app-line);
+  font-size: 13px;
+}
+
+.work-row b {
+  font-weight: 600;
+}
+
+.work-row small {
+  margin-left: auto;
+  color: var(--app-faintest);
+  font-size: 12px;
+}
+
+/* ==== 3D page surfaces, controls and connected frame ==== */
+
+/* -- A. shared skeuomorphic surfaces and controls ---------------------------
+   The page uses the footer's top lighting, inner highlights and shallow
+   shadows for its buttons and blue cards. App demos keep their own theme. */
+/* the merged card carries one tone at every junction: the tab's bottom
+   edge, the fillet squares, the bar's top and the side bars all share
+   --frame, so the outline reads as a single surface */
+.look-skeuo {
+  --frame: color-mix(in srgb, var(--surface), #00131f 6%);
+  --skeuo-panel-fill: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--frame), #fff 8%) 0,
+    color-mix(in srgb, var(--frame), #fff 3%) 30%,
+    var(--frame) 100%
+  );
+  --skeuo-primary-fill: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--pink), #fff 18%) 0,
+    var(--pink) 55%,
+    color-mix(in srgb, var(--pink), #000 12%) 100%
+  );
+  --skeuo-secondary-fill: linear-gradient(
+    to bottom,
+    color-mix(in srgb, #fff, var(--surface) 10%) 0,
+    color-mix(in srgb, #fff, var(--surface) 45%) 100%
+  );
+  --skeuo-secondary-ink: color-mix(in srgb, var(--surface), #000 62%);
+  --skeuo-primary-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18),
+    0 1px 2px rgba(0, 30, 60, 0.28);
+  --skeuo-secondary-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -1px 0 rgba(0, 30, 50, 0.15),
+    0 1px 2px rgba(0, 30, 60, 0.2);
+  --skeuo-pressed-shadow:
+    inset 0 2px 4px rgba(0, 30, 50, 0.22),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.look-skeuo .footer-card {
+  /* rim light + a soft shadow follow the whole merged outline — tab top,
+     sides, fillet curves and the bar's top edge — as one continuous edge */
+  filter: drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.35))
+    drop-shadow(0 -4px 14px rgba(0, 20, 40, 0.22));
+}
+
+.look-skeuo .cta-card {
+  background: var(--skeuo-panel-fill);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.look-skeuo :is(.bcard, .pcard, .dl-card) {
+  background: var(--skeuo-panel-fill);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(0, 30, 50, 0.12),
+    0 2px 3px rgba(0, 30, 60, 0.12),
+    0 8px 18px rgba(0, 30, 60, 0.12);
+}
+
+.look-skeuo .cta-card::before,
+.look-skeuo .cta-card::after {
+  background: var(--frame);
+}
+
+/* Secondary actions share the footer's pale plastic finish. */
+.look-skeuo .btn-ghost,
+.look-skeuo .dl-copy,
+.look-skeuo .os-seg.on {
+  background: var(--skeuo-secondary-fill);
+  color: var(--skeuo-secondary-ink);
+  box-shadow: var(--skeuo-secondary-shadow);
+}
+
+/* Featured installer links remain pink even though they use btn-ghost. */
+.look-skeuo .btn-fill,
+.look-skeuo .dl-card.featured .dl-btn {
+  background: var(--skeuo-primary-fill);
+  color: var(--cta-ink);
+  box-shadow: var(--skeuo-primary-shadow);
+}
+
+.look-skeuo .os-switch {
+  background: var(--frame);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 30, 60, 0.25),
+    0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.look-skeuo .os-seg:not(.on) {
+  --os-logo-top: var(--white);
+  --os-logo-bottom: color-mix(in srgb, var(--white), var(--sky) 35%);
+  --skeuo-pressed-shadow: none;
+  --skeuo-disabled-shadow: none;
+  background: transparent;
+  color: var(--ink);
+  box-shadow: none;
+}
+
+/* Shade the unselected marks themselves; only the selected OS has a pill. */
+.look-skeuo .os-seg:not(.on) svg {
+  filter: drop-shadow(0 -0.5px 0 rgba(255, 255, 255, 0.45))
+    drop-shadow(0 1px 0.5px rgba(0, 30, 60, 0.35));
+}
+
+.look-skeuo .dl-copy {
+  padding: 3px 8px;
+  border-radius: var(--pill);
+  text-decoration: none;
+}
+
+.look-skeuo :is(.btn, .os-seg, .dl-copy):active:not(:disabled):not([aria-disabled="true"]) {
+  box-shadow: var(--skeuo-pressed-shadow);
+  transform: translateY(1px);
+}
+
+.look-skeuo :is(.btn, .os-seg, .dl-copy):is(:disabled, [aria-disabled="true"]) {
+  box-shadow: var(--skeuo-disabled-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.25));
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .look-skeuo :is(.btn, .os-seg, .dl-copy):active:not(:disabled):not([aria-disabled="true"]) {
+    transform: none;
+  }
+}
+
+/* the links bar is flat --frame: the same tone the tab ends on, so the
+   merge reads as one surface with no lip line */
+.look-skeuo .footer-links {
+  background: var(--frame);
+}
+
+/* letterpress text and an engraved groove for the credits hairline */
+.look-skeuo .footer-links,
+.look-skeuo .footer-links a {
+  text-shadow: 0 1px 0 rgba(0, 40, 70, 0.25);
+}
+
+.look-skeuo .footer-credits {
+  border-top: 1px solid rgba(0, 30, 50, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* -- B. the site inside a solid frame ----------------------------------------
+   A 16px solid bar down each viewport edge, the same blue as the header and
+   the footer links bar: header top, side bars and links bar read as one
+   continuous frame around the page and the wave painting. */
+.look-frame {
+  --frame: var(--surface);
+}
+
+/* with the skeuo footer, the bars meet the links bar at its top tone —
+   the flat colour the tray's gradient starts with */
+.look-skeuo.look-frame {
+  --frame: color-mix(in srgb, var(--surface), #00131f 6%);
+}
+
+/* the header is the frame's top edge: solid frame colour at all times,
+   no hairline, so it merges with the side bars */
+.look-frame .bar,
+.look-frame .bar.scrolled {
+  background: var(--frame);
+  border-bottom-color: transparent;
+}
+
+.look-frame body::before,
+.look-frame body::after {
+  content: "";
+  position: fixed;
+  top: var(--bar-h);
+  bottom: 0;
+  width: 16px;
+  background: var(--frame);
+  pointer-events: none;
+  z-index: 30;
+}
+
+.look-frame body::before {
+  left: 0;
+}
+
+.look-frame body::after {
+  right: 0;
+}
+
+@media (max-width: 640px) {
+  .look-frame body::before,
+  .look-frame body::after {
+    width: 8px;
+  }
+}
+
+/* -- C. skeuo + frame: one continuous 3D bezel -------------------------------
+   Draw the opening as a rounded rectangle so its shadow turns the corners
+   with the rails. Separate corner tiles leave seams in the edge lighting. */
+.look-skeuo.look-frame {
+  --frame-rail: 16px;
+  --frame-radius: 14px;
+  --frame-shadow: rgba(0, 20, 40, 0.28);
+  --frame-edge: inset 0 2px 8px var(--frame-shadow);
+}
+
+.look-skeuo.look-frame body::after {
+  content: none;
+}
+
+.look-skeuo.look-frame body::before {
+  content: "";
+  position: fixed;
+  top: var(--bar-h);
+  right: var(--frame-rail);
+  bottom: calc(-1 * var(--frame-radius));
+  left: var(--frame-rail);
+  width: auto;
+  background: transparent;
+  border-radius: var(--frame-radius) var(--frame-radius) 0 0;
+  box-shadow: 0 0 0 100vmax var(--frame), var(--frame-edge);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* The header ends at the opening's exact top, including its box geometry. */
+.look-skeuo.look-frame .bar,
+.look-skeuo.look-frame .bar.scrolled {
+  background: var(--frame);
+  border-bottom: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+/* Main stays below the fixed opening; the footer paints its own matching
+   opening so the lower curves travel with the links bar during scroll. */
+.look-skeuo.look-frame main {
+  position: relative;
+  z-index: 0;
+}
+
+.look-skeuo.look-frame .footer-stage {
+  z-index: 11;
+}
+
+/* A shadow around the full links bar would cut across the side rails.
+   Keep the tab's relief above its join and shade the opening below instead. */
+.look-skeuo.look-frame .footer-card {
+  position: relative;
+  filter: none;
+}
+
+.look-skeuo.look-frame .cta-card {
+  filter: drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.35))
+    drop-shadow(0 -4px 14px rgba(0, 20, 40, 0.22));
+  clip-path: inset(-40px -40px 0);
+}
+
+.look-skeuo.look-frame .footer-links {
+  position: relative;
+}
+
+.look-skeuo.look-frame .footer-links::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: var(--frame-rail);
+  right: var(--frame-rail);
+  /* Reach past the tallest footer painting, including the phone layout. */
+  height: max(100svh, 1600px);
+  border-radius: 0 0 var(--frame-radius) var(--frame-radius);
+  /* Negative spread limits this shadow to the lower edge; the fixed
+     opening already shades the vertical edges behind it. */
+  box-shadow: 0 0 0 100vmax var(--frame),
+    inset 0 -8px 8px -8px var(--frame-shadow);
+  clip-path: inset(0 calc(-1 * var(--frame-rail)) 0);
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .look-skeuo.look-frame {
+    --frame-rail: 8px;
+    --frame-radius: 10px;
+  }
+}
+
+/* ==== themes: painting layers, header marks and dark overrides ==== */
+
+/* -- A. themed paintings ------------------------------------------------------
+   Each painting ships a light and a night layer, and each layer gets its own
+   shader canvas. Only the active theme's pair is displayed. */
+:root:not([data-theme="dark"]) [data-art="dark"],
+:root[data-theme="dark"] [data-art="light"] {
+  display: none;
+}
+
+/* the night fallbacks carry their shader's grade, as the light ones do */
+/* the night paintings go near-monochrome so they carry no hue of their own */
+.hero-panel [data-art="dark"] .art-i {
+  filter: saturate(0.25) contrast(1.1) brightness(0.6);
+}
+
+.footer-paint [data-art="dark"] .art-i {
+  filter: saturate(0.25) contrast(1.15) brightness(0.5);
+}
+
+.feat-panel [data-art="dark"] .art-i {
+  filter: saturate(0.25) contrast(1.1) brightness(0.55);
+}
+
+/* -- B. header theme toggle and moulded repository marks --------------------- */
+.bar-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--bar-control-h);
+  height: var(--bar-control-h);
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--bar-ink) 14%, transparent);
+  border-radius: var(--bar-control-radius);
+  background: var(--bar-control-bg);
+  color: var(--bar-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 1px 2px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  font: inherit;
+}
+
+.bar-icon:active {
+  box-shadow: var(--skeuo-pressed-shadow, none);
+  transform: translateY(1px);
+}
+
+:root:not([data-theme="dark"]) .bar-theme-sun,
+:root[data-theme="dark"] .bar-theme-moon {
+  display: none;
+}
+
+.bar-repo {
+  gap: 7px;
+  padding-inline: 10px 12px;
+}
+
+.bar-repo:active {
+  box-shadow: var(--skeuo-pressed-shadow, none);
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar-icon:active,
+  .bar-repo:active {
+    transform: none;
+  }
+}
+
+/* outline marks drawn in the bar's ink, like the other header icons */
+.bar-repo svg {
+  flex: none;
+}
+
+/* the marks stand for their sites; the words stay for screen readers */
+.bar-repo .bar-gh-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.bar-repo .bar-stars {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.bar-cafe {
+  width: var(--bar-control-h);
+  padding: 0;
+}
+
+@media (max-width: 480px) {
+  .bar-repo {
+    width: var(--bar-control-h);
+    padding: 0;
+  }
+}
+
+/* -- C. dark overrides for surfaces that pin their own light values --------- */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* the compare table is a solid card in both themes: white by day,
+   near-black by night */
+:root[data-theme="dark"] .cmp-wrap {
+  --ink: #ffffff;
+  --soft: rgba(255, 255, 255, 0.82);
+  --faint: rgba(255, 255, 255, 0.6);
+  --line: rgba(255, 255, 255, 0.1);
+  --surface: #121212;
+  --raised: #1e1e1e;
+  --accent: #6b9cff;
+  background: var(--surface);
+}
+
+/* app fragments switch to the app's own dark scheme */
+:root[data-theme="dark"] [data-ui] {
+  color-scheme: dark;
+  --ink: #fff;
+  --soft: #a0a0a6;
+  --faint: #88888f;
+  --line: rgba(255, 255, 255, 0.08);
+  --surface: #0e0e10;
+  --raised: #1c1c1f;
+  --accent: #6b9cff;
+}
+
+:root[data-theme="dark"] .hero[data-os="mac"] [data-ui] {
+  box-shadow:
+    0 24px 60px -12px rgba(0, 0, 0, 0.6),
+    0 0 0 0.5px rgba(255, 255, 255, 0.14);
+}
+
+:root[data-theme="dark"] .hero[data-os="mac"] [data-ui] .side {
+  background: rgba(28, 28, 31, 0.92);
+}
+
+:root[data-theme="dark"] .hero[data-os="mac"] [data-ui] .ctl-mac i::before {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+:root[data-theme="dark"] .hero[data-os="windows"] [data-ui] {
+  border-color: #2b2b2b;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.45),
+    0 0 0 0.5px rgba(255, 255, 255, 0.06);
+}
+
+:root[data-theme="dark"] .hero[data-os="windows"] [data-ui] .side {
+  background: #202020;
+}
+
+:root[data-theme="dark"] .hero[data-os="windows"] [data-ui] .ctl-win svg:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme="dark"] .hero[data-os="linux"] [data-ui] {
+  box-shadow:
+    0 20px 48px -12px rgba(0, 0, 0, 0.55),
+    0 0 0 0.5px rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme="dark"] .hero[data-os="linux"] [data-ui] .side {
+  background: #2e2e32;
+}
+
+:root[data-theme="dark"] .hero[data-os="linux"] [data-ui] .ctl-linux i:last-child {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* the frame darkens toward pure black, not the day theme's blue-black */
+:root[data-theme="dark"].look-skeuo,
+:root[data-theme="dark"].look-skeuo.look-frame {
+  --frame: color-mix(in srgb, var(--surface), #000 30%);
+}
+
+/* secondary buttons turn from pale plastic to a lit graphite plastic */
+:root[data-theme="dark"].look-skeuo {
+  --skeuo-secondary-fill: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--raised), #fff 16%) 0,
+    var(--raised) 100%
+  );
+  --skeuo-secondary-ink: var(--ink);
+  --skeuo-secondary-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.4);
+  --skeuo-pressed-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.4),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.1);
+  --frame-shadow: rgba(0, 0, 0, 0.45);
+}
+
+/* the paper-white rim lights soften at night */
+:root[data-theme="dark"].look-skeuo.look-frame .bar,
+:root[data-theme="dark"].look-skeuo .cta-card {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+:root[data-theme="dark"].look-skeuo :is(.bcard, .pcard, .dl-card) {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    0 2px 3px rgba(0, 0, 0, 0.2),
+    0 8px 18px rgba(0, 0, 0, 0.22);
+}
+
+:root[data-theme="dark"].look-skeuo.look-frame .cta-card {
+  filter: drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.14))
+    drop-shadow(0 -4px 14px rgba(0, 0, 0, 0.4));
+}
+
+/* the footer's pressed-in word loses its blue-black shading at night */
+:root[data-theme="dark"] .footer-word {
+  color: color-mix(in srgb, var(--surface), #000 40%);
+  text-shadow:
+    -1px -1px 0 rgba(0, 0, 0, 0.7),
+    1px 1px 0 rgba(255, 255, 255, 0.14),
+    0 3px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* -- D. calmer light theme ----------------------------------------------------
+   Blue stays for the field, header and frame; the content cards turn
+   near-white with dark ink so blue is one colour among several. The page
+   tokens are re-pinned inside them, as the compare table does. */
+:root:not([data-theme="dark"]) :is(.bcard, .pcard, .dl-card) {
+  --ink: #1c1b1f;
+  --soft: #5d5b63;
+  --faint: #6f6d75;
+  --line: rgba(0, 0, 0, 0.07);
+  --surface: #fff;
+  --raised: #eef3f6;
+  --accent: #2f6fe4;
+  --os-logo-top: #2a2a30;
+  --os-logo-bottom: #55555d;
+  color: var(--ink);
+}
+
+:root:not([data-theme="dark"]).look-skeuo :is(.bcard, .pcard, .dl-card) {
+  background: linear-gradient(to bottom, #fff 0, color-mix(in srgb, #fff, var(--sky) 5%) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(0, 30, 50, 0.08),
+    0 2px 3px rgba(0, 30, 60, 0.1),
+    0 8px 18px rgba(0, 30, 60, 0.12);
+}
+
+/* on a white card the pale plastic buttons need a cooler shade to read */
+:root:not([data-theme="dark"]).look-skeuo :is(.bcard, .pcard, .dl-card) :is(.btn-ghost, .dl-copy) {
+  --skeuo-secondary-fill: linear-gradient(to bottom, #f4f7f9 0, #e2e9ee 100%);
+}
+
