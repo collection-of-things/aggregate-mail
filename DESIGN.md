@@ -77,9 +77,14 @@ the same compact type, grouped forms and footer actions.
 
 The application uses the layout from `feat/frontend-rebuild` on the current
 renderer: a 200px source rail with Workspace above Mail, a connected-account
-footer, a breadcrumb band, etched separators and inset document-preview lists.
-The branch's New Message and Drafts icons remain. The web breadcrumb band is
+footer, a compact view-and-search toolbar, etched separators and inset
+document-preview lists.
+The branch's New Message and Drafts icons remain. The web toolbar is
 40px; desktop retains its 52px caption space for native window controls.
+The current view and search share the leading edge; history stays at the right.
+The sidebar shows the app name and uses theme chrome in light mode and the
+raised surface in dark mode. Its 42px footer
+places sync status at the left and Settings at the right, with a top hairline.
 
 Comfortable mail uses 100px card rows at every width, including the full-width
 list. Compact mail remains 24px wide or 72px beside the reader. The virtual
@@ -183,9 +188,14 @@ Timed follow-ups use local time, appear in Today when due, and leave the deadlin
 and completion status unchanged. Use existing theme tokens and native date
 inputs. No operating-system reminders in V2.
 
-Emc² events share the grid, day list and agenda. Month cells show up to two
-event chips (time and title; "Event" in privacy mode) and a count of other
-entries. New event sits in the calendar toolbar; Schedule meeting sits in the
+Emc² events share the grid, day list and agenda. The month navigator uses a
+296px column beside a wider event list, with 48px minimum day cells and one
+event preview (time and title; "Event" in privacy mode). Each date shows its
+total scheduled count; selecting it reveals every entry. The event list uses
+15px titles, 12px metadata and 76px minimum rows. At 660px or less of calendar
+content width, the month stacks above the event list. Coarse pointers get a
+336px month column when space permits. New event sits in the calendar toolbar;
+Schedule meeting sits in the
 opened email's toolbar and context menu. Both use one dialog form with start and
 end date and time or all-day days, attendees, location, Meet link, notes and
 account. Linked events offer Unlink source email; saving applies the unlink and

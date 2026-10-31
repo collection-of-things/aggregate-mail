@@ -15,6 +15,8 @@ unversioned history without treating it as a release record.
 
 ### Changed
 
+- Keep the view name and search together in a compact toolbar, align sync status and Settings in the sidebar footer, and give calendar events more room beside a smaller month navigator. Dates show the full scheduled count, and every entry remains available in the larger day list.
+
 - Bring the frontend rebuild layout to the current app: Workspace-first navigation with an account footer, source icons, a compact breadcrumb band, inset mail and draft previews, and document surfaces across reading, work, Calendar, Contacts and Settings. Comfortable mail cards keep their measured scrolling at every width; compact density remains available. Keep dark selection and scrolling date headings readable, preserve compact selection spacing, and open Accounts from the footer. Keep current mail actions, rich drafts, attachments, scheduled sending and protected browser access.
 
 - Rebuild the marketing site as a static Astro page, replacing the Lakebed capsule. It leads with a working demo inbox over a public-domain painting, then a keyboard command demo, interface crops, privacy cards, a comparison with Thunderbird, Mailspring and Spark, per-platform downloads and an FAQ. Download buttons link the exact installer for the visitor's system with its size and SHA-256 checksum from the latest release. Star and download counts load in the browser from the public GitHub API and stay hidden when unavailable. The header and footer link both GitHub and git.cafe. Any static host can serve the build. ([#184](https://github.com/collection-of-things/aggregate-mail/pull/184))

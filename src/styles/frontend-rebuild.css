@@ -2,16 +2,16 @@
    privacy and virtual scrolling remain owned by the current components. */
 :root {
   --sidebar: 200px;
-  --rebuild-rail: color-mix(in srgb, var(--bg) 65%, var(--surface));
+  --rebuild-rail: var(--chrome);
   --rebuild-canvas: color-mix(in srgb, var(--surface) 80%, var(--bg));
   --rebuild-highlight: color-mix(in srgb, var(--text) 6%, transparent);
   --rebuild-edge: 24px;
 }
 :root[data-scheme="light"][data-theme="black"] {
-  --rebuild-rail: #fafaf9;
   --rebuild-canvas: #fafafa;
 }
 :root[data-scheme="light"] { --rebuild-highlight: rgba(255, 255, 255, .9); }
+:root[data-scheme="dark"] { --rebuild-rail: var(--raised); }
 
 /* A source rail, breadcrumb band and etched dividers replace the old chrome. */
 :root:not([data-glass]) .sidebar { background: var(--rebuild-rail); }
@@ -33,7 +33,6 @@
   .app:not(.desktop)[data-view="drafts"] .dialog-backdrop.compose-backdrop { padding-top: 42px; }
   .app:not(.desktop) .app-update-control { top: 4px; }
 }
-.app:not(.desktop) .sidebar-brand { visibility: hidden; }
 .sidebar-head > .icon {
   width: 28px; height: 28px; border: 1px solid var(--line-2);
   background: var(--surface); box-shadow: var(--edge); border-radius: 8px;
@@ -65,18 +64,19 @@
 .sidebar-account-text > :is(strong, span) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .sidebar-account-text strong { font-weight: 500; font-size: calc(12px * var(--text-scale, 1)); }
 .sidebar-account-text > span { color: var(--text-4); font-size: calc(11px * var(--text-scale, 1)); }
-.sidebar-footer { min-height: 34px; padding: 0 12px 6px; border-top: 0; }
-.sidebar-footer .sidebar-settings { width: 28px; height: 28px; }
-.sidebar-footer .sync { font-size: calc(10px * var(--text-scale, 1)); }
+.sidebar-footer { padding: 0 12px; border-top: 1px solid var(--line); }
+.sidebar-footer .sidebar-settings { order: 0; width: 24px; height: 24px; }
+.sidebar-footer .sync { margin-left: 0; margin-right: auto; padding-inline: 0; font-size: calc(11px * var(--text-scale, 1)); }
 
-/* The page header uses the branch breadcrumb and a compact field at the right. */
-.app-toolbar { padding-inline: var(--rebuild-edge) 16px; gap: 10px; }
+/* View name and search share the leading edge; history stays at the right. */
+.app-toolbar { padding-inline: 16px; gap: 10px; }
 .app-context { gap: 6px; margin-right: 2px; font-size: calc(13px * var(--text-scale, 1)); }
-.app-context > span { color: var(--text-4); }
-.app-context strong { font-weight: 500; }
-.app-search-toolbar { max-width: 340px; }
-.app-search-toolbar .search { height: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.app-context > :is(span, svg) { display: none; }
+.app-context strong { font-weight: 600; }
+.app-search-toolbar { max-width: 300px; margin-left: 0; }
+.app-search-toolbar .search { height: 28px; border: 1px solid var(--line); border-radius: 7px; background: var(--hover); }
 .app-search-toolbar .search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
+.app-toolbar .mail-navigation { margin-left: auto; }
 .commands-button { font-size: calc(11px * var(--text-scale, 1)); }
 .app-toolbar .icon { width: 28px; height: 28px; }
 .app-toolbar .update-spacer { height: 28px; }
@@ -176,15 +176,34 @@
 .work-content :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { background: var(--surface); border-color: var(--line-2); border-radius: 8px; }
 .project-overview, .agent-provider-card { border-radius: 14px; }
 
-/* Calendar uses one continuous grid, with a distinct selected-day document. */
-.calendar-period h2 { font-size: calc(20px * var(--text-scale, 1)); }
-.calendar-grid { gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.calendar-weekday { font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; padding-block: 10px; border-bottom: 1px solid var(--line); }
-.calendar-grid button { border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0; padding: 10px; background: var(--surface); }
-.calendar-grid button:nth-child(7n) { border-right: 0; }
-.calendar-grid [aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); box-shadow: inset 0 0 0 2px var(--accent); }
-.calendar-agenda button { padding: 14px 12px; }
+/* The month navigates dates; the wider event column carries the details. */
+.work-content.work-calendar .work-main { container: calendar-main / inline-size; }
+section.work-calendar[data-layout="month"], .work-layout.has-selection section.work-calendar[data-layout="month"] {
+  display: grid; grid-template-columns: minmax(0, 296px) minmax(0, 1fr); column-gap: 28px;
+}
+.calendar-period h2 { font-size: calc(14px * var(--text-scale, 1)); }
+.calendar-grid { width: 100%; max-width: 336px; gap: 3px; border: 0; }
+.calendar-weekday { border: 0; background: none; text-align: center; padding: 6px 0; font-size: calc(10px * var(--text-scale, 1)); font-weight: 400; }
+.calendar-grid button { min-height: 48px; padding: 5px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+.calendar-grid [aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.calendar-day-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px; width: 100%; }
+.calendar-grid [aria-current="date"] > span.calendar-day-heading { display: flex; justify-content: space-between; min-width: 0; min-height: 0; border-radius: 0; background: none; color: var(--accent); }
+.calendar-day-heading small { padding-inline: 2px; border-radius: 3px; background: var(--selected); color: var(--text-3); font-size: calc(9px * var(--text-scale, 1)); font-weight: 600; }
+.calendar-chips { margin-top: auto; }
+.calendar-chip { padding: 1px 2px; font-size: calc(10px * var(--text-scale, 1)); }
+section.work-calendar[data-layout="month"] > .calendar-day-title { margin: 10px 0 16px; font-size: calc(16px * var(--text-scale, 1)); }
+.calendar-agenda button { gap: 8px; min-height: 76px; padding: 14px 16px; margin-bottom: 12px; }
+.calendar-agenda strong { font-size: calc(15px * var(--text-scale, 1)); line-height: 1.45; }
+.calendar-agenda .work-meta { font-size: calc(12px * var(--text-scale, 1)); line-height: 1.5; }
 .calendar-agenda time { font-variant-numeric: tabular-nums; color: var(--text-3); }
+@container calendar-main (max-width: 660px) {
+  section.work-calendar[data-layout="month"], .work-layout.has-selection section.work-calendar[data-layout="month"] { display: block; }
+  section.work-calendar[data-layout="month"] > .calendar-day-title { margin-top: 24px; }
+}
+@media (pointer: coarse) {
+  section.work-calendar[data-layout="month"], .work-layout.has-selection section.work-calendar[data-layout="month"] { grid-template-columns: minmax(0, 336px) minmax(0, 1fr); }
+  .calendar-grid button { min-height: 44px; }
+}
 
 /* Contacts and all Settings sections use the same page hierarchy and fields. */
 :root:not([data-glass]) .settings-navigation { background: var(--rebuild-canvas); }

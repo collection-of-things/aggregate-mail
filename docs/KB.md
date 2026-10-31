@@ -2778,8 +2778,8 @@ The current renderer carries the `feat/frontend-rebuild` layout through
 `responsive.css`. The 200px sidebar places Workspace before Mail and ends in a
 privacy-safe account summary using the existing account-settings navigation.
 The source branch's compose and draft icons are included. Web chrome is 40px;
-desktop retains native caption space. The breadcrumb band, etched separators,
-inset list cards and document panels apply across Mail, Drafts, Today, Projects,
+desktop retains native caption space. The compact view-and-search toolbar,
+etched separators, inset list cards and document panels apply across Mail, Drafts, Today, Projects,
 Agent review, Calendar, Contacts and Settings.
 
 Comfortable MailList uses its card layout at every width and passes that same
@@ -2792,7 +2792,14 @@ gutter. The account footer always opens Accounts and includes its masked label
 in the accessible name. Draft tabs retain their 42px composer offset, and the
 composer footer uses the shared measured track. Themes, privacy,
 rich drafts, attachments, scheduled sending, browser protection and About/update
-checks retain their current components.
+checks retain their current components. The sync footer keeps the shared 42px
+track, with status left and Settings right. Calendar uses a 296px month navigator
+and gives the remaining width to larger event rows. A named container query
+stacks the month and day list at 660px or less of available calendar width, including
+when an inspector opens. Coarse pointers use a 336px month column. Each date
+shows one event preview and the total entry count; the day list retains all
+events, tasks and snoozes. Calendar reads, explicit sync and selection handlers
+are unchanged.
 
 Use the [journey map](user-journeys.md) for mounted synthetic checks. A build or
 interaction test does not establish browser/device geometry or real provider

@@ -33,7 +33,7 @@
   "layout": {
     "topbar": 40,
     "captionControls": 146,
-    "footer": 23,
+    "footer": 42,
     "contextPanel": 226,
     "settingsColumn": 600,
     "rows": {
@@ -51,7 +51,10 @@
     },
     "mobileBreakpoint": 760,
     "sidebar": 200,
-    "desktopTopbar": 52
+    "desktopTopbar": 52,
+    "calendarMonth": 296,
+    "calendarDayMinHeight": 48,
+    "calendarEntryMinHeight": 76
   },
   "radii": {
     "control": 8,

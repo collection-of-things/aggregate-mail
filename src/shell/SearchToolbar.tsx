@@ -37,7 +37,7 @@ export function SearchToolbar({ inputRef, query, label, invalid, disabled, comma
   return <div className="app-search-toolbar">
     <div className="search" role="search">
       <Search color="currentColor" size={15} />
-      <input data-compose-access ref={inputRef} aria-label={label} aria-describedby="mail-search-help" aria-invalid={invalid || undefined} placeholder={privacy && text && !focused ? "Hidden search. Focus to edit." : "Search mail and drafts"} value={privacy && !focused ? "" : text} disabled={disabled}
+      <input data-compose-access ref={inputRef} aria-label={label} aria-describedby="mail-search-help" aria-invalid={invalid || undefined} placeholder={privacy && text && !focused ? "Hidden search. Focus to edit." : "Search all mail"} value={privacy && !focused ? "" : text} disabled={disabled}
         onFocus={() => { setFocused(true); onFocus(); }} onBlur={() => setFocused(false)} onChange={(event) => change(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Escape") { event.stopPropagation(); clear(); event.currentTarget.blur(); }

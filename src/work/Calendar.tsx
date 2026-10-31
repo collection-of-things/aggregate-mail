@@ -117,13 +117,12 @@ export function Calendar({ items, messages = [], events = [], now, selectedEvent
           const dayEntries = entries.filter((entry) => entry.day === value);
           const meetings = dayEntries.filter((entry) => entry.kind === "Event");
           const count = dayEntries.length;
-          // The visible chips repeat the day list below; the button's label carries the count.
+          // One preview keeps the month compact; the day list contains every entry.
           return <button type="button" key={value} aria-label={`${value}, ${count} scheduled`} aria-pressed={day === value} aria-current={value === today ? "date" : undefined} onClick={() => setDay(value)}>
-            <span>{index + 1}</span>
-            {meetings.length > 0 && <span className="calendar-chips" aria-hidden="true">{meetings.slice(0, 2).map((entry) => <span className="calendar-chip" key={entry.item.id}>
+            <span className="calendar-day-heading"><span>{index + 1}</span>{count > 0 && <small aria-hidden="true">{count}</small>}</span>
+            {meetings.length > 0 && <span className="calendar-chips" aria-hidden="true">{meetings.slice(0, 1).map((entry) => <span className="calendar-chip" key={entry.item.id}>
               {entry.item.allDay ? "" : `${shortTime(Date.parse(entry.item.start))} `}{privacy ? entry.item.workSession ? "Work session" : "Event" : `${entry.item.workSession ? "Work session: " : ""}${entry.item.title}`}</span>)}
-              {meetings.length > 2 && <span className="calendar-chip more">+{meetings.length - 2} more</span>}</span>}
-            {count > meetings.length && <small>{meetings.length ? "+" : ""}{count - meetings.length}<span className="calendar-count-label"> scheduled</span></small>}
+            </span>}
           </button>;
         })}
       </div>
