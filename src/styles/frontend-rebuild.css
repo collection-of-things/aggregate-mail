@@ -30,7 +30,8 @@
 @media (width >= 760px) {
   .app:not(.desktop) :is(.sidebar-head, .app-toolbar) { height: 40px; }
   .app:not(.desktop) .dialog-backdrop.compose-backdrop { inset: 40px 0 0; padding: 0; }
-  .app:not(.desktop)[data-view="drafts"] .dialog-backdrop.compose-backdrop { padding-top: 44px; }
+  .app:not(.desktop)[data-view="drafts"] .dialog-backdrop.compose-backdrop { padding-top: 42px; }
+  .app:not(.desktop) .app-update-control { top: 4px; }
 }
 .app:not(.desktop) .sidebar-brand { visibility: hidden; }
 .sidebar-head > .icon {
@@ -78,7 +79,6 @@
 .app-search-toolbar .search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
 .commands-button { font-size: calc(11px * var(--text-scale, 1)); }
 .app-toolbar .icon { width: 28px; height: 28px; }
-.app:not(.desktop) .app-update-control { top: 4px; }
 .app-toolbar .update-spacer { height: 28px; }
 :is(.mail-category-bar, .draft-account-tabs, .work-view-tabs) {
   height: 44px; border-bottom: 1px solid var(--line); box-shadow: inset 0 -2px var(--rebuild-highlight);
@@ -94,8 +94,8 @@
    width list. Compact retains the existing one-line geometry and shortcuts. */
 :root:not([data-glass]) :is(.list-pane, .workspace .list) { background: var(--rebuild-canvas); }
 .workspace .list { padding-inline: 12px; }
-.workspace.split .list-pane { width: clamp(300px, 34%, 380px); }
-.mail-window-date .group { padding-inline: 12px; background: transparent; color: var(--text-4); font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; }
+.mail-window-date .group { padding-inline: 12px; color: var(--text-4); font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; }
+:root:not([data-glass]) .mail-window-date .group { background-color: var(--rebuild-canvas); }
 .mail-row { margin-inline: 1px; }
 .row { border-radius: 10px; }
 .row::after { display: none; }
@@ -115,7 +115,11 @@
   background: var(--surface); box-shadow: inset 0 0 0 1px var(--line), 0 1px 3px var(--hover);
 }
 .list:focus-within .row.selected:focus-visible { outline: 1px solid var(--accent); }
-.compact .row.card { padding: 8px 12px; }
+:root[data-scheme="dark"] .list .row.selected {
+  background-color: var(--raised); box-shadow: inset 0 0 0 1px var(--text-3), 0 1px 3px var(--hover);
+}
+:root[data-scheme="dark"] .list:focus-within .row.selected { box-shadow: inset 0 0 0 1px var(--accent), 0 1px 3px var(--hover); }
+.compact .row.card { padding-block: 8px; padding-right: 12px; }
 .row-actions { right: 8px; padding: 3px; border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
 .row-actions button { border-radius: 6px; }
 
@@ -152,12 +156,12 @@
 .compose-dialog .compose-body { font-size: calc(14px * var(--text-scale, 1)); line-height: 1.6; }
 .compose-dialog .compose-from-row { min-height: 44px; }
 .compose-dialog .compose-file-action { font-size: calc(12px * var(--text-scale, 1)); }
-.compose-dialog .compose-footer { border-top: 1px solid var(--line); min-height: 52px; }
+.compose-dialog .compose-footer { border-top: 1px solid var(--line); }
 .compose-save-status { font-size: calc(12px * var(--text-scale, 1)); }
 
 /* Today, Projects and Agent review retain their current controls and details,
    using the same inset list and document surfaces as Mail. */
-.work-pane .main-head { height: 44px; padding-inline: 24px; }
+.work-pane .main-head { height: auto; min-height: 44px; padding-inline: 24px; }
 .work-content { padding: 16px 24px 32px; }
 .work-content > .work-empty { padding: 16px 24px; }
 .work-group { margin-bottom: 24px; }

@@ -64,7 +64,7 @@ export function Sidebar({
     onDrafts: () => void;
     draftCount?: number;
     onSettings: () => void;
-    onAccountSettings?: (id: string) => void;
+    onAccountSettings: (id?: string) => void;
     shortcut: (action: "compose" | "settings") => string;
     syncing: boolean;
     lastSync: number | null;
@@ -83,6 +83,7 @@ export function Sidebar({
   });
   const selectedAccount = mail.accounts.find(account => account.id === mail.accountFilter);
   const selectedIndex = selectedAccount ? mail.accounts.indexOf(selectedAccount) : -1;
+  const footerLabel = selectedAccount ? accountLabel(selectedAccount, selectedIndex, mail.privacy, mail.accounts) : "All accounts";
   return (
     <aside
       id="sidebar"
@@ -181,12 +182,12 @@ export function Sidebar({
         </div>
           <div className="sidebar-account-footer">
             <button type="button" className="sidebar-account-card" disabled={mail.blocked}
-              aria-label="Manage accounts" onClick={() => selectedAccount && mail.onAccountSettings ? mail.onAccountSettings(selectedAccount.id) : mail.onSettings()}>
+              aria-label={`Manage accounts, ${footerLabel}`} onClick={() => mail.onAccountSettings(selectedAccount?.id)}>
               <span className="sidebar-account-avatar" aria-hidden="true">
                 {selectedAccount ? <ProviderIcon provider={selectedAccount.provider} /> : <MailIcon size={18} />}
               </span>
               <span className="sidebar-account-text">
-                <strong>{selectedAccount ? accountLabel(selectedAccount, selectedIndex, mail.privacy, mail.accounts) : "All accounts"}</strong>
+                <strong>{footerLabel}</strong>
                 <span>{mail.accounts.length ? `${mail.accounts.length} connected ${mail.accounts.length === 1 ? "account" : "accounts"}` : "Connect an account"}</span>
               </span>
             </button>

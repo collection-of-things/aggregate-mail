@@ -2786,7 +2786,11 @@ Comfortable MailList uses its card layout at every width and passes that same
 choice to MailListWindow: 100px before text scaling. Compact keeps 24px wide or
 72px beside the reader. Row controls, bulk selection, scrolling, focus, account
 identity and all current handlers remain shared. The list uses the existing
-measured card tokens rather than changing heights only in CSS. Themes, privacy,
+measured card tokens rather than changing heights only in CSS. Date headings
+cover scrolling rows outside glass mode; compact bulk cards keep the checkbox
+gutter. The account footer always opens Accounts and includes its masked label
+in the accessible name. Draft tabs retain their 42px composer offset, and the
+composer footer uses the shared measured track. Themes, privacy,
 rich drafts, attachments, scheduled sending, browser protection and About/update
 checks retain their current components.
 

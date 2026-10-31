@@ -1050,15 +1050,34 @@ test("the rebuild account footer follows the filter, preserves privacy and opens
   try {
     const footer = () => app.container.querySelector<HTMLElement>(".sidebar-account-card")!;
     assert.match(footer().textContent!, /All accounts.*2 connected accounts/);
+    await app.click(footer());
+    assert.equal(app.button("Accounts").getAttribute("aria-current"), "page");
+    await app.click(app.button("Appearance"));
+    await app.click(app.button("Close settings"));
+    await app.click(footer());
+    assert.equal(app.button("Accounts").getAttribute("aria-current"), "page", "All accounts ignores the last Settings section");
+    await app.click(app.button("Close settings"));
     await app.click(app.button("first@example.com"));
     assert.match(footer().textContent!, /first@example.com/);
     await app.click(app.button("Hide personal information"));
     assert.doesNotMatch(footer().outerHTML, /first@example.com|second@example.com/);
     assert.match(footer().textContent!, /Account 1/);
-    await app.click(app.button("Manage accounts"));
+    assert.ok(footer().getAttribute("aria-label")?.includes("Account 1"), "the accessible name includes the visible privacy-safe account label");
+    await app.click(footer());
     assert.equal(app.button("Accounts").getAttribute("aria-current"), "page");
     assert.ok(app.container.querySelector(".settings"));
     assert.equal(app.mutations.length, 0, "account summary only navigates");
+  } finally { await app.close(); }
+});
+
+test("the rebuild footer opens Accounts with no connected accounts", async () => {
+  const app = await mount(false, state => { state.accounts = []; state.messages = []; });
+  try {
+    const footer = app.container.querySelector<HTMLButtonElement>(".sidebar-account-card")!;
+    assert.match(footer.textContent!, /Connect an account/);
+    await app.click(footer);
+    assert.equal(app.button("Accounts").getAttribute("aria-current"), "page");
+    assert.equal(app.mutations.length, 0);
   } finally { await app.close(); }
 });
 
