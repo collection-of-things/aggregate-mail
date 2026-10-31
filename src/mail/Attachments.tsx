@@ -5,59 +5,6 @@ import type { MailAttachment } from "../../shared/types";
 import { PrivacyContext, Redact } from "../ui/Privacy";
 
 const imageTypes = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "image/avif"]);
-// Parse and render each get this budget before the worker task is destroyed.
-const PDF_RENDER_BUDGET_MS = 15000;
-
-function PdfPreview({ bytes }: { bytes: Uint8Array }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const [page, setPage] = useState(1);
-  const [pages, setPages] = useState(0);
-  const [error, setError] = useState(false);
-  useEffect(() => {
-    let active = true;
-    let destroy: (() => void) | undefined;
-    setError(false);
-    // A parse or render stall must not pin the worker; each step gets the same
-    // budget and destroying the task frees its worker and buffers.
-    const bounded = <T,>(work: Promise<T>, cancel: () => void) =>
-      new Promise<T>((resolve, reject) => {
-        const timer = setTimeout(() => { cancel(); reject(new Error("PDF preview timed out.")); }, PDF_RENDER_BUDGET_MS);
-        work.then(
-          (value) => { clearTimeout(timer); resolve(value); },
-          (error) => { clearTimeout(timer); reject(error); },
-        );
-      });
-    void (async () => {
-      const pdfjs = await import("pdfjs-dist");
-      const { default: worker } = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
-      if (!active) return;
-      pdfjs.GlobalWorkerOptions.workerSrc = worker;
-      const task = pdfjs.getDocument({ data: bytes.slice(), disableFontFace: true, useSystemFonts: true,
-        cMapUrl: "/pdfjs/cmaps/", standardFontDataUrl: "/pdfjs/standard_fonts/", wasmUrl: "/pdfjs/wasm/", useWasm: false,
-        maxImageSize: 16777216 });
-      destroy = () => { void task.destroy(); };
-      const pdf = await bounded(task.promise, () => void task.destroy());
-      if (!active) return;
-      setPages(pdf.numPages);
-      const sheet = await bounded(pdf.getPage(page), () => void task.destroy());
-      if (!active || !canvas.current) return;
-      const viewport = sheet.getViewport({ scale: Math.min(1.5, 1000 / sheet.getViewport({ scale: 1 }).width, 1400 / sheet.getViewport({ scale: 1 }).height) });
-      canvas.current.width = viewport.width;
-      canvas.current.height = viewport.height;
-      await bounded(sheet.render({ canvas: canvas.current, viewport }).promise, () => void task.destroy());
-    })().catch(() => { if (active) setError(true); });
-    return () => { active = false; destroy?.(); };
-  }, [bytes, page]);
-  return <div className="attachment-pdf">
-    {error ? <p role="alert">PDF preview is unavailable. Download the file to open it.</p> : <>
-      <div className="attachment-actions"><button className="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous page</button>
-        <span role="status">{pages ? `Page ${page} of ${pages}` : "Loading PDF…"}</span>
-        <button className="button" disabled={!pages || page >= pages} onClick={() => setPage(page + 1)}>Next page</button></div>
-      <canvas ref={canvas} aria-label={`PDF page ${page}`} />
-    </>}
-  </div>;
-}
-
 function Attachment({ mailId, file, index, api }: { mailId: string; file: MailAttachment; index: number; api?: Api }) {
   const { on: privacy } = useContext(PrivacyContext);
   const [busy, setBusy] = useState(false);
@@ -69,7 +16,7 @@ function Attachment({ mailId, file, index, api }: { mailId: string; file: MailAt
   const controller = useRef<AbortController | undefined>(undefined);
   const downloaded = useRef(false);
   const type = file.contentType.toLowerCase();
-  const canPreview = file.size <= 524288 && (type === "application/pdf" || imageTypes.has(type));
+  const canPreview = file.size <= 524288 && imageTypes.has(type);
   useEffect(() => {
     active.current = true;
     return () => { active.current = false; request.current++; controller.current?.abort(); };
@@ -126,7 +73,7 @@ function Attachment({ mailId, file, index, api }: { mailId: string; file: MailAt
     {error && <p role="alert">{error}</p>}
     {preview && <div className="attachment-preview">
       {privacy && <p>Preview pixels may contain personal information.</p>}
-      {preview.image ? <img src={preview.image} alt={`Attachment ${index + 1}`} onError={() => { setPreview(undefined); setUrl(undefined); setError("Image preview is unavailable. Download the file to open it."); }} /> : <PdfPreview bytes={preview.bytes} />}
+      {preview.image ? <img src={preview.image} alt={`Attachment ${index + 1}`} onError={() => { setPreview(undefined); setUrl(undefined); setError("Image preview is unavailable. Download the file to open it."); }} /> : <p>Download this file to open it.</p>}
     </div>}
   </li>;
 }

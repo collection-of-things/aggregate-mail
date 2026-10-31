@@ -5,7 +5,6 @@ import android.app.AlertDialog;
 import android.os.Bundle;
 import android.graphics.Color;
 import android.text.Editable;
-import android.text.Html;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -239,7 +238,7 @@ public final class MainActivity extends Activity {
         content.addView(text(selectedMail.getString("from"), 16));
         content.addView(text(MailData.accountById(state, selectedMail.getString("account")).getString("label") + " · " + date(selectedMail.optLong("date")), 13));
         String raw = selectedMail.getString("body");
-        String plain = selectedMail.optBoolean("html") ? Html.fromHtml(raw, Html.FROM_HTML_MODE_LEGACY).toString() : raw;
+        String plain = selectedMail.optBoolean("html") ? MailText.plain(raw) : raw;
         TextView message = text(plain, 17); message.setTextIsSelectable(true); content.addView(message);
         content.addView(text("Text-only cached copy. Remote images and attachments are never loaded. Opening this copy does not mark server mail read."
                 + (selectedMail.optBoolean("truncated") ? " This text was truncated." : ""), 13));
@@ -322,9 +321,10 @@ public final class MainActivity extends Activity {
         try {
             JSONObject draft = draftFields(); MailData.validateDraft(app.state(), draft);
             AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Send this message?").setMessage("Send to " + draft.getString("to") + "?")
-                    .setNegativeButton("Cancel", null).setPositiveButton("Send", (d,w) -> send(draft)).show();
+                    .setNegativeButton("Cancel", null).setPositiveButton("Send", (d,w) -> send(draft)).create();
             // Dialog windows do not inherit the activity's screenshot protection.
             if (dialog.getWindow() != null) dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+            dialog.show();
         } catch (Exception error) { status.setText("Choose an account, one valid recipient, a subject and message before sending."); }
     }
     private void send(JSONObject draft) {

@@ -6,6 +6,13 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Security
+
+- Bound mail formatting and IMAP search processing, reuse conversation work during agent review, and keep notification refreshes independent of message body size. ([#181](https://github.com/collection-of-things/aggregate-mail/pull/181))
+- Require confirmed IMAP identities for archived-message changes, encrypted remote sorting connections, and safe provider/credential pairing. ([#181](https://github.com/collection-of-things/aggregate-mail/pull/181))
+- Review unverified calendar changes against the existing event. Restored drafts must be prepared again before sending calendar data. PDFs remain available to download; in-app PDF preview is disabled until it has a memory bound. ([#181](https://github.com/collection-of-things/aggregate-mail/pull/181))
+- Keep Android mail parsing and TLS checks bounded and fail closed, and protect Send confirmation from screen capture. Isolate bootstrap benchmark authentication and provider settings. ([#181](https://github.com/collection-of-things/aggregate-mail/pull/181))
+
 ### Fixed
 
 - Delete saved drafts without waiting for a full mail-cache scan. Unused attachments still count toward storage limits until cleanup, normally during the daily idle inventory; compact storage to reclaim them sooner. ([#180](https://github.com/collection-of-things/aggregate-mail/issues/180))

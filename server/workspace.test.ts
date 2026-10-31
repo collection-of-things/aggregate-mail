@@ -43,6 +43,16 @@ test("workspace HTTP preserves confirmed obligations, account boundaries and imm
   };
   const waitFor = async (predicate: () => boolean) => { const deadline = Date.now() + 3000; while (!predicate()) { assert.ok(Date.now() < deadline, "Expected synthetic work to reach the boundary"); await new Promise((resolve) => setTimeout(resolve, 5)); } };
   try {
+    await t.test("proposal sources reuse the full conversation fingerprint", async () => {
+      const { proposalFingerprints, fingerprint } = await import("./workspace.js");
+      let bodies = 0;
+      const messages = Array.from({ length: 100 }, (_, index) => ({ ...mail, id: `a:budget-${index}`, messageId: `<budget-${index}@example.test>`, threadId: "budget-thread", get body() { bodies++; return "x".repeat(16384); } }));
+      const view = new Map(messages.map(message => [message.id, message]));
+      const fingerprints = proposalFingerprints(messages.map(message => message.id), view);
+      assert.equal(bodies, 100, "Every source body is projected once for the whole component");
+      assert.equal(new Set(fingerprints.values()).size, 1);
+      assert.equal(fingerprints.get(messages[0].id), fingerprint(messages[0].id, view));
+    });
     await request("/mcp", "PATCH", { enabled: true, allowSending: true });
     await t.test("same-source proposal responses decrypt one coherent mail view and hash once", async () => {
       const { propose } = await import("./workspace.js");

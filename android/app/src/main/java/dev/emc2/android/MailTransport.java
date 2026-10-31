@@ -30,6 +30,7 @@ final class MailTransport {
         private long size;
         private long remaining;
         private boolean big;
+        private int digits, responseBytes;
         LiteralGuardInputStream(InputStream inner) { this.inner = inner; }
         @Override public int read() throws java.io.IOException {
             int value = inner.read();
@@ -42,15 +43,17 @@ final class MailTransport {
             return count;
         }
         private void guard(byte b) throws java.io.IOException {
+            if (++responseBytes > 2 * MAX_LITERAL) throw new java.io.IOException("Mail server response exceeds safe limits.");
             if (remaining > 0) { remaining--; return; }
             if (state == 1) {
                 if (b >= '0' && b <= '9') {
+                    if (++digits > 10) throw new java.io.IOException("Invalid literal announcement.");
                     if (size <= MAX_LITERAL) size = size * 10 + (b - '0');
                     if (size > MAX_LITERAL) big = true;
                     return;
                 }
-                if (b == '}') { state = 3; return; }
-                if (b == '+') { state = 2; return; }
+                if (b == '}') { if (digits == 0) throw new java.io.IOException("Invalid literal announcement."); state = 3; return; }
+                if (b == '+') throw new java.io.IOException("Unsupported server literal announcement.");
                 state = 0;
             } else if (state == 2) {
                 state = b == '}' ? 3 : 0;
@@ -65,7 +68,8 @@ final class MailTransport {
                 state = 0;
                 if (b == '\n') { remaining = size; return; }
             }
-            if (b == '{') { state = 1; size = 0; big = false; }
+            if (b == '\n') responseBytes = 0;
+            if (b == '{') { state = 1; size = 0; big = false; digits = 0; }
         }
     }
 
@@ -190,6 +194,7 @@ final class MailTransport {
             p.setProperty(prefix + "writetimeout", "15000");
             p.setProperty(prefix + "ssl.checkserveridentity", "true");
             p.setProperty(prefix + "ssl.protocols", tls);
+            p.setProperty(prefix + "socketFactory.fallback", "false");
         }
         StrictTlsSocketFactory tlsSockets = new StrictTlsSocketFactory();
         p.put("mail.imaps.ssl.socketFactory", tlsSockets);
@@ -249,7 +254,7 @@ final class MailTransport {
                 result.put(new JSONObject().put("account", account.getString("id"))
                         .put("id", validity + ":" + uids.getUID(source)).put("from", from)
                         .put("reply", reply).put("subject", mail.getSubject() == null ? "(No subject)" : mail.getSubject())
-                        .put("date", date == null ? 0 : date.getTime()).put("body", body.text).put("html", body.html)
+                        .put("date", date == null ? 0 : date.getTime()).put("body", body.html ? MailText.plain(body.text) : body.text).put("html", false)
                         .put("truncated", body.truncated));
             }
             return result;
@@ -279,7 +284,7 @@ final class MailTransport {
             String boundary;
             try { boundary = new ContentType(part.getContentType()).getParameter("boundary"); }
             catch (Exception error) { throw new IllegalStateException("Message MIME structure exceeds safe limits."); }
-            if (boundary != null && boundary.length() > 70) throw new IllegalStateException("Message MIME structure exceeds safe limits.");
+            if (boundary == null || boundary.isEmpty() || boundary.length() > 70) throw new IllegalStateException("Message MIME structure exceeds safe limits.");
             Multipart multi = (Multipart) part.getContent();
             if (multi.getCount() > 128) throw new IllegalStateException("Too many MIME parts.");
             Body fallback = new Body("", false);

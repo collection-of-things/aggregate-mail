@@ -5,7 +5,13 @@ export const embeddedImageTypes = new Set(["image/png", "image/jpeg", "image/gif
 
 // Older imports lack CID metadata and may contain parser-expanded data URLs.
 export function needsEmbeddedContentRecovery(mail: Pick<Mail, "html" | "attachments">): boolean {
-  const embedded = !!mail.html && /<img\b[^>]*\bsrc\s*=\s*["']?(?:cid:|data:image\/)/i.test(mail.html);
+  let embedded = false;
+  if (mail.html && mail.html.length <= MAIL_HTML_LIMIT) {
+    const parser = new Parser({ onopentag(tag, attrs) {
+      if (tag === "img" && /^(?:cid:|data:image\/)/i.test(attrs.src || "")) { embedded = true; parser.pause(); }
+    } });
+    parser.end(mail.html);
+  }
   return embedded && mail.attachments === undefined || (!mail.html || embedded) &&
     !!mail.attachments?.some((file) => file.contentId === undefined && embeddedImageTypes.has(file.contentType.toLowerCase()));
 }
@@ -159,6 +165,7 @@ function length(value: string, maximum: number, percent = false): string | null 
 // A border shorthand in any word order, as Gmail writes `1px #ccc solid`. The
 // result is always `width style color`, so the renderer can swap the color.
 function border(value: string): string | null {
+  if (value.length > 128) return null;
   const functional = /(?:rgba?|hsla?)\([^)]*\)/.exec(value);
   let colorValue = functional ? color(functional[0]) : null;
   if (functional && !colorValue) return null;

@@ -7,7 +7,7 @@ import { ImapFlow, type FetchMessageObject } from "imapflow";
 import type { Mail } from "../shared/types.js";
 import { providers } from "./providers.js";
 
-test("IMAP read uses inbox UIDs or an exact archive Message-ID without opening a real connection", async (t) => {
+test("IMAP read uses inbox UIDs or a confirmed archive binding without opening a real connection", async (t) => {
   const directory = mkdtempSync(path.join(tmpdir(), "emc2-imap-read-"));
   process.env.MAIL_DATA_DIR = directory;
   process.env.MAIL_DATA_KEY = Buffer.alloc(32, 8).toString("base64");
@@ -58,17 +58,17 @@ test("IMAP read uses inbox UIDs or an exact archive Message-ID without opening a
     snoozedUntil: null, messageId: "<synthetic@example.com>",
   };
   await providers.imap.update(account, mail, "read");
-  await providers.imap.update(account, { ...mail, archived: true }, "read");
+  await providers.imap.update(account, { ...mail, archived: true, mailbox: { path: "Saved", uidValidity: "1", uid: 77 } }, "read");
   assert.deepEqual(opened, ["INBOX", "Saved"]);
   assert.deepEqual(seen, ["5", "77"]);
   for (matches of [[], [77, 78]]) {
-    await assert.rejects(providers.imap.update(account, { ...mail, archived: true }, "read"), /Could not identify/);
+    await assert.rejects(providers.imap.update(account, { ...mail, archived: true }, "read"), /confirmed mailbox binding/);
   }
   await assert.rejects(providers.imap.update(account, { ...mail, archived: true, messageId: undefined }, "read"), /no Message-ID/);
   await assert.rejects(providers.imap.update(account, { ...mail, remoteId: "2:5" }, "read"), /Mailbox identifiers changed/);
   assert.deepEqual(seen, ["5", "77"], "ambiguous or missing identities must never mark another message read");
 
-  const archived = { ...mail, archived: true };
+  const archived = { ...mail, archived: true, mailbox: { path: "Saved", uidValidity: "1", uid: 77 } };
   put("account", account.id, account);
   put("mail", archived.id, archived);
   matches = [77];

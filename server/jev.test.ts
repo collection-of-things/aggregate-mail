@@ -142,7 +142,7 @@ test("the provider picks the endpoint and model, and both can be overridden", as
 
   process.env.TYPESAFE_ENDPOINT = "ws://127.0.0.1:4599";
   await assert.rejects(classify(mail, []), (error: Error) => {
-    assert.match(error.message, /must be an http or https URL/);
+    assert.match(error.message, /requires HTTPS/);
     return true;
   });
 
@@ -203,4 +203,17 @@ test("without a key the heuristics run and nothing is sent", async (t) => {
   const calls = mockJev(t, {});
   assert.deepEqual(await classify(mail, []), sortMail(mail, []));
   assert.equal(calls.length, 0);
+});
+
+
+test("remote plaintext classification endpoints never receive credentials", async t => {
+  process.env.TYPESAFE_API_KEY = "synthetic-key";
+  const calls = mockJev(t, {});
+  try {
+    for (const endpoint of ["http://model.example.test/v1", "http://localhost.example.test/v1", "https://user:pass@model.example.test/v1"]) {
+      process.env.TYPESAFE_ENDPOINT = endpoint;
+      await assert.rejects(classify(mail, []), SortingUnavailable);
+    }
+    assert.equal(calls.length, 0);
+  } finally { delete process.env.TYPESAFE_ENDPOINT; }
 });

@@ -215,3 +215,20 @@ for (const prototype of ["ordinary", "null"] as const) test(`settings write and 
     `);
   } finally { rmSync(directory,{recursive:true,force:true}); }
 });
+
+
+test("an inherited credential cannot follow a saved provider change", () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "emc2-config-pair-"));
+  try {
+    isolatedConfig(directory, `
+      import assert from 'node:assert/strict';
+      process.env.TYPESAFE_API_KEY = 'synthetic-inherited';
+      const c = await import('./server/config.ts'); const s = await import('./server/store.ts');
+      c.loadConfiguration();
+      assert.throws(() => c.saveConfiguration({ TYPESAFE_PROVIDER: 'vercel' }), /inherited|launch/i);
+      assert.equal(process.env.TYPESAFE_PROVIDER, undefined);
+      assert.equal(s.get('config', 'connection'), undefined);
+      s.closeStore();
+    `);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});

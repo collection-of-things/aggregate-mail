@@ -403,6 +403,9 @@ export function workspaceMailFlags(): Records["workspaceMailState"][] {
 export function count(kind: keyof Records): number {
   return (db.prepare("SELECT COUNT(*) AS total FROM records WHERE kind = ?").get(kind) as { total: number }).total;
 }
+export function hasRecord(kind: keyof Records, id: string): boolean {
+  return !!db.prepare("SELECT 1 FROM records WHERE kind=? AND id=?").get(kind, id);
+}
 export function get<K extends keyof Records>(kind: K, id: string): Records[K] | undefined {
   const row = db.prepare("SELECT value FROM records WHERE kind=? AND id=?").get(kind, id);
   return row ? decrypt(String(row.value)) as Records[K] : undefined;

@@ -42,6 +42,21 @@ test("encrypted workspace backup and non-destructive restore, synthetic only", {
     assert.equal(payload.manifest.appVersion, packageInfo.version);
     assert.deepEqual((payload.records.find(row => row.kind === "draft")!.value as { to: string[] }).to, [""]);
   });
+  await t.test("imported calendar metadata cannot authorize outgoing RSVP", () => {
+    const untrusted = structuredClone(payload);
+    const row = untrusted.records.find(row => row.kind === "draft")!;
+    row.id = "76c4a867-2cdb-4dfc-890c-dac7152e6b9a";
+    row.value = { ...(row.value as object), id: row.id,
+      invitation: { uid: "forged", sequence: 0, method: "REPLY", organizer: "organizer@example.test", attendees: [{ email: synthetic.email, response: "DECLINED" }], title: "Meeting", start: "2026-10-30T10:00:00.000Z", end: "2026-10-30T11:00:00.000Z", allDay: false },
+      calendarContext: { eventId: "existing-event", revision: 1 } };
+    backup.mergeBackup(untrusted, true);
+    const restored = store.get("draft", row.id)!;
+    assert.equal(restored.invitation, undefined);
+    assert.equal(restored.calendarContext, undefined);
+    assert.equal(restored.body, "SYNTHETIC-LOCAL-TEXT");
+    assert.equal(restored.sendUnknown, true);
+    store.remove("draft", row.id);
+  });
   await t.test("round trip authenticates manifest and every local record", async () => {
     file = await backup.sealBackup(payload, password);
     assert.ok(!file.includes("SYNTHETIC-LOCAL-TEXT"));
