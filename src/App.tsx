@@ -1445,7 +1445,6 @@ export function App() {
                 <ViewIcon size={16} color="currentColor" />
                 <strong>{settings ? "Settings" : viewNames[view]}</strong>
               </div>
-              {!settings && historyControls}
               <SearchToolbar inputRef={searchRef} scopeKey={JSON.stringify([page, view, accountFilter, labelFilter, readFilter, relevanceFilter, opened])} query={settings || nonMailView ? "" : query}
                 onSaveView={!settings && !nonMailView && !compose && savedViews.canSave ? savedViews.startSave : undefined}
                 label="Search cached mail and saved drafts"
@@ -1473,6 +1472,7 @@ export function App() {
                 />}
                 {privacyButton}
               </div>
+              {!settings && historyControls}
               <div className="update-spacer" aria-hidden="true" />
             </PaneHeader>
             <div hidden={!searching || settings || nonMailView} className="search-help">

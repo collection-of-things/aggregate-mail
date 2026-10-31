@@ -974,8 +974,10 @@ test("calendar events follow the account filter and hide titles, places and atte
   await ui.click(ui.button("Refresh workspace"));await ui.filter("a");
   const cell=()=>ui.container.querySelector<HTMLButtonElement>(`button[aria-label="${day}, 2 scheduled"]`)!;
   await ui.click(cell());assert.ok(ui.container.textContent?.includes("Unassigned planning"));assert.ok(!ui.container.textContent?.includes("Other account sync"));
+  assert.equal(cell().querySelector(".calendar-day-heading small")?.textContent,"2","the compact day counts every entry");
+  assert.equal(ui.container.querySelectorAll(".calendar-agenda .calendar-event").length,2,"both events remain available in the day list");
   await ui.privacy();
-  assert.deepEqual([...cell().querySelectorAll(".calendar-chip")].map(chip=>chip.textContent?.replace(/^.*?(Event)$/,"$1")),["Event","Event"]);
+  assert.deepEqual([...cell().querySelectorAll(".calendar-chip")].map(chip=>chip.textContent?.replace(/^.*?(Event)$/,"$1")),["Event"]);
   await ui.click([...ui.container.querySelectorAll<HTMLButtonElement>(".calendar-agenda .calendar-event")].find(row=>!row.textContent?.includes("Unassigned"))!);
   const detail=ui.container.querySelector<HTMLElement>('[aria-label="Event details"]')!;
   for(const secret of ["Private Reader","reader@example.com","guest@example.test"])assert.ok(!ui.container.innerHTML.includes(secret),secret);

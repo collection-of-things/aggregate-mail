@@ -1024,6 +1024,13 @@ test("sidebar destinations have distinct decorative navigation glyphs", async ()
     const glyphs = labels.map((label) => {
       const button = app.button(label);
       assert.ok(button.closest("#sidebar"), `${label} belongs in the sidebar`);
+      if (label === "Drafts") {
+        const icon = button.querySelector<HTMLElement>(".drafts-mark");
+        assert.ok(icon, "Drafts has an icon");
+        assert.ok(icon.style.maskImage.includes("drafts.png"), "Drafts uses the rebuild's envelope icon");
+        assert.equal(icon.getAttribute("aria-hidden"), "true");
+        return icon.style.maskImage;
+      }
       const svg = button.querySelector("svg");
       assert.ok(svg, `${label} has an icon`);
       assert.equal(svg.getAttribute("width"), "16");
@@ -1035,6 +1042,42 @@ test("sidebar destinations have distinct decorative navigation glyphs", async ()
       return svg.innerHTML;
     });
     assert.equal(new Set(glyphs).size, labels.length, "each sidebar destination has a distinct rendered glyph");
+  } finally { await app.close(); }
+});
+
+test("the rebuild account footer follows the filter, preserves privacy and opens existing settings", async () => {
+  const app = await mount();
+  try {
+    const footer = () => app.container.querySelector<HTMLElement>(".sidebar-account-card")!;
+    assert.match(footer().textContent!, /All accounts.*2 connected accounts/);
+    await app.click(footer());
+    assert.equal(app.button("Accounts").getAttribute("aria-current"), "page");
+    await app.click(app.button("Appearance"));
+    await app.click(app.button("Close settings"));
+    await app.click(footer());
+    assert.equal(app.button("Accounts").getAttribute("aria-current"), "page", "All accounts ignores the last Settings section");
+    await app.click(app.button("Close settings"));
+    await app.click(app.button("first@example.com"));
+    assert.match(footer().textContent!, /first@example.com/);
+    await app.click(app.button("Hide personal information"));
+    assert.doesNotMatch(footer().outerHTML, /first@example.com|second@example.com/);
+    assert.match(footer().textContent!, /Account 1/);
+    assert.ok(footer().getAttribute("aria-label")?.includes("Account 1"), "the accessible name includes the visible privacy-safe account label");
+    await app.click(footer());
+    assert.equal(app.button("Accounts").getAttribute("aria-current"), "page");
+    assert.ok(app.container.querySelector(".settings"));
+    assert.equal(app.mutations.length, 0, "account summary only navigates");
+  } finally { await app.close(); }
+});
+
+test("the rebuild footer opens Accounts with no connected accounts", async () => {
+  const app = await mount(false, state => { state.accounts = []; state.messages = []; });
+  try {
+    const footer = app.container.querySelector<HTMLButtonElement>(".sidebar-account-card")!;
+    assert.match(footer.textContent!, /Connect an account/);
+    await app.click(footer);
+    assert.equal(app.button("Accounts").getAttribute("aria-current"), "page");
+    assert.equal(app.mutations.length, 0);
   } finally { await app.close(); }
 });
 
@@ -1895,9 +1938,13 @@ test("compose keeps toolbar search and privacy usable without losing the draft o
     const privacy = app.button("Hide personal information");
     await act(async () => privacy.focus());
     await app.key("Tab");
-    assert.equal(app.window.document.activeElement, app.container.querySelector('.compose-dialog .dialog-title button'));
+    assert.equal(app.window.document.activeElement?.getAttribute("aria-label"), "Back");
+    await app.key("Tab");
+    assert.equal(app.window.document.activeElement?.getAttribute("aria-label"), "Close dialog");
     await app.key("Tab", { shiftKey: true });
-    assert.equal(app.window.document.activeElement, privacy);
+    assert.equal(app.window.document.activeElement?.getAttribute("aria-label"), "Back");
+    await app.key("Tab", { shiftKey: true });
+    assert.equal(app.window.document.activeElement?.getAttribute("aria-label"), "Hide personal information");
     await app.click(app.button("Hide personal information"));
     assert.equal(app.storage.getItem("privacy"), "on");
     await act(async () => search.focus());
@@ -2023,14 +2070,14 @@ test("compose keyboard cycle reaches sidebar and toolbar without stealing editin
     await app.click(app.button("Hide sidebar"));
     await act(async () => app.button("Show sidebar").focus());
     await app.key("Tab");
-    assert.equal(doc.activeElement?.getAttribute("aria-label"), "Back", "collapsed sidebar toggle stays in the compose cycle");
+    assert.equal(doc.activeElement?.getAttribute("aria-label"), "Search cached mail and saved drafts", "collapsed sidebar toggle reaches the leading search field");
     await app.click(app.button("Show sidebar"));
     await act(async () => app.button("New message").focus());
     await app.key("Tab");
     assert.equal(doc.activeElement, app.button("Drafts"));
     await act(async () => app.button("Back").focus());
     await app.key("Tab");
-    assert.ok(doc.activeElement?.closest(".app-toolbar"));
+    assert.equal(doc.activeElement?.getAttribute("aria-label"), "Close dialog", "history ends the toolbar before the composer");
     await act(async () => app.button("Close dialog").focus());
     await act(async () => app.button("Close dialog").dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "p", bubbles: true, cancelable: true })));
     assert.equal(app.storage.getItem("privacy"), "on");

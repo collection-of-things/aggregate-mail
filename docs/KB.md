@@ -75,6 +75,9 @@ separate acceptance.
 `server/phone-passkeys.ts` mounts only the public `/auth/pair`, bundled client
 and named pairing/WebAuthn POST routes before session authentication. Gate
 Host/Origin checks apply first; remote POSTs require the exact verified origin.
+The fixed public client filename is served relative to the build directory so
+hidden parent directories do not trigger dotfile filtering. Other filenames
+and hidden files remain outside that public route.
 Host management uses the normal authenticated API and CSRF guard plus exact
 localhost Host/Origin checks.
 
@@ -286,7 +289,7 @@ macOS or Linux builds.
 
 ## Shared application styling
 
-The working layout uses a 208px main rail and names each view once in the
+The working layout uses a 200px main rail and names each view once in the
 persistent toolbar. Inbox categories and Drafts account tabs follow it without
 another title row. Work action and cached-mail bars keep their existing
 controls; Settings keeps its section heading. Category navigation sits outside
@@ -312,7 +315,7 @@ Dialog backdrops and surfaces explicitly use `-webkit-app-region: no-drag`.
 This excludes their full bounds from native drag regions on pane headers
 behind them, including the composer account selector, Discard and Close.
 
-The current renderer adds a view breadcrumb to the main toolbar and account
+The current renderer keeps the view name beside search in the main toolbar and account
 tabs to Drafts. Those tabs use the existing navigation account filter. Their
 counts are hidden when a list read fails. Recipient-first draft rows keep
 account and saved-time context. Calendar places Add task in its view toolbar.
@@ -1851,7 +1854,7 @@ expanded. See [ADR 0048](adr/0048-v2-persistent-navigation.md).
 
 ## V2 visual correction
 
-The V2 sidebar uses separate Mail and Workspace groups (Mail first) at 208px, with Settings
+The V2 sidebar uses separate Workspace and Mail groups (Workspace first) at 200px, with Settings
 anchored at the bottom. Agent review keeps existing assistant cards above a
 collapsible add form. Permissions, BYOK and external connection setup stay in
 each card; hiding a section preserves its state and approval guards. Projects
@@ -2770,6 +2773,40 @@ Summary reads copy their envelopes and mutable metadata children; an unchanged v
 Agent review fills its working pane rather than capping the review grid at 1120px. The existing narrow-screen single-column layout and review controls remain.
 
 Browser API integration authenticates each request with either the desktop per-launch token or the expiring browser gate session. The gate replaces the earlier terminal session link; it does not add a second sign-in step. OAuth start remains authenticated and CSRF-protected, single-use launch/state records remain capped, and the approved browser origin is retained through callback. `server/browser-session.test.ts` uses a temporary synthetic profile and ephemeral port to verify login, refusal, CSRF, origin and lock behavior without using another service's listener. Phone access uses verified private Tailscale HTTPS with the backend bound only to loopback; a high port alone provides no encryption.
+
+### Frontend rebuild
+
+The current renderer carries the `feat/frontend-rebuild` layout through
+`src/styles/frontend-rebuild.css`, imported after `application.css` and before
+`responsive.css`. The 200px sidebar places Workspace before Mail and ends in a
+privacy-safe account summary using the existing account-settings navigation.
+The source branch's compose and draft icons are included. Web chrome is 40px;
+desktop retains native caption space. The compact view-and-search toolbar,
+etched separators, inset list cards and document panels apply across Mail, Drafts, Today, Projects,
+Agent review, Calendar, Contacts and Settings.
+
+Comfortable MailList uses its card layout at every width and passes that same
+choice to MailListWindow: 100px before text scaling. Compact keeps 24px wide or
+72px beside the reader. Row controls, bulk selection, scrolling, focus, account
+identity and all current handlers remain shared. The list uses the existing
+measured card tokens rather than changing heights only in CSS. Date headings
+cover scrolling rows outside glass mode; compact bulk cards keep the checkbox
+gutter. The account footer always opens Accounts and includes its masked label
+in the accessible name. Draft tabs retain their 42px composer offset, and the
+composer footer uses the shared measured track. Themes, privacy,
+rich drafts, attachments, scheduled sending, browser protection and About/update
+checks retain their current components. The sync footer keeps the shared 42px
+track, with status left and Settings right. Calendar uses a 296px month navigator
+and gives the remaining width to larger event rows. A named container query
+stacks the month and day list at 660px or less of available calendar width, including
+when an inspector opens. Coarse pointers use a 336px month column. Each date
+shows one event preview and the total entry count; the day list retains all
+events, tasks and snoozes. Calendar reads, explicit sync and selection handlers
+are unchanged.
+
+Use the [journey map](user-journeys.md) for mounted synthetic checks. A build or
+interaction test does not establish browser/device geometry or real provider
+behavior. Live browser testing remains restricted by PRODUCT.md.
 
 ### Mobile browser layout
 

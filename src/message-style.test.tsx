@@ -13,6 +13,38 @@ const stylesheet = () => readFileSync(new URL("./style.css", import.meta.url), "
   .match(/@import "[^"]+";/g)!
   .map((line) => readFileSync(new URL(line.slice(9, -2), import.meta.url), "utf8")).join("\n");
 
+test("opaque sticky date captions cover the rows scrolling beneath them", () => {
+  const dom = new JSDOM('<div class="mail-window-date"><div class="group">Today</div></div>');
+  try {
+    dom.window.document.head.insertAdjacentHTML("beforeend", `<style>${stylesheet()}</style>`);
+    const style = dom.window.getComputedStyle(dom.window.document.querySelector(".group")!);
+    assert.equal(style.position, "sticky");
+    assert.equal(style.backgroundColor, "var(--rebuild-canvas)");
+  } finally { dom.window.close(); }
+});
+
+test("compact card checkboxes keep their gutter after the complete stylesheet cascade", () => {
+  const dom = new JSDOM('<div class="compact"><div class="mail-row"><button class="mail-select"></button><button class="row card"></button></div></div>');
+  try {
+    dom.window.document.head.insertAdjacentHTML("beforeend", `<style>${stylesheet()}</style>`);
+    assert.equal(dom.window.getComputedStyle(dom.window.document.querySelector(".row")!).paddingLeft, "30px");
+  } finally { dom.window.close(); }
+});
+
+test("dark selection is distinct and rebuild headers and footers retain shared geometry", () => {
+  const dom = new JSDOM('<div class="app"><div class="list"><button class="row card selected"></button></div><section class="work-pane"><header class="main-head"></header></section><div class="compose-dialog"><footer class="compose-footer"></footer></div></div>');
+  try {
+    const document = dom.window.document;
+    document.documentElement.dataset.scheme = "dark";
+    document.head.insertAdjacentHTML("beforeend", `<style>${stylesheet()}</style>`);
+    const style = (selector: string) => dom.window.getComputedStyle(document.querySelector(selector)!);
+    assert.equal(style(".row").backgroundColor, "var(--raised)");
+    assert.match(style(".row").boxShadow, /var\(--text-3\)/);
+    assert.equal(style(".main-head").height, "auto");
+    assert.equal(style(".compose-footer").minHeight, "var(--app-footer-height)");
+  } finally { dom.window.close(); }
+});
+
 test("theme choices grow above accent swatches without inheriting the mail-row height", () => {
   const dom = new JSDOM("<!doctype html>");
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");

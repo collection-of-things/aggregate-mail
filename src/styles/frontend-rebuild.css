@@ -1,0 +1,236 @@
+/* The frontend-rebuild layout on the current renderer. Operations, recovery,
+   privacy and virtual scrolling remain owned by the current components. */
+:root {
+  --sidebar: 200px;
+  --rebuild-rail: var(--chrome);
+  --rebuild-canvas: color-mix(in srgb, var(--surface) 80%, var(--bg));
+  --rebuild-highlight: color-mix(in srgb, var(--text) 6%, transparent);
+  --rebuild-edge: 24px;
+}
+:root[data-scheme="light"][data-theme="black"] {
+  --rebuild-canvas: #fafafa;
+}
+:root[data-scheme="light"] { --rebuild-highlight: rgba(255, 255, 255, .9); }
+:root[data-scheme="dark"] { --rebuild-rail: var(--raised); }
+
+/* A source rail, breadcrumb band and etched dividers replace the old chrome. */
+:root:not([data-glass]) .sidebar { background: var(--rebuild-rail); }
+:root:not([data-glass]) :is(.app-main, .app-toolbar, .main-head,
+  .mail-category-bar, .drafts-pane, .work-pane, .contacts-pane) {
+  background: var(--rebuild-canvas);
+}
+.sidebar {
+  border-right: 1px solid var(--line);
+  box-shadow: 2px 0 var(--rebuild-highlight);
+  z-index: 1;
+}
+.sidebar-head { gap: 8px; padding-inline: 12px; justify-content: flex-end; }
+.sidebar-head > .icon:first-child { margin-left: 0; order: 2; }
+.sidebar-head .sidebar-brand { margin-right: auto; font-size: 13px; font-weight: 600; }
+@media (width >= 760px) {
+  .app:not(.desktop) :is(.sidebar-head, .app-toolbar) { height: 40px; }
+  .app:not(.desktop) .dialog-backdrop.compose-backdrop { inset: 40px 0 0; padding: 0; }
+  .app:not(.desktop)[data-view="drafts"] .dialog-backdrop.compose-backdrop { padding-top: 42px; }
+  .app:not(.desktop) .app-update-control { top: 4px; }
+}
+.sidebar-head > .icon {
+  width: 28px; height: 28px; border: 1px solid var(--line-2);
+  background: var(--surface); box-shadow: var(--edge); border-radius: 8px;
+}
+:is(.sidebar-head, .app-toolbar) { border-bottom: 1px solid var(--line); box-shadow: 0 2px var(--rebuild-highlight); }
+.sidebar-content { padding: 14px 12px 12px; }
+.sidebar-primary { gap: 10px; }
+.sidebar-primary > .primary-button.new-message:first-of-type {
+  height: 32px; min-height: 32px; justify-content: center;
+  gap: 8px; margin-bottom: 2px; padding-inline: 12px; text-transform: capitalize;
+}
+.primary-button, .sidebar-primary > .primary-button:first-of-type { border-radius: 11px; }
+.compose-mark { width: 12px; height: 12px; border-radius: 0; background: none; object-fit: contain; }
+.drafts-mark { width: 16px; height: 16px; flex-shrink: 0; background: currentColor; mask: center / contain no-repeat; -webkit-mask: center / contain no-repeat; }
+.sidebar-group + .sidebar-group { margin-top: 18px; }
+.sidebar-heading button { padding: 0 12px 6px; font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; color: var(--text-4); }
+.sidebar-group > button { min-height: 32px; padding-inline: 12px; gap: 8px; border-radius: 8px; font-size: calc(13px * var(--text-scale, 1)); }
+.sidebar-group > button.active { color: var(--text); font-weight: 500; }
+.sidebar-group button.active > svg { color: var(--accent); }
+.sidebar-primary > button[aria-current="page"] { background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 1px 2px var(--hover); }
+.sidebar-group .sliding-wash { background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 1px 2px var(--hover); }
+.sidebar-count { min-width: 18px; padding: 1px 5px; border-radius: 6px; background: var(--hover); color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; }
+.sidebar-name { min-width: 0; }
+.sidebar-account-footer { flex-shrink: 0; width: var(--sidebar); padding: 10px 12px 6px; border-top: 1px solid var(--line); box-shadow: inset 0 2px var(--rebuild-highlight); }
+.sidebar-account-card { display: flex; align-items: center; width: 100%; min-height: 44px; gap: 10px; padding: 4px; border-radius: 8px; }
+.sidebar-account-card:hover { background: var(--hover); }
+.sidebar-account-avatar { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text-3); }
+.sidebar-account-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sidebar-account-text > :is(strong, span) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sidebar-account-text strong { font-weight: 500; font-size: calc(12px * var(--text-scale, 1)); }
+.sidebar-account-text > span { color: var(--text-4); font-size: calc(11px * var(--text-scale, 1)); }
+.sidebar-footer { padding: 0 12px; border-top: 1px solid var(--line); }
+.sidebar-footer .sidebar-settings { order: 0; width: 24px; height: 24px; }
+.sidebar-footer .sync { margin-left: 0; margin-right: auto; padding-inline: 0; font-size: calc(11px * var(--text-scale, 1)); }
+
+/* View name and search share the leading edge; history stays at the right. */
+.app-toolbar { padding-inline: 16px; gap: 10px; }
+.app-context { gap: 6px; margin-right: 2px; font-size: calc(13px * var(--text-scale, 1)); }
+.app-context > :is(span, svg) { display: none; }
+.app-context strong { font-weight: 600; }
+.app-search-toolbar { max-width: 300px; margin-left: 0; }
+.app-search-toolbar .search { height: 28px; border: 1px solid var(--line); border-radius: 7px; background: var(--hover); }
+.app-search-toolbar .search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
+.app-toolbar .mail-navigation { margin-left: auto; }
+.commands-button { font-size: calc(11px * var(--text-scale, 1)); }
+.app-toolbar .icon { width: 28px; height: 28px; }
+.app-toolbar .update-spacer { height: 28px; }
+:is(.mail-category-bar, .draft-account-tabs, .work-view-tabs) {
+  height: 44px; border-bottom: 1px solid var(--line); box-shadow: inset 0 -2px var(--rebuild-highlight);
+}
+.mail-category-bar { padding-inline: 20px 24px; column-gap: 12px; }
+.mail-category-bar .inbox-tabs { gap: 24px; }
+.mail-category-bar .inbox-tabs button { font-size: calc(13px * var(--text-scale, 1)); font-weight: 500; }
+.mail-category-bar .tab-icon { display: inline-flex; }
+.tab-count { border-radius: 6px; background: var(--hover); }
+.inbox-tabs button.active .tab-count { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+/* Inset rows are document previews in comfortable density, including the full
+   width list. Compact retains the existing one-line geometry and shortcuts. */
+:root:not([data-glass]) :is(.list-pane, .workspace .list) { background: var(--rebuild-canvas); }
+.workspace .list { padding-inline: 12px; }
+.mail-window-date .group { padding-inline: 12px; color: var(--text-4); font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; }
+:root:not([data-glass]) .mail-window-date .group { background-color: var(--rebuild-canvas); }
+.mail-row { margin-inline: 1px; }
+.row { border-radius: 10px; }
+.row::after { display: none; }
+.row.card { padding: 12px; align-items: center; }
+.row.card .avatar { display: inline-flex; width: 30px; height: 30px; margin: 0 12px 0 0; }
+.row.card .row-text { gap: 3px; }
+.row.card .row-line strong { font-size: calc(13px * var(--text-scale, 1)); font-weight: 500; color: var(--text-2); }
+.row.card.unread .row-line strong { color: var(--text); font-weight: 600; }
+.row.card .row-subject { font-size: calc(13px * var(--text-scale, 1)); font-weight: 500; }
+.row.card.unread .row-subject { font-weight: 600; }
+.row.card .row-preview { font-size: calc(12px * var(--text-scale, 1)); color: var(--text-4); }
+.row.card .row-meta { margin: 0; gap: 8px; line-height: calc(15px * var(--text-scale, 1)); }
+.row.card .row-account { font-size: calc(10px * var(--text-scale, 1)); }
+.card .unread-dot { left: auto; right: 12px; top: auto; bottom: 12px; width: 5px; height: 5px; }
+.row.unread.card .avatar-letter { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent); }
+.list .row.selected, .list:focus-within .row.selected {
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line), 0 1px 3px var(--hover);
+}
+.list:focus-within .row.selected:focus-visible { outline: 1px solid var(--accent); }
+:root[data-scheme="dark"] .list .row.selected {
+  background-color: var(--raised); box-shadow: inset 0 0 0 1px var(--text-3), 0 1px 3px var(--hover);
+}
+:root[data-scheme="dark"] .list:focus-within .row.selected { box-shadow: inset 0 0 0 1px var(--accent), 0 1px 3px var(--hover); }
+.compact .row.card { padding-block: 8px; padding-right: 12px; }
+.row-actions { right: 8px; padding: 3px; border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+.row-actions button { border-radius: 6px; }
+
+/* Reader and editor are white documents beside the inset preview list. */
+.reader-pane { border-left: 1px solid var(--line); box-shadow: -2px 0 var(--rebuild-highlight); }
+:root:not([data-glass]) .reader-head { background: var(--surface); }
+.reader-head { height: 44px; padding-inline: 18px; border-bottom: 1px solid var(--line); }
+.reader-head .mail-actions { gap: 6px; }
+.reader-head .mail-actions .tool { width: 28px; padding-inline: 0; justify-content: center; }
+.reader-head .tool-label { display: none; }
+.reader-head .mail-actions .reader-close-hint { width: auto; padding-inline: 6px; }
+.mail-actions .tool { min-height: 28px; border-radius: 6px; }
+.reader-scroll .message { padding: 20px 24px 32px; }
+.message h1 { font-size: calc(20px * var(--text-scale, 1)); font-weight: 600; line-height: 1.3; letter-spacing: -.01em; }
+.message .message-from { margin-top: 16px; margin-bottom: 20px; padding-bottom: 16px; }
+.message-from .avatar { width: 30px; height: 30px; }
+.from-line strong { font-size: calc(13px * var(--text-scale, 1)); }
+.from-address, .from-to, .message-from time { font-size: calc(12px * var(--text-scale, 1)); }
+.message-body { line-height: 1.6; }
+.reader-secondary-tools { margin-top: 24px; padding-top: 12px; }
+.reader-empty { background: transparent; }
+.reader-empty .empty-title { font-size: calc(15px * var(--text-scale, 1)); }
+
+/* Saved drafts share the branch's date list, envelope hierarchy and white editor. */
+.draft-account-tabs { gap: 24px; padding-inline: 24px; background: transparent; }
+.draft-list { padding: 8px 12px 24px; }
+.draft-list-heading { padding: 8px 12px; color: var(--text-4); }
+.draft-list > ul { gap: 2px; }
+.draft-list .draft-row { min-height: 84px; padding: 12px 54px 12px 12px; border: 1px solid transparent; border-radius: 10px; }
+:root:not([data-glass]) .draft-list .draft-row:hover:not(:disabled), .draft-list .draft-row:focus-visible { border-color: var(--line); background: var(--surface); box-shadow: 0 1px 3px var(--hover); }
+.draft-row-recipient { font-size: calc(13px * var(--text-scale, 1)); }
+.draft-row-preview, .draft-row-meta { font-size: calc(12px * var(--text-scale, 1)); }
+.compose-dialog .compose-envelope { padding-top: 0; }
+.compose-dialog .compose-body { font-size: calc(14px * var(--text-scale, 1)); line-height: 1.6; }
+.compose-dialog .compose-from-row { min-height: 44px; }
+.compose-dialog .compose-file-action { font-size: calc(12px * var(--text-scale, 1)); }
+.compose-dialog .compose-footer { border-top: 1px solid var(--line); }
+.compose-save-status { font-size: calc(12px * var(--text-scale, 1)); }
+
+/* Today, Projects and Agent review retain their current controls and details,
+   using the same inset list and document surfaces as Mail. */
+.work-pane .main-head { height: auto; min-height: 44px; padding-inline: 24px; }
+.work-content { padding: 16px 24px 32px; }
+.work-content > .work-empty { padding: 16px 24px; }
+.work-group { margin-bottom: 24px; }
+.work-group h2 { margin-top: 8px; padding: 8px 12px; border: 0; color: var(--text-4); font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; }
+.work-group h2 span { font-size: inherit; }
+.work-group .work-row, .project-tasks .work-row { margin-block: 2px; padding: 12px; border-radius: 10px; border: 1px solid transparent; }
+.work-group .work-row.selected, .project-tasks .work-row.selected { background: var(--surface); border-color: var(--line); box-shadow: 0 1px 3px var(--hover); }
+.work-select strong { font-size: calc(13px * var(--text-scale, 1)); font-weight: 500; }
+.work-select .work-meta, :is(.work-context, .project-context, .agent-review-context) :is(p, dl),
+.project-overview p, .project-mail-subject { font-size: calc(12px * var(--text-scale, 1)); }
+:is(.work-context, .project-context, .agent-review-context) h2 { font-size: calc(20px * var(--text-scale, 1)); font-weight: 600; }
+.work-content :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { background: var(--surface); border-color: var(--line-2); border-radius: 8px; }
+.project-overview, .agent-provider-card { border-radius: 14px; }
+
+/* The month navigates dates; the wider event column carries the details. */
+.work-content.work-calendar .work-main { container: calendar-main / inline-size; }
+section.work-calendar[data-layout="month"], .work-layout.has-selection section.work-calendar[data-layout="month"] {
+  display: grid; grid-template-columns: minmax(0, 296px) minmax(0, 1fr); column-gap: 28px;
+}
+.calendar-period h2 { font-size: calc(14px * var(--text-scale, 1)); }
+.calendar-grid { width: 100%; max-width: 336px; gap: 3px; border: 0; }
+.calendar-weekday { border: 0; background: none; text-align: center; padding: 6px 0; font-size: calc(10px * var(--text-scale, 1)); font-weight: 400; }
+.calendar-grid button { min-height: 48px; padding: 5px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+.calendar-grid [aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.calendar-day-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px; width: 100%; }
+.calendar-grid [aria-current="date"] > span.calendar-day-heading { display: flex; justify-content: space-between; min-width: 0; min-height: 0; border-radius: 0; background: none; color: var(--accent); }
+.calendar-day-heading small { padding-inline: 2px; border-radius: 3px; background: var(--selected); color: var(--text-3); font-size: calc(9px * var(--text-scale, 1)); font-weight: 600; }
+.calendar-chips { margin-top: auto; }
+.calendar-chip { padding: 1px 2px; font-size: calc(10px * var(--text-scale, 1)); }
+section.work-calendar[data-layout="month"] > .calendar-day-title { margin: 10px 0 16px; font-size: calc(16px * var(--text-scale, 1)); }
+.calendar-agenda button { gap: 8px; min-height: 76px; padding: 14px 16px; margin-bottom: 12px; }
+.calendar-agenda strong { font-size: calc(15px * var(--text-scale, 1)); line-height: 1.45; }
+.calendar-agenda .work-meta { font-size: calc(12px * var(--text-scale, 1)); line-height: 1.5; }
+.calendar-agenda time { font-variant-numeric: tabular-nums; color: var(--text-3); }
+@container calendar-main (max-width: 660px) {
+  section.work-calendar[data-layout="month"], .work-layout.has-selection section.work-calendar[data-layout="month"] { display: block; }
+  section.work-calendar[data-layout="month"] > .calendar-day-title { margin-top: 24px; }
+}
+@media (pointer: coarse) {
+  section.work-calendar[data-layout="month"], .work-layout.has-selection section.work-calendar[data-layout="month"] { grid-template-columns: minmax(0, 336px) minmax(0, 1fr); }
+  .calendar-grid button { min-height: 44px; }
+}
+
+/* Contacts and all Settings sections use the same page hierarchy and fields. */
+:root:not([data-glass]) .settings-navigation { background: var(--rebuild-canvas); }
+.settings-navigation { padding: 18px 12px; }
+.settings-navigation button { min-height: 32px; padding-inline: 12px; border-radius: 8px; }
+.settings-navigation button[aria-current="page"] { background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+.settings-column { padding: 24px 28px 40px; }
+.settings-section-heading { margin-bottom: 24px; }
+.settings h1 { font-size: calc(20px * var(--text-scale, 1)); font-weight: 600; letter-spacing: -.01em; }
+.settings-section-heading p { margin-top: 6px; line-height: 1.6; font-size: calc(12px * var(--text-scale, 1)); }
+.settings .settings-group { border-radius: 14px; background: var(--surface); box-shadow: var(--edge); }
+.settings .settings-row { min-height: 48px; }
+.settings :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { background: var(--surface); border-radius: 8px; }
+.settings .settings-facts > div { min-height: 44px; }
+.settings .theme-preview { border-radius: 6px; }
+.contacts-pane .settings { background: transparent; }
+.dialog:not(.compose-dialog) { border-radius: 14px; box-shadow: var(--edge), var(--shadow-dialog); }
+.mail-menu, .dropdown-menu { border-radius: 14px; }
+:is(button, a, summary, input, select, textarea) { touch-action: manipulation; }
+
+/* Desktop keeps native caption space. Phone geometry remains in responsive.css,
+   loaded next; only these new account-card and inset-list pieces need adaptation. */
+@media (width < 760px) {
+  .sidebar-account-footer { width: 100%; }
+  .sidebar-account-card { min-height: 48px; }
+  .workspace .list { padding-inline: 6px; }
+}
+@container (max-width: 680px) {
+  .settings-column { padding: 0 0 32px; }
+}
