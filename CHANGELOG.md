@@ -25,6 +25,8 @@ unversioned history without treating it as a release record.
 
 ### Fixed
 
+- Load the phone sign-in and pairing controls when the browser app is installed beneath a hidden directory.
+
 - Delete saved drafts without waiting for a full mail-cache scan. Unused attachments still count toward storage limits until cleanup, normally during the daily idle inventory; compact storage to reclaim them sooner. ([#180](https://github.com/collection-of-things/aggregate-mail/issues/180))
 
 ## 0.2.23 - 2026-10-30

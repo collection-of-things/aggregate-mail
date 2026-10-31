@@ -75,6 +75,9 @@ separate acceptance.
 `server/phone-passkeys.ts` mounts only the public `/auth/pair`, bundled client
 and named pairing/WebAuthn POST routes before session authentication. Gate
 Host/Origin checks apply first; remote POSTs require the exact verified origin.
+The fixed public client filename is served relative to the build directory so
+hidden parent directories do not trigger dotfile filtering. Other filenames
+and hidden files remain outside that public route.
 Host management uses the normal authenticated API and CSRF guard plus exact
 localhost Host/Origin checks.
 

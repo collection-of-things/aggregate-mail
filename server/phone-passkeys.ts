@@ -65,7 +65,7 @@ export function phonePasskeys(options: {
       ...(value ? { pairing: { id: value.id, phase: value.phase, code: value.code, expiresAt: value.expiresAt } } : {}) };
   };
   const auth = express.Router();
-  auth.get("/auth/passkey.js", (_req, res) => res.sendFile(path.resolve(process.env.MAIL_STATIC_DIR || "dist", "auth-passkey.js")));
+  auth.get("/auth/passkey.js", (_req, res) => res.sendFile("auth-passkey.js", { root: path.resolve(process.env.MAIL_STATIC_DIR || "dist") }));
   auth.get("/auth/pair", (req, res) => {
     try { remote(req); } catch { return res.status(403).send("Open the private phone address from the QR code."); }
     res.type("html").send(browserAuthPage("Connect phone to Emc²", `<h1>Connect this phone</h1><p>One approval. Then unlock with your screen lock.</p><p id="passkey-status" role="status" aria-live="polite">Checking invitation…</p><p id="pair-code" aria-label="Matching code"></p><button type="button" id="passkey-connect" hidden>Connect this device</button><button type="button" id="passkey-register" disabled>Save passkey and open inbox</button><ol class="steps"><li>Compare this code with the host.</li><li>Approve this device on the host.</li><li>Save a passkey using your screen lock.</li></ol><a class="secondary" href="/auth#first-time">Back to unlock and setup help</a>`));

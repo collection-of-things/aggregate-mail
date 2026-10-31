@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { createHash, generateKeyPairSync, randomBytes, sign } from "node:crypto";
 import { once } from "node:events";
-import { request } from "node:http";
+import { request, type IncomingHttpHeaders } from "node:http";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import express from "express";
 import QRCode from "qrcode";
 import { verifyAuthenticationResponse, verifyRegistrationResponse } from "@simplewebauthn/server";
@@ -30,9 +33,9 @@ async function fixture(t: TestContext, verifiers: Partial<Pick<Parameters<typeof
   app.get("/api/synthetic", (_req, res) => res.json({ ok: true }));
   const server = app.listen(0, "127.0.0.1"); await once(server, "listening");
   const address = server.address(); assert.ok(address && typeof address !== "string");
-  const call = (route: string, origin = remote, cookie = "", body?: unknown, extra: Record<string, string> = {}) => new Promise<{ status: number; body: any; cookies: string[] }>((resolve, reject) => {
+  const call = (route: string, origin = remote, cookie = "", body?: unknown, extra: Record<string, string> = {}) => new Promise<{ status: number; body: any; cookies: string[]; headers: IncomingHttpHeaders }>((resolve, reject) => {
     const req = request({ hostname: "127.0.0.1", port: address.port, path: route, method: body === undefined ? "GET" : "POST", headers: { Host: new URL(origin).host, Origin: origin, Cookie: cookie, "Content-Type": "application/json", "X-CSRF-Token": "synthetic-csrf", ...extra } }, (res) => {
-      let data = ""; res.on("data", (chunk) => { data += chunk; }); res.on("end", () => { let parsed: any = data; try { parsed = JSON.parse(data); } catch {} resolve({ status: res.statusCode!, body: parsed, cookies: res.headers["set-cookie"] || [] }); });
+      let data = ""; res.on("data", (chunk) => { data += chunk; }); res.on("end", () => { let parsed: any = data; try { parsed = JSON.parse(data); } catch {} resolve({ status: res.statusCode!, body: parsed, cookies: res.headers["set-cookie"] || [], headers: res.headers }); });
     }); req.on("error", reject); req.end(body === undefined ? undefined : JSON.stringify(body));
   });
   const login = await new Promise<string>((resolve, reject) => {
@@ -50,6 +53,32 @@ async function fixture(t: TestContext, verifiers: Partial<Pick<Parameters<typeof
   t.after(async () => { server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); });
   return { call, host, connect, gate, credentials, login, advance: (ms: number) => { time += ms; } };
 }
+test("phone access pages load the public passkey client from a hidden installation directory", async (t) => {
+  const directory = await mkdtemp(path.join(tmpdir(), "emc2-phone-assets-"));
+  const assets = path.join(directory, ".private-install", "dist");
+  await mkdir(assets, { recursive: true });
+  const client = "globalThis.syntheticPasskeyClient = true;";
+  await writeFile(path.join(assets, "auth-passkey.js"), client);
+  await writeFile(path.join(assets, ".hidden.js"), "synthetic-private-file");
+  const previous = process.env.MAIL_STATIC_DIR;
+  process.env.MAIL_STATIC_DIR = assets;
+  t.after(async () => {
+    if (previous === undefined) delete process.env.MAIL_STATIC_DIR;
+    else process.env.MAIL_STATIC_DIR = previous;
+    await rm(directory, { recursive: true, force: true });
+  });
+  const f = await fixture(t);
+  for (const route of ["/auth", "/auth/pair"])
+    assert.match((await f.call(route)).body, /src="\/auth\/passkey\.js"/);
+  const script = await f.call("/auth/passkey.js");
+  assert.equal(script.status, 200);
+  assert.match(script.headers["content-type"] || "", /(?:application|text)\/javascript/);
+  assert.equal(script.body, client);
+  assert.deepEqual(script.cookies, []);
+  assert.equal((await f.call("/api/synthetic")).status, 401);
+  assert.equal((await f.call("/auth/passkey.js", remote, "", undefined, { Host: "foreign.example.test" })).status, 403);
+  assert.doesNotMatch((await f.call("/auth/.hidden.js")).body, /synthetic-private-file/);
+});
 function authenticator() {
   const keys = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
   const jwk = keys.publicKey.export({ format: "jwk" });
