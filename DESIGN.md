@@ -82,6 +82,7 @@ document-preview lists.
 The branch's New Message and Drafts icons remain. The web toolbar is
 40px; desktop retains its 52px caption space for native window controls.
 The current view and search share the leading edge; history stays at the right.
+See [ADR 0111](docs/adr/0111-compact-toolbar-placement.md) for the revised placement.
 The sidebar shows the app name and uses theme chrome in light mode and the
 raised surface in dark mode. Its 42px footer
 places sync status at the left and Settings at the right, with a top hairline.
@@ -406,7 +407,7 @@ Compose and reply save locally as the user types. Status text distinguishes savi
 
 Sending freezes editing and waits for the exact snapshot and an uncertainty marker to save. An uncertain send keeps the compose dialog and draft open with "Send status unknown" and a warning that the message may already have been sent. Editing and recovery keep this status. Every subsequent Send submission requires confirmation that another send may create a duplicate. Discard warns about possible delivery. The native application-close prompt explains that saved drafts remain and unacknowledged changes can be lost. Form validation blocks invalid input before submission. Confirmed provider acceptance closes compose. Sent-copy, saved-draft cleanup and inbox-refresh failures appear as warnings without changing the send outcome.
 
-Back and Forward controls stay beside persistent search. Menu history includes Settings sections, views, accounts, category tabs, filters and search. Opening, selecting, closing or traversing mail does not create menu visits. Back from an open reader returns to the list; immediate Forward reopens only the latest message if its account and message still exist. A second Back continues menu traversal. New reader actions clear the transient return, and a new menu visit after Back clears Forward. Drafts and dialogs block traversal. Reopened mail starts with images blocked. Reader previous/next controls and j/k retain the chosen sort order and preserve Unread anchors, input ownership and list focus.
+Back and Forward controls follow search, filters and privacy at the right of the persistent toolbar. Menu history includes Settings sections, views, accounts, category tabs, filters and search. Opening, selecting, closing or traversing mail does not create menu visits. Back from an open reader returns to the list; immediate Forward reopens only the latest message if its account and message still exist. A second Back continues menu traversal. New reader actions clear the transient return, and a new menu visit after Back clears Forward. Drafts and dialogs block traversal. Reopened mail starts with images blocked. Reader previous/next controls and j/k retain the chosen sort order and preserve Unread anchors, input ownership and list focus.
 
 Closing the desktop window hides it while the app, its mail service and its five-minute sync keep running. macOS uses the Dock to reopen and the native application menu to quit, with no status-bar icon. Windows and Linux retain a tray menu to reopen or quit. A second launch restores the window, and the system session end still exits. A sync that finds new unread mail shows native notices for accepted messages, using generic text by default and opening the exact cached email when enabled; the first import of a mailbox never notifies, and a failed sync reports no arrivals. Editable fields and selected text keep a native right-click menu for undo, redo, cut, copy, paste and select all, with items enabled from the platform's edit flags; mail rows keep the app's own menu.
 
@@ -433,7 +434,7 @@ and draft-review flow. See [ADR 0048](docs/adr/0048-v2-persistent-navigation.md)
 
 ## V2 daily workflow
 
-Keep history arrows beside persistent search, with compact headers below.
+Keep history arrows at the right of the persistent toolbar, with compact headers below.
 Settings owns assistant setup; Agent review owns proposed actions and activity.
 Group the Settings rail into Connections, Mail, Preferences and Advanced. Keep
 section descriptions readable without truncation and control rows compact.

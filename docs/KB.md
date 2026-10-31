@@ -312,7 +312,7 @@ Dialog backdrops and surfaces explicitly use `-webkit-app-region: no-drag`.
 This excludes their full bounds from native drag regions on pane headers
 behind them, including the composer account selector, Discard and Close.
 
-The current renderer adds a view breadcrumb to the main toolbar and account
+The current renderer keeps the view name beside search in the main toolbar and account
 tabs to Drafts. Those tabs use the existing navigation account filter. Their
 counts are hidden when a list read fails. Recipient-first draft rows keep
 account and saved-time context. Calendar places Add task in its view toolbar.
