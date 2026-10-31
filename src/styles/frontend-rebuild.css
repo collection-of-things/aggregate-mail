@@ -1,0 +1,92 @@
+/* Rebuild finish on the current application. Keep virtual-row geometry,
+   native caption spacing and operation guards in their existing layers. */
+:root {
+  --sidebar: 200px;
+  --rebuild-rail: color-mix(in srgb, var(--bg) 65%, var(--surface));
+  --rebuild-canvas: color-mix(in srgb, var(--surface) 90%, var(--bg));
+  --rebuild-highlight: color-mix(in srgb, var(--text) 6%, transparent);
+}
+:root[data-scheme="light"] {
+  --rebuild-highlight: rgba(255, 255, 255, .85);
+}
+
+/* Etched pane edges use inset paint rather than extra layout columns. */
+:root:not([data-glass]) .sidebar { background: var(--rebuild-rail); }
+:root:not([data-glass]) :is(.app-toolbar, .main-head, .reader-head,
+  .draft-account-tabs, .work-view-tabs, .settings-navigation) {
+  background: var(--rebuild-canvas);
+}
+.sidebar { box-shadow: inset -1px 0 var(--rebuild-highlight); }
+:is(.sidebar-head, .app-toolbar, .main-head, .reader-head,
+  .mail-category-bar, .draft-account-tabs, .work-view-tabs) {
+  box-shadow: inset 0 -1px var(--rebuild-highlight);
+}
+.sidebar-head { gap: 10px; }
+.sidebar-brand {
+  font-size: calc(16px * var(--text-scale, 1));
+  letter-spacing: -.035em;
+}
+.sidebar-content { padding: 16px 12px; }
+.sidebar-group > button { min-height: 32px; border-radius: 7px; }
+.sidebar-group + .sidebar-group { margin-top: 24px; }
+.sidebar-heading button {
+  padding-bottom: 10px;
+  font-size: calc(11px * var(--text-scale, 1));
+  font-weight: 500;
+}
+.sidebar-group button[aria-current="page"],
+.sidebar-group button[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.sidebar-count { border-radius: 5px; background: transparent; }
+.sidebar-footer { box-shadow: inset 0 1px var(--rebuild-highlight); }
+.sidebar-primary > .primary-button.new-message:first-of-type {
+  justify-content: flex-start;
+  padding-inline: 14px;
+  text-transform: none;
+}
+.primary-button,
+.sidebar-primary > .primary-button:first-of-type { border-radius: 10px; }
+
+/* Search, category tabs and secondary actions share the compact control scale. */
+.app-search-toolbar .search { border-color: var(--line-2); border-radius: 7px; }
+.app-search-toolbar .search:focus-within { border-color: var(--accent); }
+.app-context { gap: 8px; }
+.commands-button { font-size: calc(11px * var(--text-scale, 1)); }
+.mail-category-bar .inbox-tabs { gap: 20px; }
+.mail-category-bar .inbox-tabs button { font-size: calc(12px * var(--text-scale, 1)); }
+.tab-count { border-radius: 4px; background: transparent; }
+.inbox-tabs button.active .tab-count { background: var(--selected); }
+.mail-actions .tool { border-radius: 5px; }
+.message h1 { font-size: calc(22px * var(--text-scale, 1)); line-height: 1.35; }
+.message-body { line-height: 1.75; }
+.reader-empty .empty-title { font-size: calc(15px * var(--text-scale, 1)); }
+
+/* Drafts remain a continuous list with all envelope and recovery controls. */
+:root:not([data-glass]) :is(.drafts-pane, .draft-row) { background: var(--surface); }
+.draft-row { padding-block: 16px; }
+.draft-row-recipient { font-size: calc(13px * var(--text-scale, 1)); }
+.draft-row-preview, .draft-row-meta { font-size: calc(12px * var(--text-scale, 1)); }
+.compose-dialog .compose-body { font-size: calc(14px * var(--text-scale, 1)); line-height: 1.75; }
+.compose-dialog .compose-file-action { font-size: calc(12px * var(--text-scale, 1)); }
+.compose-save-status { font-size: calc(12px * var(--text-scale, 1)); }
+
+/* Work, Contacts and Settings reuse the same type and etched section edges. */
+.work-select strong { font-size: calc(13px * var(--text-scale, 1)); }
+.work-select .work-meta,
+:is(.work-context, .project-context, .agent-review-context) :is(p, dl),
+.project-overview p, .project-mail-subject {
+  font-size: calc(12px * var(--text-scale, 1));
+}
+.work-group h2 { font-weight: 600; }
+.work-group .work-row + .work-row { border-top: 1px solid var(--line); }
+.settings-navigation button { border-radius: 7px; }
+.settings .settings-group { border-radius: 10px; box-shadow: var(--edge); }
+.settings-section-heading p { line-height: 1.6; }
+.calendar-weekday { font-weight: 500; }
+.calendar-grid [aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--accent); }
+.dialog:not(.compose-dialog) { box-shadow: var(--edge), var(--shadow-dialog); }
+.mail-menu, .dropdown-menu { border-radius: 10px; }
+
+/* Existing focus, navigation motion and responsive rules remain authoritative. */
+:is(button, a, summary, input, select, textarea) { touch-action: manipulation; }

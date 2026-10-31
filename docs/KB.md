@@ -286,7 +286,7 @@ macOS or Linux builds.
 
 ## Shared application styling
 
-The working layout uses a 208px main rail and names each view once in the
+The working layout uses a 200px main rail and names each view once in the
 persistent toolbar. Inbox categories and Drafts account tabs follow it without
 another title row. Work action and cached-mail bars keep their existing
 controls; Settings keeps its section heading. Category navigation sits outside
@@ -1851,7 +1851,7 @@ expanded. See [ADR 0048](adr/0048-v2-persistent-navigation.md).
 
 ## V2 visual correction
 
-The V2 sidebar uses separate Mail and Workspace groups (Mail first) at 208px, with Settings
+The V2 sidebar uses separate Mail and Workspace groups (Mail first) at 200px, with Settings
 anchored at the bottom. Agent review keeps existing assistant cards above a
 collapsible add form. Permissions, BYOK and external connection setup stay in
 each card; hiding a section preserves its state and approval guards. Projects
@@ -2770,6 +2770,25 @@ Summary reads copy their envelopes and mutable metadata children; an unchanged v
 Agent review fills its working pane rather than capping the review grid at 1120px. The existing narrow-screen single-column layout and review controls remain.
 
 Browser API integration authenticates each request with either the desktop per-launch token or the expiring browser gate session. The gate replaces the earlier terminal session link; it does not add a second sign-in step. OAuth start remains authenticated and CSRF-protected, single-use launch/state records remain capped, and the approved browser origin is retained through callback. `server/browser-session.test.ts` uses a temporary synthetic profile and ephemeral port to verify login, refusal, CSRF, origin and lock behavior without using another service's listener. Phone access uses verified private Tailscale HTTPS with the backend bound only to loopback; a high port alone provides no encryption.
+
+### Frontend rebuild
+
+The rebuild uses the current renderer and browser-session wrapper. Its shared
+finish is `src/styles/frontend-rebuild.css`, imported after `application.css`
+and before `responsive.css`. The 200px sidebar, etched separators, blue primary
+controls and compact type apply to mail, drafts, work, Contacts, Calendar and
+Settings. Existing theme and glass tokens remain the color source. Insets paint
+separators without changing mail-list measurements or composer positioning.
+
+The renderer retains current row and bulk actions, cached search and saved
+views, rich drafts and attachments, scheduled sending, calendar workflows,
+Contacts, About/update checks and phone access. No compatibility API adapter or
+parallel renderer is used. Wide mail rows remain 34px comfortable or 24px compact;
+narrow rows remain 100px or 72px, with the existing text-scale multiplier.
+
+Use the [journey map](user-journeys.md) for mounted synthetic checks. A stylesheet
+build or interaction test does not establish browser/device geometry or real
+provider behavior. Live browser testing remains restricted by PRODUCT.md.
 
 ### Mobile browser layout
 

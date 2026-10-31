@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "name": "Emc²",
   "mode": "operate",
-  "source": "qsgWf9eTSH3hwijq.mp4 frames at 25s, 65s, 104s, 140s and 178s measured at native 3796x2160 (2x); src/style.css",
+  "source": "DESIGN.md; src/styles/tokens.css; src/styles/frontend-rebuild.css; src/styles/responsive.css",
   "colors": {
     "background": "#000000",
     "text": "#ffffff",
@@ -19,8 +19,8 @@
   "typography": {
     "body": {
       "fontFamily": "-apple-system, SF Pro Text, Segoe UI Variable Text, Segoe UI, system-ui, sans-serif",
-      "fontSize": "12px",
-      "lineHeight": 1.4
+      "fontSize": "13px",
+      "lineHeight": 1.45
     },
     "rowSender": "13px/600",
     "rowSubject": "12.5px",
@@ -31,16 +31,16 @@
     "settingsHeading": "16px/600"
   },
   "layout": {
-    "topbar": 38,
+    "topbar": 52,
     "captionControls": 146,
     "footer": 23,
     "contextPanel": 226,
     "settingsColumn": 600,
     "rows": {
-      "low": 22,
-      "medium": 27,
-      "high": 46,
-      "compact": 22
+      "comfortable": 34,
+      "compact": 24,
+      "narrowComfortable": 100,
+      "narrowCompact": 72
     },
     "avatars": {
       "low": 14,
@@ -48,11 +48,12 @@
       "high": 24,
       "context": 38
     },
-    "mobileBreakpoint": 720
+    "mobileBreakpoint": 760,
+    "sidebar": 200
   },
   "radii": {
-    "control": 4,
-    "dialog": 8
+    "control": 8,
+    "dialog": 14
   },
   "motion": {
     "continuous": false

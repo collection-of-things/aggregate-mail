@@ -7,6 +7,7 @@ before claiming an installed fix.
 
 | Journey | Expected result | Failure branches to preserve | Focused synthetic coverage |
 | --- | --- | --- | --- |
+| Rebuilt interface | Current navigation and controls remain available in the rebuilt shell, in both densities and saved themes | Mobile drawer, text scaling, virtual row heights, privacy, keyboard focus, browser-session loss and unsaved drafts | `src/navigation.test.tsx`, `src/row-actions.test.tsx`, `src/list-windowing.test.tsx`, `src/appearance.test.tsx`, `src/browser-session.test.tsx`, `src/compose-layout.test.tsx` |
 | Connect account | Provider choice opens the correct setup; a successful connection appears in Accounts | OAuth unavailable/cancelled, invalid credentials, sync gap; never replace an unreadable key | `src/onboarding.test.tsx`, `server/sync.test.ts`, `server/sync-recovery.test.ts` |
 | Read and search mail | A new search finds cached mail and local drafts across accounts; deliberate narrowing respects account/view; opening preserves identity | Empty results, incomplete sync, stale search/draft responses, same-count draft saves, read failure; selection alone does not mark read | `src/mail-search.test.tsx`, `src/mail-actions.test.tsx`, `src/list-windowing.test.tsx` |
 | Rename account | Save updates sidebar and Settings after reload; blank name restores the address | Cancel leaves name unchanged; failed save retains input; privacy still masks addresses | `src/navigation.test.tsx` (rename cases) |

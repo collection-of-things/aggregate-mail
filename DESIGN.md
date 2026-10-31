@@ -35,7 +35,7 @@ rounded:
 
 ## Application layout
 
-The app uses a 208px source rail, one view name in the persistent toolbar and
+The app uses a 200px source rail, one view name in the persistent toolbar and
 separate working columns. Mail views share one 42px rail above the list: a
 select-all checkbox aligned with the row checkboxes, Inbox category tabs, and,
 while messages are selected, the bulk count and triage actions. Drafts account
@@ -73,6 +73,21 @@ Agent review separates exact proposals from review context and permission
 management. Settings keeps its own section rail. Dialogs share
 the same compact type, grouped forms and footer actions.
 
+## Frontend rebuild finish
+
+`src/styles/frontend-rebuild.css` applies the rebuild to the current renderer.
+It loads after application styles and before responsive rules. A pale source
+rail in light mode, etched pane edges and compact controls share the existing
+theme tokens. Dark, custom and glass themes keep their saved appearance.
+Mail reading retains its 13px text; draft bodies use 14px. Work and Settings
+reuse the same compact hierarchy. Pane edges use inset paint without changing geometry.
+
+Navigation, mail actions, draft recovery, Contacts, calendar, browser-session
+protection and update checks use their current components and handlers. Mail
+row sizes remain 34/24px wide and 100/72px narrow before text scaling. Mobile
+controls retain their 44px targets and safe-area spacing. Existing navigation
+motion, reduced-motion and focus behavior remain.
+
 ## Shared controls
 
 The revised shell shows the current view in the top toolbar beside history
@@ -89,7 +104,7 @@ rows on the navigation surface. Calendar uses a continuous grid with a clear
 selected-day outline. Existing theme, transparency and text-size choices stay
 available.
 
-New Message and Send share one primary control: a 12px radius, narrow inner
+New Message and Send share one primary control: a 10px radius, narrow inner
 highlight, shallow vertical shading and a small drop shadow. Other controls
 stay flat. Blue uses the primary action token; other accents and custom themes
 derive the action fill from their selected accent.
@@ -283,7 +298,7 @@ Transparency uses the operating system's own material behind the window. On Wind
 
 - A persistent 52px toolbar holds mail search and Commands above the working panes, with the Filters and privacy buttons at its right while the mail list shows; only the privacy button stays for Settings, Drafts and work views. Each pane retains a 48px title header, one height under the 52px toolbar so the hairlines line up across panes, and secondary controls such as category tabs, cached-mail notes and work-view controls share the title line. Headers drag the window apart from their controls; double-clicking maximizes it. The sidebar toggle sits first in the top-left header and moves into the toolbar when the sidebar is closed. Drawn window controls belong to the sidebar and toolbar, so they stay in the window corners as the reader pane changes. Windows-style controls reserve 150px at the toolbar’s right edge. macOS-style drawn controls use the configured left or right corner and existing IPC actions. The app-update control follows the pane tools in the toolbar flow, before the window controls, instead of floating over them.
 - On macOS, the native traffic lights sit at (20px, 20px). The app draws no dots of its own there. The header of the leftmost pane, the sidebar or the mail or Settings header while the sidebar is closed, reserves 84px for them. Native application, File, Edit and Window menus provide standard Command shortcuts.
-- The 208px sidebar runs the full window height. Its header holds the app name, collapse toggle and platform window-control space. New Message and Drafts come first. Mail views come next, then Workspace views, in separate folding groups, followed by account filters and Add account. Settings and sync share a fixed footer. The current view and account use a neutral selection wash. Navigation rows are 34px with outline icons, 8px radii and muted counts. Account labels may truncate within the rail. Keyboard account hints remain in the shortcuts help. Snoozed appears when it has mail or is open.
+- The 200px sidebar runs the full window height. Its header holds the app name, collapse toggle and platform window-control space. New Message and Drafts come first. Mail views come next, then Workspace views, in separate folding groups, followed by account filters and Add account. Settings and sync share a fixed footer. The current view and account use a neutral selection wash. Navigation rows are 32px with outline icons, 7px radii and muted counts. Account labels may truncate within the rail. Keyboard account hints remain in the shortcuts help. Snoozed appears when it has mail or is open.
 - The sidebar toggle hides or shows the sidebar and remembers the choice between launches. When the sidebar is closed, the toggle moves into the persistent toolbar at the same spot. The sidebar collapses and expands by width on a spring; its content keeps a fixed width so it clips instead of reflowing. Below 760px window width the sidebar is hidden and its toggle with it.
 - Settings floats in a compact modal above the mounted mail or work view. The
   background sidebar and toolbar are inert. Its header keeps Back, Forward and
