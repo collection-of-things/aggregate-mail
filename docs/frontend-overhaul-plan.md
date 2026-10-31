@@ -9,9 +9,13 @@ operations, recovery and browser authentication.
 - Keep the current App, BrowserSession, mail and bulk actions, cached search,
   saved views, Contacts, calendar, rich drafts, attachments, outbox and scheduled
   sending. Keep current About and update status.
-- Apply the 200px sidebar, etched pane separators, glossy primary controls and
-  compact typography through `src/styles/frontend-rebuild.css`. Import it after
-  application styles and before responsive overrides.
+- Port the branch layout: 200px sidebar, Workspace before Mail, account footer,
+  source icons, 40px web breadcrumb band, etched pane separators, inset preview
+  lists, white reader/editor documents and consistent work/settings surfaces.
+  Import the shared stylesheet after application styles and before responsive
+  overrides.
+- Use comfortable card mail rows at every width. Pass the same layout to the
+  virtual window so its 100px measurement matches CSS. Keep compact 24/72px rows.
 - Preserve theme and glass tokens, native caption spacing, measured mail rows,
   keyboard access, visible focus, privacy and reduced motion.
 - Update DESIGN.md, design metadata, the KB, journey map and changelog.

@@ -20,9 +20,9 @@ const rowIcons = { archive: Archive, inbox: Inbox, snooze: Clock, unsnooze: Inbo
 const rowOrder = Object.keys(rowIcons);
 
 /**
- * Mail rows under sticky date headings. Wide lists keep sender and subject on
- * one uniform-height line; beside the reader the list is narrow, so each row
- * becomes a card: sender and time, the subject, then a preview in comfortable
+ * Mail rows under sticky date headings. Comfortable lists use the rebuild
+ * cards at every width. Compact wide lists retain one-line rows; beside the
+ * reader both densities use cards: sender and time, the subject, then a preview in comfortable
  * density. High-relevance mail carries an importance marker inside the sender
  * column. Direct actions share the message menu's handlers and guards; More
  * actions, right-click and the menu key retain the full menu.
@@ -47,14 +47,15 @@ export function MailList<T extends Mail>({
   onMenuKey: (event: KeyboardEvent<HTMLElement>, mail: T) => void;
   actions?: (mail: T) => RowAction[];
 }) {
+  const cardLayout = narrow || density === "comfortable";
   const bulk = useContext(BulkSelectionContext);
   const { on: privacy } = useContext(PrivacyContext);
   return <>
-    {showAccount && !narrow && <div className="mail-list-columns" aria-hidden="true"><span>Account</span><span>Status</span></div>}
+    {showAccount && !cardLayout && <div className="mail-list-columns" aria-hidden="true"><span>Account</span><span>Status</span></div>}
     <MailListWindow messages={messages} selectedId={selectedId} focusSelection={focusSelection}
-    density={density} sort={sort} listRef={listRef} narrow={narrow}>{(m, index) => {
+    density={density} sort={sort} listRef={listRef} narrow={cardLayout}>{(m, index) => {
     const relevance = m.relevance;
-    const layout: RowLayout = narrow ? "card" : "inline";
+    const layout: RowLayout = cardLayout ? "card" : "inline";
     const current = m.id === selectedId;
     const accountIndex = accounts.findIndex((account) => account.id === m.accountId);
     const accountName = accountIndex < 0 ? "Account unavailable" : accountLabel(accounts[accountIndex], accountIndex, privacy, accounts);

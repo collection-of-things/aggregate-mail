@@ -1851,7 +1851,7 @@ expanded. See [ADR 0048](adr/0048-v2-persistent-navigation.md).
 
 ## V2 visual correction
 
-The V2 sidebar uses separate Mail and Workspace groups (Mail first) at 200px, with Settings
+The V2 sidebar uses separate Workspace and Mail groups (Workspace first) at 200px, with Settings
 anchored at the bottom. Agent review keeps existing assistant cards above a
 collapsible add form. Permissions, BYOK and external connection setup stay in
 each card; hiding a section preserves its state and approval guards. Projects
@@ -2773,22 +2773,26 @@ Browser API integration authenticates each request with either the desktop per-l
 
 ### Frontend rebuild
 
-The rebuild uses the current renderer and browser-session wrapper. Its shared
-finish is `src/styles/frontend-rebuild.css`, imported after `application.css`
-and before `responsive.css`. The 200px sidebar, etched separators, blue primary
-controls and compact type apply to mail, drafts, work, Contacts, Calendar and
-Settings. Existing theme and glass tokens remain the color source. Insets paint
-separators without changing mail-list measurements or composer positioning.
+The current renderer carries the `feat/frontend-rebuild` layout through
+`src/styles/frontend-rebuild.css`, imported after `application.css` and before
+`responsive.css`. The 200px sidebar places Workspace before Mail and ends in a
+privacy-safe account summary using the existing account-settings navigation.
+The source branch's compose and draft icons are included. Web chrome is 40px;
+desktop retains native caption space. The breadcrumb band, etched separators,
+inset list cards and document panels apply across Mail, Drafts, Today, Projects,
+Agent review, Calendar, Contacts and Settings.
 
-The renderer retains current row and bulk actions, cached search and saved
-views, rich drafts and attachments, scheduled sending, calendar workflows,
-Contacts, About/update checks and phone access. No compatibility API adapter or
-parallel renderer is used. Wide mail rows remain 34px comfortable or 24px compact;
-narrow rows remain 100px or 72px, with the existing text-scale multiplier.
+Comfortable MailList uses its card layout at every width and passes that same
+choice to MailListWindow: 100px before text scaling. Compact keeps 24px wide or
+72px beside the reader. Row controls, bulk selection, scrolling, focus, account
+identity and all current handlers remain shared. The list uses the existing
+measured card tokens rather than changing heights only in CSS. Themes, privacy,
+rich drafts, attachments, scheduled sending, browser protection and About/update
+checks retain their current components.
 
-Use the [journey map](user-journeys.md) for mounted synthetic checks. A stylesheet
-build or interaction test does not establish browser/device geometry or real
-provider behavior. Live browser testing remains restricted by PRODUCT.md.
+Use the [journey map](user-journeys.md) for mounted synthetic checks. A build or
+interaction test does not establish browser/device geometry or real provider
+behavior. Live browser testing remains restricted by PRODUCT.md.
 
 ### Mobile browser layout
 

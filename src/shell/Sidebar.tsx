@@ -9,6 +9,9 @@ import { ChevronDown, Mail as MailIcon, Plus, Settings, SidebarIcon } from "../u
 import { captionDoubleClick, type Corner } from "./PaneHeader";
 import { TrafficLights } from "../ui/TrafficLights";
 
+const draftsIcon = new URL("../assets/drafts.png", import.meta.url).href;
+const newMessageIcon = new URL("../assets/new-message.png", import.meta.url).href;
+
 const foldedKey = "sidebar-folded";
 const readFolded = () => {
   try { return new Set<string>(JSON.parse(localStorage.getItem(foldedKey) || "[]")); }
@@ -78,6 +81,8 @@ export function Sidebar({
     try { localStorage.setItem(foldedKey, JSON.stringify([...next])); } catch { /* The choice lasts this session. */ }
     return next;
   });
+  const selectedAccount = mail.accounts.find(account => account.id === mail.accountFilter);
+  const selectedIndex = selectedAccount ? mail.accounts.indexOf(selectedAccount) : -1;
   return (
     <aside
       id="sidebar"
@@ -101,16 +106,16 @@ export function Sidebar({
         <div className="sidebar-content" key="mail" inert={mail.blocked}>
           <SlidingNav activeKey={null} label="App" className="sidebar-group sidebar-primary">
             <button className="primary-button new-message" title={`Compose (${mail.shortcut("compose")})`} onClick={mail.onCompose}>
-              <span className="compose-mark" aria-hidden="true"><Plus color="currentColor" size={10} /></span>
+              <img className="compose-mark" src={newMessageIcon} alt="" />
               New message
             </button>
             <button className={!settings && mail.view === "drafts" ? "active" : undefined} aria-current={!settings && mail.view === "drafts" ? "page" : undefined} aria-label={mail.draftCount === undefined ? "Drafts" : `Drafts, ${mail.draftCount} saved`} disabled={mail.blocked || mail.busy || !mail.accounts.length} onClick={mail.onDrafts}>
-              <MailIcon color="currentColor" size={16} />
+              <span className="drafts-mark" style={{ maskImage: `url(${draftsIcon})`, WebkitMaskImage: `url(${draftsIcon})` }} aria-hidden="true" />
               Drafts
               {mail.draftCount !== undefined && <span className="sidebar-count">{mail.draftCount}</span>}
             </button>
           </SlidingNav>
-          {(["mail", "workspace"] as const).map((group) => <SlidingNav key={group} activeKey={settings ? null : mail.view} label={group === "workspace" ? "Workspace views" : "Mail views"} className="sidebar-group">
+          {(["workspace", "mail"] as const).map((group) => <SlidingNav key={group} activeKey={settings ? null : mail.view} label={group === "workspace" ? "Workspace views" : "Mail views"} className="sidebar-group">
             <Heading id={group} folded={folded.has(group)} onFold={fold}>{group === "workspace" ? "Workspace" : "Mail"}</Heading>
             {!folded.has(group) && sidebarViews.filter(({ view }) => ["actions", "calendar", "projects", "agents", "contacts"].includes(view) === (group === "workspace")).map(({ view, Icon }) => {
               const total = view === "actions" ? mail.dueCount ?? null : view === "snoozed" ? mail.snoozedCount : view === "inbox" ? mail.inboxCount : null;
@@ -174,6 +179,18 @@ export function Sidebar({
             )}
           </SlidingNav>
         </div>
+          <div className="sidebar-account-footer">
+            <button type="button" className="sidebar-account-card" disabled={mail.blocked}
+              aria-label="Manage accounts" onClick={() => selectedAccount && mail.onAccountSettings ? mail.onAccountSettings(selectedAccount.id) : mail.onSettings()}>
+              <span className="sidebar-account-avatar" aria-hidden="true">
+                {selectedAccount ? <ProviderIcon provider={selectedAccount.provider} /> : <MailIcon size={18} />}
+              </span>
+              <span className="sidebar-account-text">
+                <strong>{selectedAccount ? accountLabel(selectedAccount, selectedIndex, mail.privacy, mail.accounts) : "All accounts"}</strong>
+                <span>{mail.accounts.length ? `${mail.accounts.length} connected ${mail.accounts.length === 1 ? "account" : "accounts"}` : "Connect an account"}</span>
+              </span>
+            </button>
+          </div>
           <div className="sidebar-footer">
             <button
               className="sync"

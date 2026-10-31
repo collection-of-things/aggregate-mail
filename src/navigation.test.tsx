@@ -1024,6 +1024,13 @@ test("sidebar destinations have distinct decorative navigation glyphs", async ()
     const glyphs = labels.map((label) => {
       const button = app.button(label);
       assert.ok(button.closest("#sidebar"), `${label} belongs in the sidebar`);
+      if (label === "Drafts") {
+        const icon = button.querySelector<HTMLElement>(".drafts-mark");
+        assert.ok(icon, "Drafts has an icon");
+        assert.ok(icon.style.maskImage.includes("drafts.png"), "Drafts uses the rebuild's envelope icon");
+        assert.equal(icon.getAttribute("aria-hidden"), "true");
+        return icon.style.maskImage;
+      }
       const svg = button.querySelector("svg");
       assert.ok(svg, `${label} has an icon`);
       assert.equal(svg.getAttribute("width"), "16");
@@ -1035,6 +1042,23 @@ test("sidebar destinations have distinct decorative navigation glyphs", async ()
       return svg.innerHTML;
     });
     assert.equal(new Set(glyphs).size, labels.length, "each sidebar destination has a distinct rendered glyph");
+  } finally { await app.close(); }
+});
+
+test("the rebuild account footer follows the filter, preserves privacy and opens existing settings", async () => {
+  const app = await mount();
+  try {
+    const footer = () => app.container.querySelector<HTMLElement>(".sidebar-account-card")!;
+    assert.match(footer().textContent!, /All accounts.*2 connected accounts/);
+    await app.click(app.button("first@example.com"));
+    assert.match(footer().textContent!, /first@example.com/);
+    await app.click(app.button("Hide personal information"));
+    assert.doesNotMatch(footer().outerHTML, /first@example.com|second@example.com/);
+    assert.match(footer().textContent!, /Account 1/);
+    await app.click(app.button("Manage accounts"));
+    assert.equal(app.button("Accounts").getAttribute("aria-current"), "page");
+    assert.ok(app.container.querySelector(".settings"));
+    assert.equal(app.mutations.length, 0, "account summary only navigates");
   } finally { await app.close(); }
 });
 

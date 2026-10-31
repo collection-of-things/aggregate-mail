@@ -22,22 +22,22 @@
       "fontSize": "13px",
       "lineHeight": 1.45
     },
-    "rowSender": "13px/600",
-    "rowSubject": "12.5px",
-    "rowPreview": "11.5px",
+    "rowSender": "13px/500; unread 600",
+    "rowSubject": "13px",
+    "rowPreview": "12px",
     "lowRow": "11px",
     "meta": "11px",
-    "senderName": "14px/600",
-    "settingsHeading": "16px/600"
+    "senderName": "13px/600",
+    "settingsHeading": "20px/600"
   },
   "layout": {
-    "topbar": 52,
+    "topbar": 40,
     "captionControls": 146,
     "footer": 23,
     "contextPanel": 226,
     "settingsColumn": 600,
     "rows": {
-      "comfortable": 34,
+      "comfortable": 100,
       "compact": 24,
       "narrowComfortable": 100,
       "narrowCompact": 72
@@ -46,14 +46,17 @@
       "low": 14,
       "medium": 20,
       "high": 24,
-      "context": 38
+      "context": 30,
+      "card": 30
     },
     "mobileBreakpoint": 760,
-    "sidebar": 200
+    "sidebar": 200,
+    "desktopTopbar": 52
   },
   "radii": {
     "control": 8,
-    "dialog": 14
+    "dialog": 14,
+    "primary": 11
   },
   "motion": {
     "continuous": false

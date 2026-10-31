@@ -245,12 +245,13 @@ test("a 200-item range outside the first batch reads mixed, and the master then 
       list.scrollTop = top;
       list.dispatchEvent(new ui.dom.window.Event("scroll"));
     });
-    await scrollTo(1600);
+    const rowHeight = parseFloat(document.querySelector<HTMLElement>(".mail-window")!.style.height) / messages.length;
+    await scrollTo(50 * rowHeight);
     const middle = document.querySelector<HTMLButtonElement>('[data-mail-id="local-50"] [role="checkbox"]');
     assert.ok(middle, "row local-50 mounts once the window scrolls to it");
     await act(async () => middle.click());
     assert.match(ui.count()!, /^1 messages selected/);
-    await scrollTo(8100);
+    await scrollTo(249 * rowHeight);
     const last = document.getElementById("mail-local-249");
     assert.ok(last, "row local-249 mounts once the window scrolls to it");
     await act(async () => last.dispatchEvent(new ui.dom.window.MouseEvent("click", { shiftKey: true, bubbles: true })));
