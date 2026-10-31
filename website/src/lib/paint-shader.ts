@@ -302,7 +302,9 @@ export function startPaintShader(
   let initQueue = (startPaintShader as { q?: Promise<unknown> }).q ?? Promise.resolve();
   const enqueue = <T>(fn: () => Promise<T>): Promise<T> => {
     const p = initQueue.then(fn);
-    initQueue = p;
+    /* the queue tail is settled, so one painting's failed init never skips
+       the ones queued after it; the caller still sees its own rejection */
+    initQueue = p.catch(() => undefined);
     (startPaintShader as { q?: Promise<unknown> }).q = initQueue;
     return p;
   };

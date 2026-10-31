@@ -11,6 +11,9 @@ import Analytics from "@vercel/analytics/astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import { fetchLatestRelease } from "../lib/release";
 import { DESCRIPTION, GITHUB_REPO, ogImageUrl, RELEASES, TITLE } from "../lib/site";
+/* self-hosted fonts, so visitors make no requests to a font CDN */
+import "@fontsource-variable/geist";
+import "@fontsource-variable/newsreader/opsz.css";
 import "../styles/global.css";
 
 // Installer links, sizes and checksums bake in at build; the page script
@@ -83,12 +86,6 @@ const safeJson = (value: unknown) => JSON.stringify(value).replace(/</g, "\\u003
     <meta name="twitter:description" content={DESCRIPTION} />
     <meta name="twitter:image" content={ogImage} />
     <script type="application/ld+json" is:inline set:html={safeJson(jsonLd)} />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Newsreader:opsz,wght@6..72,400..600&display=swap"
-    />
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>

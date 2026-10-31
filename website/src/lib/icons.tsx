@@ -25,7 +25,7 @@ function Outline({ size = 24, children, ...props }: IconProps) {
   );
 }
 
-const D: Record<string, JSX.Element> = {
+const D = {
   archive: <><rect x="3" y="4" width="18" height="5" rx="1.5" /><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4" /></>,
   reply: <><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></>,
   trash: <path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6m4-6v6" />,
@@ -52,7 +52,7 @@ const D: Record<string, JSX.Element> = {
   pin: <path d="m16 3 5 5-4 1-3 6-2-2-5 5-1-1 5-5-2-2 6-3Z" />,
   paperclip: <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />,
   more: <><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" /></>,
-};
+} satisfies Record<string, JSX.Element>;
 
 export type IconName = keyof typeof D;
 

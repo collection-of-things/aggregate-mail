@@ -31,8 +31,8 @@
   --pill: 999px;
 
   /* type */
-  --font: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --serif: "Newsreader", Georgia, "Times New Roman", serif;
+  --font: "Geist Variable", "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --serif: "Newsreader Variable", "Newsreader", Georgia, "Times New Roman", serif;
   --fs-display: clamp(40px, 4.4vw, 60px);
   --fs-h2: clamp(32px, 3vw, 44px);
   --fs-h3: 18px;

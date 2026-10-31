@@ -63,9 +63,12 @@ export function SenderMark({ domain, letter, size = 13 }: { domain: string; lett
   if (h > 0 && w / h > 1.6) return <span className="ava-letter">{letter}</span>;
   return (
     <svg aria-hidden="true" height={size} viewBox={mark.viewBox} width={size}>
-      {mark.paths.map((path) => {
-        const color = path.fill ?? mark.fallback;
-        return <path d={path.d} fill={luminance(color) < 0.24 ? "#e6e6e6" : color} key={path.d} />;
+      {mark.paths.map((path, index) => {
+        /* no <defs> are rendered, so gradient fills fall back to the mark's
+           flat colour; some marks repeat a path, so the index is the key */
+        const fill = path.fill ?? mark.fallback;
+        const color = fill.startsWith("url(") ? mark.fallback : fill;
+        return <path d={path.d} fill={luminance(color) < 0.24 ? "#e6e6e6" : color} key={index} />;
       })}
     </svg>
   );

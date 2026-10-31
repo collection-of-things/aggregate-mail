@@ -22,7 +22,7 @@ export type Message = {
 
 // Demo mail for the page: three connected accounts, invented subjects and
 // previews, filed under the app's six Inbox tabs.
-export const messages: Message[] = [
+const demoMessages: Message[] = [
   {
     id: "m1", sender: "GitHub", domain: "github.com", address: "hello@github.com",
     subject: "Two-factor recovery codes were regenerated",
@@ -255,6 +255,16 @@ export const messages: Message[] = [
     account: "fastmail", arrival: 3,
   },
 ];
+
+/* minutes since arrival: "now", "27m" or "8h" */
+const age = (time: string) =>
+  time === "now" ? 0 : time.endsWith("h") ? parseInt(time, 10) * 60 : parseInt(time, 10);
+
+// Newest first, today before yesterday, so the inbox's day headings appear
+// once each. The sort is stable, so equal ages keep their written order.
+export const messages: Message[] = [...demoMessages].sort(
+  (a, b) => Number(a.day === "yesterday") - Number(b.day === "yesterday") || age(a.time) - age(b.time)
+);
 
 export const recentWith = (sender: string) => [
   `Welcome to ${sender}`,

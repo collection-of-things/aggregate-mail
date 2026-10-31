@@ -150,6 +150,8 @@ export default function InboxWindow() {
   const [composer, setComposer] = useState<ComposeState | null>(null);
   const [teachOpen, setTeachOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  const inView = useRef(false);
+  const keyHandler = useRef<(event: KeyboardEvent) => void>(() => {});
   const searchRef = useRef<HTMLInputElement>(null);
   const finalRef = useRef<(() => void) | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
@@ -425,92 +427,96 @@ export default function InboxWindow() {
   // arrows move, e/#/s file mail, r replies, c composes, u flips read, Esc
   // backs out. Keys with modifiers and keys aimed at an editable field are
   // left alone — Esc is the exception and still closes from inside a field.
-  useEffect(() => {
-    const node = root.current;
-    if (!node) return;
-    let inView = false;
-    const observer = new IntersectionObserver(([entry]) => {
-      inView = entry.isIntersecting;
-    });
-    observer.observe(node);
-    const onKey = (event: KeyboardEvent) => {
-      if (!inView || event.ctrlKey || event.metaKey || event.altKey) return;
-      const finish = () => finalRef.current?.();
-      if (event.key === "Escape") {
-        if (composer) {
-          setComposer(null);
-        } else if (replyOpen) {
-          setReplyOpen(false);
-          setReplyText("");
-        } else if (teachOpen) {
-          setTeachOpen(false);
-        } else {
-          return;
-        }
-        event.preventDefault();
-        finish();
-        return;
-      }
-      const target = event.target;
-      if (
-        target instanceof HTMLElement &&
-        (target.isContentEditable || target.closest("input, textarea, select"))
-      ) {
-        return;
-      }
-      const key = event.key;
-      if (key === "0") {
-        finish();
-        setAccount("all");
-      } else if (key === "1" || key === "2" || key === "3") {
-        const entry = accounts[Number(key) - 1];
-        if (!entry) return;
-        finish();
-        setAccount(entry.key);
-      } else if (key === "p" || key === "P") {
-        finish();
-        setPrivacy((current) => !current);
-      } else if (key === "/") {
-        finish();
-        event.preventDefault();
-        searchRef.current?.focus();
-      } else if (!selected || selectedIsPseudo || !isMailFolder) {
-        return;
-      } else if (key === "e") {
-        finish();
-        archive(selected);
-      } else if (key === "#") {
-        finish();
-        trashMessage(selected);
-      } else if (key === "s") {
-        finish();
-        snooze(selected);
-      } else if (key === "r") {
-        finish();
-        setReplyOpen(true);
+  // The observer and listener are made once; the handler ref is refreshed
+  // every render so it always sees current state, and visibility lives in a
+  // ref so a re-render never resets it and drops held-key repeats.
+  keyHandler.current = (event: KeyboardEvent) => {
+    if (!inView.current || event.ctrlKey || event.metaKey || event.altKey) return;
+    const finish = () => finalRef.current?.();
+    if (event.key === "Escape") {
+      if (composer) {
+        setComposer(null);
+      } else if (replyOpen) {
+        setReplyOpen(false);
+        setReplyText("");
+      } else if (teachOpen) {
         setTeachOpen(false);
-      } else if (key === "c") {
-        finish();
-        openComposer();
-      } else if (key === "u") {
-        finish();
-        toggleRead(selected);
-      } else if (key === "j" || key === "ArrowDown") {
-        finish();
-        move(1);
-      } else if (key === "k" || key === "ArrowUp") {
-        finish();
-        move(-1);
       } else {
         return;
       }
-    };
+      event.preventDefault();
+      finish();
+      return;
+    }
+    const target = event.target;
+    if (
+      target instanceof HTMLElement &&
+      (target.isContentEditable || target.closest("input, textarea, select"))
+    ) {
+      return;
+    }
+    const key = event.key;
+    if (key === "0") {
+      finish();
+      setAccount("all");
+    } else if (key === "1" || key === "2" || key === "3") {
+      const entry = accounts[Number(key) - 1];
+      if (!entry) return;
+      finish();
+      setAccount(entry.key);
+    } else if (key === "p" || key === "P") {
+      finish();
+      setPrivacy((current) => !current);
+    } else if (key === "/") {
+      finish();
+      event.preventDefault();
+      searchRef.current?.focus();
+    } else if (!selected || selectedIsPseudo || !isMailFolder) {
+      return;
+    } else if (key === "e") {
+      finish();
+      archive(selected);
+    } else if (key === "#") {
+      finish();
+      trashMessage(selected);
+    } else if (key === "s") {
+      finish();
+      snooze(selected);
+    } else if (key === "r") {
+      finish();
+      setReplyOpen(true);
+      setTeachOpen(false);
+    } else if (key === "c") {
+      finish();
+      openComposer();
+    } else if (key === "u") {
+      finish();
+      toggleRead(selected);
+    } else if (key === "j" || key === "ArrowDown") {
+      finish();
+      move(1);
+    } else if (key === "k" || key === "ArrowUp") {
+      finish();
+      move(-1);
+    } else {
+      return;
+    }
+  };
+
+  useEffect(() => {
+    const node = root.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      inView.current = entry.isIntersecting;
+    });
+    observer.observe(node);
+    const onKey = (event: KeyboardEvent) => keyHandler.current(event);
     document.addEventListener("keydown", onKey);
     return () => {
       observer.disconnect();
       document.removeEventListener("keydown", onKey);
     };
-  });
+  }, []);
 
   // ------- render -------------------------------------------------------------
 
@@ -827,7 +833,7 @@ export default function InboxWindow() {
                     to {privacy ? `Account ${accountNumber(selected.account)}` : accountOf(selected.account).label}
                   </small>
                 </span>
-                <span className="when">{selected.time} ago</span>
+                <span className="when">{selected.time === "now" ? "Just now" : `${selected.time} ago`}</span>
               </div>
               {selected.relevance === 3 && <p className="why">May need you · {selected.reason}</p>}
               <p className="body">{privacy ? "Hidden" : selected.preview}</p>
