@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Rebuild every page in the new style: Inbox, Snoozed, Archive, Sent and All mail with a reader (reply, add to Today, snooze, archive, pin, trash); Today, Calendar, Projects and Agent review; Manage accounts with rename, sync, removal and an IMAP form; and account filters in the sidebar. The demo seeds Today items, events and a project.
+- Remove the React interface (`src/`), its tests, the UI benchmark and DESIGN.md ahead of a frontend rebuild. The new interface starts with three etched separator lines (sidebar edge at 200px, sidebar user line, top line on the right) in `src/App.tsx` and `src/style.css`; `src/main.tsx` keeps the desktop app and browser targets starting, and `src/desktop.d.ts` keeps typing the `window.desktop` bridge; the mail service, shared types, Electron shell and demo inbox are unchanged.
+- Add `npm run dev:demo`: the browser target with three made-up accounts and synthetic mail in every inbox tab, served through the real sync and store by a fake provider. Read, archive, trash and send stay local in `.data-demo/`.
 - Run CI on Blacksmith runners (Intel macOS stays GitHub-hosted), split every platform's full test suite into parallel shards, package alongside the tests, cache Electron downloads, and reuse a fast-forwarded commit's passing tests on `main` and in the release lanes.
 - Point the README, security policy, issue templates, code of conduct and publish settings at `collection-of-things/aggregate-mail`.
 - Check `collection-of-things/aggregate-mail` for updates first, falling back to `screen-devs/aggregate-mail` until the new repository publishes a newer release, so installed Windows and Linux copies follow the move.

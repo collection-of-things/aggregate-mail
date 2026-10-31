@@ -1,10 +1,6 @@
-import React from "react";
+// The interface is being rebuilt; see docs/KB.md#frontend-rebuild.
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import "@fontsource-variable/inter";
 import "./style.css";
-createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+
+createRoot(document.getElementById("root")!).render(<App />);

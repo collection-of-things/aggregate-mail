@@ -49,6 +49,12 @@ npm run dev      # Electron with React/CSS hot reload; restart after desktop or 
 (Jev/`TYPESAFE_*`, `MAIL_*`) are described in [README.md](README.md) and
 [docs/KB.md](docs/KB.md).
 
+For interface work without an account, `npm run dev:demo` opens the browser
+target at http://127.0.0.1:5180 with three made-up accounts and synthetic mail
+in every inbox tab. It never opens your saved accounts or contacts a mail
+server; delete `.data-demo/` to start over. See
+[the demo inbox notes](docs/KB.md#demo-inbox).
+
 ## Branches and commits
 
 - Branch from current `main` as `<type>/<topic>`, using `feat`, `fix`, `docs`,

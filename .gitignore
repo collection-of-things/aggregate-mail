@@ -17,6 +17,7 @@ key.protected
 .DS_Store
 .handoff/
 .data/
+.data-demo/
 .reference/
 *.log
 qsgWf9eTSH3hwijq.mp4

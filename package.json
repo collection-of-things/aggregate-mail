@@ -10,6 +10,7 @@
     "start": "node scripts/launch-desktop.mjs",
     "test": "node scripts/test.mjs",
     "dev:web": "concurrently -k \"node --watch-path=server --watch-path=shared --import tsx server/index.ts\" \"vite --host 127.0.0.1\"",
+    "dev:demo": "concurrently -k \"node --watch-path=server --watch-path=shared --import tsx server/demo.ts\" \"vite --host 127.0.0.1 --port 5180 --strictPort\"",
     "start:web": "node --import tsx server/index.ts",
     "package": "npm run build && electron-builder --win nsis --x64 --publish never",
     "package:dir": "npm run build && electron-builder --win --x64 --dir",
