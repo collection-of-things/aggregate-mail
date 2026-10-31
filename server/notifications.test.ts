@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+import { syncBuiltinESMExports } from "node:module";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
@@ -116,12 +118,18 @@ test("a background sync reports new unread mail once per run", async (t) => {
     assert.equal(largeState.mailArrivals.at(-1).mail.id, "b:batch-299");
     await sync(); assert.deepEqual(notifications, [2, 1, 300]);
     await t.test("delta state carries exact arrivals even when no mail bodies changed", async () => {
+      let decryptions = 0;
+      const decipher = crypto.createDecipheriv;
+      const tracked = t.mock.method(crypto, "createDecipheriv", ((...args: Parameters<typeof decipher>) => { decryptions++; return decipher(...args); }) as typeof decipher);
+      syncBuiltinESMExports();
       const response = await fetch(`${origin}/api/state?mailCursor=${encodeURIComponent(largeState.mailCursor)}`, { headers });
       assert.equal(response.status, 200);
       const delta = await response.json();
       assert.equal(delta.mailMode, "delta");
       assert.deepEqual(delta.messages, []);
       assert.deepEqual(delta.mailArrivals, largeState.mailArrivals);
+      tracked.mock.restore(); syncBuiltinESMExports();
+      assert.ok(decryptions < 20, `Status must not decrypt 303 arrival bodies: ${decryptions}`);
     });
     const snapshot = async () => {
       const response = await fetch(`${origin}/api/state`, { headers });

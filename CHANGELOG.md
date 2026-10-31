@@ -6,6 +6,13 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Security
+
+- Bound mail formatting and IMAP search processing, reuse conversation work during agent review, and keep notification refreshes independent of message body size. ([#181](https://github.com/collection-of-things/aggregate-mail/pull/181))
+- Require confirmed IMAP identities for archived-message changes, encrypted remote sorting connections, and safe provider/credential pairing. ([#181](https://github.com/collection-of-things/aggregate-mail/pull/181))
+- Review unverified calendar changes against the existing event. Restored drafts must be prepared again before sending calendar data. PDFs remain available to download; in-app PDF preview is disabled until it has a memory bound. ([#181](https://github.com/collection-of-things/aggregate-mail/pull/181))
+- Keep Android mail parsing and TLS checks bounded and fail closed, and protect Send confirmation from screen capture. Isolate bootstrap benchmark authentication and provider settings. ([#181](https://github.com/collection-of-things/aggregate-mail/pull/181))
+
 ### Changed
 
 - Rebuild the marketing site as a static Astro page, replacing the Lakebed capsule. It leads with a working demo inbox over a public-domain painting, then a keyboard command demo, interface crops, privacy cards, a comparison with Thunderbird, Mailspring and Spark, per-platform downloads and an FAQ. Download buttons link the exact installer for the visitor's system with its size and SHA-256 checksum from the latest release. Star and download counts load in the browser from the public GitHub API and stay hidden when unavailable. The header and footer link both GitHub and git.cafe. Any static host can serve the build. ([#184](https://github.com/collection-of-things/aggregate-mail/pull/184))

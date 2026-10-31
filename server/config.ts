@@ -7,6 +7,7 @@ import { jevProviderOf } from "../shared/types.js";
 const names = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "OPENAI_API_KEY", "TYPESAFE_API_KEY", "TYPESAFE_PROVIDER"] as const;
 type Settings = Partial<Record<(typeof names)[number], string>>;
 const inherited = new Set(Object.keys(process.env));
+const inheritedKeyProvider = jevProviderOf(process.env.TYPESAFE_PROVIDER);
 const configPath = process.env.MAIL_CONFIG_PATH || ".env";
 
 function legacySettings() {
@@ -74,6 +75,9 @@ export function loadConfiguration() {
   const saved = get("config", "connection");
   const settings: Settings = { ...saved };
   for (const name of names) if (settings[name] === undefined && legacy.values[name] !== undefined) settings[name] = legacy.values[name];
+  const effectiveProvider = inherited.has("TYPESAFE_PROVIDER") ? process.env.TYPESAFE_PROVIDER : settings.TYPESAFE_PROVIDER ?? legacy.values.TYPESAFE_PROVIDER;
+  if (inherited.has("TYPESAFE_API_KEY") && process.env.TYPESAFE_API_KEY && jevProviderOf(effectiveProvider) !== inheritedKeyProvider)
+    throw new Error("Change the inherited provider and credential together in the launch environment.");
   if (Object.keys(settings).length && !isDeepStrictEqual(saved, settings)) persist(settings);
   cleanLegacy(legacy.text, cleaned);
   for (const [name, value] of Object.entries({ ...legacy.values, ...settings })) {
@@ -98,6 +102,10 @@ export function saveConfiguration(updates: Settings) {
     jevProviderOf(updates.TYPESAFE_PROVIDER) !== jevProviderOf(previousProvider)
   )
     delete settings.TYPESAFE_API_KEY;
+  const effectiveProvider = inherited.has("TYPESAFE_PROVIDER") ? process.env.TYPESAFE_PROVIDER : settings.TYPESAFE_PROVIDER;
+  if (process.env.TYPESAFE_API_KEY && inherited.has("TYPESAFE_API_KEY") &&
+      jevProviderOf(effectiveProvider) !== jevProviderOf(previousProvider))
+    throw new Error("Change the inherited provider and credential together in the launch environment.");
   persist(settings);
   cleanLegacy(legacy.text, cleaned);
   for (const name of names) {

@@ -36,8 +36,9 @@ test("attachments download every format, preview only on demand, and clear previ
     await render();
     assert.equal(calls.length, 0);
     assert.match(dom.window.document.body.textContent!, /Large attachment not downloaded/);
-    assert.equal(dom.window.document.querySelectorAll("button").length, 8);
+    assert.equal(dom.window.document.querySelectorAll("button").length, 7);
     assert.equal(dom.window.document.querySelector("img"), null);
+    assert.equal(dom.window.document.querySelector('[aria-label="Preview attachment 2"]'), null, "Untrusted PDFs remain download-only");
     for (let index = 1; index <= 6; index++) await click(`Download attachment ${index}`);
     assert.deepEqual(downloads.map((file) => file.name), files.slice(0, 6).map((file) => file.filename));
     assert.equal(calls[0], "/api/messages/a%3A1/attachments/image");

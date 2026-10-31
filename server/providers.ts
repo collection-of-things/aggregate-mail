@@ -1,3 +1,4 @@
+import { guardSearchExpansion } from "./imap-search-budget.js";
 import { Readable } from "node:stream";
 import { ATTACHMENT_BYTES, ATTACHMENT_COUNT, MIME_BYTES, attachmentSize } from "../shared/attachments.js";
 import { AttachmentPreflightError, attachmentWork, mimeAttachments, storeAttachmentBytes, gmailJson } from "./attachment-bytes.js";
@@ -181,6 +182,7 @@ export function imap(a: StoredAccount, watch = false) {
     socketTimeout: watch ? 30 * 60000 : 30000,
     ...(watch ? { maxIdleTime: 5 * 60000 } : {}),
   });
+  guardSearchExpansion(client);
   let reject!: (error: SyncError) => void;
   const failed = new Promise<never>((_resolve, fail) => { reject = fail; });
   void failed.catch(() => {});
@@ -932,23 +934,14 @@ function imapProvider() {
             // The binding from the confirmed archive move names the destination
             // exactly; it is valid only inside the same mailbox and validity.
             const bound = Boolean(m.mailbox && client.mailbox && client.mailbox.path === m.mailbox.path && String(client.mailbox.uidValidity) === m.mailbox.uidValidity);
-            if (bound) uid = String(m.mailbox!.uid);
-            else {
-              // Moving IMAP mail changes its UID; never reuse the old inbox UID in the archive.
-              const matches = await client.search({ header: { "message-id": m.messageId } }, { uid: true });
-              if (!matches || matches.length !== 1)
-                throw new Error("Could not identify this archived email. Change it in your provider.");
-              uid = String(matches[0]);
-            }
+            if (!bound) throw new Error("This archived email has no confirmed mailbox binding. Change it in your provider.");
+            uid = String(m.mailbox!.uid);
             if ((action === "trash" || action === "inbox") && (!/^[1-9]\d*$/.test(uid) || !Number.isSafeInteger(Number(uid)) || Number(uid) > 4294967295))
               throw new Error("Could not identify this archived email. Move it in your provider.");
             const candidate = await client.fetchOne(uid, (action === "trash" || action === "inbox") ? { envelope: true, headers: ["message-id"] } : { headers: ["message-id"] }, { uid: true });
             if (!candidate || ((action === "trash" || action === "inbox") && String(candidate.uid) !== uid) || !candidate.headers || (await simpleParser(candidate.headers)).messageId !== m.messageId)
               throw new Error("Could not identify this archived email. Change it in your provider.");
-            // A recovered match without a move binding is not identity for a
-            // destructive move unless the Subject and any available Date agree.
-            if (!bound && (action === "trash" || action === "inbox") && ((candidate.envelope?.date && candidate.envelope.date.getTime() !== m.date) || (candidate.envelope?.subject || "(No subject)") !== m.subject))
-              throw new Error("Could not confirm this archived email. Change it in your provider.");
+
           } else if (
             !client.mailbox ||
             String(client.mailbox.uidValidity) !== validity

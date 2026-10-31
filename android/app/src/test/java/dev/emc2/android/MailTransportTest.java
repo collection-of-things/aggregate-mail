@@ -17,6 +17,7 @@ public class MailTransportTest {
         for (String protocol : new String[]{"imaps", "smtp", "smtps"}) {
             assertEquals("true", p.getProperty("mail." + protocol + ".ssl.checkserveridentity"));
             assertNull(p.getProperty("mail." + protocol + ".ssl.trust"));
+            assertEquals("false", p.getProperty("mail." + protocol + ".socketFactory.fallback"));
             assertEquals("15000", p.getProperty("mail." + protocol + ".timeout"));
         }
         assertEquals("true", p.getProperty("mail.smtp.starttls.required"));
@@ -84,4 +85,20 @@ public class MailTransportTest {
         assertThrows(java.io.IOException.class, () -> drain("* 1 FETCH (BODY[] {1048577}\r\n"));
         assertThrows(java.io.IOException.class, () -> drain("* 1 FETCH (BODY[] {4}\r\nabcd {1048577+}\r\n"));
     }
+    @Test public void missingMultipartBoundaryFailsBeforeParsing() throws Exception {
+        assertThrows(Exception.class, () -> MailTransport.body(message("Content-Type: multipart/mixed\r\n\r\n--" + "x".repeat(10000)), 0, new int[]{0}));
+        assertEquals("hello", MailTransport.body(message("Content-Type: multipart/mixed; boundary=x\r\n\r\n--x\r\nContent-Type: text/plain\r\n\r\nhello\r\n--x--\r\n"), 0, new int[]{0}).text);
+    }
+    @Test public void unsupportedLiteralSyntaxCannotHideLaterAnnouncements() throws Exception {
+        for (String marker : new String[]{"{4+}", "{}", "{000000000004}"})
+            assertThrows(java.io.IOException.class, () -> drain("* 1 FETCH (BODY[] " + marker + "\r\nabcd {1048577}\r\n"));
+        assertThrows(java.io.IOException.class, () -> drain("* 1 FETCH (" + "{1048576}\r\n" + "x".repeat(1048576) + "{1048576}\r\n" + "x".repeat(1048576)));
+    }
+    @Test public void htmlTextDoesNotCreateFormattingSpans() {
+        assertEquals(" Hello & world 😀 ", MailText.plain("<p>Hello &amp; world &#x1f600;</p>"));
+        assertEquals("<unfinished", MailText.plain("<unfinished"));
+        assertThrows(IllegalArgumentException.class, () -> MailText.plain("<b>".repeat(4001)));
+        assertEquals("< &", MailText.plain("&lt; &amp;"));
+    }
+
 }

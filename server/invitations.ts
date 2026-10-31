@@ -38,6 +38,17 @@ function supported(id: string, expected?: string) {
 function localMatches(accountId: string, invite: Invitation) {
   return all("calendarEvent").filter((event) => !hasSession(event) && event.accountId === accountId && event.uid === invite.uid && event.organizer?.toLowerCase() === invite.organizer.toLowerCase());
 }
+export function invitationReview(id: string) {
+  const { mail, account, invitation, fingerprint } = supported(id);
+  const matches = localMatches(account.id, invitation);
+  if (matches.length > 1) return invitationFail(409, "More than one event matches. Review the calendar.");
+  const current = matches[0];
+  return { token: hash([fingerprint, current ?? null]), current, proposed: invitation };
+}
+function requireReview(id: string, token?: string) {
+  if (!token || token !== invitationReview(id).token)
+    return invitationFail(409, "Review the unverified sender, current event and proposed changes before confirming.");
+}
 function remoteMatch(accountId: string, invite: Invitation) {
   const matches = new Map<string, CalendarEvent>();
   for (const window of all("googleCalendarWindow")) if (window.accountId === accountId && !window.stale)
@@ -68,7 +79,7 @@ export function prepareEventInvitation(id: string, expected: number, method: "RE
     return draft;
   });
 }
-export function prepareReply(id: string, fingerprint: string, answer: z.infer<typeof response>) {
+export function prepareReply(id: string, fingerprint: string, answer: z.infer<typeof response>, reviewToken?: string) {
   return transaction(() => {
     const { mail, account, invitation } = supported(id, fingerprint);
     if (invitation.method !== "REQUEST") return invitationFail(409, "Only an invitation request can receive an RSVP draft.");
@@ -82,6 +93,7 @@ export function prepareReply(id: string, fingerprint: string, answer: z.infer<ty
       if (current?.myResponse !== localResponse(answer)) return invitationFail(409, "A later response is already saved. Review the current event and drafts.");
       return readDraft(account.id, old.draftId);
     }
+    if (current) requireReview(id, reviewToken);
     if (Date.parse(invitation.end) - Date.parse(invitation.start) > 14 * 86400000) return invitationFail(409, "This invitation exceeds the local 14-day event limit.");
     const own = invitation.attendees.find((person) => person.email.toLowerCase() === account.email.toLowerCase())!;
     const reply: Invitation = { ...invitation, method: "REPLY", attendees: [{ email: own.email, response: answer }] };
@@ -96,13 +108,14 @@ export function prepareReply(id: string, fingerprint: string, answer: z.infer<ty
     return draft;
   });
 }
-export function applyCalendarMessage(id: string, fingerprint: string) {
+export function applyCalendarMessage(id: string, fingerprint: string, reviewToken?: string) {
   return transaction(() => {
     const { account, invitation } = supported(id, fingerprint);
     if (invitation.method === "REQUEST") return invitationFail(409, "Choose an RSVP instead.");
     const matches = localMatches(account.id, invitation);
     if (matches.length !== 1) return invitationFail(409, "No unique local event matches this message.");
     const event = matches[0];
+    requireReview(id, reviewToken);
     if ((event.sequence || 0) > invitation.sequence || invitation.method === "REPLY" && event.sequence !== invitation.sequence) return invitationFail(409, "This message does not match the current event sequence.");
     const key = hash(["apply", account.id, fingerprint]);
     if (get("calendarOperation", key)) return event;
@@ -125,15 +138,15 @@ export function mountInvitations(app: express.Express) {
     try { supported(req.params.id); } catch { eligible = false; }
     const invitation = value.mail.invitation;
     const remote = invitation?.status === "ok" && eligible ? remoteMatch(value.account.id, invitation.invitation) : undefined;
-    res.json({ invitation, fingerprint: value.fingerprint, eligible, google: remote && get("googleCalendar", value.account.id)?.access ? remote : undefined });
+    res.json({ invitation, fingerprint: value.fingerprint, eligible, review: eligible ? invitationReview(req.params.id) : undefined, google: remote && get("googleCalendar", value.account.id)?.access ? remote : undefined });
   });
   router.post("/calendar/invitations/:id/reply", (req, res) => {
-    const input = z.object({ fingerprint: z.string().length(64), response }).strict().parse(req.body);
-    res.json(prepareReply(req.params.id, input.fingerprint, input.response));
+    const input = z.object({ fingerprint: z.string().length(64), response, reviewToken: z.string().length(64).optional() }).strict().parse(req.body);
+    res.json(prepareReply(req.params.id, input.fingerprint, input.response, input.reviewToken));
   });
   router.post("/calendar/invitations/:id/apply", (req, res) => {
-    const input = z.object({ fingerprint: z.string().length(64) }).strict().parse(req.body);
-    res.json(applyCalendarMessage(req.params.id, input.fingerprint));
+    const input = z.object({ fingerprint: z.string().length(64), reviewToken: z.string().length(64).optional() }).strict().parse(req.body);
+    res.json(applyCalendarMessage(req.params.id, input.fingerprint, input.reviewToken));
   });
   router.post("/calendar/invitations/:id/google-rsvp", async (req, res) => {
     const input = z.object({ fingerprint: z.string().length(64), response, requestId: z.uuid(), reconcile: z.boolean().optional() }).strict().parse(req.body);

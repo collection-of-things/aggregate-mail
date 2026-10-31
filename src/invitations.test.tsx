@@ -126,3 +126,34 @@ test("mounted calendar and reader prepare bound drafts, recover ordinary Send, p
     for (const [key, value] of oldEnv) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
   }
 });
+
+
+test("invitation review displays the same server proposal as its confirmation token", async () => {
+  const dom = new JSDOM("<div id='root'></div>");
+  const originals = new Map(["window", "document", "IS_REACT_ACT_ENVIRONMENT"].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true });
+  const { createRoot } = await import("react-dom/client");
+  const { InvitationPanel } = await import("./work/InvitationActions");
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  const invitation: Invitation = { uid: "synthetic", sequence: 2, method: "CANCEL", organizer: "organizer@example.test", attendees: [{ email: "reader@example.test", response: "ACCEPTED" }], title: "Stale cached title", start: "2026-10-30T10:00:00.000Z", end: "2026-10-30T11:00:00.000Z", allDay: false };
+  const mail = { id: "a:source", invitation: { status: "ok", invitation } } as Mail;
+  const current = { ...invitation, id: "local-event", source: "local", accountId: "a", title: "Current local event", revision: 1, updatedAt: 1 } as unknown as CalendarEvent;
+  const posted: unknown[] = [];
+  const api: import("./api").Api = async <T,>(_route: string, method?: string, body?: unknown): Promise<T> => {
+    if (method === "POST") { posted.push(body); return {} as T; }
+    return { invitation: { status: "ok", invitation: { ...invitation, title: "Fresh server cancellation" } }, fingerprint: "b".repeat(64), eligible: true, review: { token: "c".repeat(64), current } } as T;
+  };
+  try {
+    await act(async () => root.render(<InvitationPanel mail={mail} api={api} />));
+    assert.match(dom.window.document.body.textContent!, /Fresh server cancellation/);
+    assert.doesNotMatch(dom.window.document.body.textContent!, /Stale cached title/);
+    const apply = [...dom.window.document.querySelectorAll("button")].find(button => button.textContent === "Apply to matching local event")!;
+    assert.equal(apply.disabled, true);
+    await act(async () => dom.window.document.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+    await act(async () => apply.click());
+    assert.deepEqual(posted, [{ fingerprint: "b".repeat(64), reviewToken: "c".repeat(64) }]);
+  } finally {
+    await act(async () => root.unmount()); dom.window.close();
+    for (const [key, descriptor] of originals) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key); }
+  }
+});

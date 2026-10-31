@@ -68,7 +68,8 @@ export function conversation(id: string, view?: Map<string, Mail>): Conversation
     gaps.push(`Sent evidence is limited to ${coverage.bound} messages.`);
   return { accountId: source.accountId, messages, gaps, coverage };
 }
-export const fingerprint = (id: string, view?: Map<string, Mail>) => digest(conversation(id, view).messages.map(({ id, accountId, remoteId, messageId, inReplyTo, references, threadId, to, cc, replyTo, address, subject, body, attachments, direction }) => ({ id, accountId, remoteId, messageId, inReplyTo, references, threadId, to, cc, replyTo, address, subject, body, attachments, direction })));
+const messageFingerprint = (messages: Mail[]) => digest(messages.map(({ id, accountId, remoteId, messageId, inReplyTo, references, threadId, to, cc, replyTo, address, subject, body, attachments, direction }) => ({ id, accountId, remoteId, messageId, inReplyTo, references, threadId, to, cc, replyTo, address, subject, body, attachments, direction })));
+export const fingerprint = (id: string, view?: Map<string, Mail>) => messageFingerprint(conversation(id, view).messages);
 function sourceIds(values: string[], accountId?: string) {
   for (const id of values) {
     const m = get("mail", id);
@@ -84,13 +85,20 @@ async function visibleProposals() {
   const proposals = all("proposal");
   if (!proposals.some(p => p.sourceMailId)) return proposals.map(p => ({ ...p, sourceChanged: false }));
   const view = new Map((await readConversationMail(proposals.flatMap(proposal => proposal.sourceMailId ? [proposal.sourceMailId] : []))).map(m => [m.id, m]));
-  const fingerprints = new Map<string, string>();
-  return proposals.map(proposal => {
-    const id = proposal.sourceMailId;
-    if (id && view.has(id) && !fingerprints.has(id)) fingerprints.set(id, fingerprint(id, view));
-    return { ...proposal, sourceChanged: Boolean(id && (!view.has(id) || fingerprints.get(id) !== proposal.sourceFingerprint)) };
-  });
+  const fingerprints = proposalFingerprints(proposals.flatMap(proposal => proposal.sourceMailId ? [proposal.sourceMailId] : []), view);
+  return proposals.map(proposal => ({ ...proposal, sourceChanged: Boolean(proposal.sourceMailId &&
+    (!view.has(proposal.sourceMailId) || fingerprints.get(proposal.sourceMailId) !== proposal.sourceFingerprint)) }));
 }
+export function proposalFingerprints(ids: string[], view: Map<string, Mail>) {
+  const fingerprints = new Map<string, string>();
+  for (const id of ids) if (view.has(id) && !fingerprints.has(id)) {
+    const messages = conversation(id, view).messages;
+    const value = messageFingerprint(messages);
+    for (const message of messages) fingerprints.set(message.id, value);
+  }
+  return fingerprints;
+}
+
 function history(c: Commitment) {
   return { at: c.updatedAt, status: c.status, dueAt: c.dueAt, dueDate: c.dueDate, followUpAt: c.followUpAt, text: c.text, reason: c.reason, evidenceMailIds: [...c.evidenceMailIds] };
 }

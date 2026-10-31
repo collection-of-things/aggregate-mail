@@ -19,7 +19,7 @@ import path from "node:path";
 import express from "express";
 import { google } from "./google-api.js";
 import { z } from "zod";
-import { all, get, syncMailCache, mailSummaryChanges, mailSummary, searchMail, draftChangeToken, count, put, putBatch, remove, removeAccountAttachments, account, transaction, compactStore, storageStats, type StoredAccount, eraseUpload, sameMailSummary } from "./store.js";
+import { all, get, hasRecord, syncMailCache, mailSummaryChanges, mailSummary, searchMail, draftChangeToken, count, put, putBatch, remove, removeAccountAttachments, account, transaction, compactStore, storageStats, type StoredAccount, eraseUpload, sameMailSummary } from "./store.js";
 import { matchesRule } from "../shared/rules.js";
 import { mountWorkspace } from "./workspace.js";
 import { mountAgentProvider } from "./agent-provider.js";
@@ -268,7 +268,7 @@ app.get("/api/state", async (req, res) => {
     let status!: Omit<StateResponse, "messages" | "mailCursor" | "mailMode" | "removedMailIds">;
     const changes = await mailSummaryChanges(typeof req.query.mailCursor === "string" ? req.query.mailCursor : undefined, () => {
       // Capture status at the same boundary as the encrypted mail view, before decoding yields.
-      mailArrivals = mailArrivals.filter((arrival) => !!get("mail", arrival.mail.id));
+      mailArrivals = mailArrivals.filter((arrival) => hasRecord("mail", arrival.mail.id));
       status = stateStatus();
     }, controller.signal);
     if (res.destroyed) return;
@@ -715,6 +715,7 @@ function requestSync(ids: string[], reconnect = false): Promise<string[]> {
       syncRun = undefined;
       scheduledAccounts.clear();
       for (const mail of newUnread) mailArrivals.push({ sequence: ++unreadArrivals, mail });
+      mailArrivals = mailArrivals.slice(-1000);
       desktopEvents.emit("mail-changed");
       if (newUnread.length) desktopEvents.emit("new-mail", newUnread.length, newUnread);
     }

@@ -179,8 +179,10 @@ function prepare(payload: Payload) {
     for (const field of ["sourceMailId"]) if (v[field]) v[field] = mailId(v[field]);
     for (const field of ["sourceMailIds", "evidenceMailIds", "excludedMailIds"]) if (v[field]) v[field] = v[field].map(mailId);
     if (v.history) for (const entry of v.history) entry.evidenceMailIds = entry.evidenceMailIds.map(mailId);
-    if (v.calendarContext?.sourceMailId) v.calendarContext.sourceMailId = mailId(v.calendarContext.sourceMailId);
+    // A backup supplies data, never proof that a calendar action was prepared.
+    if (row.kind === "draft") { delete v.invitation; delete v.calendarContext; }
     if (row.kind === "proposal") {
+      delete v.payload.invitation; delete v.payload.calendarContext;
       if (v.payload.accountId) v.payload.accountId = mapAccount(v.payload.accountId);
       if (v.payload.mailId) v.payload.mailId = mailId(v.payload.mailId);
       // Imported history is inert; never resume a pending or interrupted action.

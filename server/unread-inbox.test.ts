@@ -16,7 +16,7 @@ test("single-message unread and inbox actions use confirmed provider identity an
  const { updateMessage } = await import("./mail-actions.js");
  t.after(() => { closeStore(); rmSync(directory, {recursive:true, force:true}); });
  const account = {id:"a", email:"reader@example.test", provider:"imap" as const, credentials:{imapHost:"imap.example.test", password:"synthetic"}};
- const mail: Mail = {id:"a:1:5", accountId:"a", remoteId:"1:5", sender:"Team", address:"team@example.test", to:account.email, subject:"Synthetic", body:"Body", preview:"Body", date:1, unread:false, archived:true, category:"important", relevance:2, reason:"", snoozedUntil:null, messageId:"<one@example.test>", pinned:true};
+ const mail: Mail = {id:"a:1:5", accountId:"a", remoteId:"1:5", sender:"Team", address:"team@example.test", to:account.email, subject:"Synthetic", body:"Body", preview:"Body", date:1, unread:false, archived:true, category:"important", relevance:2, reason:"", snoozedUntil:null, messageId:"<one@example.test>", pinned:true, mailbox:{path:"Saved",uidValidity:"1",uid:77}};
  put("account", account.id, account); put("mail", mail.id, mail);
  let capabilities = ["MOVE", "UIDPLUS"], matches = [77], source = "Saved", candidateId = mail.messageId, uid = 77;
  const mutations: string[] = [];
@@ -30,7 +30,8 @@ test("single-message unread and inbox actions use confirmed provider identity an
  t.mock.method(ImapFlow.prototype, "messageMove", async (target:string, destination:string) => {assert.equal(destination,"INBOX"); mutations.push(`inbox:${target}`);return {path:source,destination,uidValidity:1n,uidMap:new Map([[77,99]])};});
  await updateMessage(mail.id,{action:"unread"});
  assert.equal(get("mail",mail.id)?.unread,true); assert.deepEqual(mutations,["unread:77"]);
- for (matches of [[],[77,78]]) await assert.rejects(updateMessage(mail.id,{action:"inbox"}),/Could not identify/);
+ for (const mailbox of [undefined, {path:"Saved",uidValidity:"2",uid:77}])
+   await assert.rejects(providers.imap.update(account,{...mail,mailbox},"inbox"),/confirmed mailbox binding/);
  matches=[77]; candidateId="<other@example.test>"; await assert.rejects(updateMessage(mail.id,{action:"inbox"}),/Could not identify/);
  candidateId=mail.messageId; uid=78; await assert.rejects(updateMessage(mail.id,{action:"inbox"}),/Could not identify/); uid=77;
  source=""; await assert.rejects(updateMessage(mail.id,{action:"inbox"}),/unique archive/); source="Saved";
@@ -49,7 +50,7 @@ test("single-message unread and inbox actions use confirmed provider identity an
  t.mock.method(ImapFlow.prototype, "list", async () => [{path:source, specialUse:"\\All", flags:new Set(["\\All"])}]);
  t.mock.method(ImapFlow.prototype, "messageCopy", async (target:string, destination:string) => {assert.equal(destination,"INBOX"); mutations.push(`copy:${target}`);return {path:source,destination,uidValidity:1n,uidMap:new Map([[77,123]])};});
  capabilities=["UIDPLUS"];
- assert.deepEqual(await providers["gmail-imap"].update(gmailImap,{...mail,archived:true},"inbox"),{remoteId:"1:123"});
+ assert.deepEqual(await providers["gmail-imap"].update(gmailImap,{...mail,archived:true,mailbox:{path:source,uidValidity:"1",uid:77}},"inbox"),{remoteId:"1:123"});
  assert.deepEqual(mutations.slice(-1),["copy:77"], "Gmail IMAP copies into INBOX and never moves mail out of All Mail");
  const api=google.gmail("v1"); t.mock.method(google,"gmail",()=>api,{});
  const calls:unknown[]=[];t.mock.method(api.users.messages,"modify",async(input:unknown)=>{calls.push(input);return {data:{}};});

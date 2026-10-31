@@ -190,11 +190,11 @@ test("Trash actions use synthetic providers, safe targets and confirmed cache re
         folders = [{ path: "Bin", flags: new Set(["\\trash"]) }, { path: "Saved", flags: new Set(["\\archive"]) }];
         await providers.imap.update(account, mail, "trash");
         assert.deepEqual(moves.at(-1), { uid: "5", target: "Bin" });
-        await providers.imap.update(account, { ...mail, archived: true }, "trash");
+        await providers.imap.update(account, { ...mail, archived: true, mailbox: { path: "Saved", uidValidity: String(validity), uid: 77 } }, "trash");
         assert.equal(opened.at(-1), "Saved");
         assert.deepEqual(moves.at(-1), { uid: "77", target: "Bin" });
         folders = [{ path: "Google Bin", flags: new Set(["\\tRaSh"]) }, { path: "Everything", flags: new Set(["\\aLl"]) }];
-        await providers["gmail-imap"].update({ ...account, provider: "gmail-imap" }, { ...mail, archived: true }, "trash");
+        await providers["gmail-imap"].update({ ...account, provider: "gmail-imap" }, { ...mail, archived: true, mailbox: { path: "Everything", uidValidity: String(validity), uid: 77 } }, "trash");
         assert.equal(opened.at(-1), "Everything");
       } finally {
         folders = [{ path: "Bin", flags: new Set(["\\Trash"]) }, { path: "Saved", flags: new Set(["\\Archive"]) }];
@@ -265,49 +265,26 @@ test("Trash actions use synthetic providers, safe targets and confirmed cache re
       folders = [{ path: "Bin", specialUse: "\\Trash", flags: new Set(["\\Trash"]) }, { path: "Saved", specialUse: "\\Archive", flags: new Set(["\\Archive"]) }];
       await assert.rejects(providers.imap.update(account, { ...archived, messageId: undefined }, "trash"), /no Message-ID/);
       await assert.rejects(providers.imap.update(account, { ...archived, messageId: "<bad\r\n@example.com>" }, "trash"), /invalid Message-ID/);
-      for (matches of [[], [77, 78], [0], [4294967296]]) {
-        await assert.rejects(providers.imap.update(account, archived, "trash"), /Could not identify/);
+      capabilities = ["MOVE", "UIDPLUS"];
+      for (const action of ["read", "unread", "inbox", "trash"] as const) {
+        await assert.rejects(providers.imap.update(account, archived, action), /confirmed mailbox binding/);
+        assert.equal(moves.length, before);
       }
-      matches = [77];
-      for (header of [
-        "Message-ID: <other@example.com> (contains <synthetic@example.com>)\r\n\r\n",
-        "Message-ID: <SYNTHETIC@example.com>\r\n\r\n",
-        "Subject: Missing identity\r\n\r\n",
-      ]) await assert.rejects(providers.imap.update(account, archived, "trash"), /Could not identify/);
-      header = "Message-ID: <synthetic@example.com>\r\n\r\n";
-      missingCandidate = true;
-      await assert.rejects(providers.imap.update(account, archived, "trash"), /Could not identify/);
-      missingCandidate = false;
-      candidateUid = 78;
-      await assert.rejects(providers.imap.update(account, archived, "trash"), /Could not identify/);
-      candidateUid = undefined;
-      assert.equal(moves.length, before);
+      // Even identical sender-controlled headers cannot authorize remote mutation.
+      const bound = { ...archived, mailbox: { path: "Saved", uidValidity: "99", uid: 77 } };
       validity = 99n;
-      put("mail", mail.id, archived);
+      candidateUid = 77;
+      for (header of ["Message-ID: <other@example.com>\r\n\r\n", "Subject: Missing identity\r\n\r\n"])
+        await assert.rejects(providers.imap.update(account, bound, "trash"), /Could not identify/);
+      header = "Message-ID: <synthetic@example.com>\r\n\r\n";
+      candidateUid = undefined;
+      put("mail", mail.id, bound);
       await updateMessage(mail.id, { action: "trash" });
       assert.equal(opened.at(-1), "Saved");
       assert.deepEqual(moves.at(-1), { uid: "77", target: "Bin" });
-      assert.equal(all("mail").some((cached) => cached.id === mail.id), false);
-      folders = [{ path: "Google Bin", specialUse: "\\Trash", flags: new Set(["\\Trash"]) }, { path: "Everything", specialUse: "\\All", flags: new Set(["\\All"]) }];
-      await providers["gmail-imap"].update({ ...account, provider: "gmail-imap" }, archived, "trash");
-      assert.equal(opened.at(-1), "Everything");
-      assert.deepEqual(moves.at(-1), { uid: "77", target: "Google Bin" });
+      assert.equal(all("mail").some(cached => cached.id === mail.id), false);
       validity = 1n;
-      folders = [{ path: "Bin", specialUse: "\\Trash", flags: new Set(["\\Trash"]) }, { path: "Saved", specialUse: "\\Archive", flags: new Set(["\\Archive"]) }];
-    });
-
-    await t.test("unbound archive matches check subject and any available date", async () => {
-      const archived = { ...mail, archived: true };
-      try {
-        candidateDate = undefined; candidateSubject = mail.subject;
-        await providers.imap.update(account, archived, "trash");
-        candidateDate = new Date(mail.date + 1);
-        await assert.rejects(providers.imap.update(account, archived, "trash"), /confirm/);
-        candidateDate = undefined; candidateSubject = "Different";
-        await assert.rejects(providers.imap.update(account, archived, "trash"), /confirm/);
-        candidateSubject = "";
-        await providers.imap.update(account, { ...archived, subject: "(No subject)" }, "trash");
-      } finally { candidateDate = new Date(mail.date); candidateSubject = mail.subject; }
+      await assert.rejects(providers.imap.update(account, bound, "trash"), /confirmed mailbox binding/);
     });
 
     await t.test("failed moves retain mail; confirmed moves survive release/logout errors without retries", async () => {

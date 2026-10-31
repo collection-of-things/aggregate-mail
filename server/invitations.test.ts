@@ -121,9 +121,15 @@ test("reviewed calendar drafts preserve MIME, identity, revisions, idempotency a
     assert.equal(store.get("draft", reply.id)?.sendUnknown, true);
     const cancelled: Mail = { ...mail, id: "a:cancel", remoteId: "cancel", invitation: { status: "ok", invitation: { ...invite, method: "CANCEL", sequence: 3 } } };
     store.put("mail", cancelled.id, cancelled);
-    const cancelIdentity = await (await request(`/calendar/invitations/${encodeURIComponent(cancelled.id)}`)).json() as { fingerprint: string };
+    const cancelIdentity = await (await request(`/calendar/invitations/${encodeURIComponent(cancelled.id)}`)).json() as { fingerprint: string; review: { token: string } };
     assert.equal((await request(`/calendar/invitations/${encodeURIComponent(cancelled.id)}/apply`, "POST", cancelIdentity)).status, 400, "Only the fingerprint is accepted");
-    assert.equal((await request(`/calendar/invitations/${encodeURIComponent(cancelled.id)}/apply`, "POST", { fingerprint: cancelIdentity.fingerprint })).status, 200);
+    assert.equal((await request(`/calendar/invitations/${encodeURIComponent(cancelled.id)}/apply`, "POST", { fingerprint: cancelIdentity.fingerprint })).status, 409, "Spoofable sender fields alone cannot authorize a change");
+    assert.equal(store.get("calendarEvent", local.id)?.cancelled, undefined);
+    const before = store.get("calendarEvent", local.id)!;
+    store.put("calendarEvent", local.id, { ...before, revision: before.revision + 1 });
+    assert.equal((await request(`/calendar/invitations/${encodeURIComponent(cancelled.id)}/apply`, "POST", { fingerprint: cancelIdentity.fingerprint, reviewToken: cancelIdentity.review.token })).status, 409, "Review cannot survive a target revision change");
+    const freshReview = await (await request(`/calendar/invitations/${encodeURIComponent(cancelled.id)}`)).json() as typeof cancelIdentity;
+    assert.equal((await request(`/calendar/invitations/${encodeURIComponent(cancelled.id)}/apply`, "POST", { fingerprint: freshReview.fingerprint, reviewToken: freshReview.review.token })).status, 200);
     assert.equal(store.get("calendarEvent", local.id)?.cancelled, true);
     assert.equal((await request(`${invitationRoute}/reply`, "POST", replyInput)).status, 409);
     const unsupported = await parse(store.get("account", "a")!, "recurring", raw(codec.generateICalendar(invite, { stamp: input.start }).replace("END:VEVENT", "RRULE:FREQ=WEEKLY\r\nEND:VEVENT")), false);

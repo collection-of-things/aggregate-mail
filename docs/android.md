@@ -43,7 +43,7 @@ capture are disabled. Explicit selection/copy of message text still uses the
 system clipboard.
 
 IMAP uses implicit TLS. SMTP supports implicit TLS or mandatory STARTTLS.
-Both verify certificate chains and hostnames; there is no trust-all option.
+Both verify certificate chains and hostnames; there is no trust-all option or fallback after the strict TLS factory rejects a peer.
 Socket connect/read/write timeouts are 15 seconds. Account sync checks a
 90-second deadline between operations and while streaming; a blocking socket
 operation can add its timeout and cleanup time.
@@ -51,7 +51,7 @@ operation can add its timeout and cleanup time.
 Each raw message is capped at 256 KiB before MIME parsing, including headers
 and attachments. An oversized message stops that account's sync and preserves
 its previous cache. Text is capped at 65,536 characters, MIME traversal at depth
-12 and 128 parts, and the serialized encrypted snapshot at 8 MiB. These are
+12 and 128 parts, and the serialized encrypted snapshot at 8 MiB. Multipart boundaries must be present and at most 70 characters before parsing. IMAP literals are capped at 1 MiB and aggregate responses at 2 MiB; unsupported literal announcements fail closed. Selected HTML is converted with a bounded linear text scanner on the sync worker, without Android formatting spans. Send confirmation windows enable screen-capture protection before display. These are
 intentional initial limits, not complete mailbox coverage. Failed sync cannot
 establish whether server mail has been deleted or moved.
 

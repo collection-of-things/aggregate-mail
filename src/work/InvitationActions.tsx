@@ -57,26 +57,30 @@ export function CalendarActions({ event, api, google, accountAvailable = false, 
       : event.source === "google" && google ? <div className="form-actions">{answers.map(([label, , value]) => <button type="button" key={value} disabled={pending || !loaded} onClick={() => void googleWrite(value)}>{label} on Google and notify organizer</button>)}</div> : null}
   </div>;
 }
+type InvitationState = { invitation: Mail["invitation"]; fingerprint: string; eligible: boolean; google?: CalendarEvent; review?: { token: string; current?: CalendarEvent } };
 export function InvitationPanel({ mail, api, onOpenDraft, onChanged }: { mail: Mail; api: Api; onOpenDraft?: (draft: Draft) => void; onChanged?: () => unknown }) {
-  const [state, setState] = useState<{ fingerprint: string; eligible: boolean; google?: CalendarEvent }>();
+  const [state, setState] = useState<InvitationState>();
   const [notice, setNotice] = useState(""), [pending, setPending] = useState(false);
   const lock = useRef(false);
+  const [reviewed, setReviewed] = useState(false);
   const cached = mail.invitation;
   useEffect(() => {
     let active = true;
-    if (cached) void api<{ fingerprint: string; eligible: boolean; google?: CalendarEvent }>(`/calendar/invitations/${encodeURIComponent(mail.id)}`).then((value) => { if (active) setState(value); }).catch(() => { if (active) setNotice("Invitation identity unavailable. Reopen the email before responding."); });
+    setReviewed(false); setState(undefined);
+    if (cached) void api<InvitationState>(`/calendar/invitations/${encodeURIComponent(mail.id)}`).then((value) => { if (active) setState(value); }).catch(() => { if (active) setNotice("Invitation identity unavailable. Reopen the email before responding."); });
     return () => { active = false; };
   }, [api, mail.id, cached]);
-  if (!cached) return null;
+  const presented = state ? state.invitation : cached;
+  if (!presented) return null;
   const run = async (answer?: InvitationResponse) => {
-    if (lock.current || !state?.eligible) return;
+    if (lock.current || !state?.eligible || state.review?.current && !reviewed) return;
     lock.current = true; setPending(true); setNotice("");
     try {
       if (answer) {
-        const draft = await api<Draft>(`/calendar/invitations/${encodeURIComponent(mail.id)}/reply`, "POST", { fingerprint: state.fingerprint, response: answer });
+        const draft = await api<Draft>(`/calendar/invitations/${encodeURIComponent(mail.id)}/reply`, "POST", { fingerprint: state.fingerprint, response: answer, ...(reviewed ? { reviewToken: state.review?.token } : {}) });
         setNotice("Response saved locally. Review the reply draft and press Send to notify the organizer."); onOpenDraft?.(draft);
       } else {
-        await api(`/calendar/invitations/${encodeURIComponent(mail.id)}/apply`, "POST", { fingerprint: state.fingerprint });
+        await api(`/calendar/invitations/${encodeURIComponent(mail.id)}/apply`, "POST", { fingerprint: state.fingerprint, ...(reviewed ? { reviewToken: state.review?.token } : {}) });
         setNotice("Calendar message applied to the matching local event.");
       }
       onChanged?.();
@@ -84,18 +88,33 @@ export function InvitationPanel({ mail, api, onOpenDraft, onChanged }: { mail: M
     finally { lock.current = false; setPending(false); }
   };
   return <section className="invitation-panel" aria-label="Calendar invitation">
-    {cached.status !== "ok" ? <p role="status">Unsupported calendar message ({cached.reason}). No date or response is guessed.</p> : <>
-      <h2><Redact text={cached.invitation.title} /></h2><p>{eventWhen(cached.invitation)}</p>
-      <p>Organizer: <Address value={cached.invitation.organizer} /></p>
-      {cached.invitation.location && <p><Redact text={cached.invitation.location} /></p>}
-      {cached.invitation.notes && <p><Redact text={cached.invitation.notes} /></p>}
+    {presented.status !== "ok" ? <p role="status">Unsupported calendar message ({presented.reason}). No date or response is guessed.</p> : <>
+      <h3>Received calendar details</h3>
+      <h2><Redact text={presented.invitation.title} /></h2><p>{eventWhen(presented.invitation)}</p>
+      <p>Organizer: <Address value={presented.invitation.organizer} /></p>
+      {presented.invitation.location && <p><Redact text={presented.invitation.location} /></p>}
+      {presented.invitation.notes && <p><Redact text={presented.invitation.notes} /></p>}
+      {presented.invitation.meetLink && <p><Redact text={presented.invitation.meetLink} /></p>}
       {state && !state.eligible && <p role="status">This account and sender do not identify a supported RSVP. No reply is authorized.</p>}
+      <p role="note">Sender identity is unverified. The sender and organizer fields can be forged.</p>
+      {presented.invitation.attendees.map(person => <p key={person.email}><Address value={person.email} />: {person.response}</p>)}
+      {state?.review?.current && <div aria-label="Current local event">
+        <h3>Current local event</h3>
+        <p><Redact text={state.review.current.title} /></p><p>{eventWhen(state.review.current)}</p>
+        <p><Redact text={state.review.current.location || ""} /></p><p><Redact text={state.review.current.description || ""} /></p>
+        <p>Organizer: <Address value={state.review.current.organizer || ""} /></p>
+        {state.review.current.attendees.map(person => <p key={person.email}><Address value={person.email} />: {person.response}</p>)}
+        <p><Redact text={state.review.current.meetLink || ""} /></p>
+        {state.review.current.myResponse && <p>Your response: {state.review.current.myResponse}</p>}
+        <p>{state.review.current.cancelled ? "Cancelled" : "Active"}</p>
+        <label><input type="checkbox" checked={reviewed} onChange={event => setReviewed(event.target.checked)} />I reviewed this event and the proposed changes from an unverified sender.</label>
+      </div>}
       {state?.google?.myResponse && <p>Your Google response: {state.google.myResponse}</p>}
-      {cached.invitation.method === "REQUEST" ? <>
+      {presented.invitation.method === "REQUEST" ? <>
         {state?.eligible && state.google ? <CalendarActions key={`${state.google.id}:${state.fingerprint}`} event={state.google} api={api} google invitation={{ mailId: mail.id, fingerprint: state.fingerprint }} onChanged={onChanged} /> : <p>No unique cached Google event matches. You can prepare a local response draft.</p>}
         <p>Local response saves an Emc² event and opens a reply for review. Nothing is sent automatically.</p>
-        <div className="form-actions">{answers.map(([label, value]) => <button key={value} type="button" disabled={pending || !state?.eligible || !onOpenDraft} onClick={() => void run(value)}>{label} and prepare reply draft</button>)}</div>
-      </> : <><p>{cached.invitation.method === "CANCEL" ? "Cancellation received. Review before applying it." : "Attendee response received. Review before applying it."}</p><button type="button" disabled={pending || !state?.eligible} onClick={() => void run()}>Apply to matching local event</button></>}
+        <div className="form-actions">{answers.map(([label, value]) => <button key={value} type="button" disabled={pending || !state?.eligible || !onOpenDraft || !!state?.review?.current && !reviewed} onClick={() => void run(value)}>{label} and prepare reply draft</button>)}</div>
+      </> : <><p>{presented.invitation.method === "CANCEL" ? "Cancellation received. Review before applying it." : "Attendee response received. Review before applying it."}</p><button type="button" disabled={pending || !state?.eligible || !reviewed} onClick={() => void run()}>Apply to matching local event</button></>}
     </>}
     {notice && <p role="status">{notice}</p>}
   </section>;

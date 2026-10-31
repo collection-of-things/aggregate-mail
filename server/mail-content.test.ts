@@ -105,3 +105,13 @@ test("only older image metadata needs embedded content recovery", () => {
   assert.equal(needsEmbeddedContentRecovery({ html: "<p>Text</p>", attachments: [image] }), false);
   assert.deepEqual(mailStyle("min-width:60px;min-width:99999px"), { minWidth: "60px" });
 });
+
+
+test("malformed image markup and border functions stay bounded", () => {
+  const start = performance.now();
+  assert.equal(needsEmbeddedContentRecovery({ html: "<img ".repeat(5000), attachments: undefined }), false);
+  assert.deepEqual(mailStyle("border:" + "rgb(".repeat(5000)), {});
+  assert.deepEqual(mailStyle("border:1px solid rgb(1, 2, 3)"), { border: "1px solid rgb(1, 2, 3)" });
+  assert.ok(performance.now() - start < 1000);
+  assert.equal(needsEmbeddedContentRecovery({ html: '<img src="cid:logo">', attachments: undefined }), true);
+});

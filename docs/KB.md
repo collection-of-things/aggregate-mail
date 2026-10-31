@@ -671,18 +671,16 @@ for base64 padding when validating an additional selection. Stored bytes
 and compose drafts are encrypted. Downloads require an explicit user action;
 files never open automatically. The reader offers explicit Download controls for
 all available file types, including spreadsheets and archives. Preview is limited
-to PDFs (canvas pages through a lazy-loaded local PDF.js worker) and PNG, JPEG,
-GIF, WebP, BMP and AVIF images. HTML, SVG and Office files remain download-only.
-Preview activation fetches only the authenticated local attachment endpoint;
-PDF links and actions are not exposed. Decoder fallbacks, CMaps and fonts ship
-locally through `scripts/pdf-assets.ts`; PDF.js uses JavaScript decoders so
-the renderer keeps its existing script execution policy. Enabling privacy clears previews and
+to PNG, JPEG, GIF, WebP, BMP and AVIF images. PDFs, HTML, SVG and Office files
+remain download-only. PDF preview is disabled because compressed files have no
+enforceable decoded-memory budget. Preview activation fetches only the
+authenticated local attachment endpoint; sender resources never load. Enabling privacy clears previews and
 pending results; a new explicit preview may expose personal information in
 pixels. Image preview URLs are revoked on hide, privacy changes and unmount.
 Unavailable or oversized imports keep their existing metadata and explanation.
 Synthetic coverage is in `src/attachments.test.tsx`,
 `src/attachment-selection.test.tsx`, `server/attachment-import.test.ts` and
-`server/workspace.test.ts`; installed file-saving and PDF appearance require
+`server/workspace.test.ts`; installed file-saving and image appearance require
 separate acceptance. Disconnect removes cached mail, attachment
 bytes, scoped rules and agent access. Confirmed commitments and project notes
 remain, with unavailable source evidence, so disconnect does not erase work.
@@ -769,7 +767,7 @@ The viewport window retains the complete filtered array, bounds mounted rows wit
 
 Row Trash actions use visibility for hover/focus disclosure. The shared disabled-button opacity cannot reveal an idle action over its timestamp while sync disables the buttons. Devices without hover retain visible actions and timestamp spacing.
 
-Move to Trash uses the existing authenticated message action route and serialized mail-work queue. Gmail uses `messages.trash`. IMAP requires native MOVE support (including active IMAP4rev2) and exactly one server-declared Trash folder; it does not use ImapFlow's COPY/Deleted/EXPUNGE fallback. Archive applies the same MOVE requirement. Inbox actions validate UIDVALIDITY and UID, plus Message-ID when available. Folder checks compare raw server flags case-insensitively, reject mixed-case duplicate declarations and exclude name-based guesses. Archived mail opens the mailbox recorded at its confirmed archive move when one exists, otherwise a unique server-declared archive folder with an exact Message-ID match; a recovered match must also agree on Date and Subject before a destructive move. The encrypted cache entry is removed only after provider success. Confirmed IMAP moves remain successful if connection cleanup throws. Missing folders, unsupported MOVE and unsafe identities fail without a mailbox mutation. See [ADR 0017](adr/0017-safe-trash-and-visible-mail-actions.md).
+Move to Trash uses the existing authenticated message action route and serialized mail-work queue. Gmail uses `messages.trash`. IMAP requires native MOVE support (including active IMAP4rev2) and exactly one server-declared Trash folder; it does not use ImapFlow's COPY/Deleted/EXPUNGE fallback. Archive applies the same MOVE requirement. Inbox actions validate UIDVALIDITY and UID, plus Message-ID when available. Folder checks compare raw server flags case-insensitively, reject mixed-case duplicate declarations and exclude name-based guesses. Archived mutations require the mailbox path, UIDVALIDITY and UID recorded by a confirmed move or import. Matching sender-controlled Message-ID, Date or Subject never establishes a missing binding; unresolved mail must be changed in the provider. The encrypted cache entry is removed only after provider success. Confirmed IMAP moves remain successful if connection cleanup throws. Missing folders, unsupported MOVE and unsafe identities fail without a mailbox mutation. See [ADR 0017](adr/0017-safe-trash-and-visible-mail-actions.md).
 
 The [public-feedback report](ux-feedback-2026-10-12.md) records 13 inspected reports, their age/resolution limits and proposed UX priorities. It does not establish complaint prevalence, native behavior or live-provider verification.
 
@@ -2324,6 +2322,8 @@ with 3072 MiB and a 420-second deadline. It reports process-cold API status and
 full-mail availability separately. It does not prove browser paint, real-provider
 behavior, installed performance or an immediate complete mail list.
 
+The bootstrap benchmark uses a per-run desktop token and clears inherited model and Google credentials in its synthetic child processes.
+
 ## Encrypted connection settings and storage compaction
 
 `server/config.ts` stores managed Google OAuth, OpenAI and Typesafe settings in
@@ -3227,7 +3227,7 @@ and before caching. No read flags or mailbox state are changed.
 
 The existing attachment GET streams cached bytes to the renderer. The existing
 browser/desktop download pattern saves the chosen file, with no executable
-preview or sender HTML. Only small automatically imported PDF/raster files offer
+preview or sender HTML. Only small automatically imported raster files offer
 in-app previews; explicit large downloads do not automatically render pixels.
 Cancellation and privacy changes abort the reader request. Native save dialogs,
 installed interaction and real-provider behavior remain separate acceptance.
@@ -3339,3 +3339,27 @@ Isolated sender styles use the host foreground as a low-priority default.
 Sender font sizes and the body default follow `--text-scale`, including changes
 on `.app` while mail stays open; unhandled Enter
 on plain content reaches host shortcuts, while interactive controls keep activation.
+
+
+## Bounded mail processing and reviewed calendar imports
+
+Workspace refresh reuses a fingerprint across all proposal sources in one
+account-scoped conversation. Notification history retains the latest 1000
+arrival projections and checks record existence without decrypting bodies.
+IMAP SEARCH responses are limited to 10000 announced results before range
+expansion, including cumulative untagged responses; excessive searches fail
+without a mailbox mutation. Narrow them in the provider.
+
+Decision-model endpoints require HTTPS, except for localhost, 127.0.0.1 and
+IPv6 loopback. Redirects are rejected. Inherited decision-model credentials
+cannot cross providers through saved settings; change the launch provider and
+credential together. Startup rejects a saved provider that would reuse an
+inherited credential for another vendor.
+
+Calendar sender fields are unverified. Updating an existing local event from
+an invitation requires reviewing the current event and incoming changes, then
+confirming the exact source and current-event token. A changed source or event
+invalidates that confirmation. Restored drafts retain text and attachments but
+lose invitation and calendar-context authority; prepare calendar drafts again
+from the current event or source before sending calendar data. See
+[ADR 0110](adr/0110-reviewed-unverified-calendar-imports.md).

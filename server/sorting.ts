@@ -91,10 +91,12 @@ const systemOne = z.object({
 function jevTarget() {
   const provider = jevProviders[jevProviderOf(process.env.TYPESAFE_PROVIDER)];
   const endpoint = process.env.TYPESAFE_ENDPOINT?.trim() || provider.endpoint;
-  if (!/^https?:\/\//.test(endpoint))
-    throw new SortingUnavailable(
-      "The decision model endpoint must be an http or https URL.",
-    );
+  let url: URL;
+  try { url = new URL(endpoint); }
+  catch { throw new SortingUnavailable("The decision model endpoint must be a valid HTTPS URL."); }
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if (url.username || url.password || url.hash || (url.protocol !== "https:" && !(url.protocol === "http:" && local)))
+    throw new SortingUnavailable("The decision model endpoint requires HTTPS, except on loopback.");
   return {
     endpoint,
     model: process.env.TYPESAFE_MODEL?.trim() || provider.model,
@@ -113,6 +115,7 @@ async function classifyWithJev(
   ].join("\n");
   const response = await fetch(target.endpoint, {
     method: "POST",
+    redirect: "error",
     signal: AbortSignal.timeout(20000),
     headers: {
       Authorization: `Bearer ${process.env.TYPESAFE_API_KEY}`,
@@ -204,6 +207,7 @@ async function classifyWithOpenAi(
 ): Promise<Sorting> {
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
+    redirect: "error",
     signal: AbortSignal.timeout(20000),
     headers: {
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
