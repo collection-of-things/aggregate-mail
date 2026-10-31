@@ -26,6 +26,8 @@ unversioned history without treating it as a release record.
 
 ### Fixed
 
+- Delete saved drafts without waiting for a full mail-cache scan. Unused attachment cleanup runs through existing storage maintenance. ([#180](https://github.com/collection-of-things/aggregate-mail/issues/180))
+
 - Keep mail selection checkboxes and Select all usable while mail syncs; bulk actions wait for sync and say so. ([#178](https://github.com/collection-of-things/aggregate-mail/pull/178))
 
 - Show only applicable mail-row hover actions, in the reader toolbar's order: Archive or Move to Inbox, Snooze, Trash, Reply, read state and Pin. ([#178](https://github.com/collection-of-things/aggregate-mail/pull/178))

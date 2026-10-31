@@ -7,7 +7,7 @@ import express from "express";
 import { attachmentsSchema } from "./providers.js";
 import { z } from "zod";
 import type { Draft, DraftSummary } from "../shared/types.js";
-import { all, draftSummary, get, put, remove, transaction, validateAttachmentRefs, cleanupUploads } from "./store.js";
+import { all, draftSummary, get, put, remove, transaction, validateAttachmentRefs } from "./store.js";
 
 export const MAX_DRAFTS_PER_ACCOUNT = 100;
 const accountIdSchema = z.string().min(1).max(200);
@@ -110,7 +110,7 @@ export function deleteDraft(accountId: string, id: string, value: unknown) {
     if (current.sendUnknown && !input.confirmUnknown)
       throw new DraftError(409, "Confirm discarding a draft whose send status is unknown.");
     remove("draft", id);
-    cleanupUploads();
+    // Full upload inventory belongs to drained storage maintenance, not a draft delete.
   });
 }
 
