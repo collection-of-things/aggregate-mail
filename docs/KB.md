@@ -1770,12 +1770,21 @@ Create a new worktree and feature branch for each new Emc² task. Bind the T3 Co
 
 ## Showcase downloads
 
-The [showcase website](../website/README.md#download-count) displays a combined download total for Windows,
-macOS and Linux installers from all published GitHub releases. Its public query follows pagination and
-caches complete totals for ten minutes, retaining the last count on failed requests. It adds no desktop
-telemetry. `npm test` includes `scripts/website-downloads.test.mjs`; the website build is separate:
-`cd website` followed by `npx lakebed build --target claimed`. Hosted outbound requests require a claimed
-deployment. Browser and live deployment verification remain separate from these checks.
+The [marketing site](../website/README.md) is a static Astro site; the Lakebed capsule is retired. It
+reads the combined download total for Windows, macOS and Linux installers from all published GitHub
+releases in the browser through `website/src/lib/downloads.ts`: pagination follows in the client,
+complete totals are cached for ten minutes, failed reads keep the last count, and the number stays hidden
+until it loads. Installer links, sizes and SHA-256 checksums come from the latest release, read at build
+time through `website/src/lib/release.ts` and refreshed in the browser when a newer release exists. It
+adds no desktop telemetry. `npm test` includes `scripts/website-downloads.test.mjs` and
+`scripts/website-release.test.mjs`, which import those modules. The website build is separate: `cd
+website` followed by `npm run build`; any static host serves `dist/`. No host is wired up yet. The page
+includes Vercel Web Analytics, which records cookieless page views only on a Vercel deployment with
+Analytics enabled. Browser and
+live deployment verification remain separate from these checks.
+
+The site has light and dark themes, chosen before first paint from a saved `emc2-theme` value or the
+system setting; [website/AGENTS.md](../website/AGENTS.md) owns its design rules.
 
 ## Application rename
 

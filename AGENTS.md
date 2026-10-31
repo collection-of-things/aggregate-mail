@@ -47,7 +47,7 @@ encrypted SQLite. The installed app needs no separate browser, terminal or Node.
 | `server/mcp.ts` | Local MCP authentication, settings and tools |
 | `scripts/` | Development, bundling, startup checks and release commands |
 | `.github/` | CI and release workflows, issue and pull request templates |
-| `website/` | Separate Lakebed project site with its own rules in website/AGENTS.md. Do not import root code; root CI only runs `scripts/website-downloads.test.mjs` against it |
+| `website/` | Separate static Astro marketing site with its own rules in website/AGENTS.md. Do not import root code; root tests only run `scripts/website-*.test.mjs` against it |
 
 ## Change rules
 

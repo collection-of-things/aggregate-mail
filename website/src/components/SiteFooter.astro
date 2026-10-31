@@ -1,0 +1,107 @@
+---
+import Painting from "./Painting.astro";
+import { artPlaceholders } from "../lib/art";
+import beach from "../assets/art/beach.jpg";
+import beachDark from "../assets/art/beach-dark.jpg";
+import { CAFE_REPO, GITHUB_REPO, RELEASES } from "../lib/site";
+
+const credits = [
+  {
+    title: "Zirruswolken (Federwolkenstudie)",
+    byline: "John Constable, 1821–22, public domain, via The Yorck Project, Wikimedia Commons (colours adjusted)",
+    href: "https://commons.wikimedia.org/wiki/File:John_Constable_-_Zirruswolken_(Federwolkenstudie).jpg",
+  },
+  {
+    title: "Stacks of Wheat (End of Summer)",
+    byline: "Claude Monet, 1890-91, public domain (CC0), via Art Institute of Chicago",
+    href: "https://www.artic.edu/artworks/64818",
+  },
+  {
+    title: "Beach Scene at Trouville",
+    byline: "Eugène Boudin, 1863, public domain (CC0), via National Gallery of Art",
+    href: "https://www.nga.gov/collection/art-object-page.61364.html",
+  },
+  /* the dark theme's night counterparts */
+  {
+    title: "The Starry Night",
+    byline: "Vincent van Gogh, 1889, public domain, via Google Arts & Culture, Wikimedia Commons",
+    href: "https://commons.wikimedia.org/wiki/File:Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
+  },
+  {
+    title: "Wheatfield with Crows",
+    byline: "Vincent van Gogh, 1890, public domain, via Van Gogh Museum, Wikimedia Commons",
+    href: "https://commons.wikimedia.org/wiki/File:Korenveld_met_kraaien_-_s0149V1962_-_Van_Gogh_Museum.jpg",
+  },
+  {
+    title: "Nocturne: Blue and Silver – Chelsea",
+    byline: "James McNeill Whistler, 1871, public domain, via Tate and Google Arts & Culture, Wikimedia Commons",
+    href: "https://commons.wikimedia.org/wiki/File:James_Abbott_McNeill_Whistler_-_Nocturne-_Blue_and_Silver_-_Chelsea_-_Google_Art_Project.jpg",
+  },
+];
+---
+<footer class="footer">
+  <div class="footer-paint">
+    <Painting
+      src={beach}
+      placeholder={artPlaceholders.beach}
+      position="50% 20%"
+      dark={{ src: beachDark, placeholder: artPlaceholders.beachDark, position: "50% 25%" }}
+      sizes="100vw"
+      widths={[640, 960, 1280, 1600, 1920]}
+    />
+    <div class="footer-tint" aria-hidden="true"></div>
+    <div class="footer-stage">
+      <div class="footer-card">
+        <div class="cta-card">
+          <h2 class="h2">Your mail, on your machine</h2>
+          <p>Free, open source and built for Windows, macOS and Linux</p>
+          <div class="hero-actions">
+            <a class="btn btn-fill" data-hero-download href="#download">
+              <svg class="hero-osmark" data-hero-osmark hidden viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+                <path fill="currentColor" />
+              </svg>
+              <span data-hero-label>Download</span>
+            </a>
+            <a class="btn btn-ghost" href="#download">All downloads</a>
+          </div>
+        </div>
+        <div class="footer-links">
+          <div class="footer-links-inner">
+            <div class="footer-brand">
+              <p>A free email client for every desktop</p>
+              <span class="footer-wordclip" aria-hidden="true"><em class="footer-word">Emc<sup>2</sup></em></span>
+            </div>
+            <nav aria-label="Product">
+              <h4>Product</h4>
+              <ul>
+                <li><a href="#features">Features</a></li>
+                <li><a href="#privacy">Privacy</a></li>
+                <li><a href="#download">Download</a></li>
+                <li><a href="#faq">FAQ</a></li>
+              </ul>
+            </nav>
+            <nav aria-label="Project">
+              <h4>Project</h4>
+              <ul>
+                <li><a href={GITHUB_REPO} rel="noreferrer" target="_blank">GitHub</a></li>
+                <li><a href={CAFE_REPO} rel="noreferrer" target="_blank">git.cafe</a></li>
+                <li><a href={RELEASES} rel="noreferrer" target="_blank">Releases</a></li>
+                <li><a href={`${GITHUB_REPO}/blob/main/SECURITY.md`} rel="noreferrer" target="_blank">Security</a></li>
+              </ul>
+            </nav>
+            <span class="footer-wordclip footer-wordclip-row" aria-hidden="true"><em class="footer-word">Emc<sup>2</sup></em></span>
+          </div>
+          <p class="footer-credits">
+            {credits.map((credit) => (
+              <>
+                <a href={credit.href} rel="noreferrer" target="_blank">"{credit.title}"</a>, {credit.byline}
+                {" · "}
+              </>
+            ))}
+            Marks from Simple Icons and theSVG, CC0 · Demo mail is invented · MIT licence
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>

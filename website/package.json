@@ -1,0 +1,19 @@
+{
+  "name": "emc2-website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/preact": "^6.1.1",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/newsreader": "^5.3.0",
+    "@vercel/analytics": "^2.0.1",
+    "astro": "^7.4.2",
+    "lenis": "^1.3.27",
+    "preact": "^11.0.2"
+  }
+}

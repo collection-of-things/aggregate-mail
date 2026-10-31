@@ -1,0 +1,587 @@
+---
+import Bento from "../components/Bento.astro";
+import Compare from "../components/Compare.astro";
+import Download from "../components/Download.astro";
+import Faq from "../components/Faq.astro";
+import Features from "../components/Features.astro";
+import Header from "../components/Header.astro";
+import Hero from "../components/Hero.astro";
+import Privacy from "../components/Privacy.astro";
+import Analytics from "@vercel/analytics/astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import { fetchLatestRelease } from "../lib/release";
+import { DESCRIPTION, GITHUB_REPO, ogImageUrl, RELEASES, TITLE } from "../lib/site";
+/* self-hosted fonts, so visitors make no requests to a font CDN */
+import "@fontsource-variable/geist";
+import "@fontsource-variable/newsreader/opsz.css";
+import "../styles/global.css";
+
+// Installer links, sizes and checksums bake in at build; the page script
+// re-reads the API on load and re-applies them when a newer release exists.
+const release = await fetchLatestRelease();
+
+const site = Astro.site;
+const ogImage = ogImageUrl(site);
+const canonical = site ? new URL("/", site).href : null;
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Emc²",
+  description: DESCRIPTION,
+  operatingSystem: "Windows, macOS, Linux",
+  applicationCategory: "CommunicationApplication",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  license: "https://opensource.org/licenses/MIT",
+  downloadUrl: RELEASES,
+  ...(release ? { softwareVersion: release.version } : {}),
+  url: canonical ?? GITHUB_REPO,
+  image: ogImage,
+};
+
+const safeJson = (value: unknown) => JSON.stringify(value).replace(/</g, "\\u003c");
+---
+<!doctype html>
+<html lang="en" class="no-js look-skeuo look-frame">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    {canonical && <link rel="canonical" href={canonical} />}
+    <title>{TITLE}</title>
+    <meta name="description" content={DESCRIPTION} />
+    <meta name="theme-color" content="#1880ab" />
+    <meta name="color-scheme" content="light dark" />
+    {/* Pick the theme before first paint: the visitor's saved choice, else
+        the system preference. Without script the page stays light. */}
+    <script is:inline>
+      (() => {
+        let theme = null;
+        try {
+          theme = localStorage.getItem("emc2-theme");
+        } catch {}
+        if (theme !== "light" && theme !== "dark") {
+          theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.dataset.theme = theme;
+        if (theme === "dark") {
+          document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#0a0a0a");
+        }
+      })();
+    </script>
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Emc²" />
+    <meta property="og:title" content={TITLE} />
+    <meta property="og:description" content={DESCRIPTION} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="The Emc² inbox on a dark background" />
+    {canonical && <meta property="og:url" content={canonical} />}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={TITLE} />
+    <meta name="twitter:description" content={DESCRIPTION} />
+    <meta name="twitter:image" content={ogImage} />
+    <script type="application/ld+json" is:inline set:html={safeJson(jsonLd)} />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <Header />
+    <main id="main">
+      <Hero release={release} />
+      <Features />
+      <Bento />
+      <Privacy />
+      <Compare />
+      <Download release={release} />
+      <Faq />
+    </main>
+    <SiteFooter />
+    {/* Vercel Web Analytics: cookieless page views, sent only on a Vercel
+        deployment with Analytics enabled; elsewhere its script request 404s */}
+    <Analytics />
+    <script type="application/json" id="release-data" is:inline set:html={safeJson(release)} />
+
+    <script>
+      import type { OsKey } from "../lib/os";
+      import Lenis from "lenis";
+      import { osMarks } from "../lib/os";
+      import {
+        detectOs,
+        detectPlatform,
+        formatDate,
+        formatSize,
+        latestRelease,
+        shortSha,
+        type Installer,
+        type LatestRelease,
+      } from "../lib/release";
+      import { siteCounts } from "../lib/counts";
+      import { attachPaintShader, type PaintShaderOptions } from "../lib/paint-shader";
+      import { attachFlutedField } from "../lib/fluted-field";
+      import { RELEASES } from "../lib/site";
+      import { currentTheme, followSystemTheme, onThemeChange, type Theme } from "../lib/theme";
+
+      document.documentElement.classList.remove("no-js");
+      const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      followSystemTheme();
+
+      /* the fluted fractal field behind every section */
+      attachFlutedField();
+
+      /* The sticky bar picks up its border once the page has scrolled. */
+      const bar = document.querySelector(".bar");
+      const setBar = () => bar?.classList.toggle("scrolled", scrollY > 8);
+      setBar();
+      addEventListener("scroll", setBar, { passive: true });
+
+      /* The visitor's desktop decides the window chrome everywhere. The hero's
+         segmented control overrides it on the hero's own window. */
+      const hero = document.querySelector<HTMLElement>(".hero");
+      const visitorOs = detectOs();
+      const initialOs = visitorOs ?? "mac";
+      if (visitorOs) document.documentElement.dataset.os = visitorOs;
+      if (hero) hero.dataset.os = initialOs;
+      const segments = [...document.querySelectorAll<HTMLElement>("[data-os-switch]")];
+      const syncSwitch = (os: OsKey) => {
+        segments.forEach((seg) => {
+          const on = seg.dataset.osSwitch === os;
+          seg.classList.toggle("on", on);
+          seg.setAttribute("aria-checked", String(on));
+        });
+      };
+      syncSwitch(initialOs);
+      segments.forEach((seg) => {
+        seg.addEventListener("click", () => {
+          const os = seg.dataset.osSwitch as OsKey;
+          if (hero) hero.dataset.os = os;
+          syncSwitch(os);
+        });
+      });
+
+      /* the segments are a radiogroup: arrow keys move between them and
+         activate, as in the OS pickers they imitate */
+      document
+        .querySelector<HTMLElement>(".os-switch")
+        ?.addEventListener("keydown", (event) => {
+          if (!event.key.startsWith("Arrow")) return;
+          const current = segments.findIndex((seg) => seg.classList.contains("on"));
+          const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
+          const next = segments[(current + step + segments.length) % segments.length];
+          event.preventDefault();
+          next.click();
+          next.focus();
+        });
+
+      /* inertial wheel scrolling via Lenis — skipped under reduced motion,
+         where the instant path stays in charge. Anchors route through
+         lenis so they land clear of the sticky bar (native
+         scroll-behavior is off while lenis runs; the two would fight) */
+      let lenis: Lenis | null = null;
+      if (!reduced) {
+        lenis = new Lenis({ autoRaf: true, lerp: 0.1, smoothWheel: true });
+        document.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach((link) => {
+          link.addEventListener("click", (event) => {
+            const hash = link.getAttribute("href");
+            if (!hash || hash.length < 2) return;
+            const target = document.querySelector<HTMLElement>(hash);
+            if (!target) return;
+            event.preventDefault();
+            const barH = bar?.getBoundingClientRect().height ?? 48;
+            lenis!.scrollTo(target, { offset: -(barH + 12) });
+          });
+        });
+      }
+
+      /* The release baked into this build, embedded as JSON beside it. */
+      const isRelease = (value: unknown): value is LatestRelease =>
+        !!value &&
+        typeof value === "object" &&
+        "version" in value &&
+        typeof value.version === "string" &&
+        "publishedAt" in value &&
+        typeof value.publishedAt === "string" &&
+        "assets" in value &&
+        !!value.assets &&
+        typeof value.assets === "object";
+      const embedded = (() => {
+        try {
+          const text = document.getElementById("release-data")?.textContent;
+          const value: unknown = text ? JSON.parse(text) : null;
+          return isRelease(value) ? value : null;
+        } catch {
+          return null;
+        }
+      })();
+
+      type Platform = { os: OsKey; installer: Installer; archKnown: boolean };
+      const heroLabels: Record<OsKey, string> = {
+        windows: "Download for Windows",
+        mac: "Download for macOS",
+        linux: "Download for Linux",
+      };
+
+      /* Every release-bound node updates from one place, so a newer release
+         found on load rewrites the whole page at once. Missing data hides
+         the matching node rather than showing a stale number. */
+      const applyRelease = (release: LatestRelease | null, platform: Platform | null) => {
+        const assetOf = (key: Installer) => release?.assets[key];
+
+        document.querySelectorAll<HTMLAnchorElement>("a[data-installer]").forEach((link) => {
+          link.href = assetOf(link.dataset.installer as Installer)?.url ?? RELEASES;
+        });
+        document.querySelectorAll<HTMLElement>("[data-asset-size]").forEach((node) => {
+          const asset = assetOf(node.dataset.assetSize as Installer);
+          if (asset) node.textContent = formatSize(asset.size);
+        });
+        document.querySelectorAll<HTMLElement>("[data-sha]").forEach((code) => {
+          const sha = assetOf(code.dataset.sha as Installer)?.sha256 ?? null;
+          code.textContent = sha ? shortSha(sha) : "";
+          code.title = sha ?? "";
+          const block = code.closest<HTMLElement>("[data-sha-block]");
+          block?.querySelector("[data-copy]")?.setAttribute("data-sha-value", sha ?? "");
+          if (block) block.hidden = !sha;
+        });
+        document.querySelectorAll<HTMLElement>("[data-file]").forEach((node) => {
+          node.hidden = !assetOf(node.dataset.file as Installer);
+        });
+        document.querySelectorAll<HTMLElement>("[data-release-version]").forEach((node) => {
+          node.textContent = release?.version ?? "";
+        });
+        document.querySelectorAll<HTMLElement>("[data-release-date]").forEach((node) => {
+          node.textContent = release ? formatDate(release.publishedAt) : "";
+        });
+        document.querySelectorAll<HTMLElement>("[data-release-only]").forEach((node) => {
+          node.hidden = !release;
+        });
+        const lead = document.querySelector<HTMLElement>("[data-release-lead]");
+        const fallback = document.querySelector<HTMLElement>("[data-release-fallback]");
+        if (lead) lead.hidden = !release;
+        if (fallback) fallback.hidden = !!release;
+
+        /* Hero buttons name the visitor's OS and point at its installer. */
+        document.querySelectorAll<HTMLAnchorElement>("[data-hero-download]").forEach((link) => {
+          if (!platform) return;
+          link.href = assetOf(platform.installer)?.url ?? RELEASES;
+          const label = link.querySelector<HTMLElement>("[data-hero-label]");
+          if (label) label.textContent = heroLabels[platform.os];
+          const mark = link.querySelector<SVGSVGElement>("[data-hero-osmark]");
+          mark?.querySelector("path")?.setAttribute("d", osMarks[platform.os].path);
+          mark?.removeAttribute("hidden");
+        });
+
+        /* The meta line's platform part: arch label on Mac, then the size. */
+        const platNode = document.querySelector<HTMLElement>("[data-hero-platform]");
+        if (platNode) {
+          const parts: string[] = [];
+          if (platform) {
+            if (platform.os === "mac" && platform.archKnown) {
+              parts.push(platform.installer === "mac-arm64" ? "Apple silicon" : "Intel");
+            }
+            const size = assetOf(platform.installer)?.size;
+            if (size !== undefined) parts.push(formatSize(size));
+          }
+          platNode.textContent = parts.join(" · ");
+          platNode.hidden = parts.length === 0;
+        }
+        document.querySelectorAll<HTMLAnchorElement>("[data-hero-intel]").forEach((link) => {
+          link.hidden = !(platform?.os === "mac" && !platform.archKnown);
+          const x64 = assetOf("mac-x64");
+          if (x64) link.href = x64.url;
+        });
+      };
+
+      const platform = await detectPlatform();
+      applyRelease(embedded, platform);
+      latestRelease().then((live) => {
+        if (!live) return;
+        if (embedded && live.version === embedded.version) return;
+        applyRelease(live, platform);
+      });
+
+      /* The visitor's OS card gets the featured treatment. */
+      if (visitorOs) {
+        document
+          .querySelector<HTMLElement>(`.dl-card[data-os-card="${visitorOs}"]`)
+          ?.classList.add("featured");
+      }
+
+      /* Checksum copy buttons: write the full hash, say so, fall back to a
+         text selection when the clipboard is unavailable. */
+      document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const sha = button.dataset.shaValue;
+          if (!sha) return;
+          try {
+            await navigator.clipboard.writeText(sha);
+            button.textContent = "Copied";
+            window.setTimeout(() => {
+              button.textContent = "Copy";
+            }, 1600);
+          } catch {
+            const code = button.closest("[data-sha-block]")?.querySelector("code");
+            if (!code) return;
+            const range = document.createRange();
+            range.selectNodeContents(code);
+            const selection = getSelection();
+            selection?.removeAllRanges();
+            selection?.addRange(range);
+          }
+        });
+      });
+
+      /* Live counts, read from the public GitHub API; hidden until they load. */
+      siteCounts().then(({ stars, downloads }) => {
+        const format = (value: number) => value.toLocaleString("en-US");
+        if (stars !== null) {
+          document.querySelectorAll<HTMLElement>('[data-count="stars"]').forEach((node) => {
+            node.textContent = format(stars);
+          });
+          document.querySelectorAll<HTMLElement>('[data-count-label="stars"]').forEach((node) => {
+            node.hidden = false;
+          });
+        }
+        if (downloads !== null) {
+          document.querySelectorAll<HTMLElement>('[data-count="downloads"]').forEach((node) => {
+            node.textContent = format(downloads);
+          });
+        }
+        /* the download note's counts only appear once both numbers are in */
+        if (stars !== null && downloads !== null) {
+          document.querySelectorAll<HTMLElement>(".dl-counts").forEach((node) => {
+            node.hidden = false;
+          });
+        }
+      });
+
+      /* Privacy switches: each row lights up with its consequence. */
+      document.querySelectorAll<HTMLElement>("[data-band]").forEach((band) => {
+        const toggle = band.querySelector<HTMLButtonElement>(".toggle")!;
+        const consequence = band.querySelector<HTMLElement>(".switch-c")!;
+        if (toggle.getAttribute("aria-disabled") === "true") return;
+        toggle.addEventListener("click", () => {
+          const on = toggle.getAttribute("aria-checked") !== "true";
+          toggle.setAttribute("aria-checked", String(on));
+          band.classList.toggle("on", on);
+          if (reduced) {
+            consequence.textContent = (on ? consequence.dataset.on : consequence.dataset.off) ?? "";
+            return;
+          }
+          consequence.classList.add("swap");
+          window.setTimeout(() => {
+            consequence.textContent = (on ? consequence.dataset.on : consequence.dataset.off) ?? "";
+            consequence.classList.remove("swap");
+          }, 160);
+        });
+      });
+
+      /* Smooth disclosure: the FAQ answers and the download warnings animate
+         their own height. One click drives the group: the three warnings
+         open and close together, and opening a question closes the one that
+         was open. Under reduced motion (or with JS off) the browser's
+         instant toggle stays in charge. */
+      if (!reduced) {
+        /* the helper runs the exclusive accordion itself, so the `name`
+           group's native snap-close is turned off while JS is driving */
+        document.querySelectorAll<HTMLDetailsElement>("details.faq-t[name]").forEach((item) => {
+          item.removeAttribute("name");
+        });
+
+        const animateDetails = (details: HTMLDetailsElement, open: boolean) => {
+          const summaryH =
+            details.querySelector("summary")?.getBoundingClientRect().height ?? 24;
+          const start = details.getBoundingClientRect().height;
+          if (open) details.open = true;
+          const end = open ? details.scrollHeight : summaryH;
+          details.style.overflow = "clip";
+          details.style.height = `${start}px`;
+          const anim = details.animate([{ height: `${start}px` }, { height: `${end}px` }], {
+            duration: 320,
+            easing: "cubic-bezier(.2,.8,.2,1)",
+          });
+          anim.onfinish = () => {
+            if (discloseAnims.get(details) === anim) discloseAnims.delete(details);
+            details.style.removeProperty("height");
+            details.style.removeProperty("overflow");
+            if (!open) details.open = false;
+          };
+          discloseAnims.set(details, anim);
+        };
+
+        /* a click mid-animation cancels the run and re-aims from the height
+           the element is showing right now */
+        const discloseAnims = new WeakMap<HTMLDetailsElement, Animation>();
+        const toggleDetails = (details: HTMLDetailsElement, open: boolean) => {
+          const current = details.getBoundingClientRect().height;
+          discloseAnims.get(details)?.cancel();
+          details.style.height = `${current}px`;
+          animateDetails(details, open);
+        };
+
+        document
+          .querySelectorAll("details.faq-t > summary, details.dl-warn > summary")
+          .forEach((summary) => {
+            summary.addEventListener("click", (event) => {
+              event.preventDefault();
+              const details = summary.parentElement as HTMLDetailsElement;
+              const opening = !details.open;
+              if (details.classList.contains("dl-warn")) {
+                /* one click opens or closes all three warnings together */
+                document.querySelectorAll<HTMLDetailsElement>("details.dl-warn").forEach((warn) => {
+                  if (warn.open !== opening) toggleDetails(warn, opening);
+                });
+              } else {
+                toggleDetails(details, opening);
+                if (opening) {
+                  document.querySelectorAll<HTMLDetailsElement>("details.faq-t[open]").forEach((other) => {
+                    if (other !== details) toggleDetails(other, false);
+                  });
+                }
+              }
+            });
+          });
+      }
+
+      /* Entrances: elements rise once. Staggers come from each element's --i. */
+      const revealObserver = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            entry.target.classList.add("in");
+            revealObserver.unobserve(entry.target);
+          }
+        },
+        { rootMargin: "0px 0px -12% 0px", threshold: 0.1 }
+      );
+      document.querySelectorAll("[data-reveal]").forEach((el) => revealObserver.observe(el));
+      window.addEventListener("load", () => {
+        document.querySelectorAll<HTMLElement>("[data-reveal]").forEach((el) => {
+          if (el.getBoundingClientRect().top < window.innerHeight) el.classList.add("in");
+        });
+      });
+
+      /* The paintings breathe: a small WebGL pass over each panel's artwork,
+         with the hero's flow swelling a little as the panel opens. The
+         responsive <img> stays underneath as the fallback. */
+      const heroStage = document.querySelector<HTMLElement>(".hero-stage");
+      const readP = () => {
+        const host = heroStage ?? document.body;
+        const value = parseFloat(getComputedStyle(host).getPropertyValue("--p"));
+        return Number.isFinite(value) ? value : 0;
+      };
+      /* The resting clip's top edge = hero text bottom + 48px, measured once
+         fonts settle and on resize. */
+      const heroFrame = document.querySelector<HTMLElement>(".hero-frame");
+      const heroMetaEl = document.querySelector<HTMLElement>(".hero-meta");
+      const measureRest = () => {
+        if (!hero || !heroFrame || !heroMetaEl) return;
+        const lift = -32 * Math.min(1, readP() * 2.86);
+        const top =
+          heroMetaEl.getBoundingClientRect().bottom -
+          heroFrame.getBoundingClientRect().top -
+          lift;
+        if (top > 0) hero.style.setProperty("--rest-top", `${Math.round(top + 48)}px`);
+      };
+      measureRest();
+      document.fonts?.ready.then(measureRest);
+      addEventListener("resize", measureRest);
+
+      const heroPanel = document.querySelector<HTMLElement>(".hero-panel");
+      const footerPaint = document.querySelector<HTMLElement>(".footer-paint");
+      /* Each themed painting gets its own shader, attached the first time its
+         theme shows, so a visitor who never switches never fetches the
+         other painting. */
+      const attachPanel = (
+        panel: HTMLElement | null,
+        options: PaintShaderOptions,
+        darkOptions: PaintShaderOptions
+      ) => {
+        if (!panel) return;
+        const started = new Set<Theme>();
+        const start = (theme: Theme) => {
+          if (started.has(theme)) return;
+          const img = panel.querySelector<HTMLImageElement>(`[data-art="${theme}"] img.art-i`);
+          if (!img) return;
+          started.add(theme);
+          attachPaintShader(panel, img, theme === "dark" ? darkOptions : options);
+        };
+        start(currentTheme());
+        onThemeChange(start);
+      };
+      attachPanel(heroPanel, {
+        flowBoost: () => 1 + 0.5 * readP(),
+        focus: 0.5,
+        crop: 0,
+        /* the Constable in its own colours (no blue duotone), its muted
+           lavender lifted a little and dimmed a step so the window in front
+           stays the brightest thing; the <img> fallback carries the same
+           grade in global.css */
+        grade: { saturation: 1.25, contrast: 1.06, brightness: 0.88 },
+      }, {
+        flowBoost: () => 1 + 0.5 * readP(),
+        focus: 0.3,
+        crop: 0,
+        /* near-monochrome and dim, so the black theme carries no hue */
+        grade: { saturation: 0.25, contrast: 1.1, brightness: 0.6 },
+      });
+      /* The features panel's shader lives inside the FeaturesDemo island so
+         hydration keeps it. The footer painting gets the gentle breathe
+         pass — no extra crop, the focus just keeps the sky and the road's
+         horizon in view inside the wide box. */
+      attachPanel(footerPaint, {
+        focus: 0.05,
+        focusX: 0.5,
+        crop: 0,
+        /* Boudin's natural beach colours, a touch dimmer */
+        grade: { contrast: 1.05, brightness: 0.92 },
+      }, {
+        focus: 0.25,
+        focusX: 0.5,
+        crop: 0.01,
+        /* Whistler's pale blue nocturne, dimmed to near-black grey */
+        grade: { saturation: 0.25, contrast: 1.15, brightness: 0.5 },
+      });
+
+      /* Scroll progress for the hero scene in browsers without CSS
+         scroll-driven animations. The CSS path animates --p itself. */
+      if (
+        !reduced &&
+        hero &&
+        !CSS.supports("animation-timeline", "view()")
+      ) {
+        let queued = false;
+        /* the stage's height is stable between resizes — cache the span so
+           the scroll path only reads the (already-forced) top */
+        let span = 0;
+        const measureSpan = () => {
+          span = heroStage ? heroStage.getBoundingClientRect().height - innerHeight : 0;
+        };
+        measureSpan();
+        document.fonts?.ready.then(measureSpan);
+        const drive = () => {
+          queued = false;
+          if (heroStage && span > 0) {
+            const raw = Math.min(1, Math.max(0, -heroStage.getBoundingClientRect().top / span));
+            hero.style.setProperty("--p", String(Math.min(1, raw / 0.75)));
+          }
+        };
+        const onScroll = () => {
+          if (!queued) {
+            queued = true;
+            requestAnimationFrame(drive);
+          }
+        };
+        addEventListener("scroll", onScroll, { passive: true });
+        addEventListener("resize", () => {
+          measureSpan();
+          onScroll();
+        });
+        drive();
+      }
+    </script>
+  </body>
+</html>

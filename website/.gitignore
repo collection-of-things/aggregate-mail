@@ -1,2 +1,4 @@
-.lakebed/
-.env.lakebed.server
+node_modules/
+dist/
+.astro/
+.taste-skill/
