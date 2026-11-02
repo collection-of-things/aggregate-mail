@@ -35,7 +35,7 @@ Options:
   --unread         Only unread mail (list/search)
   --pinned         Only locally pinned mail (list/search; needs capability)
   --syntax <mode>  substring or app query syntax (search; needs capability)
-  --redact         Mask accounts, recipient names and addresses (needs capability)
+  --redact         Mask account addresses, participant names and email addresses (needs capability)
   --limit <n>      Page size, 1..100 (default 25)
   --offset <n>     Page offset, 0 or greater (default 0)
   --confirm        Explicitly request an action or creation; never approves proposals

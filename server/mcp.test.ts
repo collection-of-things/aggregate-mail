@@ -702,6 +702,16 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
         assert.deepEqual(readRedacted.references, [`<${PRIVACY_MASK}>`]);
         assert.equal(readRedacted.body, mail.body);
 
+        put("mail", mail.id, { ...mail, messageId: "<alice.20261101@mx-relay>", inReplyTo: "<Alice-7f3a9c@internal-host>", references: ["<Alice-7f3a9c@internal-host>"] });
+        try {
+          const nonTld = decode(await call("read_email", { id: mail.id, redact: true })) as { messageId: string; inReplyTo: string; references: string[] };
+          assert.equal(nonTld.messageId, `<${PRIVACY_MASK}>`, "non-TLD Message-ID host and token are masked whole");
+          assert.equal(nonTld.inReplyTo, `<${PRIVACY_MASK}>`);
+          assert.deepEqual(nonTld.references, [`<${PRIVACY_MASK}>`]);
+        } finally {
+          put("mail", mail.id, mail);
+        }
+
         const rawReadOmitted = (await call("read_email", { id: mail.id })).content[0].text;
         const rawReadFalse = (await call("read_email", { id: mail.id, redact: false })).content[0].text;
         assert.equal(rawReadOmitted, rawReadFalse, "byte-for-byte raw JSON parity when redact is omitted vs false");
@@ -757,7 +767,7 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
         put("mail", mail.id, {
           ...mail,
           body: "Alice quotes Dave Participant in original body.",
-          references: ["<missing-parent@example.com>"],
+          references: ["<missing-parent@example.com>", "<alice.20261101@mx-relay>"],
         });
         put("coverage", "a", {
           accountId: "a",
@@ -783,7 +793,7 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
           assert.equal(replyMsg.body, `${PRIVACY_MASK} replies to ${PRIVACY_MASK} and ${PRIVACY_MASK}.`);
 
           assert.ok(threadRedacted.gaps.some((g) => g === `Referenced message unavailable: <${PRIVACY_MASK}>`));
-          assert.ok(!threadRedacted.gaps.some((g) => g.includes("missing-parent@example.com")));
+          assert.ok(!threadRedacted.gaps.some((g) => g.includes("missing-parent@example.com") || g.includes("mx-relay") || g.includes("20261101")));
 
           assert.equal(threadRedacted.coverage.error, `Sync error for ${PRIVACY_MASK} <${PRIVACY_MASK}>`);
           assert.ok(threadRedacted.gaps.some((g) => g === `Sync error for ${PRIVACY_MASK} <${PRIVACY_MASK}>`));

@@ -64,29 +64,26 @@ const redactedSummary = (m: Mail, names: readonly string[]) => ({
   subject: redactPrivateText(m.subject, names),
   preview: redactPrivateText(m.preview, names),
 });
-const redactMessageId = (id: string | null | undefined, names: readonly string[]) => {
+// Message-IDs carry unique tokens and internal hostnames, so mask them whole.
+const redactMessageId = (id: string | null | undefined) => {
   if (!id) return id ?? null;
-  const masked = redactPrivateText(id, names);
-  if (id.startsWith("<") && id.endsWith(">") && !masked.includes(PRIVACY_MASK)) {
-    return `<${PRIVACY_MASK}>`;
-  }
-  return masked === id ? PRIVACY_MASK : masked;
+  return id.startsWith("<") && id.endsWith(">") ? `<${PRIVACY_MASK}>` : PRIVACY_MASK;
 };
 const redactFull = (m: Mail, names: readonly string[]) => ({
   ...redactedSummary(m, names),
   body: redactPrivateText(m.body, names),
   cc: m.cc ? redactAddress(m.cc, names) : "",
   replyTo: redactAddress(m.replyTo || m.address, names),
-  messageId: redactMessageId(m.messageId, names),
+  messageId: redactMessageId(m.messageId),
   threadId: m.threadId || null,
-  references: (m.references || []).map((r) => redactMessageId(r, names)!),
-  ...(m.inReplyTo ? { inReplyTo: redactMessageId(m.inReplyTo, names) } : {}),
+  references: (m.references || []).map((r) => redactMessageId(r)!),
+  ...(m.inReplyTo ? { inReplyTo: redactMessageId(m.inReplyTo) } : {}),
   ...(m.attachments ? { attachments: m.attachments } : {}),
 });
 function redactGap(gap: string, names: readonly string[]): string {
   const prefix = "Referenced message unavailable: ";
   if (gap.startsWith(prefix)) {
-    return prefix + redactMessageId(gap.slice(prefix.length), names);
+    return prefix + redactMessageId(gap.slice(prefix.length));
   }
   return redactPrivateText(gap, names);
 }
@@ -129,11 +126,14 @@ function page(input: z.infer<z.ZodObject<typeof filters>>, allowedAccounts: stri
   let emails;
   if (input.redact) {
     const permittedAccounts = all("account").filter((a) => allowedAccounts.includes(a.id));
+    // One pass over permitted mail finds every slice conversation; per-row
+    // grouping then scans only that closed subset, not the whole mailbox.
+    const pageMembers = conversationMembers(slice, permittedMails);
     const byMailId = new Map<string, string[]>();
     emails = slice.map((m) => {
       let names = byMailId.get(m.id);
       if (!names) {
-        const thread = conversationMembers([m], permittedMails);
+        const thread = conversationMembers([m], pageMembers);
         names = collectMailPrivateNames(permittedAccounts, thread);
         for (const member of thread) byMailId.set(member.id, names);
       }

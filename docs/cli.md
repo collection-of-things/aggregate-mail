@@ -123,7 +123,8 @@ addresses with `••••••••` before output:
   - Account email addresses in `accounts` / `list_accounts`
   - Sender and recipient display names and email addresses in `from`, `to`, `cc` and `replyTo`
   - Whole-word and phrase mentions of permitted account names and message/conversation header participant names (excluding `Mr`/`Mrs`/`Ms`/`Mx`/`Dr`), plus email addresses (including percent-encoded URLs), in `subject`, `preview` and `body` (collapsing non-empty text to `••••••••` if candidate names exceed 64 unique names, 160 characters or 16 words)
-  - RFC 5322 Message-IDs in `messageId`, `inReplyTo`, `references` and thread `gaps` (`<••••••••>`), and participant names/addresses in thread `coverage.error`
+  - RFC 5322 Message-IDs in `messageId`, `inReplyTo`, `references` and thread `gaps`, always whole (`<••••••••>`), and participant names/addresses in thread `coverage.error`
+  - Name parts match as whole words, case-insensitively, as in privacy mode: a participant named "Will" also masks every "will" in the text
 - **What is not masked**:
   - Third-party names mentioned only in `subject`, `preview` or `body` that do not appear in permitted account names or the message/conversation headers
   - Phone numbers, physical addresses, and non-TLD local addresses inside free-form message text
