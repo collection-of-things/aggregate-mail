@@ -19,6 +19,7 @@ export const interactionActions = [
   { id: "read", label: "Mark as read", key: "i", shift: true },
   { id: "teach", label: "Teach sorting", key: "m" },
   { id: "density", label: "Comfortable / Compact", key: "d" },
+  { id: "sidebar", label: "Show / hide sidebar", key: "[" },
   { id: "privacy", label: "Hide personal information on / off", key: "p" },
   { id: "settings", label: "Settings", key: "," },
   { id: "help", label: "Keyboard shortcuts", key: "?" },
@@ -115,7 +116,7 @@ export function read(): InteractionPreferences {
     const bindings = input.shortcuts as Record<string, unknown>;
     for (const { id } of interactionActions) {
       const candidate = bindings[id];
-      if (candidate === undefined && ["selectMail", "unread", "inbox", "forwardMail", "pin", "replyAll", "read", "returnToList", "goInbox", "goSent", "goDrafts", "goAll", "goPinned", "goSnoozed"].includes(id)) continue;
+      if (candidate === undefined && ["selectMail", "unread", "inbox", "forwardMail", "pin", "replyAll", "read", "returnToList", "goInbox", "goSent", "goDrafts", "goAll", "goPinned", "goSnoozed", "sidebar"].includes(id)) continue;
       if (!candidate || typeof candidate !== "object") { value.shortcuts = fallback().shortcuts; return value; }
       const fields = candidate as Record<string, unknown>;
       if (typeof fields.key !== "string" || fields.prefix !== undefined && typeof fields.prefix !== "string" || ["ctrl", "meta", "alt", "shift"].some((key) => fields[key] !== undefined && typeof fields[key] !== "boolean")) { value.shortcuts = fallback().shortcuts; return value; }

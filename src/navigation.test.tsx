@@ -1088,26 +1088,123 @@ test("the rebuild footer opens Accounts with no connected accounts", async () =>
   } finally { await app.close(); }
 });
 
-test("sidebar toggle stays first in its header, hides the panel and survives a restart", async () => {
+test("sidebar hides with its shortcut, reopens from the toolbar and survives a restart", async () => {
   const app = await mount();
   try {
-    assert.equal(app.container.querySelector(".sidebar-head")?.firstElementChild, app.button("Hide sidebar"));
+    const head = app.container.querySelector(".sidebar-head")!;
+    assert.equal(head.querySelector("button"), null, "the sidebar header holds no toggle");
+    assert.ok(head.querySelector(".sidebar-brand"), "the brand lockup remains");
     assert.equal(app.container.querySelector('.app-toolbar [aria-controls="sidebar"]'), null);
-    await app.click(app.button("Hide sidebar"));
-    assert.equal(app.container.querySelector(".app-toolbar")?.firstElementChild, app.button("Show sidebar"));
+    await act(async () => app.button("Inbox").focus());
+    await app.key("[");
     // The panel stays mounted so it can animate closed, but leaves the focus order.
     assert.ok(app.container.querySelector(".sidebar.closed[inert]"));
     assert.equal(app.window.localStorage.getItem("sidebar"), "closed");
-    await app.click(app.button("Show sidebar"));
+    const toggle = app.button("Show sidebar");
+    assert.equal(app.container.querySelector(".app-toolbar")?.firstElementChild, toggle);
+    assert.equal(app.window.document.activeElement, toggle, "hiding while focused inside lands on Show sidebar");
+    await app.click(toggle);
     assert.equal(app.container.querySelector(".sidebar.closed, .sidebar[inert]"), null);
+    await app.key("[");
     await app.click(app.button("Settings"));
-    await app.click(app.button("Hide sidebar"));
     assert.equal(app.container.querySelector(".app-toolbar")?.firstElementChild, app.button("Show sidebar"));
   } finally { await app.close(); }
   const restarted = await mount(false, (_state, storage) => storage.setItem("sidebar", "closed"));
   try {
     assert.ok(restarted.container.querySelector(".sidebar.closed[inert]"));
   } finally { await restarted.close(); }
+});
+
+test("the sidebar shortcut stays available while composing, outside text fields", async () => {
+  const app = await mount();
+  try {
+    await app.click(app.button("New message"));
+    const dialog = app.container.querySelector<HTMLElement>(".compose-dialog")!;
+    assert.ok(dialog, "composer open");
+    const bracket = () => new app.window.KeyboardEvent("keydown", { key: "[", bubbles: true, cancelable: true });
+    // A non-editable compose control toggles like the removed header button did.
+    const close = dialog.querySelector<HTMLButtonElement>('button[aria-label="Close dialog"]')!;
+    await act(async () => close.dispatchEvent(bracket()));
+    assert.ok(app.container.querySelector(".sidebar.closed[inert]"), "[ hides the sidebar while composing");
+    assert.equal(app.storage.getItem("sidebar"), "closed");
+    await act(async () => close.dispatchEvent(bracket()));
+    assert.equal(app.container.querySelector(".sidebar.closed, .sidebar[inert]"), null, "[ restores the sidebar");
+    assert.equal(app.storage.getItem("sidebar"), "open");
+    // Text fields keep the key for typing.
+    for (const field of [
+      app.container.querySelector<HTMLTextAreaElement>(".compose-form textarea")!,
+      app.container.querySelector<HTMLInputElement>('.compose-form input[aria-label="To"]')!,
+    ]) {
+      const event = bracket();
+      await act(async () => field.dispatchEvent(event));
+      assert.equal(event.defaultPrevented, false, "the field owns [");
+      assert.equal(app.container.querySelector(".sidebar.closed, .sidebar[inert]"), null, "no toggle from a text field");
+      assert.equal(app.storage.getItem("sidebar"), "open");
+    }
+  } finally { await app.close(); }
+});
+
+test("a custom two-key sidebar sequence works while composing", async () => {
+  const app = await mount(false, (_state, storage) => {
+    const custom = structuredClone(defaults);
+    custom.shortcuts.sidebar = { prefix: "z", key: "q" };
+    storage.setItem("emc2.interaction.v1", JSON.stringify(custom));
+  });
+  try {
+    await app.click(app.button("New message"));
+    const dialog = app.container.querySelector<HTMLElement>(".compose-dialog")!;
+    assert.ok(dialog, "composer open");
+    const press = (key: string) => new app.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+    const close = dialog.querySelector<HTMLButtonElement>('button[aria-label="Close dialog"]')!;
+    await act(async () => close.dispatchEvent(press("z")));
+    await act(async () => close.dispatchEvent(press("q")));
+    assert.ok(app.container.querySelector(".sidebar.closed[inert]"), "z then q hides the sidebar while composing");
+    assert.equal(app.storage.getItem("sidebar"), "closed");
+    await act(async () => close.dispatchEvent(press("z")));
+    await act(async () => close.dispatchEvent(press("q")));
+    assert.equal(app.container.querySelector(".sidebar.closed, .sidebar[inert]"), null, "z then q restores the sidebar");
+    assert.equal(app.storage.getItem("sidebar"), "open");
+    // Text fields keep both keys for typing.
+    const body = app.container.querySelector<HTMLTextAreaElement>(".compose-form textarea")!;
+    for (const key of ["z", "q"]) {
+      const event = press(key);
+      await act(async () => body.dispatchEvent(event));
+      assert.equal(event.defaultPrevented, false, `the field owns ${key}`);
+      assert.equal(app.container.querySelector(".sidebar.closed, .sidebar[inert]"), null, "no toggle from a text field");
+      assert.equal(app.storage.getItem("sidebar"), "open");
+    }
+  } finally { await app.close(); }
+});
+
+test("Commands lists Show / hide sidebar with its shortcut and running it lands focus on the toolbar toggle", async () => {
+  const app = await mount();
+  try {
+    await act(async () => app.button("Inbox").focus());
+    await app.click(app.button("Commands"));
+    assert.ok(app.container.querySelector(".command-palette"));
+    const option = [...app.container.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find((item) => item.textContent?.includes("Show / hide sidebar"));
+    assert.ok(option, "Commands offers Show / hide sidebar");
+    assert.equal(option.querySelector("kbd")?.textContent, "[");
+    await app.click(option);
+    assert.equal(app.container.querySelector(".command-palette"), null);
+    assert.ok(app.container.querySelector(".sidebar.closed[inert]"));
+    assert.equal(app.window.document.activeElement, app.button("Show sidebar"), "focus leaves the inert sidebar");
+  } finally { await app.close(); }
+});
+
+test("the phone drawer focuses New message on open and the shortcut returns focus to Show sidebar", async () => {
+  const app = await mount(false, undefined, {}, [], 600);
+  try {
+    assert.equal(app.container.querySelector(".sidebar-head button"), null, "the drawer header holds no toggle");
+    await app.click(app.button("Show sidebar"));
+    assert.ok(app.container.querySelector(".mobile-sidebar-backdrop"));
+    assert.equal(app.window.document.activeElement, app.button("New message"), "the drawer focuses its first action");
+    await app.key("[");
+    assert.ok(app.container.querySelector(".sidebar.closed[inert]"));
+    assert.equal(app.window.document.activeElement, app.button("Show sidebar"), "closing the drawer returns focus to its opener");
+    assert.equal(app.storage.getItem("sidebar"), null, "the drawer never writes the desktop preference");
+  } finally { await app.close(); }
 });
 
 test("Settings keeps mail navigation, uses a section rail and shows one section at a time", async () => {
@@ -1600,7 +1697,7 @@ test("custom account labels remain visible in privacy while addresses and unfocu
       assert.doesNotMatch(app.container.innerHTML, /first@example.com|second@example.com/);
       assert.match(app.container.textContent!, /Private Identity/);
     };
-    hidden(); await app.click(app.button("Hide sidebar")); hidden();
+    hidden(); await app.key("["); hidden();
     await app.click(app.button("Show sidebar"));
     await app.click(app.button("Settings")); await app.click(app.button("Accounts")); hidden();
     await app.click(app.button("Rename")); hidden();
@@ -2083,7 +2180,9 @@ test("compose navigation keeps failed saves open and sidebar navigation saves be
 test("compose keyboard cycle reaches sidebar and toolbar without stealing editing or native field keys", async () => {
   const app = await mount();
   try {
-    await app.click(app.button("New message"));
+    // Collapse first; the focus cycle below exercises the Show sidebar state.
+    await app.key("[");
+    await app.key("c");
     const doc = app.window.document;
     const editor = app.container.querySelector<HTMLTextAreaElement>(".compose-form textarea")!;
     await app.input(editor, "Typing stays in the editor");
@@ -2114,7 +2213,6 @@ test("compose keyboard cycle reaches sidebar and toolbar without stealing editin
     await fromKey("Tab");
     assert.equal(from.getAttribute("aria-expanded"), "false");
     assert.notEqual(doc.activeElement, from, "Tab dismisses the menu and moves focus");
-    await app.click(app.button("Hide sidebar"));
     await act(async () => app.button("Show sidebar").focus());
     await app.key("Tab");
     assert.equal(doc.activeElement?.getAttribute("aria-label"), "Search cached mail and saved drafts", "collapsed sidebar toggle reaches the leading search field");
@@ -2476,7 +2574,9 @@ test("F6 skips a closed sidebar and a full-width reader", async () => {
   });
   try {
     const doc = app.window.document;
-    await app.click(app.button("Hide sidebar"));
+    await app.key("[");
+    // Hiding lands focus on the toolbar toggle; leave every region before cycling.
+    await act(async () => (doc.activeElement as HTMLElement | null)?.blur());
     await app.open("a:1");
     assert.equal(app.container.querySelector(".reader-pane"), null, "full-width opens in place of the list");
     const message = app.container.querySelector<HTMLElement>(".list .message")!;
@@ -3261,7 +3361,7 @@ test("phone mail gesture preference persists independently and blocked mail stay
     await app.click(app.button("Show sidebar"));
     await swipe("a:2");
     assert.equal(app.mailActions.length, 0, "drawer makes the underlying mail inert");
-    await app.click(app.button("Hide sidebar"));
+    await app.key("[");
     await app.click(app.button("Show sidebar"));
     await app.click(app.button("Settings"));
     await app.click(app.button("Keyboard and mouse"));
