@@ -151,6 +151,7 @@ export function ComposePanel({
   const [dragging, setDragging] = useState(false);
   const [showBcc, setShowBcc] = useState(false);
   const [showCc, setShowCc] = useState(false);
+  const [subjectFocused, setSubjectFocused] = useState(false);
   const selectedBytes = (draft.attachments || []).reduce((sum, file) => sum + attachmentSize(file), 0);
   const ccVisible = showCc || Boolean(draft.cc?.some((address) => address.trim()));
   const addFiles = async (files: File[]) => {
@@ -256,8 +257,12 @@ export function ComposePanel({
             <span>Subject</span>
             <input
               disabled={busy || loadingFiles}
-              value={draft.subject}
+              value={privacy && !subjectFocused ? "" : draft.subject}
+              data-private-field={privacy || undefined}
+              placeholder={privacy && !subjectFocused && draft.subject ? "Hidden. Focus to edit." : undefined}
               maxLength={998}
+              onFocus={() => setSubjectFocused(true)}
+              onBlur={() => setSubjectFocused(false)}
               onChange={(e) => setDraft({ ...draft, subject: e.target.value })}
             />
           </label>

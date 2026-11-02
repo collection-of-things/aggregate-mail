@@ -90,12 +90,14 @@ test("draft opening rejects query/account/compose changes and stale revisions be
   } finally { await ui.close(); }
 });
 
-test("privacy-safe account labels distinguish address-only names and retain meaningful custom names", () => {
+test("privacy-safe account labels replace custom names while staying numbered", () => {
   const named = accounts.map(a => ({ ...a, name: a.email }));
   assert.equal(accountLabel(named[0], 0, true, named), "Account 1 · Custom IMAP");
   assert.equal(accountLabel(named[1], 1, true, named), "Account 2 · Custom IMAP");
   const duplicates = accounts.map(a => ({ ...a, name: "Account" }));
   assert.notEqual(accountLabel(duplicates[0], 0, true, duplicates), accountLabel(duplicates[1], 1, true, duplicates));
-  assert.equal(accountLabel({ ...accounts[0], name: "Studio <one@example.test>" }, 0, true), "Studio <••••••••>");
-  assert.equal(accountLabel({ ...accounts[0], name: "Studio" }, 0, true), "Studio");
+  assert.equal(accountLabel({ ...accounts[0], name: "Studio <one@example.test>" }, 0, true), "Account 1 · Custom IMAP");
+  assert.equal(accountLabel({ ...accounts[0], name: "Studio" }, 0, true), "Account 1 · Custom IMAP");
+  // Names still matter when information is visible.
+  assert.equal(accountLabel({ ...accounts[0], name: "Studio" }, 0, false), "Studio");
 });

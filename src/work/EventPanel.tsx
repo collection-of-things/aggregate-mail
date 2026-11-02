@@ -8,7 +8,7 @@ import type { CalendarEvent, CalendarEventInput } from "../../shared/calendar";
 import { mailLink, privateMailLink } from "../../shared/mail-content";
 import type { Draft, RendererMail as Mail, RendererState as State } from "../../shared/types";
 import { accountLabel } from "../mail-ui";
-import { redactPrivateText } from "../privacy";
+import { messagePrivateNames, redactPrivateText } from "../privacy";
 import { Address, MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
 import { PrivateField } from "../ui/PrivateField";
 import { addDays, eventInput, meetingFields, moveStart, sameEventFields, type EventFields } from "./events";
@@ -94,10 +94,15 @@ export const EventDetail = forwardRef<HTMLElement, {
   if (createdEvent) { event = createdEvent; api = undefined; source = undefined; }
   const index = state.accounts.findIndex((account) => account.id === event.accountId);
   const account = !event.accountId ? "No account" : index < 0 ? "Account unavailable" : accountLabel(state.accounts[index], index, privacy);
+  const sourceMail = event.sourceMailId ? state.messages?.find((mail) => mail.id === event.sourceMailId) : undefined;
+  // The linked source email's names join the ambient list so a meeting URL
+  // carrying that correspondent hides like the rest of its message.
+  const scopedNames = sourceMail
+    ? [...new Map([...(names ?? []), ...messagePrivateNames(state.accounts, sourceMail)].map((name) => [name.toLowerCase(), name] as const)).values()]
+    : names;
   const link = event.meetLink ? mailLink(event.meetLink) : null;
-  const linkHidden = !!link && privacy && privateMailLink(link, (text) => redactPrivateText(text, names));
-  return <section className="work-inspector event-detail" aria-label="Event details" ref={ref} tabIndex={-1}
-    onKeyDown={(key) => { if (key.key === "Escape" && !key.defaultPrevented) { key.preventDefault(); onClose(); } }}>
+  const linkHidden = !!link && privacy && privateMailLink(link, (text) => redactPrivateText(text, scopedNames));
+  const content = <>
     <div className="work-toolbar"><span className="work-meta">{event.workSession ? sessionLabel(event) : event.source === "google" ? "Google Calendar" : "Emc² event"}</span><button type="button" onClick={onClose}>{closeLabel}</button></div>
     <h2><Redact text={event.title} /></h2>
     <p>{eventWhen(event)}</p>
@@ -114,6 +119,10 @@ export const EventDetail = forwardRef<HTMLElement, {
     {api && !Object.hasOwn(event, "workSession") && <CalendarActions key={`${event.id}:${event.revision}`} event={event} api={api} google={google} accountAvailable={index >= 0} onOpenDraft={onOpenDraft} onChanged={onChanged} onReviewResult={(result) => setReviewed({ sourceId: event.id, event: result })} />}
     {sessionActions}
     {event.source === "local" && !Object.hasOwn(event, "workSession") && onEdit && onDelete && <div className="form-actions"><button className="button" type="button" disabled={pending} onClick={onEdit}>Edit event</button><button type="button" className="trash-action" disabled={pending} onClick={onDelete}>Delete event</button></div>}
+  </>;
+  return <section className="work-inspector event-detail" aria-label="Event details" ref={ref} tabIndex={-1}
+    onKeyDown={(key) => { if (key.key === "Escape" && !key.defaultPrevented) { key.preventDefault(); onClose(); } }}>
+    {sourceMail ? <MailPrivacy mail={sourceMail}>{content}</MailPrivacy> : content}
   </section>;
 });
 

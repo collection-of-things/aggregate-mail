@@ -6,6 +6,7 @@ import type { RendererMail as Mail } from "../../shared/types";
 import type { Commitment } from "../../shared/workspace";
 import { deadlineDate, localDate, openCommitment } from "../../shared/commitment-dates";
 import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
+import { commitmentMails } from "./commitment-privacy";
 import { ArrowLeft, ArrowRight } from "../ui/icons";
 import { dayAxis, entryIdentity, instantLabel, rangeDays, timedLayout, visibleRange, type CalendarRange, type CalendarView } from "./calendar-layout";
 
@@ -64,11 +65,15 @@ export function Calendar({ items, messages = [], events = [], now, selectedEvent
     const value = localDate(next);
     setMonth(value.slice(0, 7)); setDay(value);
   };
+  const commitmentTitle = (item: Commitment) => {
+    const mails = commitmentMails(item, messages);
+    return mails.length ? <MailPrivacy mail={mails}><Redact text={item.text} /></MailPrivacy> : <Redact text={item.text} />;
+  };
   const entryList = (values: CalendarEntry[]) => values.length ? <ul className="calendar-agenda">{values.map((entry) => <li key={entryIdentity(entry)}>
     <button type="button" className={entry.kind === "Event" ? "calendar-event" : undefined} aria-pressed={entry.kind === "Event" ? entry.item.id === selectedEventId : undefined}
       onClick={(event) => entry.kind === "Snoozed" ? onOpenMail?.(entry.item, event.currentTarget) : entry.kind === "Event" ? onSelectEvent?.(entry.item, event.currentTarget) : onSelect(entry.item.id, event.currentTarget)}>
       <span className="work-meta">{entry.day} · {entry.kind === "Event" ? sessionLabel(entry.item) : entry.kind}{entry.kind === "Event" ? ` · ${eventTime(entry.item)}` : entry.at === undefined ? "" : ` · ${shortTime(entry.at)}`}</span>
-      <strong>{entry.kind === "Snoozed" ? <MailPrivacy mail={entry.item}><Redact text={entry.item.subject || "No subject"} /></MailPrivacy> : entry.kind === "Event" ? <Redact text={entry.item.title} /> : <Redact text={entry.item.text} />}</strong>
+      <strong>{entry.kind === "Snoozed" ? <MailPrivacy mail={entry.item}><Redact text={entry.item.subject || "No subject"} /></MailPrivacy> : entry.kind === "Event" ? <Redact text={entry.item.title} /> : commitmentTitle(entry.item)}</strong>
     </button>
   </li>)}</ul> : <p className="work-empty">Nothing scheduled.</p>;
   return <section className="work-calendar" data-layout={view} aria-label="Calendar">
@@ -101,7 +106,7 @@ export function Calendar({ items, messages = [], events = [], now, selectedEvent
                 <button type="button" className="calendar-timed-entry" aria-pressed={entry.kind === "Event" ? entry.item.id === selectedEventId : undefined}
                   onClick={event => entry.kind === "Event" ? onSelectEvent?.(entry.item, event.currentTarget) : entry.kind === "Snoozed" ? onOpenMail?.(entry.item, event.currentTarget) : onSelect(entry.item.id, event.currentTarget)}>
                   <span className="work-meta">{entry.kind === "Event" ? sessionLabel(entry.item) : entry.kind} · {instantLabel(start)}{entry.kind === "Event" ? ` – ${instantLabel(end)} · ${duration} min on this day` : " · Point"}</span>
-                  <strong>{entry.kind === "Event" ? <Redact text={entry.item.title} /> : entry.kind === "Snoozed" ? <MailPrivacy mail={entry.item}><Redact text={entry.item.subject || "No subject"} /></MailPrivacy> : <Redact text={entry.item.text} />}</strong>
+                  <strong>{entry.kind === "Event" ? <Redact text={entry.item.title} /> : entry.kind === "Snoozed" ? <MailPrivacy mail={entry.item}><Redact text={entry.item.subject || "No subject"} /></MailPrivacy> : commitmentTitle(entry.item)}</strong>
                 </button></li>)}</ul> : <p className="work-empty">Nothing timed.</p>}</div>
             </section>;
           })}

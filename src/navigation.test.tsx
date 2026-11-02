@@ -1657,7 +1657,7 @@ test("private rename confirms saving and displays the custom account label", { t
     await app.click(form.querySelector<HTMLButtonElement>('button[type="submit"]')!);
     assert.equal(app.state.accounts[0].name, "Work inbox");
     assert.match(app.container.querySelector(".toast-text")?.textContent || "", /^Account name saved\.$/);
-    assert.match(app.container.querySelector(".settings")!.textContent!, /Work inbox/);
+    assert.match(app.container.querySelector(".settings")!.textContent!, /Account 1 · Custom IMAP/, "privacy keeps the label neutral");
     await app.key("p");
     assert.match(app.container.querySelector(".settings")!.textContent!, /Work inbox/, "the saved name appears when privacy is off");
   } finally { await app.close(); }
@@ -1690,12 +1690,12 @@ test("Settings rename persists through PATCH and reload, clears to email, cancel
 });
 
 
-test("custom account labels remain visible in privacy while addresses and unfocused edit values are hidden", { timeout: 10000 }, async () => {
+test("privacy replaces custom account labels with neutral names while addresses and unfocused edit values are hidden", { timeout: 10000 }, async () => {
   const app = await mount(false, (state, storage) => { state.accounts[0].name = "Private Identity"; storage.setItem("privacy", "on"); });
   try {
     const hidden = () => {
-      assert.doesNotMatch(app.container.innerHTML, /first@example.com|second@example.com/);
-      assert.match(app.container.textContent!, /Private Identity/);
+      assert.doesNotMatch(app.container.innerHTML, /first@example.com|second@example.com|Private Identity/);
+      assert.match(app.container.textContent!, /Account 1 · Custom IMAP/);
     };
     hidden(); await app.key("["); hidden();
     await app.click(app.button("Show sidebar"));
@@ -1829,17 +1829,17 @@ for (const removed of ["message", "account"]) test(`Forward rejects a removed re
 });
 
 
-test("privacy masks addresses embedded in custom account labels", { timeout: 10000 }, async () => {
+test("privacy hides custom account labels and addresses embedded in them", { timeout: 10000 }, async () => {
   const app = await mount(false, (state, storage) => {
     state.accounts[0].name = "Work first@example.com";
     storage.setItem("privacy", "on");
   });
   try {
-    assert.match(app.container.querySelector('[aria-label="Filter accounts"]')!.textContent!, /Work/);
-    assert.doesNotMatch(app.container.innerHTML, /first@example.com|second@example.com/);
+    assert.match(app.container.querySelector('[aria-label="Filter accounts"]')!.textContent!, /Account 1 · Custom IMAP/);
+    assert.doesNotMatch(app.container.innerHTML, /first@example\.com|second@example\.com|Work first/);
     await app.click(app.button("Settings")); await app.click(app.button("Accounts"));
-    assert.match(app.container.querySelector(".settings")!.textContent!, /Work/);
-    assert.doesNotMatch(app.container.innerHTML, /first@example.com|second@example.com/);
+    assert.match(app.container.querySelector(".settings")!.textContent!, /Account 1 · Custom IMAP/);
+    assert.doesNotMatch(app.container.innerHTML, /first@example\.com|second@example\.com|Work first/);
   } finally { await app.close(); }
 });
 

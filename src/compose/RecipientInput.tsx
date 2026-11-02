@@ -34,6 +34,25 @@ export function RecipientInput({ label, value, onChange, accountId, accounts, ap
   const [suggestions, setSuggestions] = useState<ContactSuggestion[]>([]);
   const [active, setActive] = useState(-1);
   const [dismissed, setDismissed] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+  // Masking blanks the visible value, which would make any hidden recipient
+  // valid. A detached probe re-checks the real value with the field's own
+  // constraints, so an invalid hidden entry still blocks the form.
+  useEffect(() => {
+    const input = field.current;
+    let message = "";
+    if (input && privacy && !focused && value.trim()) {
+      const probe = document.createElement("input");
+      probe.type = "email";
+      probe.multiple = multiple;
+      probe.required = required;
+      probe.value = value;
+      if (!probe.checkValidity()) message = "Enter a valid email address.";
+    }
+    input?.setCustomValidity(message);
+    return () => input?.setCustomValidity("");
+  }, [privacy, focused, value, multiple, required]);
   const pending = useRef<{ timer: ReturnType<typeof setTimeout>; controller: AbortController }>(undefined);
   const cancel = () => {
     if (!pending.current) return;
@@ -75,14 +94,17 @@ export function RecipientInput({ label, value, onChange, accountId, accounts, ap
     <label>
       <span>{label}</span>
       <input
+        ref={field}
         type="email"
         aria-label={label}
         multiple={multiple}
-        required={required}
+        required={required && (!privacy || focused || !value.trim())}
         disabled={disabled}
         autoFocus={autoFocus}
         maxLength={10000}
-        value={value}
+        value={privacy && !focused ? "" : value}
+        data-private-field={privacy || undefined}
+        placeholder={privacy && !focused && value ? "Hidden. Focus to edit." : undefined}
         role="combobox"
         autoComplete="off"
         aria-autocomplete="list"
@@ -90,7 +112,8 @@ export function RecipientInput({ label, value, onChange, accountId, accounts, ap
         aria-controls={open ? `${id}-list` : undefined}
         aria-activedescendant={open && active >= 0 ? `${id}-${active}` : undefined}
         onChange={(event) => { onChange(event.target.value); lookup(event.target.value); }}
-        onBlur={close}
+        onFocus={() => setFocused(true)}
+        onBlur={() => { setFocused(false); close(); }}
         onKeyDown={(event) => {
           if (!suggestions.length) return;
           if (event.key === "ArrowDown" || event.key === "ArrowUp") {

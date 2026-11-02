@@ -123,9 +123,41 @@ test("privacy mode hides suggested names and addresses until revealed", async ()
     for (const text of ["Gregory", "gregory@example.test", "grace@example.test", "work@example.test"])
       assert.equal(list.outerHTML.includes(text), false, `${text} is hidden`);
     assert.deepEqual([...list.querySelectorAll('[role="option"]')].map((option) => option.getAttribute("aria-label")),
-      ["Hidden contact, Account 1 · Custom IMAP", "Hidden recipient, Home"]);
+      ["Hidden contact, Account 1 · Custom IMAP", "Hidden recipient, Account 2 · Custom IMAP"]);
     await act(async () => { list.querySelectorAll<HTMLElement>(".veiled")[1].click(); });
     assert.equal(changes.length, 1, "revealing does not pick");
     assert.ok(document.querySelector('[role="listbox"]')!.textContent!.includes("gregory@example.test"));
+  });
+});
+
+test("privacy masking cannot turn an invalid hidden recipient into a valid send", async () => {
+  await withDOM(async ({ document, render }) => {
+    const api: Api = async <T,>() => [] as T;
+    const changes: string[] = [];
+    const privacy = { on: true, revealed: new Set<string>(), toggle: () => {} };
+    const tree = (initial: string) => <PrivacyContext.Provider key={initial} value={privacy}>
+      <form><Field api={api} initial={initial} changes={changes} /></form>
+    </PrivacyContext.Provider>;
+    const input = () => document.querySelector<HTMLInputElement>('[role="combobox"]')!;
+
+    // An invalid entry stays invalid while the masked field shows "".
+    await render(tree("grace@example.test, broken-address"));
+    const form = document.querySelector("form")!;
+    assert.equal(input().value, "", "masked field hides the real value");
+    assert.equal(form.checkValidity(), false, "hidden invalid recipient still blocks the form");
+    assert.equal(input().validity.customError, true);
+
+    // Focusing reveals the value; native email validation reports it again.
+    // The email-list type normalizes the DOM value's token whitespace.
+    await act(async () => input().focus());
+    assert.equal(input().value, "grace@example.test,broken-address");
+    assert.equal(input().validity.customError, false);
+    assert.equal(form.checkValidity(), false, "revealed invalid recipient blocks natively");
+    await act(async () => input().blur());
+    assert.equal(form.checkValidity(), false, "re-masked invalid recipient still blocks");
+
+    // A valid hidden recipient keeps the existing pass.
+    await render(tree("grace@example.test"));
+    assert.equal(document.querySelector("form")!.checkValidity(), true);
   });
 });

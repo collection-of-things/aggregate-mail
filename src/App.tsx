@@ -55,7 +55,7 @@ import { reuseMailState } from "./mail-state";
 import { MailSearchApiContext, useMailSearch } from "./use-mail-search";
 import { replySource, useMailBody } from "./mail-body";
 import { useMailNavigation, rememberBrowserUpdateLocation, type MailLocation } from "./navigation";
-import { collectPrivateNames, redactPrivateText } from "./privacy";
+import { collectPrivateNames, messagePrivateNames, redactPrivateText } from "./privacy";
 import { ContactsPage } from "./contacts/ContactsPage";
 import { SettingsPage } from "./settings/SettingsPage";
 import { PaneHeader, type Corner } from "./shell/PaneHeader";
@@ -1197,6 +1197,7 @@ export function App() {
   }, [readerKey, opened, split, view]);
   useEffect(closeContextMenu, [paneKey, readerKey, settings, closeContextMenu]);
   const menuMail = contextMenu && state.messages.find((mail) => mail.id === contextMenu.mailId);
+  const quickMail = quickSource ? state.messages.find((mail) => mail.id === quickSource && state.accounts.some((account) => account.id === mail.accountId)) : undefined;
   const privacyContext = useMemo(() => ({ on: privacy, revealed, toggle: toggleAddress,
     accounts: state.accounts, names: collectPrivateNames(state.accounts) }),
   [privacy, revealed, toggleAddress, state.accounts]);
@@ -1752,8 +1753,8 @@ export function App() {
           />
         )}
         {quickSource && <Dialog title="Track work" className="quick-track-dialog" onClose={() => { if (!work.pending) setQuickSource(null); }}>
-          {state.messages.find((mail) => mail.id === quickSource && state.accounts.some((account) => account.id === mail.accountId)) ? <QuickTrack key={quickSource}
-            mail={state.messages.find((mail) => mail.id === quickSource)!} work={work} privateNames={workPrivateNames}
+          {quickMail ? <QuickTrack key={quickSource}
+            mail={quickMail} work={work} privateNames={workPrivateNames} messages={state.messages}
             onDone={() => { setQuickSource(null); pushToast("Work tracked.", "success"); }}
             onEdit={(item, draft) => {
               setTrackingSource(quickSource); setTrackingItem(item); setTrackingDraft(draft); setTrackingSession((value) => value + 1); setQuickSource(null);

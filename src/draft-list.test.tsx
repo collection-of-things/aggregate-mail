@@ -41,8 +41,8 @@ test("Drafts lists account, envelope, snippet and saved time; scopes search, ope
     assert.equal(document.querySelector('time')?.getAttribute('dateTime'),new Date(1).toISOString());
     await render("a","proposal"); await act(async () => { await new Promise(resolve => setTimeout(resolve, 145)); }); assert.equal(document.querySelectorAll('.draft-row').length,1);
     await render("a","",true);
-    assert.ok(document.querySelector('.draft-account-tabs')!.textContent!.includes('Studio'), 'custom labels stay visible under ADR 0034');
-    assert.equal(document.querySelector('.draft-row-account')?.textContent, 'Studio', 'row account labels match the inbox in privacy mode');
+    assert.ok(document.querySelector('.draft-account-tabs')!.textContent!.includes('Account 1 · Custom IMAP'), 'custom labels are replaced by neutral names in privacy');
+    assert.equal(document.querySelector('.draft-row-account')?.textContent, 'Account 1 · Custom IMAP', 'row account labels match the inbox in privacy mode');
     assert.equal(document.querySelector('.draft-row-account .account-dot')?.getAttribute('data-tone'), '0');
     for(const value of [draft.subject,...draft.to,accounts[0].email,draft.body,"copy@example.test"]) assert.ok(!document.body.innerHTML.includes(value),value);
     const row=document.querySelector<HTMLButtonElement>('.draft-row')!;

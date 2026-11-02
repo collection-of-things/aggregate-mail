@@ -1,17 +1,16 @@
 import type { MailLocation } from "./navigation";
 import { providerNames, type Account, type GmailLabel, type RendererMail as Mail } from "../shared/types";
 import { inboxTab, type InboxTab } from "../shared/inbox-tabs";
-import { redactPrivateText } from "./privacy";
 import { compileMailSearch } from "./mail-search";
 
 export function accountLabel(account: Account, index: number, privacy: boolean, accounts: readonly Account[] = []) {
+  // Custom labels can be personal names; hidden mode never shows them.
+  if (privacy) return `Account ${index + 1} · ${providerNames[account.provider]}`;
   const name = account.name?.trim();
-  const safe = name && (privacy ? redactPrivateText(name) : name);
   // Address-only imported names otherwise collapse to identical privacy bars.
-  if (!safe || privacy && !/[\p{L}\p{N}]/u.test(safe))
-    return privacy ? `Account ${index + 1} · ${providerNames[account.provider]}` : account.email;
-  const duplicates = accounts.filter(other => other.name && (privacy ? redactPrivateText(other.name.trim()) : other.name.trim()) === safe);
-  return duplicates.length > 1 ? `${safe} · ${index + 1}` : safe;
+  if (!name) return account.email;
+  const duplicates = accounts.filter(other => other.name?.trim() === name);
+  return duplicates.length > 1 ? `${name} · ${index + 1}` : name;
 }
 
 export function textSizeShortcut(event: Pick<KeyboardEvent, "key" | "code" | "ctrlKey" | "altKey" | "metaKey">) {
