@@ -96,8 +96,8 @@ export const EventDetail = forwardRef<HTMLElement, {
   const account = !event.accountId ? "No account" : index < 0 ? "Account unavailable" : accountLabel(state.accounts[index], index, privacy);
   const link = event.meetLink ? mailLink(event.meetLink) : null;
   const linkHidden = !!link && privacy && privateMailLink(link, (text) => redactPrivateText(text, names));
-  return <section className="work-inspector event-detail" aria-label="Event details" ref={ref} tabIndex={-1}
-    onKeyDown={(key) => { if (key.key === "Escape" && !key.defaultPrevented) { key.preventDefault(); onClose(); } }}>
+  const sourceMail = event.sourceMailId ? state.messages?.find((mail) => mail.id === event.sourceMailId) : undefined;
+  const content = <>
     <div className="work-toolbar"><span className="work-meta">{event.workSession ? sessionLabel(event) : event.source === "google" ? "Google Calendar" : "Emc² event"}</span><button type="button" onClick={onClose}>{closeLabel}</button></div>
     <h2><Redact text={event.title} /></h2>
     <p>{eventWhen(event)}</p>
@@ -114,6 +114,10 @@ export const EventDetail = forwardRef<HTMLElement, {
     {api && !Object.hasOwn(event, "workSession") && <CalendarActions key={`${event.id}:${event.revision}`} event={event} api={api} google={google} accountAvailable={index >= 0} onOpenDraft={onOpenDraft} onChanged={onChanged} onReviewResult={(result) => setReviewed({ sourceId: event.id, event: result })} />}
     {sessionActions}
     {event.source === "local" && !Object.hasOwn(event, "workSession") && onEdit && onDelete && <div className="form-actions"><button className="button" type="button" disabled={pending} onClick={onEdit}>Edit event</button><button type="button" className="trash-action" disabled={pending} onClick={onDelete}>Delete event</button></div>}
+  </>;
+  return <section className="work-inspector event-detail" aria-label="Event details" ref={ref} tabIndex={-1}
+    onKeyDown={(key) => { if (key.key === "Escape" && !key.defaultPrevented) { key.preventDefault(); onClose(); } }}>
+    {sourceMail ? <MailPrivacy mail={sourceMail}>{content}</MailPrivacy> : content}
   </section>;
 });
 

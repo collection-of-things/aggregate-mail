@@ -7,10 +7,11 @@ import { openCommitment } from "../../shared/commitment-dates";
 import type { RendererState as State } from "../../shared/types";
 import { ApiError, type Api } from "../api";
 import { Dialog } from "../ui/Dialog";
-import { PrivacyContext, Redact } from "../ui/Privacy";
+import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
 import { accountLabel } from "../mail-ui";
 import { blankEvent, eventFields, moveStart, sameEventFields, sessionInput, type EventFields } from "./events";
 import { eventWhen } from "./EventPanel";
+import { commitmentMails } from "./commitment-privacy";
 
 type Editor = { id: string; parent?: Commitment; parentId: string; accountId?: string; sourceMailId?: string; existing?: CalendarEvent; fields: EventFields; initial: EventFields; busy: boolean; initialBusy: boolean };
 type Operation = { id: string; parentId: string; accountId?: string; sourceMailId?: string; path: string; method: string; body: unknown; result?: CalendarEvent };
@@ -152,7 +153,9 @@ export function SessionDialog({ sessions, state, parent }: { sessions: Sessions;
   const mail = state.messages.find(mail => mail.id === sourceId && mail.accountId === accountId);
   const schedulable = !!editor && !!parent && parent.id === editor.parentId && parent.revision === editor.parent?.revision && openCommitment(parent) && index >= 0 && !!mail && sessions.value?.available;
   const fields = editor?.fields;
-  return <Dialog title={op && !editor ? "Review work session" : editor?.existing ? "Edit work session" : "Plan work"} onClose={sessions.close} className="event-dialog session-dialog">
+  const shownParent = editor?.parent ?? parent;
+  const scoped = shownParent ? commitmentMails(shownParent, state.messages) : mail ? [mail] : [];
+  const body = <>
     <p><Redact text={editor?.parent?.text || editor?.existing?.title || "Local work session"} /></p>
     <p className="work-meta"><Redact text={index < 0 ? "Account unavailable" : accountLabel(state.accounts[index], index, privacy)} /> · From email: <Redact text={mail?.subject || "Source unavailable in cache"} /></p>
     <p className="note">Saves only this local session. Task dates, status, history and email stay independent. Local calendar conflicts only. Google calendars are excluded.</p>
@@ -174,5 +177,8 @@ export function SessionDialog({ sessions, state, parent }: { sessions: Sessions;
       {sessions.recovered !== undefined && <><p>{sessions.recovered ? `${sessionLabel(sessions.recovered)} · revision ${sessions.recovered.revision}` : "No session exists at the retained UUID. No replacement was created."}</p>
         {sessions.recovered && <p>{eventWhen(sessions.recovered)}</p>}<button type="button" disabled={sessions.phase === "pending"} onClick={sessions.acknowledge}>I reviewed saved session</button></>}
     </div>}
+  </>;
+  return <Dialog title={op && !editor ? "Review work session" : editor?.existing ? "Edit work session" : "Plan work"} onClose={sessions.close} className="event-dialog session-dialog">
+    {scoped.length ? <MailPrivacy mail={scoped}>{body}</MailPrivacy> : body}
   </Dialog>;
 }

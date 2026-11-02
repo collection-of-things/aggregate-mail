@@ -221,6 +221,7 @@ async function mount(mode: "actions"|"calendar"|"projects"|"agents"|"assistants"
     else if(url.endsWith("/approve")){const input=body as any;assert.equal(input.digest,workspace.proposals[0].digest);workspace.proposals[0].status="succeeded";result=workspace.proposals[0];}
     else if(url.startsWith("/messages/") && method==="PATCH") { const mail=state.messages.find(mail=>url.endsWith(encodeURIComponent(mail.id)));if(mail)mail.unread=false;result={}; }
     else if(url.startsWith("/calendar/events?")&&method==="GET")result={events:structuredClone(events),google:structuredClone(google)};
+    else if(url.startsWith("/calendar/work-sessions?")&&method==="GET")result={sessions:[],available:true};
     else if(url.startsWith("/calendar/google/")&&method==="POST"){const accountId=decodeURIComponent(url.split("/")[3]);const value=google.find(value=>value.accountId===accountId)!;value.stale=false;value.syncedAt=Date.now();if(syncEvents){for(let i=events.length-1;i>=0;i--)if(events[i].source==="google"&&events[i].accountId===accountId)events.splice(i,1);events.push(...syncEvents);}result={ok:true};}
     else if(url.startsWith("/calendar/google/")&&method==="PATCH"){const value=google.find(value=>value.accountId===decodeURIComponent(url.split("/")[3]))!;value.selectedIds=(body as any).selectedIds;value.stale=true;value.syncedAt=0;result={ok:true};}
     else if(url==="/calendar/events"&&method==="POST"){await eventSave;if(eventFailure)throw new Error("Synthetic event failure");const input=body as any;const saved=events.find(event=>event.id===input.id);if(saved)result=saved;else{const event:CalendarEvent={...input,attendees:input.attendees.map((email:string)=>({email})),source:"local",revision:1,updatedAt:1};events.push(event);result=event;}}
@@ -537,6 +538,57 @@ test("a commitment row keeps aliases from uncited messages private inside its ma
   assert.equal(row().innerHTML.includes("Outer"), false);
   assert.equal(row().innerHTML.includes("Alias"), false);
   assert.ok(row().textContent?.includes("confirmation"));
+ } finally { await ui.close(); }
+});
+
+test("the plan work dialog masks a correspondent named only on an evidence email", async () => {
+ const ui = await mount("actions");
+ try {
+  ui.state.messages[1].sender = "Vera Bloom";
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["sent-a"], revision: 1, updatedAt: 1, history: [] });
+  await ui.click(ui.button("Refresh workspace"));
+  await ui.click(ui.container.querySelector<HTMLButtonElement>(".work-select")!);
+  await ui.privacy();
+  await ui.click(ui.button("Plan work"));
+  const dialog = () => ui.container.querySelector<HTMLElement>(".session-dialog")!;
+  assert.ok(dialog());
+  assert.equal(dialog().innerHTML.includes("Vera"), false);
+  assert.equal(dialog().innerHTML.includes("Bloom"), false);
+  assert.ok(dialog().textContent?.includes("confirmation"));
+ } finally { await ui.close(); }
+});
+
+test("a mail-linked saved event masks the source correspondent name in its detail", async () => {
+ const ui = await mount("calendar");
+ try {
+  ui.state.messages[2].sender = "Vera Bloom";
+  const day = `${eventMonth()}-12`, start = new Date(`${day}T09:00`).toISOString(), end = new Date(`${day}T10:00`).toISOString();
+  ui.events.push({ id: "e1", source: "local", title: "Vera Bloom review", description: "Notes for Vera Bloom", accountId: "b", sourceMailId: "in-b", start, end, allDay: false, attendees: [], revision: 1, updatedAt: 1 });
+  await ui.click(ui.button("Refresh workspace"));
+  await ui.click(ui.container.querySelector<HTMLButtonElement>(`button[aria-label="${day}, 1 scheduled"]`)!);
+  await ui.click(ui.container.querySelector<HTMLButtonElement>(".calendar-agenda .calendar-event")!);
+  const detail = () => ui.container.querySelector<HTMLElement>('[aria-label="Event details"]')!;
+  assert.ok(detail().textContent?.includes("Vera Bloom review"));
+  await ui.privacy();
+  assert.equal(detail().innerHTML.includes("Vera"), false);
+  assert.equal(detail().innerHTML.includes("Bloom"), false);
+  assert.ok(detail().textContent?.includes("review"));
+ } finally { await ui.close(); }
+});
+
+test("a timed commitment in Day view masks an evidence-only correspondent name", async () => {
+ const ui = await mount("calendar");
+ try {
+  ui.state.messages[1].sender = "Vera Bloom";
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["sent-a"], revision: 1, updatedAt: 1, followUpAt: Date.now(), history: [] });
+  await ui.click(ui.button("Refresh workspace"));
+  await ui.click(ui.button("Day"));
+  const timed = () => ui.container.querySelector(".calendar-timed-list")!;
+  assert.ok(timed().textContent?.includes("Vera Bloom confirmation"));
+  await ui.privacy();
+  assert.equal(timed().innerHTML.includes("Vera"), false);
+  assert.equal(timed().innerHTML.includes("Bloom"), false);
+  assert.ok(timed().textContent?.includes("confirmation"));
  } finally { await ui.close(); }
 });
 
