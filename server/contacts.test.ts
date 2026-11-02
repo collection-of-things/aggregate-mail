@@ -64,37 +64,127 @@ test("local contacts: encrypted account-scoped storage, sent recipients and sugg
       assert.deepEqual((await list()).saved, []);
     });
 
-    await t.test("imports preview without writes, deduplicate per account, and retain existing names", async () => {
-      const input = { accountId: "work", format: "csv", content: 'Name,E-mail 1 - Value\nImported Person,imported@example.test\nDuplicate,IMPORTED@example.test\nInvalid,not-an-address' };
+    await t.test("imports classify new, changed, unchanged and missing contacts before any write", async () => {
+      const seed = async (accountId: string, name: string, email: string) => {
+        const created = await request("/contacts", "POST", { accountId, name, email });
+        assert.equal(created.status, 201, email);
+        return await created.json() as SavedContact;
+      };
+      const renamed = await seed("work", "Renamed Before", "renamed@example.test");
+      await seed("work", "Same Name", "same@example.test");
+      await seed("work", "Empty Named", "empty-name@example.test");
+      await seed("work", "", "blank@example.test");
+      const absent = await seed("work", "Missing Person", "missing@example.test");
+      const other = await seed("home", "Other Account Renamed", "renamed@example.test");
+      const content = "Name,E-mail 1 - Value\n" + [
+        "Renamed After,renamed@example.test",
+        "Same Name,same@example.test",
+        ",empty-name@example.test",
+        "Blank Filled,blank@example.test",
+        "New One,new.one@example.test",
+        "New Two,new.two@example.test",
+        "Invalid,not-an-address",
+      ].join("\n");
+      const input = { accountId: "work", format: "csv", content };
       assert.equal((await fetch(`${origin}/api/contacts/import`, { method: "POST", headers: desktop, body: JSON.stringify(input) })).status, 403);
       const before = (await list()).saved.length;
       const preview = await request("/contacts/import/preview", "POST", input);
       assert.equal(preview.status, 200);
-      assert.equal((await preview.json()).added, 1);
-      assert.equal((await list()).saved.length, before);
-      const imported = await request("/contacts/import", "POST", input);
+      const previewJson = await preview.json();
+      assert.match(previewJson.revision, /^[0-9a-f]{64}$/, "the preview fingerprints the contacts it classified");
+      assert.deepEqual({ ...previewJson, revision: "" }, {
+        added: 2, changed: 2, updated: 0, unchanged: 2, missing: 1, skipped: 1,
+        sample: [{ name: "New One", email: "new.one@example.test" }, { name: "New Two", email: "new.two@example.test" }],
+        changes: [
+          { email: "renamed@example.test", name: "Renamed After", previousName: "Renamed Before" },
+          { email: "blank@example.test", name: "Blank Filled", previousName: "" },
+        ],
+        revision: "",
+      });
+      assert.equal((await list()).saved.length, before, "preview writes nothing");
+      // An opted-in preview reports the renames it would write.
+      const updatePreview = await request("/contacts/import/preview", "POST", { ...input, updateNames: true });
+      assert.equal((await updatePreview.json()).updated, 2);
+      // A confirm without the preview's revision, or with one that no longer matches, writes nothing.
+      assert.equal((await request("/contacts/import", "POST", input)).status, 400, "a confirm requires the preview revision");
+      assert.equal((await request("/contacts/import", "POST", { ...input, revision: "0".repeat(64) })).status, 409, "a stale revision is rejected");
+      const imported = await request("/contacts/import", "POST", { ...input, revision: previewJson.revision });
       assert.equal(imported.status, 200);
-      assert.equal((await imported.json()).skipped, 2);
-      assert.equal((await list()).saved.length, before + 1);
-      const again = await request("/contacts/import", "POST", { ...input, content: 'Name,Email\nChanged,IMPORTED@example.test' });
-      assert.equal((await again.json()).duplicates, 1);
-      assert.equal((await list()).saved.find(item => item.email === "imported@example.test")!.name, "Imported Person");
-      assert.ok((await suggest("imported", "work")).some(item => item.email === "imported@example.test"));
-      assert.equal((await request("/contacts/import", "POST", { ...input, accountId: "missing" })).status, 404);
-      const malformed = await request("/contacts/import", "POST", { ...input, content: 'private-sensitive-value' });
+      const importedJson = await imported.json();
+      assert.equal(importedJson.added, 2);
+      assert.equal(importedJson.updated, 0);
+      const saved = async () => (await list()).saved;
+      assert.equal((await saved()).find(item => item.email === "renamed@example.test" && item.accountId === "work")!.name, "Renamed Before", "names stay without updateNames");
+      // A confirm older than another client's edits is rejected whole; a fresh preview discloses the drift.
+      const stalePreview = await (await request("/contacts/import/preview", "POST", { ...input, updateNames: true })).json();
+      assert.equal(stalePreview.changed, 2);
+      assert.equal(stalePreview.unchanged, 4);
+      const same = (await saved()).find(item => item.email === "same@example.test")!;
+      assert.equal((await request(`/contacts/${same.id}`, "PUT", { name: "Same Edited", email: "same@example.test" })).status, 200);
+      const stale = await request("/contacts/import", "POST", { ...input, updateNames: true, revision: stalePreview.revision });
+      assert.equal(stale.status, 409, "a confirm older than another client's edits is rejected whole");
+      assert.equal((await stale.json()).error, "Contacts changed since this preview. Preview the file again.");
+      const still = await saved();
+      assert.equal(still.find(item => item.id === same.id)!.name, "Same Edited", "the concurrent edit is not overwritten");
+      assert.equal(still.find(item => item.id === renamed.id)!.name, "Renamed Before", "the changed contact is not rewritten either");
+      const fresh = await request("/contacts/import/preview", "POST", { ...input, updateNames: true });
+      const freshJson = await fresh.json();
+      assert.equal(freshJson.changed, 3, "the edited contact now differs from the file");
+      const updated = await request("/contacts/import", "POST", { ...input, updateNames: true, revision: freshJson.revision });
+      const updatedJson = await updated.json();
+      assert.equal(updatedJson.added, 0);
+      assert.equal(updatedJson.updated, 3);
+      const after = await saved();
+      const renamedNow = after.find(item => item.email === "renamed@example.test" && item.accountId === "work")!;
+      assert.equal(renamedNow.name, "Renamed After");
+      assert.equal(renamedNow.id, renamed.id, "name updates keep the contact id");
+      assert.equal(after.find(item => item.email === "blank@example.test")!.name, "Blank Filled");
+      assert.equal(after.find(item => item.id === same.id)!.name, "Same Name", "the disclosed drift is rewritten after a fresh preview");
+      assert.ok(after.some(item => item.id === absent.id), "contacts missing from the file stay saved");
+      assert.equal(after.find(item => item.id === other.id)!.name, "Other Account Renamed", "other accounts are untouched");
+      assert.ok((await suggest("new.one", "work")).some(item => item.email === "new.one@example.test"));
+      const repreview = await request("/contacts/import/preview", "POST", { ...input, updateNames: true });
+      const repreviewJson = await repreview.json();
+      assert.equal(repreviewJson.changed, 0);
+      assert.equal(repreviewJson.unchanged, 6);
+      assert.equal(repreviewJson.added, 0);
+      assert.equal((await request("/contacts/import", "POST", input)).status, 400, "a confirm requires the preview revision");
+      assert.equal((await request("/contacts/import", "POST", { ...input, accountId: "missing", revision: repreviewJson.revision })).status, 404);
+      assert.equal((await request("/contacts/import", "POST", { ...input, revision: repreviewJson.revision, extra: true })).status, 400, "the strict schema rejects unknown fields");
+      assert.equal((await request("/contacts/import", "POST", { ...input, revision: repreviewJson.revision, updateNames: "yes" })).status, 400);
+      const malformed = await request("/contacts/import", "POST", { ...input, revision: repreviewJson.revision, content: 'private-sensitive-value' });
       assert.equal(malformed.status, 400);
       assert.doesNotMatch(await malformed.text(), /private-sensitive-value/);
-      const home = await request("/contacts/import", "POST", { ...input, accountId: "home" });
-      assert.equal((await home.json()).added, 1);
-      const count = (await list()).saved.length;
-      const overflow = await request("/contacts/import", "POST", { ...input, content: 'Name,Email\n' + Array.from({ length: 1000 }, (_, index) => `Person ${index},import-${index}@example.test`).join('\n') });
+      // Only new addresses count against the 1000-contact limit; saved
+      // addresses in the file are classifications, not additions.
+      const savedWork = (await saved()).filter(item => item.accountId === "work").length;
+      const fill = 'Name,Email\n' + Array.from({ length: 1000 - savedWork }, (_, index) => `Person ${index},fill-${index}@example.test`).join('\n');
+      const fit = await request("/contacts/import/preview", "POST", { ...input, content: fill + '\nRenamed After,renamed@example.test' });
+      assert.equal(fit.status, 200, "existing addresses in the file do not count against the limit");
+      const count = (await saved()).length;
+      const overflow = await request("/contacts/import", "POST", { ...input, revision: repreviewJson.revision, content: 'Name,Email\n' + Array.from({ length: 1000 }, (_, index) => `Person ${index},import-${index}@example.test`).join('\n') });
       assert.equal(overflow.status, 409);
-      assert.equal((await list()).saved.length, count, "over-limit imports write nothing");
+      assert.match((await overflow.json()).error, /1000-contact limit/, "the limit, not a stale revision, rejects the import");
+      assert.equal((await saved()).length, count, "over-limit imports write nothing");
       for (const suffix of ["", "-wal"]) {
         const filename = path.join(directory, `mail.sqlite${suffix}`);
-        if (existsSync(filename)) assert.equal(readFileSync(filename).includes(Buffer.from("imported@example.test")), false);
+        if (existsSync(filename)) assert.equal(readFileSync(filename).includes(Buffer.from("renamed@example.test")), false);
       }
-      for (const contact of (await list()).saved) await request(`/contacts/${contact.id}`, "DELETE");
+      for (const contact of (await saved())) await request(`/contacts/${contact.id}`, "DELETE");
+
+      // Every proposed rename is listed and confirmed, not only the first five.
+      const six: SavedContact[] = [];
+      for (let index = 0; index < 6; index++) six.push(await seed("work", `Old ${index}`, `old-${index}@example.test`));
+      const sixInput = { accountId: "work", format: "csv", content: "Name,Email\n" + six.map((item, index) => `New ${index},${item.email}`).join("\n") };
+      const sixPreview = await (await request("/contacts/import/preview", "POST", sixInput)).json();
+      assert.equal(sixPreview.changed, 6);
+      assert.equal(sixPreview.changes.length, 6, "every proposed rename is listed, not only the first five");
+      const sixImport = await request("/contacts/import", "POST", { ...sixInput, updateNames: true, revision: sixPreview.revision });
+      assert.equal(sixImport.status, 200);
+      assert.equal((await sixImport.json()).updated, 6);
+      const renamedAll = await saved();
+      for (const [index, item] of six.entries()) assert.equal(renamedAll.find(savedItem => savedItem.id === item.id)!.name, `New ${index}`);
+      for (const item of six) await request(`/contacts/${item.id}`, "DELETE");
     });
 
     await t.test("only accepted sends add recent recipients, excluding connected accounts", async () => {
