@@ -10,9 +10,14 @@ export const PrivacyContext = createContext<{
   accounts?: readonly Account[];
   names?: readonly string[];
 }>({ on: false, revealed: new Set(), toggle() {} });
-export function MailPrivacy({ mail, children }: { mail: Mail; children: ReactNode }) {
+export function MailPrivacy({ mail, children }: { mail: Mail | readonly Mail[]; children: ReactNode }) {
   const context = useContext(PrivacyContext);
-  const value = useMemo(() => ({ ...context, names: messagePrivateNames(context.accounts || [], mail) }), [context, mail]);
+  const value = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const message of Array.isArray(mail) ? mail : [mail])
+      for (const name of messagePrivateNames(context.accounts || [], message)) names.set(name.toLowerCase(), name);
+    return { ...context, names: [...names.values()] };
+  }, [context, mail]);
   return <PrivacyContext.Provider value={value}>
     {children}
   </PrivacyContext.Provider>;

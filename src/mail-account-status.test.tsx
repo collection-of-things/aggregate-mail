@@ -59,6 +59,8 @@ test("single-account filtering hides account metadata but retains the sorting st
 test("privacy-safe duplicate labels, address-only names and unavailable accounts stay distinguishable", () => {
   const duplicate = accounts.map(account => ({ ...account, name: "Studio" }));
   assert.deepEqual([...render({ accounts: duplicate, privacy: true }).querySelectorAll(".row-account")]
+    .map(label => label.textContent), ["Account 1 · Gmail", "Account 2 · Gmail"]);
+  assert.deepEqual([...render({ accounts: duplicate }).querySelectorAll(".row-account")]
     .map(label => label.textContent), ["Studio · 1", "Studio · 2"]);
   const privateAccounts = accounts.map(account => ({ ...account, name: account.email }));
   const document = render({ accounts: privateAccounts, privacy: true,

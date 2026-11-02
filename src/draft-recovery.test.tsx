@@ -233,6 +233,7 @@ test("mounted drafts use encrypted HTTP persistence, recover edits and guard unc
       templates: [{ id: "synthetic-template", name: "Synthetic template", subject: "Template subject", body: "SYNTHETIC template body" }],
       signatures: { a: "Signature A", b: "Signature B" },
     });
+    dom.window.localStorage.setItem("privacy", "off");
     await remount();
     await click(button("New message"));
     assert.equal(container.querySelector<HTMLTextAreaElement>("textarea")!.value, "\n\n-- \nSignature A");

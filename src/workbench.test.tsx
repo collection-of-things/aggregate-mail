@@ -414,6 +414,43 @@ test("workspace hides source-header-only names in commitments, history and propo
  }finally{await ui.close();}
 });
 
+test("a project decision masks a correspondent named only on a later supporting email", async () => {
+ const ui = await mount("projects");
+ try {
+  ui.state.messages[2].sender = "Vera Bloom";
+  ui.workspace.projects.push({ id: "p1", name: "Synthetic project", sourceMailIds: ["in-a", "in-b"], accountIds: ["a", "b"], crossAccountConfirmed: false, revision: 1, updatedAt: 1 });
+  ui.workspace.decisions.push({ id: "d1", projectId: "p1", text: "Vera Bloom agreed to the plan", sourceMailIds: ["in-a", "in-b"], createdAt: 1 });
+  await ui.click(ui.button("Refresh workspace"));
+  await ui.click(ui.button("Synthetic project"));
+  const decisions = () => ui.container.querySelector(".project-decisions")!;
+  assert.ok(decisions().textContent?.includes("Vera Bloom agreed to the plan"));
+  await ui.privacy();
+  assert.equal(decisions().innerHTML.includes("Vera"), false);
+  assert.equal(decisions().innerHTML.includes("Bloom"), false);
+  assert.ok(decisions().textContent?.includes("agreed to the plan"));
+ } finally { await ui.close(); }
+});
+
+test("a commitment row and its detail mask a correspondent named only on an evidence email", async () => {
+ const ui = await mount("actions");
+ try {
+  ui.state.messages[1].sender = "Vera Bloom";
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["sent-a"], revision: 1, updatedAt: 1, history: [] });
+  await ui.click(ui.button("Refresh workspace"));
+  const row = () => ui.container.querySelector("#work-task-c1")!.closest("article")!;
+  assert.ok(row().textContent?.includes("Vera Bloom confirmation"));
+  await ui.privacy();
+  assert.equal(row().innerHTML.includes("Vera"), false);
+  assert.equal(row().innerHTML.includes("Bloom"), false);
+  await ui.click(ui.container.querySelector<HTMLButtonElement>(".work-select")!);
+  const detail = ui.container.querySelector('[aria-label="Commitment details"]')!;
+  assert.ok(detail);
+  assert.equal(detail.innerHTML.includes("Vera"), false);
+  assert.equal(detail.innerHTML.includes("Bloom"), false);
+  assert.ok(detail.textContent?.includes("confirmation"));
+ } finally { await ui.close(); }
+});
+
 test("reader tracking source is consumed and returning to Actions does not start duplicate confirmation",async()=>{
  const ui=await mount("actions",true);try{
   const sidebar=(prefix:string)=>{const button=[...ui.container.querySelectorAll<HTMLButtonElement>(".sidebar button")].find(button=>button.textContent?.trim().startsWith(prefix));assert.ok(button);return button;};

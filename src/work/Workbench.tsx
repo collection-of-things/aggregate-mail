@@ -335,6 +335,12 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   };
   const sourceOf = (item: { sourceMailId: string; accountId: string }) =>
     state.messages.find((mail) => mail.id === item.sourceMailId && mail.accountId === item.accountId);
+  const citedMails = (item: { sourceMailId: string; accountId: string; evidenceMailIds: string[] }) => {
+    const source = sourceOf(item);
+    const evidence = [...new Set(item.evidenceMailIds)].filter((id) => id !== item.sourceMailId)
+      .map((id) => state.messages.find((mail) => mail.id === id));
+    return [source, ...evidence].filter((mail): mail is Mail => !!mail);
+  };
   const itemRow = (item: Commitment) => {
     const row = <article className={`work-item work-row${selectedId === item.id ? " selected" : ""}`}>
     <input className="work-row-complete" type="checkbox" aria-label="Mark task complete" aria-describedby={`work-task-${encodeURIComponent(item.id)}`}
@@ -345,10 +351,10 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       <span className="work-meta">{`${statusNames[item.status]} · `}<Redact text={accountName(item)} />{deadlineDate(item) && ` · Due ${deadlineDate(item)}`}{item.followUpAt === undefined ? "" : ` · Remind ${new Date(item.followUpAt).toLocaleString()}`}</span>
     </button>
   </article>;
-    const source = sourceOf(item);
-    return source ? <MailPrivacy key={item.id} mail={source}>{row}</MailPrivacy> : row;
+    const mails = citedMails(item);
+    return mails.length ? <MailPrivacy key={item.id} mail={mails}>{row}</MailPrivacy> : <Fragment key={item.id}>{row}</Fragment>;
   };
-  const detailSource = selected ? sourceOf(selected) : undefined;
+  const detailMails = selected ? citedMails(selected) : [];
   const detailBodyContent = selected && <>
     <p><Redact text={selected.reason} /></p>
     <dl><dt>Account</dt><dd><Redact text={accountName(selected)} /></dd><dt>Deadline</dt><dd>{deadlineDate(selected) || "Not set"}</dd><dt>Follow up</dt><dd>{selected.followUpAt === undefined ? "Not set" : new Date(selected.followUpAt).toLocaleString()}</dd></dl>
@@ -371,7 +377,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
     <WorkSessions parent={selected} sessions={sessions} disabled={blocked} />
     {mode === "calendar" ? detailBodyContent : <details key={selected.id} className="work-task-details"><summary>Details{deadlineDate(selected) && ` · Due ${deadlineDate(selected)}`}{selected.followUpAt !== undefined && ` · Remind ${new Date(selected.followUpAt).toLocaleString()}`}</summary>{detailBodyContent}</details>}
   </section>;
-  const detail = detailSource ? <MailPrivacy mail={detailSource}>{detailContent}</MailPrivacy> : detailContent;
+  const detail = detailMails.length ? <MailPrivacy mail={detailMails}>{detailContent}</MailPrivacy> : detailContent;
   const dueFollowUps = sorted.filter((item) => openCommitment(item) && item.followUpAt !== undefined && item.followUpAt <= now);
   const [calendarStatus, setCalendarStatus] = useState("");
   const [calendarJump, setCalendarJump] = useState<{ day: string; key: number }>();
@@ -494,9 +500,9 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
             </div>
             <aside className="today-reader" aria-label="Project reading pane"><div className="project-context" hidden={detailOpen || readerOpened}><span className="context-label">Project context</span><h2><Redact text={privacy ? `Project ${projects.indexOf(selectedProject) + 1}` : selectedProject.name} /></h2><dl><dt>Open tasks</dt><dd>{sorted.filter((item) => item.projectId === selectedProject.id && openCommitment(item)).length}</dd><dt>Source emails</dt><dd>{selectedProject.sourceMailIds.length}</dd></dl>              <section className="project-decisions"><h3>Decisions</h3>
                 {workspace.decisions.filter((item) => item.projectId === selectedProject.id).map((item) => {
-                  const source = state.messages.find((mail) => item.sourceMailIds.includes(mail.id) && state.accounts.some((account) => account.id === mail.accountId));
+                  const sources = state.messages.filter((mail) => item.sourceMailIds.includes(mail.id) && state.accounts.some((account) => account.id === mail.accountId));
                   const row = <article className="work-item"><Redact text={item.text} /><details><summary>Supporting emails</summary>{item.sourceMailIds.map((id) => <Source key={id} id={id} state={state} onOpen={(mail, trigger) => { selectedRow.current = trigger; setSelectedId(null); setDetailOpen(false); missingSelection.current = false; onOpen(mail); }} />)}</details></article>;
-                  return source ? <MailPrivacy key={item.id} mail={source}>{row}</MailPrivacy> : <Fragment key={item.id}>{row}</Fragment>;
+                  return sources.length ? <MailPrivacy key={item.id} mail={sources}>{row}</MailPrivacy> : <Fragment key={item.id}>{row}</Fragment>;
                 })}
                 {!workspace.decisions.some((item) => item.projectId === selectedProject.id) && <p className="work-empty">Keep a note of what was agreed.</p>}
                 <details key={selectedProject.id}><summary>Add a decision</summary><form className="settings-form" onSubmit={async(event) => { event.preventDefault(); if(!decisionSources.length)return; if(await mutate(()=>api(`/projects/${encodeURIComponent(selectedProject.id)}/decisions`,"POST",{text:decision,sourceMailIds:decisionSources}))) {setDecision("");setDecisionSources([]);} }}>
