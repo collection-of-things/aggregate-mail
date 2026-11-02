@@ -3549,16 +3549,23 @@ the shared geometry. See [ADR 0113](adr/0113-responsive-mail-layout.md).
 
 `build/icon.svg` and `build/mark.svg` are the vector sources for app, tray,
 browser and website icons. Run `npm run icons` after changing these sources;
-`npm run check:icons` checks that every generated file matches. Packaging
-commands run this check before building. Shared release steps also run it after
-the Linux tests and before building and packaging on each platform. The generator
-uses the pinned Sharp dev dependency and renders each size from SVG with supersampling, rather than
-resizing a low-resolution raster. Keep the SVG paths, colours and proportions
-intact. The repository avatar uses the same mark in Energy (`#A50685`).
+`npm run check:icons` checks that every generated file matches. SVG copies and
+ICO/ICNS frame layouts must match exactly. Raster frames are compared as decoded
+pixels, within 8 of 255 levels per channel, because encoders and resampling
+may round differently on each platform and CPU. Windows and Linux produced
+identical bytes; macOS output has not been compared. Packaging commands run this
+check before building. Shared release steps also run it after the Linux tests and
+before building and packaging on each platform. The generator uses the pinned
+Sharp dev dependency and renders each size from SVG with supersampling, rather
+than resizing a low-resolution raster. Keep the SVG paths, colours and
+proportions intact. The repository avatar uses the same mark in Energy
+(`#A50685`); generation stops if `build/mark.svg` no longer contains the
+`#FFF3F2` fill it recolours.
 
 `node --test scripts/brand-icons.test.mjs` checks antialiased source edges,
-transparent corners and the dimensions of the PNG frames inside the Windows
-ICO. These checks do not establish how Explorer renders an installed icon or
+transparent corners, the dimensions of the PNG frames inside the Windows ICO,
+that the asset check accepts re-encoded pixels and rejects changed artwork or
+layout, and that the logo recolour fails loudly. These checks do not establish how Explorer renders an installed icon or
 whether a previously cached icon has refreshed. Existing downloaded installers
 keep their embedded artwork; rebuild the installer to include regenerated icons.
 

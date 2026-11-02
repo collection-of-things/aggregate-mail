@@ -8,7 +8,7 @@ unversioned history without treating it as a release record.
 
 ### Fixed
 
-- Keep website brand masks visible in forced-colors mode and check generated icons before release builds. Clarify reply-draft approval, token privacy, browser setup, sender-logo lookups and platform storage in the guides. ([#197](https://github.com/Collection-of-devs/aggregate-mail/pull/197))
+- Keep website brand masks visible in forced-colors mode and check generated icons before release builds. The check compares decoded pixels, so encoder differences between platforms do not block a release. Clarify reply-draft approval, token privacy, browser setup, sender-logo lookups and platform storage in the guides. ([#197](https://github.com/Collection-of-devs/aggregate-mail/pull/197))
 
 - Render desktop and browser icons from vector artwork at each size, smoothing jagged logo edges and keeping Windows installer icons sharp across display sizes. ([#197](https://github.com/Collection-of-devs/aggregate-mail/pull/197))
 
