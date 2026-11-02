@@ -5,6 +5,9 @@ import { PrivacyContext } from "../ui/Privacy";
 import type { Compose } from "./draft-session";
 
 type Command = "bold" | "italic" | "underline" | "createLink" | "insertUnorderedList" | "insertOrderedList" | "formatBlock";
+// A selection endpoint as a child-index chain from the editor root to the
+// range container, plus the range offset inside it.
+type Bookmark = { path: number[]; offset: number };
 const commands: { label: string; text: string; command: Command }[] = [
   { label: "Bold", text: "B", command: "bold" },
   { label: "Italic", text: "I", command: "italic" },
@@ -24,9 +27,12 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
   // leaving the whole scope hides it again. An empty draft keeps its normal
   // placeholder.
   const hidden = Boolean(privacy && !revealed && (draft.body || draft.html));
-  // Caret/selection in the shared text-node+BR offset scheme, saved while the
-  // editor is still mounted so a later reveal can restore it after repaint.
-  const veiledSelection = useRef<{ start: number; end: number } | undefined>(undefined);
+  // Caret/selection saved while the editor is still mounted so a later reveal
+  // can restore it after repaint. A plain draft stores textarea offsets; a
+  // rich draft stores a DOM path of child indices from the editor root plus
+  // the offset in that container, so paragraph and inline-format boundaries
+  // stay distinct across the repaint.
+  const veiledSelection = useRef<{ start: number; end: number } | { start: Bookmark; end: Bookmark } | undefined>(undefined);
   // Whether the current reveal came through the veil itself; the new editor
   // may already hold focus by the time the reveal effect runs.
   const veilFocus = useRef(false);
@@ -41,33 +47,6 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
     const range = window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : undefined;
     if (range && editor.current?.contains(range.commonAncestorContainer)) selection.current = range.cloneRange();
   };
-  // Inverse of `point` in the repaint effect: a logical offset counts every
-  // text-node character and each BR inside the editor. `index` is a text
-  // offset for CharacterData or a child index for element containers.
-  const offsetAt = (container: Node, index: number): number => {
-    const root = editor.current;
-    if (!root || !root.contains(container)) return 0;
-    const probe = document.createRange();
-    try { probe.setStart(container, index); probe.collapse(true); } catch { return 0; }
-    let at = 0;
-    const walker = document.createTreeWalker(root, 4 | 1);
-    let item: Node | null;
-    while ((item = walker.nextNode())) {
-      if (item.nodeType === 3) {
-        const length = item.textContent?.length || 0;
-        if (probe.comparePoint(item, length) === -1) { at += length; continue; }
-        let inside = 0;
-        while (inside < length && probe.comparePoint(item, inside) === -1) inside++;
-        return at + inside;
-      }
-      if ((item as Element).tagName === "BR") {
-        const parent = item.parentNode!;
-        if (probe.comparePoint(parent, Array.from(parent.childNodes).indexOf(item as ChildNode)) === -1) { at += 1; continue; }
-        return at;
-      }
-    }
-    return at;
-  };
   const saveSelection = () => {
     if (plain.current) {
       veiledSelection.current = { start: plain.current.selectionStart || 0, end: plain.current.selectionEnd || 0 };
@@ -79,7 +58,15 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
     const range = selection.current && node.contains(selection.current.commonAncestorContainer) ? selection.current
       : live && node.contains(live.commonAncestorContainer) ? live : undefined;
     if (!range) return;
-    veiledSelection.current = { start: offsetAt(range.startContainer, range.startOffset), end: offsetAt(range.endContainer, range.endOffset) };
+    // DOM-path bookmark: the repaint rebuilds the same structure from
+    // draft.html, so the path resolves to the same container afterwards.
+    const bookmark = (container: Node, offset: number): Bookmark => {
+      const path: number[] = [];
+      for (let item = container; item !== node; item = item.parentNode!)
+        path.unshift(Array.from(item.parentNode!.childNodes).indexOf(item as ChildNode));
+      return { path, offset };
+    };
+    veiledSelection.current = { start: bookmark(range.startContainer, range.startOffset), end: bookmark(range.endContainer, range.endOffset) };
   };
   const publish = () => {
     if (!editor.current) return;
@@ -120,7 +107,8 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
         // back, with a plain caret put back at its saved offsets.
         (editor.current || plain.current)?.focus();
         const saved = veiledSelection.current;
-        if (saved && plain.current) plain.current.setSelectionRange(saved.start, saved.end);
+        if (saved && plain.current && typeof saved.start === "number" && typeof saved.end === "number")
+          plain.current.setSelectionRange(saved.start, saved.end);
       }
       // A rich caret restores in the repaint effect below once it runs.
       if (!fromVeil || plain.current) veiledSelection.current = undefined;
@@ -158,11 +146,28 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
       selection.current = range; execute(action.command, action.value);
       return;
     }
-    // A veil reveal puts the saved caret back once the repaint has run.
+    // A veil reveal puts the saved caret back once the repaint has run. If the
+    // draft drifted while veiled and a path no longer resolves, the caret
+    // falls back to the end of the editor rather than throwing.
     const saved = veiledSelection.current;
     if (saved) {
       veiledSelection.current = undefined;
-      const range = document.createRange(); range.setStart(...point(saved.start)); range.setEnd(...point(saved.end));
+      const walk = ({ path, offset }: Bookmark): [Node, number] | undefined => {
+        let item: Node = node;
+        for (const index of path) {
+          const child = item.childNodes[index];
+          if (!child) return undefined;
+          item = child;
+        }
+        const limit = item.nodeType === 3 || item.nodeType === 4 ? (item.textContent?.length || 0) : item.childNodes.length;
+        if (offset > limit) return undefined;
+        return [item, offset];
+      };
+      const start = typeof saved.start === "number" ? point(saved.start) : walk(saved.start);
+      const end = typeof saved.end === "number" ? point(saved.end) : walk(saved.end);
+      const range = document.createRange();
+      if (start && end) { range.setStart(...start); range.setEnd(...end); }
+      else { range.selectNodeContents(node); range.collapse(false); }
       selection.current = range.cloneRange();
       const current = window.getSelection(); current?.removeAllRanges(); current?.addRange(range);
     }

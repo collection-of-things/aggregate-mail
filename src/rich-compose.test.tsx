@@ -68,13 +68,19 @@ const mountPrivateBody = async (initial: Compose) => {
   const { createRoot } = await import("react-dom/client");
   const root = createRoot(document.getElementById("root")!);
   let value = initial;
-  function Editor() { const [draft, update] = useState(value); return <RichBody draft={draft} disabled={false} onChange={next => { value = next; update(next); }} />; }
+  let apply = (next: Compose) => { value = next; };
+  function Editor() {
+    const [draft, update] = useState(value);
+    apply = next => { value = next; update(next); };
+    return <RichBody draft={draft} disabled={false} onChange={next => { value = next; update(next); }} />;
+  }
   await act(async () => root.render(
     <PrivacyContext.Provider value={{ on: true, revealed: new Set(), toggle() {} }}>
       <div><button type="button" className="outside">Outside</button><Editor /></div>
     </PrivacyContext.Provider>));
   return {
     dom, get value() { return value; },
+    setDraft: (next: Compose) => apply(next),
     outside: () => document.querySelector<HTMLButtonElement>(".outside")!,
     close: async () => {
       await act(async () => root.unmount()); dom.window.close();
@@ -169,6 +175,87 @@ test("revealing the veil restores the saved selection in a rich body", async () 
     assert.equal(current.toString(), "brave", "the rich selection returns over the same text");
     assert.ok(document.querySelector('[contenteditable="true"]'), "the rich editor remounted");
   } finally { await richApp.close(); }
+});
+
+// The four boundary tests share one setup: reveal, place a selection, record
+// it with a mouseup like a real selection, veil on outside focus and reveal.
+const veilAndReveal = async (app: Awaited<ReturnType<typeof mountPrivateBody>>, editor: HTMLElement) => {
+  await act(async () => editor.dispatchEvent(new app.dom.window.MouseEvent("mouseup", { bubbles: true })));
+  await act(async () => app.outside().focus());
+  assert.ok(document.querySelector(".compose-veiled-body"), "veiled again");
+  await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+};
+
+test("the rich caret restores at a paragraph boundary", async () => {
+  const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "FirstSecond", html: "<p>First</p><p>Second</p>", sendUnknown: true });
+  try {
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]')!;
+    const text = editor.childNodes[1].firstChild as Text;
+    assert.equal(text.textContent, "Second");
+    const range = document.createRange(); range.setStart(text, 0); range.collapse(true);
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
+    await veilAndReveal(app, editor);
+    const current = window.getSelection()!.getRangeAt(0);
+    assert.equal((current.startContainer as Text).textContent, "Second", "the caret returns to the second paragraph's text, not the first");
+    assert.equal(current.startOffset, 0);
+  } finally { await app.close(); }
+});
+
+test("the rich caret restores at an inline-format boundary", async () => {
+  const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "Bold tail", html: "<p><strong>Bold</strong> tail</p>", sendUnknown: true });
+  try {
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]')!;
+    const tail = editor.firstChild!.childNodes[1] as Text;
+    assert.equal(tail.textContent, " tail");
+    const range = document.createRange(); range.setStart(tail, 0); range.collapse(true);
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
+    await veilAndReveal(app, editor);
+    const current = window.getSelection()!.getRangeAt(0);
+    assert.equal(current.startContainer.nodeType, 3, "the caret lands on a text node");
+    assert.equal((current.startContainer as Text).textContent, " tail", "the caret is in the tail text, not inside the strong");
+    assert.equal(current.startOffset, 0);
+  } finally { await app.close(); }
+});
+
+test("a rich selection spanning paragraph boundaries restores both ends", async () => {
+  const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "FirstSecond", html: "<p>First</p><p>Second</p>", sendUnknown: true });
+  try {
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]')!;
+    const first = editor.childNodes[0].firstChild as Text;
+    const second = editor.childNodes[1].firstChild as Text;
+    const range = document.createRange(); range.setStart(first, 2); range.setEnd(second, 0);
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
+    await veilAndReveal(app, editor);
+    const current = window.getSelection()!.getRangeAt(0);
+    assert.equal((current.startContainer as Text).textContent, "First");
+    assert.equal(current.startOffset, 2);
+    assert.equal((current.endContainer as Text).textContent, "Second", "the end returns to the paragraph boundary, not after First");
+    assert.equal(current.endOffset, 0);
+  } finally { await app.close(); }
+});
+
+test("a veiled draft that drifted parks the caret at the end instead of throwing", async () => {
+  const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "FirstSecond", html: "<p>First</p><p>Second</p>", sendUnknown: true });
+  try {
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]')!;
+    const text = editor.childNodes[1].firstChild as Text;
+    const range = document.createRange(); range.setStart(text, 0); range.collapse(true);
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
+    await act(async () => editor.dispatchEvent(new app.dom.window.MouseEvent("mouseup", { bubbles: true })));
+    await act(async () => app.outside().focus());
+    assert.ok(document.querySelector(".compose-veiled-body"), "veiled again");
+    // The draft changes while veiled; the saved path no longer resolves.
+    await act(async () => app.setDraft({ ...app.value, html: "<p>Much longer paragraph</p>" }));
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+    const rebuilt = document.querySelector<HTMLElement>('[contenteditable="true"]')!;
+    const current = window.getSelection()!.getRangeAt(0);
+    assert.equal(current.startContainer, rebuilt, "a missing path falls back inside the editor");
+    assert.equal(current.startOffset, rebuilt.childNodes.length, "the caret parks at the end");
+  } finally { await app.close(); }
 });
 
 test("link entry uses an inline keyboard form without relying on a native browser prompt", async () => {
