@@ -418,3 +418,37 @@ test("privacy sweep: narrow list, privacy restore, reveal and re-hide", { timeou
   }
   assert.deepEqual(failures, [], `${failures.length} privacy leaks`);
 });
+
+test("privacy shortcut veils a focused compose body and moves focus to the veil", { timeout: 30000 }, async () => {
+  const app = await mount();
+  const failures: Violation[] = [];
+  try {
+    assert.equal(app.storage.getItem("privacy"), null, "privacy starts off");
+    await app.click(app.button("New message"));
+    const body = app.container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Message body"]')!;
+    assert.ok(body, "compose body");
+    await act(async () => body.focus());
+    await app.input(body, "Notes for Sample Person");
+    // Single-key shortcuts stay with editable fields, so the privacy key is
+    // dispatched from a toolbar button inside the body scope.
+    const tool = app.container.querySelector<HTMLButtonElement>('[aria-label="Bold"]')!;
+    await act(async () => tool.focus());
+    await act(async () => tool.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "p", bubbles: true })));
+    const veil = app.container.querySelector<HTMLElement>(".compose-veiled-body")!;
+    assert.ok(veil, "the focused body becomes the veil");
+    assert.equal(veil.textContent, "Hidden. Focus to edit.");
+    assert.ok(app.window.document.activeElement === veil, "focus moves to the veil, not the page body");
+    failures.push(...app.violations("compose-privacy-toggle", false));
+    assert.equal(app.container.innerHTML.includes("Sample Person"), false);
+    await act(async () => veil.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    const restored = app.container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Message body"]')!;
+    assert.ok(restored, "Enter on the veil restores the editor");
+    assert.equal(restored.value, "Notes for Sample Person");
+  } finally {
+    for (const hit of failures)
+      console.log(`AUDIT-VIOLATION ${hit.surface} | ${hit.needle} | ${hit.where}`);
+    await app.key("Escape");
+    await app.close();
+  }
+  assert.deepEqual(failures, [], `${failures.length} privacy leaks`);
+});

@@ -182,7 +182,7 @@ test("turning privacy on veils a focused body and an open link address", async (
     assert.ok(document.querySelector(".compose-veiled-body"), "the body veils when privacy turns on while focused");
     assert.equal(document.body.textContent!.includes("Sample Person"), false);
     assert.equal(url().value, "", "the link address hides with the body");
-    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.dispatchEvent(new app.dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
     assert.equal(document.querySelector<HTMLTextAreaElement>("textarea")!.value, "Draft for Sample Person");
     assert.equal(url().value, "https://vera-bloom.example.test/x");
   } finally { await app.close(); }

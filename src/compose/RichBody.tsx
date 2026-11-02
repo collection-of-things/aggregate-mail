@@ -25,7 +25,7 @@ const commands: { label: string; text: string; command: Command }[] = [
   { label: "Quote", text: "Quote", command: "formatBlock" },
 ];
 export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabled: boolean; onChange: (draft: Compose) => void }) {
-  const editor = useRef<HTMLDivElement>(null), plain = useRef<HTMLTextAreaElement>(null), scope = useRef<HTMLDivElement>(null);
+  const editor = useRef<HTMLDivElement>(null), plain = useRef<HTMLTextAreaElement>(null), scope = useRef<HTMLDivElement>(null), veil = useRef<HTMLDivElement>(null);
   const { on: privacy } = useContext(PrivacyContext);
   const [revealed, setRevealed] = useState(false);
   // Under privacy an unfocused non-empty body is a veil: no draft text or
@@ -51,6 +51,9 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
   // An entered address is private regardless of the body: it veils whenever
   // privacy is on and focus left the scope, so even an empty draft hides it.
   const linkHidden = Boolean(privacy && !revealed && link);
+  // A privacy-on re-veil moves focus to the new veil so it does not drop to
+  // the page; suppressReveal keeps that programmatic focus from re-revealing.
+  const refocusVeil = useRef(false), suppressReveal = useRef(false);
   const linkSelection = useRef({ start: 0, end: 0 });
   const cancelLink = () => { setLink(null); setError(""); (editor.current || plain.current)?.focus(); };
   const remember = () => {
@@ -188,11 +191,20 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
       // A rich caret restores in the repaint effect below once it runs.
       if (!fromVeil || plain.current) veiledSelection.current = undefined;
     }
+    if (hidden && refocusVeil.current) {
+      refocusVeil.current = false;
+      suppressReveal.current = true;
+      veil.current?.focus();
+      suppressReveal.current = false;
+    }
   }, [hidden, privacy, revealed]);
   // Turning privacy on re-veils even while the scope is focused; the live
   // selection is saved first so a later reveal restores the real caret.
   useEffect(() => {
-    if (privacy) { saveSelection(); setRevealed(false); }
+    if (privacy) {
+      refocusVeil.current = Boolean((draft.body || draft.html) && scope.current?.contains(document.activeElement));
+      saveSelection(); setRevealed(false);
+    }
   }, [privacy]);
   useLayoutEffect(() => {
     const node = editor.current;
@@ -282,7 +294,7 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
   };
   return <>
     <div ref={scope} className="compose-body-scope"
-      onFocus={() => { if (!disabled) setRevealed(true); }}
+      onFocus={() => { if (!disabled && !suppressReveal.current) setRevealed(true); else suppressReveal.current = false; }}
       onBlur={(event) => {
         // Focus moving to another scope child keeps the body revealed; focus
         // leaving the scope (or going nowhere) hides it again.
@@ -306,10 +318,11 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
         <button type="button" disabled={disabled} onClick={() => format("createLink", link)}>Add link</button>
         <button type="button" onClick={cancelLink}>Cancel link</button>
       </div>}
-      {hidden ? <div className="compose-body compose-veiled-body" role="textbox" aria-label="Message body" aria-multiline="true"
+      {hidden ? <div ref={veil} className="compose-body compose-veiled-body" role="textbox" aria-label="Message body" aria-multiline="true"
           aria-readonly="true" data-private-field tabIndex={disabled ? -1 : 0}
-          onFocus={() => { if (!disabled) { veilFocus.current = true; setRevealed(true); } }}
-          onClick={() => { if (!disabled) { veilFocus.current = true; setRevealed(true); } }}>Hidden. Focus to edit.</div> :
+          onFocus={() => { if (!disabled && !suppressReveal.current) { veilFocus.current = true; setRevealed(true); } }}
+          onClick={() => { if (!disabled) { veilFocus.current = true; setRevealed(true); } }}
+          onKeyDown={event => { if (!disabled && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); veilFocus.current = true; setRevealed(true); } }}>Hidden. Focus to edit.</div> :
         draft.html === undefined ? <textarea ref={plain} className="compose-body" aria-label="Message body" placeholder="Write your message"
         required disabled={disabled} onKeyDown={shortcut} maxLength={1000000} value={draft.body} onChange={event => onChange({ ...draft, body: event.target.value })} /> :
         <div ref={editor} className="compose-body compose-rich-body" role="textbox" aria-label="Message body" aria-multiline="true" aria-required="true"
