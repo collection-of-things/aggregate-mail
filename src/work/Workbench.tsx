@@ -335,9 +335,11 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   };
   const sourceOf = (item: { sourceMailId: string; accountId: string }) =>
     state.messages.find((mail) => mail.id === item.sourceMailId && mail.accountId === item.accountId);
-  const citedMails = (item: { sourceMailId: string; accountId: string; evidenceMailIds: string[] }) => {
+  const citedMails = (item: { sourceMailId: string; accountId: string; evidenceMailIds: string[]; history?: { evidenceMailIds: string[] }[] }, includeHistory = false) => {
     const source = sourceOf(item);
-    const evidence = [...new Set(item.evidenceMailIds)].filter((id) => id !== item.sourceMailId)
+    const ids = new Set(item.evidenceMailIds);
+    if (includeHistory) for (const change of item.history || []) for (const id of change.evidenceMailIds ?? []) ids.add(id);
+    const evidence = [...ids].filter((id) => id !== item.sourceMailId)
       .map((id) => state.messages.find((mail) => mail.id === id));
     return [source, ...evidence].filter((mail): mail is Mail => !!mail);
   };
@@ -354,7 +356,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
     const mails = citedMails(item);
     return mails.length ? <MailPrivacy key={item.id} mail={mails}>{row}</MailPrivacy> : <Fragment key={item.id}>{row}</Fragment>;
   };
-  const detailMails = selected ? citedMails(selected) : [];
+  const detailMails = selected ? citedMails(selected, true) : [];
   const detailBodyContent = selected && <>
     <p><Redact text={selected.reason} /></p>
     <dl><dt>Account</dt><dd><Redact text={accountName(selected)} /></dd><dt>Deadline</dt><dd>{deadlineDate(selected) || "Not set"}</dd><dt>Follow up</dt><dd>{selected.followUpAt === undefined ? "Not set" : new Date(selected.followUpAt).toLocaleString()}</dd></dl>

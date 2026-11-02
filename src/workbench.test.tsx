@@ -451,6 +451,24 @@ test("a commitment row and its detail mask a correspondent named only on an evid
  } finally { await ui.close(); }
 });
 
+test("commitment history masks a correspondent named only on a past evidence email", async () => {
+ const ui = await mount("actions");
+ try {
+  ui.state.messages[1].sender = "Vera Bloom";
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Synthetic task", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1,
+    history: [{ at: 1, status: "needs-work", text: "Vera Bloom draft", reason: "Vera Bloom asked", evidenceMailIds: ["sent-a"] }] });
+  await ui.click(ui.button("Refresh workspace"));
+  await ui.click(ui.container.querySelector<HTMLButtonElement>(".work-select")!);
+  const detail = () => ui.container.querySelector('[aria-label="Commitment details"]')!;
+  assert.ok(detail());
+  assert.ok(detail().textContent?.includes("Vera Bloom"));
+  await ui.privacy();
+  assert.equal(detail().innerHTML.includes("Vera"), false);
+  assert.equal(detail().innerHTML.includes("Bloom"), false);
+  assert.ok(detail().textContent?.includes("draft"));
+ } finally { await ui.close(); }
+});
+
 test("reader tracking source is consumed and returning to Actions does not start duplicate confirmation",async()=>{
  const ui=await mount("actions",true);try{
   const sidebar=(prefix:string)=>{const button=[...ui.container.querySelectorAll<HTMLButtonElement>(".sidebar button")].find(button=>button.textContent?.trim().startsWith(prefix));assert.ok(button);return button;};

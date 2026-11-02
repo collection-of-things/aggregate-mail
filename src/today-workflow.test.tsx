@@ -515,6 +515,24 @@ test("quick tracking masks distinct cached source and evidence aliases through r
   } finally { await ui.close(); }
 });
 
+test("quick tracking masks a saved deliverable's evidence-only correspondent name", async () => {
+  const item = commitment("alias", "mail-a");
+  item.evidenceMailIds = ["mail-a", "sent-a"];
+  item.text = "Vera Bloom confirmation";
+  const ui = await mount([item]);
+  try {
+    ui.state.messages[1].sender = "Vera Bloom";
+    await ui.mailChanged();
+    await ui.openQuick("mail-a", false);
+    assert.ok(ui.container.querySelector('[role="dialog"]')!.textContent?.includes("Vera Bloom"));
+    await ui.click(ui.button("Hide personal information"));
+    const html = ui.container.querySelector('[role="dialog"]')!.innerHTML;
+    assert.equal(html.includes("Vera"), false);
+    assert.equal(html.includes("Bloom"), false);
+    assert.ok(ui.container.querySelector('[role="dialog"]')!.textContent?.includes("confirmation"));
+  } finally { await ui.close(); }
+});
+
 test("quick recovery preserves draft title status and reminder through explicit New and full editor", async () => {
   for (const outcome of ["before", "after"] as const) {
     const ui = await mount(); try {
