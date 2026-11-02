@@ -469,6 +469,57 @@ test("commitment history masks a correspondent named only on a past evidence ema
  } finally { await ui.close(); }
 });
 
+test("the uncertain-save recovery list masks evidence-only correspondent names", async () => {
+ const ui = await mount("actions");
+ try {
+  ui.state.messages[1].sender = "Vera Bloom";
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["sent-a"], revision: 1, updatedAt: 1, history: [] });
+  await ui.click(ui.button("Refresh workspace"));
+  await ui.click(ui.button("Add task"));
+  await ui.fill("What needs to happen", "Synthetic task"); await ui.fill("Why track this or change it", "Synthetic reason");
+  await ui.click(ui.container.querySelector<HTMLInputElement>('input[type="radio"]')!);
+  ui.fail(); await ui.submit();
+  const recovery = () => ui.container.querySelector(".work-recovery ul")!;
+  assert.ok(recovery());
+  assert.ok(recovery().textContent?.includes("Vera Bloom confirmation"));
+  await ui.privacy();
+  assert.equal(recovery().innerHTML.includes("Vera"), false);
+  assert.equal(recovery().innerHTML.includes("Bloom"), false);
+  assert.ok(recovery().textContent?.includes("confirmation"));
+ } finally { await ui.close(); }
+});
+
+test("the calendar agenda masks a commitment's source correspondent name", async () => {
+ const ui = await mount("calendar");
+ try {
+  ui.state.messages[0].sender = "Vera Bloom";
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [] });
+  await ui.click(ui.button("Refresh workspace"));
+  await ui.click(ui.button("Agenda"));
+  const agenda = () => ui.container.querySelector(".work-calendar > .calendar-agenda")!;
+  assert.ok(agenda().textContent?.includes("Vera Bloom confirmation"));
+  await ui.privacy();
+  assert.equal(agenda().innerHTML.includes("Vera"), false);
+  assert.equal(agenda().innerHTML.includes("Bloom"), false);
+  assert.ok(agenda().textContent?.includes("confirmation"));
+ } finally { await ui.close(); }
+});
+
+test("agent proposals mask the source correspondent name in subject and body", async () => {
+ const ui = await mount("agents");
+ try {
+  ui.state.messages[0].sender = "Vera Bloom";
+  ui.workspace.proposals.push({ id: "p", agentId: "agent", accountId: "a", action: "draft", payload: { accountId: "a", to: ["recipient@example.com"], subject: "Vera Bloom plan", body: "Vera Bloom evidence" }, digest: "e".repeat(64), sourceMailId: "in-a", createdAt: 1, status: "pending" });
+  await ui.click(ui.button("Refresh workspace"));
+  const card = () => ui.container.querySelector(".agent-proposal")!;
+  assert.ok(card().textContent?.includes("Vera Bloom"));
+  await ui.privacy();
+  assert.equal(card().innerHTML.includes("Vera"), false);
+  assert.equal(card().innerHTML.includes("Bloom"), false);
+  assert.ok(card().textContent?.includes("plan"));
+ } finally { await ui.close(); }
+});
+
 test("reader tracking source is consumed and returning to Actions does not start duplicate confirmation",async()=>{
  const ui=await mount("actions",true);try{
   const sidebar=(prefix:string)=>{const button=[...ui.container.querySelectorAll<HTMLButtonElement>(".sidebar button")].find(button=>button.textContent?.trim().startsWith(prefix));assert.ok(button);return button;};

@@ -291,7 +291,7 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
         onKeyDown={event => {
           if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancelLink(); }
         }}>
-        <input autoFocus type="url" aria-label="Link address" placeholder="https://example.com" value={link} disabled={disabled}
+        <input autoFocus type="url" aria-label="Link address" placeholder={hidden && link ? "Hidden. Focus to edit." : "https://example.com"} value={hidden ? "" : link} data-private-field={hidden || undefined} disabled={disabled}
           onChange={event => setLink(event.target.value)} onKeyDown={event => {
             if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); format("createLink", link); }
           }} />

@@ -1198,26 +1198,6 @@ export function App() {
   useEffect(closeContextMenu, [paneKey, readerKey, settings, closeContextMenu]);
   const menuMail = contextMenu && state.messages.find((mail) => mail.id === contextMenu.mailId);
   const quickMail = quickSource ? state.messages.find((mail) => mail.id === quickSource && state.accounts.some((account) => account.id === mail.accountId)) : undefined;
-  // Saved deliverables shown in the dialog can quote correspondents from their
-  // own source, evidence and history mails, not only from the tracked message.
-  const quickPrivateNames = useMemo(() => {
-    const names = new Map<string, string>();
-    for (const name of workPrivateNames) names.set(name.toLowerCase(), name);
-    if (quickMail) {
-      const ids = new Set<string>([quickMail.id]);
-      for (const item of work.workspace.commitments) {
-        if (item.accountId !== quickMail.accountId || (item.sourceMailId !== quickMail.id && !item.evidenceMailIds.includes(quickMail.id))) continue;
-        ids.add(item.sourceMailId);
-        for (const id of item.evidenceMailIds) ids.add(id);
-        for (const change of item.history) for (const id of change.evidenceMailIds ?? []) ids.add(id);
-      }
-      for (const id of ids) {
-        const mail = state.messages.find((mail) => mail.id === id);
-        if (mail) for (const name of messagePrivateNames(state.accounts, mail)) names.set(name.toLowerCase(), name);
-      }
-    }
-    return [...names.values()];
-  }, [quickMail, work.workspace.commitments, workPrivateNames, state.accounts, state.messages]);
   const privacyContext = useMemo(() => ({ on: privacy, revealed, toggle: toggleAddress,
     accounts: state.accounts, names: collectPrivateNames(state.accounts) }),
   [privacy, revealed, toggleAddress, state.accounts]);
@@ -1774,7 +1754,7 @@ export function App() {
         )}
         {quickSource && <Dialog title="Track work" className="quick-track-dialog" onClose={() => { if (!work.pending) setQuickSource(null); }}>
           {quickMail ? <QuickTrack key={quickSource}
-            mail={quickMail} work={work} privateNames={quickPrivateNames}
+            mail={quickMail} work={work} privateNames={workPrivateNames} messages={state.messages}
             onDone={() => { setQuickSource(null); pushToast("Work tracked.", "success"); }}
             onEdit={(item, draft) => {
               setTrackingSource(quickSource); setTrackingItem(item); setTrackingDraft(draft); setTrackingSession((value) => value + 1); setQuickSource(null);

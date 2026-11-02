@@ -23,6 +23,7 @@ import { blankEvent, eventFields, useCalendarEvents, type EventFields } from "./
 import { AgentProvider } from "./AgentProvider";
 import type { WorkspaceState } from "./useWorkspace";
 import { deadlineDate, localDate, localTimeInput, openCommitment } from "../../shared/commitment-dates";
+import { commitmentMails } from "./commitment-privacy";
 import { openCodeConfig, openCodeConfigPreview, type OpenCodeSetupResult } from "../../shared/opencode";
 
 const statusNames: Record<CommitmentStatus, string> = { "needs-reply": "Needs reply", "needs-work": "Needs work", waiting: "Waiting", done: "Completed", cancelled: "Cancelled" };
@@ -333,16 +334,8 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       setTaskStatus("Task completed.");
     }
   };
-  const sourceOf = (item: { sourceMailId: string; accountId: string }) =>
-    state.messages.find((mail) => mail.id === item.sourceMailId && mail.accountId === item.accountId);
-  const citedMails = (item: { sourceMailId: string; accountId: string; evidenceMailIds: string[]; history?: { evidenceMailIds: string[] }[] }, includeHistory = false) => {
-    const source = sourceOf(item);
-    const ids = new Set(item.evidenceMailIds);
-    if (includeHistory) for (const change of item.history || []) for (const id of change.evidenceMailIds ?? []) ids.add(id);
-    const evidence = [...ids].filter((id) => id !== item.sourceMailId)
-      .map((id) => state.messages.find((mail) => mail.id === id));
-    return [source, ...evidence].filter((mail): mail is Mail => !!mail);
-  };
+  const citedMails = (item: Pick<Commitment, "sourceMailId" | "accountId" | "evidenceMailIds" | "history">, includeHistory = false) =>
+    commitmentMails(item, state.messages, includeHistory);
   const itemRow = (item: Commitment) => {
     const row = <article className={`work-item work-row${selectedId === item.id ? " selected" : ""}`}>
     <input className="work-row-complete" type="checkbox" aria-label="Mark task complete" aria-describedby={`work-task-${encodeURIComponent(item.id)}`}
@@ -593,7 +586,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       {editor && <Dialog title={editor === "new" ? "Add task" : "Edit task"} onClose={() => { if (!pending) { setEditor(null); setDraft(undefined); } }}>
         {error && <Notice text={error} />}
         {(stale || work.reviewRequired || acknowledged.current) && <button type="button" disabled={pending || work.refreshing} onClick={() => void load()}>Refresh saved work</button>}
-        {work.reviewRequired && <div className="work-recovery"><p>Review the refreshed saved work. The earlier save may already exist.</p><ul>{commitments.map((item) => <li key={item.id}><Redact text={item.text} /> · {statusNames[item.status]} · revision {item.revision}</li>)}</ul><button type="button" disabled={stale || work.refreshing || pending} onClick={work.acknowledgeReview}>I reviewed saved work</button></div>}
+        {work.reviewRequired && <div className="work-recovery"><p>Review the refreshed saved work. The earlier save may already exist.</p><ul>{commitments.map((item) => { const mails = citedMails(item, true); return mails.length ? <MailPrivacy key={item.id} mail={mails}><li><Redact text={item.text} /> · {statusNames[item.status]} · revision {item.revision}</li></MailPrivacy> : <li key={item.id}><Redact text={item.text} /> · {statusNames[item.status]} · revision {item.revision}</li>; })}</ul><button type="button" disabled={stale || work.refreshing || pending} onClick={work.acknowledgeReview}>I reviewed saved work</button></div>}
         {editor !== "new" && workspace.commitments.find((item) => item.id === editor.id)?.revision !== editor.revision && <p role="alert">This deliverable changed or was removed. Close this editor and review the current saved item before editing again. Your earlier input is retained here.</p>}
         <fieldset disabled={blocked || acknowledged.current || editor !== "new" && workspace.commitments.find((item) => item.id === editor.id)?.revision !== editor.revision} className="work-editing"><CommitmentForm key={editor === "new" ? "new" : `${editor.id}:${editor.revision}`} existing={editor === "new" ? undefined : editor} draft={draft} state={state} projects={projects} source={source || (mode === "projects" ? selectedProject?.sourceMailIds.find((id) => state.messages.some((mail) => mail.id === id && (accountFilter === "all" || mail.accountId === accountFilter))) : undefined)} accountFilter={accountFilter} pending={pending || work.refreshing} onCancel={() => { setEditor(null); setDraft(undefined); }} onSave={async (input) => {
           if (editor !== "new" && workspace.commitments.find((item) => item.id === editor.id)?.revision !== editor.revision) return false;
@@ -638,7 +631,8 @@ function Proposal({ permissionAvailable, proposal, state, pending, onOpen, onRev
   const stale = proposal.sourceChanged;
   const action = { send: "Reply (opens as draft)", draft: "Save reply draft", archive: "Archive email", read: "Mark email as read" }[proposal.action];
   const sources = [...new Set([...("mailId" in payload ? [payload.mailId] : []), ...(proposal.sourceMailId ? [proposal.sourceMailId] : [])])];
-  return <article className="work-item agent-proposal"><header className="proposal-header"><h3>{action}</h3><p>Status: {proposal.status}</p></header>
+  const sourceMails = sources.map((id) => state.messages.find((mail) => mail.id === id)).filter((mail): mail is Mail => !!mail);
+  const card = <article className="work-item agent-proposal"><header className="proposal-header"><h3>{action}</h3><p>Status: {proposal.status}</p></header>
     <dl className="proposal-envelope"><dt>From</dt><dd><Redact text={account?.email||"Account unavailable"} /></dd>
       {"to" in payload && <><dt>To</dt><dd><Redact text={Array.isArray(payload.to) ? payload.to.join(", ") : payload.to}/></dd>{!!payload.cc?.length && <><dt>Cc</dt><dd><Redact text={payload.cc.join(", ")}/></dd></>}{!!payload.bcc?.length && <><dt>Bcc</dt><dd><Redact text={payload.bcc.join(", ")}/></dd></>}<dt>Subject</dt><dd><Redact text={payload.subject}/></dd></>}
     </dl>
@@ -652,4 +646,5 @@ function Proposal({ permissionAvailable, proposal, state, pending, onOpen, onRev
     {proposal.status === "pending"&&<><label><input type="checkbox" checked={reviewed} onChange={(event)=>setReviewed(event.target.checked)}/>I reviewed the exact account, recipients, content, attachments and change above.</label><button type="button" disabled={pending||!permissionAvailable||!reviewed||unavailable||stale||!account} onClick={()=>void onReview(true)}>{proposal.action==="send"?"Approve and open in Drafts":proposal.action === "draft" ? "Approve and save draft" : proposal.action === "archive" ? "Approve and archive email" : "Approve and mark as read"}</button><button type="button" disabled={pending} onClick={()=>void onReview(false)}>Reject proposal</button></>}
     {proposal.receipt&&<p>{new Date(proposal.receipt.at).toLocaleString()} · <Redact text={proposal.receipt.message}/></p>}
   </article>;
+  return sourceMails.length ? <MailPrivacy mail={sourceMails}>{card}</MailPrivacy> : card;
 }
