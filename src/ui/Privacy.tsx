@@ -13,7 +13,10 @@ export const PrivacyContext = createContext<{
 export function MailPrivacy({ mail, children }: { mail: Mail | readonly Mail[]; children: ReactNode }) {
   const context = useContext(PrivacyContext);
   const value = useMemo(() => {
+    // Inherited names (owner aliases and other outer-list entries) stay private
+    // inside the scope; the cited messages only add their correspondents.
     const names = new Map<string, string>();
+    for (const name of context.names ?? []) names.set(name.toLowerCase(), name);
     for (const message of Array.isArray(mail) ? mail : [mail])
       for (const name of messagePrivateNames(context.accounts || [], message)) names.set(name.toLowerCase(), name);
     return { ...context, names: [...names.values()] };

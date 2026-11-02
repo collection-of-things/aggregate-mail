@@ -334,8 +334,6 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       setTaskStatus("Task completed.");
     }
   };
-  const citedMails = (item: Pick<Commitment, "sourceMailId" | "accountId" | "evidenceMailIds" | "history">, includeHistory = false) =>
-    commitmentMails(item, state.messages, includeHistory);
   const itemRow = (item: Commitment) => {
     const row = <article className={`work-item work-row${selectedId === item.id ? " selected" : ""}`}>
     <input className="work-row-complete" type="checkbox" aria-label="Mark task complete" aria-describedby={`work-task-${encodeURIComponent(item.id)}`}
@@ -346,10 +344,10 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       <span className="work-meta">{`${statusNames[item.status]} · `}<Redact text={accountName(item)} />{deadlineDate(item) && ` · Due ${deadlineDate(item)}`}{item.followUpAt === undefined ? "" : ` · Remind ${new Date(item.followUpAt).toLocaleString()}`}</span>
     </button>
   </article>;
-    const mails = citedMails(item);
+    const mails = commitmentMails(item, state.messages);
     return mails.length ? <MailPrivacy key={item.id} mail={mails}>{row}</MailPrivacy> : <Fragment key={item.id}>{row}</Fragment>;
   };
-  const detailMails = selected ? citedMails(selected, true) : [];
+  const detailMails = selected ? commitmentMails(selected, state.messages) : [];
   const detailBodyContent = selected && <>
     <p><Redact text={selected.reason} /></p>
     <dl><dt>Account</dt><dd><Redact text={accountName(selected)} /></dd><dt>Deadline</dt><dd>{deadlineDate(selected) || "Not set"}</dd><dt>Follow up</dt><dd>{selected.followUpAt === undefined ? "Not set" : new Date(selected.followUpAt).toLocaleString()}</dd></dl>
@@ -586,7 +584,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       {editor && <Dialog title={editor === "new" ? "Add task" : "Edit task"} onClose={() => { if (!pending) { setEditor(null); setDraft(undefined); } }}>
         {error && <Notice text={error} />}
         {(stale || work.reviewRequired || acknowledged.current) && <button type="button" disabled={pending || work.refreshing} onClick={() => void load()}>Refresh saved work</button>}
-        {work.reviewRequired && <div className="work-recovery"><p>Review the refreshed saved work. The earlier save may already exist.</p><ul>{commitments.map((item) => { const mails = citedMails(item, true); return mails.length ? <MailPrivacy key={item.id} mail={mails}><li><Redact text={item.text} /> · {statusNames[item.status]} · revision {item.revision}</li></MailPrivacy> : <li key={item.id}><Redact text={item.text} /> · {statusNames[item.status]} · revision {item.revision}</li>; })}</ul><button type="button" disabled={stale || work.refreshing || pending} onClick={work.acknowledgeReview}>I reviewed saved work</button></div>}
+        {work.reviewRequired && <div className="work-recovery"><p>Review the refreshed saved work. The earlier save may already exist.</p><ul>{commitments.map((item) => { const mails = commitmentMails(item, state.messages); return mails.length ? <MailPrivacy key={item.id} mail={mails}><li><Redact text={item.text} /> · {statusNames[item.status]} · revision {item.revision}</li></MailPrivacy> : <li key={item.id}><Redact text={item.text} /> · {statusNames[item.status]} · revision {item.revision}</li>; })}</ul><button type="button" disabled={stale || work.refreshing || pending} onClick={work.acknowledgeReview}>I reviewed saved work</button></div>}
         {editor !== "new" && workspace.commitments.find((item) => item.id === editor.id)?.revision !== editor.revision && <p role="alert">This deliverable changed or was removed. Close this editor and review the current saved item before editing again. Your earlier input is retained here.</p>}
         <fieldset disabled={blocked || acknowledged.current || editor !== "new" && workspace.commitments.find((item) => item.id === editor.id)?.revision !== editor.revision} className="work-editing"><CommitmentForm key={editor === "new" ? "new" : `${editor.id}:${editor.revision}`} existing={editor === "new" ? undefined : editor} draft={draft} state={state} projects={projects} source={source || (mode === "projects" ? selectedProject?.sourceMailIds.find((id) => state.messages.some((mail) => mail.id === id && (accountFilter === "all" || mail.accountId === accountFilter))) : undefined)} accountFilter={accountFilter} pending={pending || work.refreshing} onCancel={() => { setEditor(null); setDraft(undefined); }} onSave={async (input) => {
           if (editor !== "new" && workspace.commitments.find((item) => item.id === editor.id)?.revision !== editor.revision) return false;

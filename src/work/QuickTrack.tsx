@@ -43,9 +43,9 @@ export function QuickTrack({ mail, work, privateNames, messages, onEdit, onDone 
       if (cited) for (const name of messagePrivateNames(privacy.accounts || [], cited)) union.set(name.toLowerCase(), name);
     };
     add(mail);
-    for (const item of items) for (const cited of commitmentMails(item, messages, true)) add(cited);
-    if (target && target !== "new") for (const cited of commitmentMails(target, messages, true)) add(cited);
-    if (resolved) for (const cited of commitmentMails(resolved, messages, true)) add(cited);
+    for (const item of items) for (const cited of commitmentMails(item, messages)) add(cited);
+    if (target && target !== "new") for (const cited of commitmentMails(target, messages)) add(cited);
+    if (resolved) for (const cited of commitmentMails(resolved, messages)) add(cited);
     return [...union.values()];
   }, [privateNames, privacy.accounts, mail, items, target, resolved, messages]);
   const choose = (item: Commitment | "new" | null) => {

@@ -505,6 +505,41 @@ test("the calendar agenda masks a commitment's source correspondent name", async
  } finally { await ui.close(); }
 });
 
+test("commitment rows and the agenda mask a history-only correspondent name", async () => {
+ for (const mode of ["actions", "calendar"] as const) {
+  const ui = await mount(mode);
+  try {
+   ui.state.messages[1].sender = "Vera Bloom";
+   ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [{ at: 1, status: "needs-work", text: "Synthetic", reason: "Synthetic", evidenceMailIds: ["sent-a"] }] });
+   await ui.click(ui.button("Refresh workspace"));
+   if (mode === "calendar") await ui.click(ui.button("Agenda"));
+   const surface = () => mode === "calendar" ? ui.container.querySelector(".work-calendar > .calendar-agenda")! : ui.container.querySelector("#work-task-c1")!.closest("article")!;
+   assert.ok(surface().textContent?.includes("Vera Bloom confirmation"));
+   await ui.privacy();
+   assert.equal(surface().innerHTML.includes("Vera"), false);
+   assert.equal(surface().innerHTML.includes("Bloom"), false);
+   assert.ok(surface().textContent?.includes("confirmation"));
+  } finally { await ui.close(); }
+ }
+});
+
+test("a commitment row keeps aliases from uncited messages private inside its mail scope", async () => {
+ const ui = await mount("actions");
+ try {
+  // The alias is an owner display name on an uncited message; Workbench's
+  // outer list collects it, but the row's MailPrivacy scope must inherit it.
+  ui.state.messages[2].to = "Outer Alias <second@example.com>";
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Outer Alias confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [] });
+  await ui.click(ui.button("Refresh workspace"));
+  const row = () => ui.container.querySelector("#work-task-c1")!.closest("article")!;
+  assert.ok(row().textContent?.includes("Outer Alias confirmation"));
+  await ui.privacy();
+  assert.equal(row().innerHTML.includes("Outer"), false);
+  assert.equal(row().innerHTML.includes("Alias"), false);
+  assert.ok(row().textContent?.includes("confirmation"));
+ } finally { await ui.close(); }
+});
+
 test("agent proposals mask the source correspondent name in subject and body", async () => {
  const ui = await mount("agents");
  try {

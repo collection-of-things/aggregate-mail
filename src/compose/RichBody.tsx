@@ -48,6 +48,9 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
   const selection = useRef<Range | undefined>(undefined);
   const [error, setError] = useFeedbackState();
   const [link, setLink] = useState<string | null>(null);
+  // An entered address is private regardless of the body: it veils whenever
+  // privacy is on and focus left the scope, so even an empty draft hides it.
+  const linkHidden = Boolean(privacy && !revealed && link);
   const linkSelection = useRef({ start: 0, end: 0 });
   const cancelLink = () => { setLink(null); setError(""); (editor.current || plain.current)?.focus(); };
   const remember = () => {
@@ -291,7 +294,7 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
         onKeyDown={event => {
           if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancelLink(); }
         }}>
-        <input autoFocus type="url" aria-label="Link address" placeholder={hidden && link ? "Hidden. Focus to edit." : "https://example.com"} value={hidden ? "" : link} data-private-field={hidden || undefined} disabled={disabled}
+        <input autoFocus type="url" aria-label="Link address" placeholder={linkHidden ? "Hidden. Focus to edit." : "https://example.com"} value={linkHidden ? "" : link} data-private-field={privacy || undefined} disabled={disabled}
           onChange={event => setLink(event.target.value)} onKeyDown={event => {
             if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); format("createLink", link); }
           }} />

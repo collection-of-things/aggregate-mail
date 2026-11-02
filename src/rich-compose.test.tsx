@@ -136,6 +136,31 @@ test("the link address field veils and restores with the body under privacy", as
   } finally { await app.close(); }
 });
 
+test("the link address field veils even when the body is empty", async () => {
+  const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "", sendUnknown: true });
+  const calls: [string, string | undefined][] = [];
+  Object.defineProperty(document, "queryCommandSupported", { value: () => true, configurable: true });
+  Object.defineProperty(document, "execCommand", { configurable: true, value: (command: string, _ui: boolean, input?: string) => { calls.push([command, input]); return true; } });
+  try {
+    await act(async () => document.querySelector<HTMLTextAreaElement>("textarea")!.focus());
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Insert link"]')!.click());
+    const url = () => document.querySelector<HTMLInputElement>('[aria-label="Link address"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(app.dom.window.HTMLInputElement.prototype, "value")!.set!.call(url(), "mailto:vera@example.test");
+      url().dispatchEvent(new app.dom.window.Event("input", { bubbles: true }));
+    });
+    assert.equal(url().value, "mailto:vera@example.test");
+    await act(async () => app.outside().focus());
+    assert.equal(url().value, "", "an empty body does not keep the link address visible");
+    assert.equal(url().placeholder, "Hidden. Focus to edit.");
+    await act(async () => url().focus());
+    assert.equal(url().value, "mailto:vera@example.test", "the saved address returns on focus");
+    const addLink = [...document.querySelectorAll<HTMLButtonElement>(".compose-link-controls button")].find(button => button.textContent === "Add link")!;
+    await act(async () => addLink.click());
+    assert.ok(calls.some(([command, value]) => command === "createLink" && value === "mailto:vera@example.test"), "the real address is inserted");
+  } finally { await app.close(); }
+});
+
 test("an empty private draft keeps focus in the editor while typing", async () => {
   const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "", sendUnknown: true });
   try {
