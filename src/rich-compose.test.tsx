@@ -258,6 +258,38 @@ test("turning privacy on over a focused empty body keeps typing in the editor", 
   } finally { await app.close(); }
 });
 
+test("turning privacy on over an empty body hides an entered link address", async () => {
+  for (const focusLink of [true, false]) {
+    const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "", sendUnknown: true }, false);
+    Object.defineProperty(document, "queryCommandSupported", { value: () => true, configurable: true });
+    Object.defineProperty(document, "execCommand", { configurable: true, value: () => true });
+    try {
+      const plain = document.querySelector<HTMLTextAreaElement>("textarea")!;
+      await act(async () => plain.focus());
+      await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Insert link"]')!.click());
+      const url = () => document.querySelector<HTMLInputElement>('[aria-label="Link address"]')!;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(app.dom.window.HTMLInputElement.prototype, "value")!.set!.call(url(), "https://private-host.example.test/x");
+        url().dispatchEvent(new app.dom.window.Event("input", { bubbles: true }));
+      });
+      if (!focusLink) await act(async () => plain.focus());
+      await app.setPrivacy(true);
+      assert.equal(url().value, "", `the address hides (focus on ${focusLink ? "link field" : "body"})`);
+      assert.equal(document.body.innerHTML.includes("private-host"), false);
+      assert.equal(document.activeElement, plain, "focus is in the still-editable body");
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(app.dom.window.HTMLTextAreaElement.prototype, "value")!.set!.call(plain, "Q");
+        plain.dispatchEvent(new app.dom.window.Event("input", { bubbles: true }));
+      });
+      assert.equal(app.value.body, "Q", "typing still reaches the draft");
+      assert.equal(document.activeElement, plain, "focus stays in the body");
+      assert.equal(url().value, "", "the address stays hidden while typing in the body");
+      await act(async () => url().focus());
+      assert.equal(url().value, "https://private-host.example.test/x", "focusing the field reveals the saved address");
+    } finally { await app.close(); }
+  }
+});
+
 test("revealed format tools stay reachable and enabled while focused", async () => {
   const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "Hello team", sendUnknown: true });
   try {

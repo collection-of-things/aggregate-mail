@@ -50,7 +50,10 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
   const [link, setLink] = useState<string | null>(null);
   // An entered address is private regardless of the body: it veils whenever
   // privacy is on and focus left the scope, so even an empty draft hides it.
-  const linkHidden = Boolean(privacy && !revealed && link);
+  // linkVeiled hides an entered address on its own when privacy turns on over
+  // a focused empty body, which stays editable; focusing the field reveals it.
+  const [linkVeiled, setLinkVeiled] = useState(false);
+  const linkHidden = Boolean(privacy && link && (!revealed || linkVeiled));
   // A privacy-on re-veil moves focus to the new veil so it does not drop to
   // the page; suppressReveal keeps that programmatic focus from re-revealing.
   const refocusVeil = useRef(false), suppressReveal = useRef(false);
@@ -203,11 +206,19 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
   // layout effect re-renders before paint, so the draft never shows for a
   // frame after privacy turns on.
   useLayoutEffect(() => {
-    if (!privacy) return;
+    if (!privacy) { setLinkVeiled(false); return; }
     const focused = Boolean(scope.current?.contains(document.activeElement));
     // A focused empty body has nothing to hide. Re-veiling it would swap the
-    // editor for the veil on the first keystroke and drop focus mid-typing.
-    if (focused && !(draft.body || draft.html)) return;
+    // editor for the veil on the first keystroke and drop focus mid-typing, so
+    // keep it editable and hide only an entered link address. Focus leaves a
+    // blanked address field so typing cannot overwrite the saved address.
+    if (focused && !(draft.body || draft.html)) {
+      if (link) {
+        setLinkVeiled(true);
+        if ((document.activeElement as HTMLElement | null)?.getAttribute("aria-label") === "Link address") (editor.current || plain.current)?.focus();
+      }
+      return;
+    }
     refocusVeil.current = focused;
     saveSelection(); setRevealed(false);
   }, [privacy]);
@@ -278,7 +289,7 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
     if (command === "createLink") {
       if (linkValue === undefined) {
         linkSelection.current = { start: plain.current?.selectionStart || 0, end: plain.current?.selectionEnd || 0 };
-        remember(); setLink(""); setError(""); return;
+        remember(); setLink(""); setLinkVeiled(false); setError(""); return;
       }
       value = composeLink(linkValue.trim());
       if (!value) { setError("Enter a valid web or email link without credentials."); return; }
@@ -317,7 +328,7 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
           if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancelLink(); }
         }}>
         <input autoFocus type="url" aria-label="Link address" placeholder={linkHidden ? "Hidden. Focus to edit." : "https://example.com"} value={linkHidden ? "" : link} data-private-field={privacy || undefined} disabled={disabled}
-          onChange={event => setLink(event.target.value)} onKeyDown={event => {
+          onFocus={() => setLinkVeiled(false)} onChange={event => setLink(event.target.value)} onKeyDown={event => {
             if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); format("createLink", link); }
           }} />
         <button type="button" disabled={disabled} onClick={() => format("createLink", link)}>Add link</button>
