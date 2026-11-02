@@ -5,6 +5,7 @@ import { JSDOM } from "jsdom";
 import { RichBody } from "./compose/RichBody";
 import type { Compose } from "./compose/draft-session";
 import { validComposeMarkup } from "../shared/compose-content";
+import { PrivacyContext } from "./ui/Privacy";
 
 test("rich compose preserves selection, saves alternatives and inserts only plain clipboard text", async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost" });
@@ -55,6 +56,119 @@ test("rich compose preserves selection, saves alternatives and inserts only plai
     await act(async () => root.unmount()); dom.window.close();
     for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);
   }
+});
+
+// Shared mount for the privacy-veil checks: the Outside button gives focus
+// moves a destination outside the editor scope.
+const mountPrivateBody = async (initial: Compose) => {
+  const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost" });
+  const globals = { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, Node: dom.window.Node, IS_REACT_ACT_ENVIRONMENT: true };
+  const previous = new Map(Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, value });
+  const { createRoot } = await import("react-dom/client");
+  const root = createRoot(document.getElementById("root")!);
+  let value = initial;
+  function Editor() { const [draft, update] = useState(value); return <RichBody draft={draft} disabled={false} onChange={next => { value = next; update(next); }} />; }
+  await act(async () => root.render(
+    <PrivacyContext.Provider value={{ on: true, revealed: new Set(), toggle() {} }}>
+      <div><button type="button" className="outside">Outside</button><Editor /></div>
+    </PrivacyContext.Provider>));
+  return {
+    dom, get value() { return value; },
+    outside: () => document.querySelector<HTMLButtonElement>(".outside")!,
+    close: async () => {
+      await act(async () => root.unmount()); dom.window.close();
+      for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);
+    },
+  };
+};
+
+test("the privacy veil returns when focus leaves the whole editor scope", async () => {
+  const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "Draft for Sample Person", sendUnknown: true });
+  Object.defineProperty(document, "queryCommandSupported", { value: () => true, configurable: true });
+  Object.defineProperty(document, "execCommand", { configurable: true, value: () => true });
+  try {
+    const veil = document.querySelector<HTMLElement>(".compose-veiled-body")!;
+    assert.ok(veil, "a non-empty draft starts veiled");
+    await act(async () => veil.focus());
+    assert.ok(document.querySelector("textarea"), "focusing the veil reveals the editor");
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Insert link"]')!.click());
+    const addLink = [...document.querySelectorAll<HTMLButtonElement>(".compose-link-controls button")].find(button => button.textContent === "Add link")!;
+    await act(async () => addLink.focus());
+    assert.ok(document.querySelector("textarea"), "focus inside the scope keeps the body revealed");
+    await act(async () => app.outside().focus());
+    assert.ok(document.querySelector(".compose-veiled-body"), "leaving the scope re-veils the body");
+    assert.equal(document.querySelector("textarea"), null, "the editor is out of the DOM");
+    assert.equal(document.body.textContent!.includes("Sample Person"), false, "no body text stays in the DOM");
+  } finally { await app.close(); }
+});
+
+test("an empty private draft keeps focus in the editor while typing", async () => {
+  const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "", sendUnknown: true });
+  try {
+    const plain = document.querySelector<HTMLTextAreaElement>("textarea")!;
+    assert.equal(document.querySelector(".compose-veiled-body"), null, "an empty draft shows its editor");
+    await act(async () => plain.focus());
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(app.dom.window.HTMLTextAreaElement.prototype, "value")!.set!.call(plain, "S");
+      plain.dispatchEvent(new app.dom.window.Event("input", { bubbles: true }));
+    });
+    assert.equal(app.value.body, "S", "the character reaches the draft");
+    assert.ok(document.querySelector("textarea"), "the editor stays mounted");
+    assert.equal(document.activeElement, plain, "focus stays in the editor");
+    assert.equal(document.querySelector(".compose-veiled-body"), null, "typing does not veil the body");
+  } finally { await app.close(); }
+});
+
+test("revealed format tools stay reachable and enabled while focused", async () => {
+  const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "Hello team", sendUnknown: true });
+  try {
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+    assert.ok(document.querySelector("textarea"), "revealed");
+    const bold = document.querySelector<HTMLButtonElement>('[aria-label="Bold"]')!;
+    await act(async () => bold.focus());
+    assert.equal(document.activeElement, bold, "focus lands on the format button");
+    assert.equal(bold.disabled, false, "revealed tools stay enabled");
+    assert.ok(document.querySelector("textarea"), "the body stays revealed");
+    assert.equal(document.querySelector(".compose-veiled-body"), null);
+  } finally { await app.close(); }
+});
+
+test("revealing the veil restores the saved selection in a plain body", async () => {
+  const plainApp = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "Hello brave world", sendUnknown: true });
+  try {
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+    const plain = document.querySelector<HTMLTextAreaElement>("textarea")!;
+    plain.setSelectionRange(6, 11);
+    await act(async () => plainApp.outside().focus());
+    assert.ok(document.querySelector(".compose-veiled-body"), "veiled again");
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+    const restored = document.querySelector<HTMLTextAreaElement>("textarea")!;
+    assert.equal([restored.selectionStart, restored.selectionEnd].join(","), "6,11", "the plain selection returns");
+    assert.equal(restored.value.slice(restored.selectionStart, restored.selectionEnd), "brave");
+  } finally { await plainApp.close(); }
+});
+
+test("revealing the veil restores the saved selection in a rich body", async () => {
+  // Rich editor: the same text offsets survive unmount and repaint.
+  const richApp = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "Hello brave world", html: "<p>Hello brave world</p>", sendUnknown: true });
+  try {
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]')!;
+    const text = editor.firstChild!.firstChild as Text;
+    assert.equal(text.textContent, "Hello brave world");
+    const range = document.createRange(); range.setStart(text, 6); range.setEnd(text, 11);
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
+    // A real selection ends in a keyup/mouseup, which is when the editor
+    // records it; jsdom collapses the live selection before blur fires.
+    await act(async () => editor.dispatchEvent(new richApp.dom.window.MouseEvent("mouseup", { bubbles: true })));
+    await act(async () => richApp.outside().focus());
+    assert.ok(document.querySelector(".compose-veiled-body"), "veiled again");
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+    const current = window.getSelection()!;
+    assert.equal(current.toString(), "brave", "the rich selection returns over the same text");
+    assert.ok(document.querySelector('[contenteditable="true"]'), "the rich editor remounted");
+  } finally { await richApp.close(); }
 });
 
 test("link entry uses an inline keyboard form without relying on a native browser prompt", async () => {
