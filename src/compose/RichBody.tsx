@@ -203,10 +203,13 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
   // layout effect re-renders before paint, so the draft never shows for a
   // frame after privacy turns on.
   useLayoutEffect(() => {
-    if (privacy) {
-      refocusVeil.current = Boolean((draft.body || draft.html) && scope.current?.contains(document.activeElement));
-      saveSelection(); setRevealed(false);
-    }
+    if (!privacy) return;
+    const focused = Boolean(scope.current?.contains(document.activeElement));
+    // A focused empty body has nothing to hide. Re-veiling it would swap the
+    // editor for the veil on the first keystroke and drop focus mid-typing.
+    if (focused && !(draft.body || draft.html)) return;
+    refocusVeil.current = focused;
+    saveSelection(); setRevealed(false);
   }, [privacy]);
   useLayoutEffect(() => {
     const node = editor.current;

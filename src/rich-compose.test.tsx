@@ -236,6 +236,28 @@ test("an empty private draft keeps focus in the editor while typing", async () =
   } finally { await app.close(); }
 });
 
+test("turning privacy on over a focused empty body keeps typing in the editor", async () => {
+  const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "", sendUnknown: true }, false);
+  try {
+    const plain = document.querySelector<HTMLTextAreaElement>("textarea")!;
+    await act(async () => plain.focus());
+    await app.setPrivacy(true);
+    assert.equal(document.activeElement, plain, "focus stays in the empty editor");
+    for (const text of ["Q", "Qz"]) {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(app.dom.window.HTMLTextAreaElement.prototype, "value")!.set!.call(plain, text);
+        plain.dispatchEvent(new app.dom.window.Event("input", { bubbles: true }));
+      });
+      assert.equal(app.value.body, text, "each keystroke reaches the draft");
+      assert.equal(document.querySelector(".compose-veiled-body"), null, "typing does not veil the body");
+      assert.equal(document.activeElement, plain, "focus stays in the editor");
+    }
+    await act(async () => app.outside().focus());
+    assert.ok(document.querySelector(".compose-veiled-body"), "leaving the editor still veils the typed text");
+    assert.equal(document.body.textContent!.includes("Qz"), false);
+  } finally { await app.close(); }
+});
+
 test("revealed format tools stay reachable and enabled while focused", async () => {
   const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "Hello team", sendUnknown: true });
   try {
