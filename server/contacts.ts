@@ -135,15 +135,35 @@ export function mountContacts(app: express.Express) {
     return transaction(() => {
       requireAccount(input.accountId);
       const existing = all("contact").filter(contact => contact.accountId === input.accountId);
-      const addresses = new Set(existing.map(contact => contact.email.toLowerCase()));
-      const fresh = parsed.contacts.filter(contact => !addresses.has(contact.email.toLowerCase()));
+      const byAddress = new Map(existing.map(contact => [contact.email.toLowerCase(), contact]));
+      const fileAddresses = new Set(parsed.contacts.map(contact => contact.email.toLowerCase()));
+      const fresh: { name: string; email: string }[] = [];
+      const changes: { contact: SavedContact; name: string }[] = [];
+      let unchanged = 0;
+      for (const entry of parsed.contacts) {
+        const saved = byAddress.get(entry.email.toLowerCase());
+        if (!saved) fresh.push(entry);
+        else if (entry.name && entry.name !== saved.name) changes.push({ contact: saved, name: entry.name });
+        else unchanged++;
+      }
       if (existing.length + fresh.length > MAX_SAVED_CONTACTS_PER_ACCOUNT)
         throw new ContactError(409, "This import exceeds the 1000-contact limit for this account. Choose a smaller export or remove contacts first.");
       if (commit) for (const entry of fresh) {
         const contact: SavedContact = { kind: "saved", id: randomUUID(), accountId: input.accountId, ...entry, updatedAt: Date.now() };
         put("contact", contact.id, contact);
       }
-      return { added: fresh.length, skipped: parsed.skipped, duplicates: parsed.contacts.length - fresh.length, sample: fresh.slice(0, 5) };
+      const updated = input.updateNames ? changes.length : 0;
+      if (commit && updated) for (const { contact, name } of changes) put("contact", contact.id, { ...contact, name, updatedAt: Date.now() });
+      return {
+        added: fresh.length,
+        changed: changes.length,
+        updated,
+        unchanged,
+        missing: existing.filter(contact => !fileAddresses.has(contact.email.toLowerCase())).length,
+        skipped: parsed.skipped,
+        sample: fresh.slice(0, 5),
+        changes: changes.slice(0, 5).map(({ contact, name }) => ({ email: contact.email, name, previousName: contact.name })),
+      };
     });
   };
   router.post("/import/preview", (req, res) => { res.json(importContacts(req.body, false)); });

@@ -22,8 +22,10 @@ Mail app passwords are not a universal contacts API credential.
 
 Only names and email addresses are imported. Each email address becomes a saved
 contact for the destination account. Existing contacts are kept; duplicate
-addresses are compared without case. The preview reports new, already saved,
-and invalid or repeated addresses. Contacts without an email are skipped.
+addresses are compared without case. The preview reports new contacts, saved
+contacts with a changed name, unchanged contacts, saved contacts not in the
+file, and invalid or repeated addresses. Contacts without an email are
+skipped.
 
 Files must be UTF-8 CSV or vCard (`.vcf`), at most 512 KiB and 5000 email
 addresses. An account can hold 1000 saved contacts. Choose a smaller export if
@@ -34,12 +36,15 @@ Photos, notes, groups and phone numbers are omitted. File contents are never
 executed or used to fetch external resources.
 
 Import is a one-time copy. Later provider edits do not sync automatically.
-Repeat an import to add new addresses; existing names are not overwritten.
-After an uncertain response, preview again to see what remains. Imported
-contacts are encrypted with the existing local store and feed To, Cc and Bcc
-suggestions. Disconnecting the destination account removes its contacts.
-The Contacts page clears open edits and import previews when connected accounts
-change. Privacy hides the find query until you focus its field.
+Repeat an import to add new addresses and to review name changes: the preview
+lists contacts whose saved name differs from the file, and you choose per
+import whether to update them. Saved contacts missing from the file stay
+saved; import never removes anything. After an uncertain response, preview
+again to see what remains. Imported contacts are encrypted with the existing
+local store and feed To, Cc and Bcc suggestions. Disconnecting the destination
+account removes its contacts. The Contacts page clears open edits and import
+previews when connected accounts change. Privacy hides the find query until
+you focus its field. See [ADR 0118](adr/0118-contact-reimport-and-deferred-provider-sync.md).
 
 The export you downloaded remains a personal-data file on your computer.
 Remove it when you no longer need it. Emc² does not retain that file or its name.

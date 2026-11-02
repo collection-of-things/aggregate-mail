@@ -23,6 +23,7 @@ export function ContactImportPanel({ api, accounts, accountFilter, busy, onImpor
   const [accountId, setAccountId] = useState(accounts.some(account => account.id === accountFilter) ? accountFilter : accounts[0]?.id || "");
   const [input, setInput] = useState<ContactImport>();
   const [preview, setPreview] = useState<ContactImportPreview>();
+  const [updateNames, setUpdateNames] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useFeedbackState();
   const [status, setStatus] = useFeedbackState("success");
@@ -30,7 +31,7 @@ export function ContactImportPanel({ api, accounts, accountFilter, busy, onImpor
   const fileInput = useRef<HTMLInputElement>(null);
   const disabled = busy || pending;
   const source = sources.find(item => item.value === provider)!;
-  const reset = () => { setInput(undefined); setPreview(undefined); setError(""); setStatus(""); if (fileInput.current) fileInput.current.value = ""; };
+  const reset = () => { setInput(undefined); setPreview(undefined); setUpdateNames(false); setError(""); setStatus(""); if (fileInput.current) fileInput.current.value = ""; };
   const chooseFile = async (file?: File) => {
     if (disabled || lock.current) return;
     reset();
@@ -48,14 +49,14 @@ export function ContactImportPanel({ api, accounts, accountFilter, busy, onImpor
     finally { lock.current = false; setPending(false); }
   };
   const importFile = async () => {
-    if (!input || !preview?.added || disabled || lock.current || !accounts.some(account => account.id === input.accountId)) return;
+    if (!input || !preview || (!preview.added && !(updateNames && preview.changed)) || disabled || lock.current || !accounts.some(account => account.id === input.accountId)) return;
     lock.current = true; setPending(true); setError(""); setStatus("");
     try {
-      const result = await api<ContactImportPreview>("/contacts/import", "POST", input);
+      const result = await api<ContactImportPreview>("/contacts/import", "POST", updateNames ? { ...input, updateNames: true } : input);
       reset();
-      setStatus(`Imported ${result.added} ${result.added === 1 ? "contact" : "contacts"}. Skipped ${result.duplicates} existing and ${result.skipped} invalid or repeated addresses.`);
+      setStatus(`Added ${result.added}, updated ${result.updated}, skipped ${result.unchanged + result.changed - result.updated} already saved and ${result.skipped} invalid or repeated. None removed.`);
       try { await onImported(); } catch { setError("Import saved, but the contact list could not refresh. Open Saved contacts again to check it."); }
-    } catch { setError("Import could not be confirmed. Preview the file again to check what remains; existing contacts will not be overwritten."); }
+    } catch { setError("Import could not be confirmed. Preview the file again to check what remains; existing contacts are never removed."); }
     finally { lock.current = false; setPending(false); }
   };
   return <section aria-label="Import contacts">
@@ -73,12 +74,23 @@ export function ContactImportPanel({ api, accounts, accountFilter, busy, onImpor
     <div className="settings-group"><div className="settings-row stacked">
       <input ref={fileInput} type="file" hidden accept=".csv,.vcf,text/csv,text/vcard" disabled={disabled || !accounts.some(account => account.id === accountId)} onChange={event => void chooseFile(event.target.files?.[0])} />
       <button type="button" className="button" disabled={disabled || !accounts.some(account => account.id === accountId)} onClick={() => fileInput.current?.click()}>Choose contact file</button>
-      <p className="note">Names and email addresses only. Saved on this device, encrypted with your mail. Existing contacts are kept. This is a one-time import, not ongoing sync.</p>
+      <p className="note">Names and email addresses only. Saved on this device, encrypted with your mail. Existing contacts are never removed; their names change only if you choose to update them. This is a one-time import, not ongoing sync.</p>
       {pending && <p role="status">Processing contacts…</p>}
       {preview && <div className="contact-import-preview">
-        <p role="status">{preview.added} ready to import. {preview.duplicates} already saved. {preview.skipped} invalid or repeated addresses skipped.</p>
-        <ul aria-label="Import preview">{preview.sample.map(contact => <li key={contact.email}><Address value={contact.name || contact.email} kind={contact.name ? "name" : "address"} />{contact.name && <> · <Address value={contact.email} /></>}</li>)}</ul>
-        <div className="contacts-actions"><button type="button" className="button" disabled={disabled || !preview.added} onClick={() => void importFile()}>Import {preview.added} contacts</button><button type="button" className="button" disabled={disabled} onClick={reset}>Cancel import</button></div>
+        <p role="status">{preview.added} new, {preview.changed} with a changed name, {preview.unchanged} unchanged, {preview.missing} not in this file. {preview.skipped} invalid or repeated addresses skipped.</p>
+        {!!preview.sample.length && <ul aria-label="Import preview">{preview.sample.map(contact => <li key={contact.email}><Address value={contact.name || contact.email} kind={contact.name ? "name" : "address"} />{contact.name && <> · <Address value={contact.email} /></>}</li>)}</ul>}
+        {!!preview.changes.length && <ul aria-label="Changed names">{preview.changes.map(change => <li key={change.email}>
+          {change.previousName ? <Address value={change.previousName} kind="name" /> : "No name"} → <Address value={change.name} kind="name" /> · <Address value={change.email} />
+        </li>)}</ul>}
+        {preview.changed > 0 && <label className="settings-row"><input type="checkbox" checked={updateNames} disabled={disabled} onChange={event => setUpdateNames(event.target.checked)} />
+          Update {preview.changed} existing {preview.changed === 1 ? "name" : "names"} from this file
+        </label>}
+        {preview.missing > 0 && <p className="note">Saved contacts that are missing from the file stay saved.</p>}
+        <div className="contacts-actions"><button type="button" className="button" disabled={disabled || (!preview.added && !(updateNames && preview.changed))} onClick={() => void importFile()}>
+          {preview.added > 0 && updateNames && preview.changed > 0 ? `Import ${preview.added} and update ${preview.changed}`
+            : updateNames && preview.changed > 0 ? `Update ${preview.changed} ${preview.changed === 1 ? "name" : "names"}`
+            : `Import ${preview.added} ${preview.added === 1 ? "contact" : "contacts"}`}
+        </button><button type="button" className="button" disabled={disabled} onClick={reset}>Cancel import</button></div>
       </div>}
     </div></div>
     {error && <Notice text={error} />}{status && <Notice text={status} kind="success" />}

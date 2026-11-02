@@ -115,12 +115,18 @@ test("privacy mode hides contact names and addresses on the Contacts page", asyn
 test("import requires a preview and confirmation, hides personal preview data, and recovers from failure", async () => {
   await withDOM(async ({ document, render }) => {
     const calls: string[] = [];
+    const bodies: unknown[] = [];
     let fail = true;
-    const api: Api = async <T,>(url: string) => {
+    const api: Api = async <T,>(url: string, method = "GET", body?: unknown) => {
       calls.push(url);
+      if (method === "POST") bodies.push(body);
       if (url === "/contacts") return { saved: [], recent: [] } as T;
       if (url === "/contacts/import" && fail) throw new Error("Synthetic failure");
-      return { added: 1, skipped: 2, duplicates: 1, sample: [{ name: "Private Person", email: "private@example.test" }] } as T;
+      return {
+        added: 2, changed: 1, updated: 0, unchanged: 1, missing: 1, skipped: 1,
+        sample: [{ name: "Private Person", email: "private@example.test" }, { name: "Second Person", email: "second@example.test" }],
+        changes: [{ email: "renamed@example.test", name: "Renamed After", previousName: "Renamed Before" }],
+      } as T;
     };
     await render(<PrivacyContext.Provider value={{ on: true, revealed: new Set(), toggle() {} }}><ContactsPage api={api} accounts={accounts} /></PrivacyContext.Provider>);
     await click(button(document, "Import contacts"));
@@ -130,14 +136,73 @@ test("import requires a preview and confirmation, hides personal preview data, a
     await act(async () => { file.dispatchEvent(new window.Event("change", { bubbles: true })); });
     assert.ok(calls.includes("/contacts/import/preview"));
     assert.equal(calls.includes("/contacts/import"), false);
-    assert.doesNotMatch(document.body.innerHTML, /Private Person|private@example.test/);
-    assert.match(document.body.textContent!, /1 ready to import/);
-    await click(button(document, "Import 1 contacts"));
+    assert.doesNotMatch(document.body.innerHTML, /Private Person|private@example.test|Second Person|second@example.test|Renamed Before|Renamed After|renamed@example.test/, "both lists hide names and addresses in text and attributes");
+    assert.match(document.body.textContent!, /2 new, 1 with a changed name, 1 unchanged, 1 not in this file\. 1 invalid or repeated addresses skipped\./);
+    assert.ok(document.querySelector('[aria-label="Import preview"]'));
+    assert.ok(document.querySelector('[aria-label="Changed names"]'));
+    const update = document.querySelector<HTMLInputElement>('.contact-import-preview input[type="checkbox"]')!;
+    assert.equal(update.checked, false);
+    assert.match(document.body.textContent!, /Update 1 existing name from this file/);
+    assert.match(document.body.textContent!, /Saved contacts that are missing from the file stay saved\./);
+    assert.equal(update.closest("label")!.querySelector("p"), null, "the update label holds only the checkbox and its text");
+    await click(button(document, "Import 2 contacts"));
     assert.match(document.body.textContent!, /Import could not be confirmed/);
+    assert.equal((bodies.at(-1) as { updateNames?: boolean }).updateNames, undefined, "updateNames is sent only when chosen");
     fail = false;
-    await click(button(document, "Import 1 contacts"));
-    assert.match(document.body.textContent!, /Imported 1 contact/);
+    await act(async () => { update.click(); });
+    assert.ok(button(document, "Import 2 and update 1"));
+    await click(button(document, "Import 2 and update 1"));
+    assert.equal((bodies.at(-1) as { updateNames?: boolean }).updateNames, true);
+    assert.match(document.body.textContent!, /Added 2, updated 0, skipped 2 already saved and 1 invalid or repeated\. None removed\./);
     assert.equal(document.querySelector('[aria-label="Import preview"]'), null);
+  });
+});
+
+test("an import with only changed names stays disabled until the update choice", async () => {
+  await withDOM(async ({ document, render }) => {
+    const bodies: unknown[] = [];
+    const api: Api = async <T,>(url: string, method = "GET", body?: unknown) => {
+      if (method === "POST") bodies.push(body);
+      if (url === "/contacts") return { saved: [], recent: [] } as T;
+      return {
+        added: 0, changed: 1, updated: 1, unchanged: 2, missing: 0, skipped: 0,
+        sample: [],
+        changes: [{ email: "renamed@example.test", name: "Renamed After", previousName: "Renamed Before" }],
+      } as T;
+    };
+    await render(<ContactsPage api={api} accounts={accounts} />);
+    await click(button(document, "Import contacts"));
+    const file = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const bytes = new TextEncoder().encode('Name,Email\nRenamed After,renamed@example.test');
+    Object.defineProperty(file, "files", { configurable: true, value: [{ name: "contacts.csv", size: bytes.length, arrayBuffer: async () => bytes.buffer }] });
+    await act(async () => { file.dispatchEvent(new window.Event("change", { bubbles: true })); });
+    assert.ok(document.querySelector('[aria-label="Changed names"]'));
+    assert.match(document.querySelector('[aria-label="Changed names"]')!.textContent!, /Renamed Before → Renamed After · renamed@example.test/);
+    const update = document.querySelector<HTMLInputElement>('.contact-import-preview input[type="checkbox"]')!;
+    const action = () => document.querySelector<HTMLButtonElement>(".contacts-actions .button")!;
+    assert.equal(action().disabled, true, "nothing to write without an update choice");
+    assert.doesNotMatch(document.body.textContent!, /missing from the file stay saved/, "no missing-contacts note when none are missing");
+    await act(async () => { update.click(); });
+    assert.ok(button(document, "Update 1 name"));
+    await click(button(document, "Update 1 name"));
+    assert.equal((bodies.at(-1) as { updateNames?: boolean }).updateNames, true);
+    assert.match(document.body.textContent!, /Added 0, updated 1, skipped 2 already saved and 0 invalid or repeated\. None removed\./);
+  });
+});
+
+test("contacts missing from the file get the stay-saved note without a name change", async () => {
+  await withDOM(async ({ document, render }) => {
+    const api: Api = async <T,>(url: string) => (url === "/contacts" ? { saved: [], recent: [] }
+      : { added: 1, changed: 0, updated: 0, unchanged: 1, missing: 2, skipped: 0, sample: [{ name: "New Person", email: "new@example.test" }], changes: [] }) as T;
+    await render(<ContactsPage api={api} accounts={accounts} />);
+    await click(button(document, "Import contacts"));
+    const file = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const bytes = new TextEncoder().encode('Name,Email\nNew Person,new@example.test');
+    Object.defineProperty(file, "files", { configurable: true, value: [{ name: "contacts.csv", size: bytes.length, arrayBuffer: async () => bytes.buffer }] });
+    await act(async () => { file.dispatchEvent(new window.Event("change", { bubbles: true })); });
+    assert.match(document.body.textContent!, /1 new, 0 with a changed name, 1 unchanged, 2 not in this file\./);
+    assert.equal(document.querySelector('.contact-import-preview input[type="checkbox"]'), null, "no update choice without changed names");
+    assert.match(document.body.textContent!, /Saved contacts that are missing from the file stay saved\./);
   });
 });
 
@@ -161,7 +226,7 @@ test("account removal clears cached contacts, edits and import previews while Co
   await withDOM(async ({ document, render }) => {
     const home: Account = { id: "home", email: "home@example.test", provider: "imap" };
     const list: ContactList = { saved: [{ kind: "saved", id: "c1", accountId: "work", name: "Removed Person", email: "removed@example.test", updatedAt: 1 }], recent: [{ kind: "recent", id: "r1", accountId: "work", email: "removed-recent@example.test", lastSentAt: 1 }] };
-    const api: Api = async <T,>(url: string) => (url === "/contacts" ? structuredClone(list) : { added: 1, skipped: 0, duplicates: 0, sample: [{ name: "Preview Person", email: "preview@example.test" }] }) as T;
+    const api: Api = async <T,>(url: string) => (url === "/contacts" ? structuredClone(list) : { added: 1, changed: 0, updated: 0, unchanged: 0, missing: 0, skipped: 0, sample: [{ name: "Preview Person", email: "preview@example.test" }], changes: [] }) as T;
     await render(<ContactsPage api={api} accounts={[...accounts, home]} />);
     await click(button(document, "Edit contact 1"));
     await render(<ContactsPage api={api} accounts={[home]} />);
@@ -176,6 +241,8 @@ test("account removal clears cached contacts, edits and import previews while Co
     Object.defineProperty(file, "files", { configurable: true, value: [{ name: "contacts.csv", size: bytes.length, arrayBuffer: async () => bytes.buffer }] });
     await act(async () => { file.dispatchEvent(new window.Event("change", { bubbles: true })); });
     assert.ok(document.querySelector('[aria-label="Import preview"]'));
+    assert.equal(document.querySelector('[aria-label="Changed names"]'), null);
+    assert.equal(document.querySelector('.contact-import-preview input[type="checkbox"]'), null, "no update choice without changed names");
     await render(<ContactsPage api={api} accounts={[home]} />);
     assert.equal(document.querySelector('[aria-label="Import preview"]'), null);
     assert.doesNotMatch(document.body.innerHTML, /preview@example.test/);

@@ -13,6 +13,7 @@ export const contactImportSchema = z.object({
   accountId: z.string().min(1).max(200),
   format: z.enum(["csv", "vcf"]),
   content: z.string().max(MAX_CONTACT_FILE_BYTES).refine(value => Buffer.byteLength(value, "utf8") <= MAX_CONTACT_FILE_BYTES),
+  updateNames: z.boolean().optional(),
 }).strict();
 
 // Parse data only. No formulas, links, vCard resources or attachments are executed.

@@ -9,6 +9,7 @@ unversioned history without treating it as a release record.
 ### Added
 
 - Mask account emails, participant names, email addresses, Message-IDs and thread gap references in CLI and MCP mail output with `--redact` and `redact: true`, guarded by version 1 `capabilities.redaction` so older apps fail closed instead of ignoring redaction. ([#193](https://github.com/collection-of-things/aggregate-mail/issues/193))
+- Repeating a contact import now previews new, changed-name, unchanged and missing-from-the-file counts, and can update changed saved names through an explicit per-import choice. Import still never removes contacts. ([#192](https://github.com/collection-of-things/aggregate-mail/issues/192))
 
 ### Changed
 
