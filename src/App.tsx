@@ -55,7 +55,7 @@ import { reuseMailState } from "./mail-state";
 import { MailSearchApiContext, useMailSearch } from "./use-mail-search";
 import { replySource, useMailBody } from "./mail-body";
 import { useMailNavigation, rememberBrowserUpdateLocation, type MailLocation } from "./navigation";
-import { collectPrivateNames, messagePrivateNames, redactPrivateText } from "./privacy";
+import { applyPrivacyWords, collectPrivateNames, emptyPrivacyWords, learnedOwnerNames, redactPrivateText } from "./privacy";
 import { ContactsPage } from "./contacts/ContactsPage";
 import { SettingsPage } from "./settings/SettingsPage";
 import { PaneHeader, type Corner } from "./shell/PaneHeader";
@@ -1154,7 +1154,13 @@ export function App() {
     window.addEventListener("beforeunload", handle);
     return () => window.removeEventListener("beforeunload", handle);
   }, [compose, eventDirty]);
-  const workPrivateNames = useMemo(() => [...new Set(state.messages.flatMap((mail) => collectPrivateNames(state.accounts, mail)))], [state.accounts, state.messages]);
+  const privacyWords = state.privacyWords ?? emptyPrivacyWords;
+  // Owner names learned from every cached message, before the owner's own lists apply.
+  const learnedNames = useMemo(() => learnedOwnerNames(state.accounts, state.messages), [state.accounts, state.messages]);
+  const ambientPrivateNames = useMemo(() => applyPrivacyWords([...collectPrivateNames(state.accounts), ...learnedNames], privacyWords),
+    [state.accounts, learnedNames, privacyWords]);
+  const workPrivateNames = useMemo(() => applyPrivacyWords([...ambientPrivateNames, ...state.messages.flatMap((mail) => collectPrivateNames(state.accounts, mail))], privacyWords),
+    [ambientPrivateNames, state.accounts, state.messages, privacyWords]);
 
   // Pick the entrance once per pane so re-renders never restart its animation.
   // Beside the reader, the list keeps its pane while mail opens and closes.
@@ -1199,8 +1205,8 @@ export function App() {
   const menuMail = contextMenu && state.messages.find((mail) => mail.id === contextMenu.mailId);
   const quickMail = quickSource ? state.messages.find((mail) => mail.id === quickSource && state.accounts.some((account) => account.id === mail.accountId)) : undefined;
   const privacyContext = useMemo(() => ({ on: privacy, revealed, toggle: toggleAddress,
-    accounts: state.accounts, names: collectPrivateNames(state.accounts) }),
-  [privacy, revealed, toggleAddress, state.accounts]);
+    accounts: state.accounts, names: ambientPrivateNames, visible: privacyWords.visible }),
+  [privacy, revealed, toggleAddress, state.accounts, ambientPrivateNames, privacyWords.visible]);
   useEffect(() => {
     if (contextMenu && !menuMail) closeContextMenu();
   }, [contextMenu, menuMail, closeContextMenu]);

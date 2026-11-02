@@ -4,8 +4,8 @@ import { previewText } from "../../shared/mail-content";
 import type { InteractionPreferences } from "../interaction";
 import { MailListWindow } from "../MailListWindow";
 import type { MailLocation } from "../navigation";
-import { messagePrivateNames, redactPrivateText } from "../privacy";
-import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
+import { redactPrivateText } from "../privacy";
+import { MailPrivacy, PrivacyContext, Redact, scopedPrivateNames } from "../ui/Privacy";
 import type { MenuAction } from "../ui/ContextMenu";
 import { Archive, Check, Clock, Important, Inbox, Mail as MailIcon, More, Pin, Reply, Trash } from "../ui/icons";
 import { Avatar } from "./Avatar";
@@ -70,7 +70,8 @@ export function MailList<T extends Mail>({
     preview: density === "comfortable" && !!previewText(mail.preview).trim(),
   }), [showAccount, density]);
   const bulk = useContext(BulkSelectionContext);
-  const { on: privacy } = useContext(PrivacyContext);
+  const privacyContext = useContext(PrivacyContext);
+  const privacy = privacyContext.on;
   return <>
     {showAccount && !cardLayout && <div className="mail-list-columns" aria-hidden="true"><span>Account</span><span>Status</span></div>}
     <MailListWindow messages={messages} selectedId={selectedId} focusSelection={focusSelection}
@@ -80,7 +81,7 @@ export function MailList<T extends Mail>({
     const current = m.id === selectedId;
     const accountIndex = accounts.findIndex((account) => account.id === m.accountId);
     const accountName = accountIndex < 0 ? "Account unavailable" : accountLabel(accounts[accountIndex], accountIndex, privacy, accounts);
-    const names = privacy ? messagePrivateNames(accounts, m) : [];
+    const names = privacy ? scopedPrivateNames(privacyContext, m) : [];
     const reason = privacy ? redactPrivateText(m.reason, names) : m.reason;
     const label = `${m.pinned ? "Pinned: " : ""}${relevance === 3 ? "Important: " : ""}${m.unread ? "Unread: " : ""}${m.sender}, ${m.subject}`;
     const reasonLabel = m.relevance === 3 && reason && (

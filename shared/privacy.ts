@@ -1,6 +1,13 @@
+import { personalMailDomains } from "./types.js";
+
 export type PrivacyAccount = { email: string; name?: string };
+// Owner-chosen lists. Hidden names join every matcher; visible names leave the
+// name matchers only, so addresses and postal lines stay hidden.
+export type PrivacyWords = { hidden: string[]; visible: string[] };
+export const emptyPrivacyWords: PrivacyWords = { hidden: [], visible: [] };
+export const PRIVACY_WORDS_HIDDEN_MAX = 20, PRIVACY_WORDS_VISIBLE_MAX = 64, PRIVACY_WORD_LENGTH_MAX = 100;
 type RecipientHeaders = { to?: string; cc?: string };
-export type MailPrivacyInput = { sender?: string; to?: string; cc?: string; replyTo?: string };
+export type MailPrivacyInput = { sender?: string; address?: string; to?: string; cc?: string; replyTo?: string };
 export type PrivacyRange = {
   start: number;
   end: number;
@@ -25,7 +32,10 @@ const cleanName = (name: string) => name.trim().replace(/\s+/gu, " ");
 // Headers are already mailparser-formatted. Quotes protect commas and escapes.
 // Without emails, collect the display name of every address in the header.
 function recipientNames(header: string, emails?: ReadonlySet<string>): string[] {
-  const names: string[] = [];
+  return recipientEntries(header).filter((entry) => !emails || emails.has(entry.email)).map((entry) => entry.name);
+}
+function recipientEntries(header: string): { name: string; email: string }[] {
+  const names: { name: string; email: string }[] = [];
   let start = 0;
   let angle = -1;
   let quoted = false;
@@ -38,12 +48,10 @@ function recipientNames(header: string, emails?: ReadonlySet<string>): string[] 
     if (quoted) continue;
     if (character === "<") angle = index;
     else if (character === ">" && angle >= 0) {
-      if (!emails || emails.has(header.slice(angle + 1, index).trim().toLowerCase())) {
-        let name = header.slice(start, angle).trim();
-        if (name.startsWith('"') && name.endsWith('"'))
-          name = name.slice(1, -1).replace(/\\(.)/g, "$1");
-        if (name) names.push(name);
-      }
+      let name = header.slice(start, angle).trim();
+      if (name.startsWith('"') && name.endsWith('"'))
+        name = name.slice(1, -1).replace(/\\(.)/g, "$1");
+      if (name) names.push({ name, email: header.slice(angle + 1, index).trim().toLowerCase() });
       start = index + 1;
       angle = -1;
     } else if (angle < 0 && (character === ":" || character === ";")) {
@@ -113,6 +121,69 @@ export function collectMailPrivateNames(
   return privateNames(candidates);
 }
 
+// Role mailboxes send for an organization, not a person.
+const roleMailbox = /^(?:no-?reply|do-?not-?reply|donotreply|info|support|hello|team|news|newsletters?|notifications?|notify|alerts?|updates?|marketing|billing|accounts?|service|customer-?service|help|contact|mailer|orders?|receipts?|security|feedback|community|digest|members?|care)(?:[+._-].*)?$/i;
+// A sender is a business when it writes from a role mailbox or its display
+// name matches its own non-personal domain (Kickstarter <…@kickstarter.com>).
+// Its name stays visible. A person on a matching vanity domain is a known gap.
+export function businessSender(name: string, email: string): boolean {
+  const at = email.lastIndexOf("@");
+  if (at < 1) return false;
+  const local = email.slice(0, at).trim().toLowerCase(), domain = email.slice(at + 1).trim().toLowerCase();
+  if (!domain || personalMailDomains.has(domain)) return false;
+  if (roleMailbox.test(local)) return true;
+  const compactDomain = domain.replace(/[^a-z0-9]/g, "");
+  const words = name.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((word) => word.length >= 3);
+  const compactName = words.join("");
+  return compactName.length >= 3 && compactDomain.includes(compactName) ||
+    words.some((word) => word.length >= 4 && compactDomain.includes(word));
+}
+
+// One message often omits the owner's display name (bare To, quoted orders),
+// so owner names also come from every cached message that names an account
+// address: To/Cc phrases and the sender of mail sent from that address. The
+// most frequent full names win, which keeps the matcher list bounded.
+export const LEARNED_OWNER_NAMES_MAX = 4;
+export function learnedOwnerNames(
+  accounts: readonly PrivacyAccount[],
+  mails: readonly MailPrivacyInput[],
+  limit = LEARNED_OWNER_NAMES_MAX,
+): string[] {
+  const emails = new Set(accounts.map((account) => account.email.trim().toLowerCase()));
+  const counts = new Map<string, { name: string; count: number }>();
+  const add = (candidate: string) => {
+    const name = cleanName(candidate);
+    if (!name || name.includes("@") || !/\p{L}/u.test(name)) return;
+    const entry = counts.get(name.toLowerCase());
+    if (entry) entry.count++;
+    else counts.set(name.toLowerCase(), { name, count: 1 });
+  };
+  for (const mail of mails) {
+    for (const name of recipientNames(mail.to || "", emails)) add(name);
+    for (const name of recipientNames(mail.cc || "", emails)) add(name);
+    const owner = ownerSender(mail, emails);
+    if (owner) add(owner);
+  }
+  const top = [...counts.values()].sort((left, right) => right.count - left.count).slice(0, limit);
+  return privateNames(top.map((entry) => entry.name));
+}
+function ownerSender(mail: MailPrivacyInput, emails: ReadonlySet<string>) {
+  const sender = mail.sender || "";
+  if (!sender || sender === "Unknown sender" || !emails.has((mail.address || "").trim().toLowerCase())) return "";
+  return sender.includes("<") ? recipientNames(sender)[0] || "" : sender.includes("@") ? "" : unquotedSender(sender);
+}
+
+// Owner-chosen hidden names join; visible names leave. Comparison ignores case.
+export function applyPrivacyWords(names: readonly string[], words?: Partial<PrivacyWords>): string[] {
+  const result = new Map<string, string>();
+  for (const name of [...names, ...words?.hidden ?? []]) {
+    const clean = cleanName(name);
+    if (clean) result.set(clean.toLowerCase(), clean);
+  }
+  for (const name of words?.visible ?? []) result.delete(cleanName(name).toLowerCase());
+  return [...result.values()];
+}
+
 // Per-message surfaces need every correspondent name, not only the owner's:
 // sender and To/Cc display names join as whole phrases, because a third-party
 // first name or common surname would mask ordinary words across the surface.
@@ -127,16 +198,21 @@ export function messagePrivateNames(
     const name = cleanName(candidate);
     if (name && !name.includes("@") && /\p{L}/u.test(name)) names.set(name.toLowerCase(), name);
   };
+  const emails = new Set(accounts.map((account) => account.email.trim().toLowerCase()));
+  // Mail sent from an owner address names the owner: split it like account names.
+  const owner = ownerSender(mail, emails);
+  if (owner) for (const name of privateNames([owner])) names.set(name.toLowerCase(), name);
   const sender = mail.sender || "";
-  if (sender && sender !== "Unknown sender") {
-    if (sender.includes("<")) for (const name of recipientNames(sender)) add(name);
-    else if (!sender.includes("@")) add(unquotedSender(sender));
+  if (!owner && sender && sender !== "Unknown sender") {
+    if (sender.includes("<")) {
+      for (const entry of recipientEntries(sender)) if (!businessSender(entry.name, entry.email)) add(entry.name);
+    } else if (!sender.includes("@") && !businessSender(unquotedSender(sender), mail.address || "")) add(unquotedSender(sender));
   }
-  for (const name of [
-    ...recipientNames(mail.to || ""),
-    ...recipientNames(mail.cc || ""),
-    ...recipientNames(mail.replyTo || ""),
-  ]) add(name);
+  for (const entry of [
+    ...recipientEntries(mail.to || ""),
+    ...recipientEntries(mail.cc || ""),
+    ...recipientEntries(mail.replyTo || ""),
+  ]) if (emails.has(entry.email) || !businessSender(entry.name, entry.email)) add(entry.name);
   return [...names.values()];
 }
 
@@ -170,6 +246,29 @@ function decodedText(text: string) {
   }
   append(last, text.length);
   return { decoded, offsets };
+}
+
+// US-style postal lines: "422 Southeast 17th Place" and "Ocala, FL 32712".
+// Words start with a capital or digit, which keeps prose such as "10 people
+// on the way" visible. Each repetition is bounded and unambiguous.
+const streetSuffixes = new Set(("street st avenue ave road rd boulevard blvd drive dr lane ln way place pl " +
+  "court ct terrace ter circle cir parkway pkwy highway hwy trail trl square sq loop plaza plz crescent").split(" "));
+const streetLine = /(?<![\p{L}\p{N}_.\/#$-])\d{1,6}[A-Za-z]?(?:[ \t]+[\p{Lu}\p{N}][\p{L}\p{N}'.-]*){2,5}/gu;
+const cityLine = /(?<![\p{L}\p{N}_])(?:\p{Lu}[\p{L}'.-]*[ \t]+){0,2}\p{Lu}[\p{L}'.-]*,[ \t]*\p{Lu}{2}[ \t]+\d{5}(?:-\d{4})?(?!\p{N})/gu;
+function postalRanges(text: string): [number, number][] {
+  const ranges: [number, number][] = [];
+  for (const match of text.matchAll(streetLine)) {
+    // Keep the longest prefix that ends in a street suffix after a name word.
+    const tokens = [...match[0].matchAll(/\S+/g)];
+    for (let index = tokens.length - 1; index >= 2; index--) {
+      if (streetSuffixes.has(tokens[index][0].replace(/\.$/, "").toLowerCase())) {
+        ranges.push([match.index, match.index + tokens[index].index + tokens[index][0].length]);
+        break;
+      }
+    }
+  }
+  for (const match of text.matchAll(cityLine)) ranges.push([match.index, match.index + match[0].length]);
+  return ranges;
 }
 
 const PRIVATE_NAMES_MAX = 64, PRIVATE_NAME_LENGTH_MAX = 160, PRIVATE_NAME_WORDS_MAX = 16;
@@ -211,6 +310,7 @@ export function privateRanges(text: string, names: readonly string[] = []): Priv
     const length = at + 1 + suffix.index + suffix[0].length;
     add(match.index, match.index + length, "address", match[0].slice(0, length));
   }
+  for (const [start, end] of postalRanges(decoded)) add(start, end, "address", decoded.slice(start, end));
   const lower = folded(decoded);
   // toLowerCase keeps offsets only when no character expands; otherwise the
   // bounded expression preserves the Unicode case-folded match positions.

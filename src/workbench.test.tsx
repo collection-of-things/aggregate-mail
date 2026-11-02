@@ -418,7 +418,7 @@ test("workspace hides source-header-only names in commitments, history and propo
 test("a project decision masks a correspondent named only on a later supporting email", async () => {
  const ui = await mount("projects");
  try {
-  ui.state.messages[2].sender = "Vera Bloom";
+  ui.state.messages[2].sender = "Vera Bloom"; ui.state.messages[2].address = "vera@example.org";
   ui.workspace.projects.push({ id: "p1", name: "Synthetic project", sourceMailIds: ["in-a", "in-b"], accountIds: ["a", "b"], crossAccountConfirmed: false, revision: 1, updatedAt: 1 });
   ui.workspace.decisions.push({ id: "d1", projectId: "p1", text: "Vera Bloom agreed to the plan", sourceMailIds: ["in-a", "in-b"], createdAt: 1 });
   await ui.click(ui.button("Refresh workspace"));
@@ -435,7 +435,7 @@ test("a project decision masks a correspondent named only on a later supporting 
 test("a commitment row and its detail mask a correspondent named only on an evidence email", async () => {
  const ui = await mount("actions");
  try {
-  ui.state.messages[1].sender = "Vera Bloom";
+  ui.state.messages[1].sender = "Vera Bloom"; ui.state.messages[1].address = "vera@example.org";
   ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["sent-a"], revision: 1, updatedAt: 1, history: [] });
   await ui.click(ui.button("Refresh workspace"));
   const row = () => ui.container.querySelector("#work-task-c1")!.closest("article")!;
@@ -455,7 +455,7 @@ test("a commitment row and its detail mask a correspondent named only on an evid
 test("commitment history masks a correspondent named only on a past evidence email", async () => {
  const ui = await mount("actions");
  try {
-  ui.state.messages[1].sender = "Vera Bloom";
+  ui.state.messages[1].sender = "Vera Bloom"; ui.state.messages[1].address = "vera@example.org";
   ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Synthetic task", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1,
     history: [{ at: 1, status: "needs-work", text: "Vera Bloom draft", reason: "Vera Bloom asked", evidenceMailIds: ["sent-a"] }] });
   await ui.click(ui.button("Refresh workspace"));
@@ -473,7 +473,7 @@ test("commitment history masks a correspondent named only on a past evidence ema
 test("the uncertain-save recovery list masks evidence-only correspondent names", async () => {
  const ui = await mount("actions");
  try {
-  ui.state.messages[1].sender = "Vera Bloom";
+  ui.state.messages[1].sender = "Vera Bloom"; ui.state.messages[1].address = "vera@example.org";
   ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["sent-a"], revision: 1, updatedAt: 1, history: [] });
   await ui.click(ui.button("Refresh workspace"));
   await ui.click(ui.button("Add task"));
@@ -493,7 +493,7 @@ test("the uncertain-save recovery list masks evidence-only correspondent names",
 test("the calendar agenda masks a commitment's source correspondent name", async () => {
  const ui = await mount("calendar");
  try {
-  ui.state.messages[0].sender = "Vera Bloom";
+  ui.state.messages[0].sender = "Vera Bloom"; ui.state.messages[0].address = "vera@example.org";
   ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [] });
   await ui.click(ui.button("Refresh workspace"));
   await ui.click(ui.button("Agenda"));
@@ -510,7 +510,7 @@ test("commitment rows and the agenda mask a history-only correspondent name", as
  for (const mode of ["actions", "calendar"] as const) {
   const ui = await mount(mode);
   try {
-   ui.state.messages[1].sender = "Vera Bloom";
+   ui.state.messages[1].sender = "Vera Bloom"; ui.state.messages[1].address = "vera@example.org";
    ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [{ at: 1, status: "needs-work", text: "Synthetic", reason: "Synthetic", evidenceMailIds: ["sent-a"] }] });
    await ui.click(ui.button("Refresh workspace"));
    if (mode === "calendar") await ui.click(ui.button("Agenda"));
@@ -544,7 +544,7 @@ test("a commitment row keeps aliases from uncited messages private inside its ma
 test("the plan work dialog masks a correspondent named only on an evidence email", async () => {
  const ui = await mount("actions");
  try {
-  ui.state.messages[1].sender = "Vera Bloom";
+  ui.state.messages[1].sender = "Vera Bloom"; ui.state.messages[1].address = "vera@example.org";
   ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["sent-a"], revision: 1, updatedAt: 1, history: [] });
   await ui.click(ui.button("Refresh workspace"));
   await ui.click(ui.container.querySelector<HTMLButtonElement>(".work-select")!);
@@ -561,7 +561,7 @@ test("the plan work dialog masks a correspondent named only on an evidence email
 test("a mail-linked saved event masks the source correspondent name in its detail", async () => {
  const ui = await mount("calendar");
  try {
-  ui.state.messages[2].sender = "Vera Bloom";
+  ui.state.messages[2].sender = "Vera Bloom"; ui.state.messages[2].address = "vera@example.org";
   const day = `${eventMonth()}-12`, start = new Date(`${day}T09:00`).toISOString(), end = new Date(`${day}T10:00`).toISOString();
   ui.events.push({ id: "e1", source: "local", title: "Vera Bloom review", description: "Notes for Vera Bloom", accountId: "b", sourceMailId: "in-b", meetLink: "https://meet.example.test/Vera%20Bloom", start, end, allDay: false, attendees: [], revision: 1, updatedAt: 1 });
   await ui.click(ui.button("Refresh workspace"));
@@ -581,7 +581,7 @@ test("a mail-linked saved event masks the source correspondent name in its detai
 test("a timed commitment in Day view masks an evidence-only correspondent name", async () => {
  const ui = await mount("calendar");
  try {
-  ui.state.messages[1].sender = "Vera Bloom";
+  ui.state.messages[1].sender = "Vera Bloom"; ui.state.messages[1].address = "vera@example.org";
   ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["sent-a"], revision: 1, updatedAt: 1, followUpAt: Date.now(), history: [] });
   await ui.click(ui.button("Refresh workspace"));
   await ui.click(ui.button("Day"));
@@ -597,7 +597,7 @@ test("a timed commitment in Day view masks an evidence-only correspondent name",
 test("agent proposals mask the source correspondent name in subject and body", async () => {
  const ui = await mount("agents");
  try {
-  ui.state.messages[0].sender = "Vera Bloom";
+  ui.state.messages[0].sender = "Vera Bloom"; ui.state.messages[0].address = "vera@example.org";
   ui.workspace.proposals.push({ id: "p", agentId: "agent", accountId: "a", action: "draft", payload: { accountId: "a", to: ["recipient@example.com"], subject: "Vera Bloom plan", body: "Vera Bloom evidence" }, digest: "e".repeat(64), sourceMailId: "in-a", createdAt: 1, status: "pending" });
   await ui.click(ui.button("Refresh workspace"));
   const card = () => ui.container.querySelector(".agent-proposal")!;

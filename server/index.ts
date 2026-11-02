@@ -56,6 +56,7 @@ import { companyLogo } from "./avatars.js";
 import { companySvg, isFreeMail, normalizeDomain, syncLogos } from "./logos.js";
 import { jevProviderOf, type Provider, type Mail, type StateResponse, type BootstrapResponse, type SyncFailure } from "../shared/types.js";
 import { emptyComposePreferences } from "../shared/mail-features.js";
+import { PRIVACY_WORDS_HIDDEN_MAX, PRIVACY_WORDS_VISIBLE_MAX, PRIVACY_WORD_LENGTH_MAX, emptyPrivacyWords } from "../shared/privacy.js";
 import { loadConfiguration, saveConfiguration } from "./config.js";
 
 loadConfiguration();
@@ -241,6 +242,7 @@ function stateStatus(includeArrivals = true): BootstrapResponse & Partial<Pick<S
     draftCount: count("draft"),
     draftToken: draftChangeToken(),
     composePreferences: all("compose")[0] ?? emptyComposePreferences,
+    privacyWords: get("privacyWords", "words") ?? emptyPrivacyWords,
     ...(includeArrivals ? { unreadArrivals, mailArrivals } : {}),
     csrf,
     accounts: all("account").map(({ credentials: _credentials, ...a }) => ({ ...a, syncStatus: accountSyncStatus(a.id) })),
@@ -326,6 +328,22 @@ app.put("/api/compose-preferences", (req, res) => {
   if (input.undoSendSeconds === undefined) input.undoSendSeconds = get("compose", "preferences")?.undoSendSeconds;
   put("compose", "preferences", input);
   res.json(input);
+});
+// Names are personal data, so the lists live in the encrypted store.
+app.put("/api/privacy-words", (req, res) => {
+  const word = z.string().transform((value) => value.trim().replace(/\s+/g, " "))
+    .pipe(z.string().min(1).max(PRIVACY_WORD_LENGTH_MAX).regex(/\p{L}/u));
+  const input = z.object({
+    hidden: z.array(word).max(PRIVACY_WORDS_HIDDEN_MAX),
+    visible: z.array(word).max(PRIVACY_WORDS_VISIBLE_MAX),
+  }).strict().parse(req.body);
+  const unique = (values: string[]) => [...new Map(values.map((value) => [value.toLowerCase(), value])).values()];
+  const words = { hidden: unique(input.hidden), visible: unique(input.visible) };
+  const hidden = new Set(words.hidden.map((value) => value.toLowerCase()));
+  if (words.visible.some((value) => hidden.has(value.toLowerCase())))
+    return res.status(400).json({ error: "A name cannot be both hidden and visible." });
+  put("privacyWords", "words", words);
+  res.json(words);
 });
 app.post("/api/config", (req, res) => {
   const value = z

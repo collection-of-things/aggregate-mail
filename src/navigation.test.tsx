@@ -1219,11 +1219,11 @@ test("Settings keeps mail navigation, uses a section rail and shows one section 
     assert.equal(settings.getAttribute("aria-label"), "Settings");
     await app.click(settings);
     assert.ok(app.container.querySelector('[aria-label="Mail views"]'), "mail navigation remains visible");
-    assert.equal(app.container.querySelectorAll(".settings-navigation button").length, 11);
+    assert.equal(app.container.querySelectorAll(".settings-navigation button").length, 12);
     const rail = app.container.querySelector('.settings-navigation')!;
     assert.deepEqual([...rail.querySelectorAll('[role="group"]')].map(group => group.getAttribute('aria-label')),
       ["Connections", "Mail", "Preferences", "Advanced"]);
-    assert.equal(new Set([...rail.querySelectorAll('button')].map(button => button.textContent)).size, 11,
+    assert.equal(new Set([...rail.querySelectorAll('button')].map(button => button.textContent)).size, 12,
       "each existing section remains reachable once");
     assert.equal(app.container.querySelector(".settings-column select"), null);
     assert.ok(app.container.querySelector("[data-interaction-settings]"));
@@ -2869,7 +2869,7 @@ test("phone Settings section picker switches panels without changing saved mail"
     await app.click(app.button("Settings"));
     const picker = app.container.querySelector<HTMLSelectElement>('select[aria-label="Settings section"]')!;
     assert.ok(picker);
-    assert.equal(picker.options.length, 11);
+    assert.equal(picker.options.length, 12);
     assert.equal(Array.from(picker.options).some(option => option.value === "contacts"), false);
     assert.ok(Array.from(picker.options).some(option => option.value === "phone-access"));
     const change = async (section: string) => {

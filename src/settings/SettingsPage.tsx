@@ -24,6 +24,7 @@ import { drawsWindowControls } from "../ui/TrafficLights";
 import { ArrowRight } from "../ui/icons";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { BrandingSection } from "./BrandingSection";
+import { PrivacySettings } from "./PrivacySettings";
 import { ConfigurationForm } from "./ConnectionForm";
 import { InteractionSettings } from "./InteractionSettings";
 import { PhoneAccessSettings } from "./PhoneAccessSettings";
@@ -348,6 +349,7 @@ export function SettingsPage({
             </p>
           ) : null}
         </section>}
+        {section === "privacy" && <PrivacySettings state={state} api={api} perform={perform} busy={busy} />}
         {section === "branding" && <BrandingSection
           api={api}
           perform={perform}
