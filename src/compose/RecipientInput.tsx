@@ -34,6 +34,7 @@ export function RecipientInput({ label, value, onChange, accountId, accounts, ap
   const [suggestions, setSuggestions] = useState<ContactSuggestion[]>([]);
   const [active, setActive] = useState(-1);
   const [dismissed, setDismissed] = useState(false);
+  const [focused, setFocused] = useState(false);
   const pending = useRef<{ timer: ReturnType<typeof setTimeout>; controller: AbortController }>(undefined);
   const cancel = () => {
     if (!pending.current) return;
@@ -78,11 +79,13 @@ export function RecipientInput({ label, value, onChange, accountId, accounts, ap
         type="email"
         aria-label={label}
         multiple={multiple}
-        required={required}
+        required={required && (!privacy || focused || !value.trim())}
         disabled={disabled}
         autoFocus={autoFocus}
         maxLength={10000}
-        value={value}
+        value={privacy && !focused ? "" : value}
+        data-private-field={privacy || undefined}
+        placeholder={privacy && !focused && value ? "Hidden. Focus to edit." : undefined}
         role="combobox"
         autoComplete="off"
         aria-autocomplete="list"
@@ -90,7 +93,8 @@ export function RecipientInput({ label, value, onChange, accountId, accounts, ap
         aria-controls={open ? `${id}-list` : undefined}
         aria-activedescendant={open && active >= 0 ? `${id}-${active}` : undefined}
         onChange={(event) => { onChange(event.target.value); lookup(event.target.value); }}
-        onBlur={close}
+        onFocus={() => setFocused(true)}
+        onBlur={() => { setFocused(false); close(); }}
         onKeyDown={(event) => {
           if (!suggestions.length) return;
           if (event.key === "ArrowDown" || event.key === "ArrowUp") {

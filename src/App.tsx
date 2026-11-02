@@ -55,7 +55,7 @@ import { reuseMailState } from "./mail-state";
 import { MailSearchApiContext, useMailSearch } from "./use-mail-search";
 import { replySource, useMailBody } from "./mail-body";
 import { useMailNavigation, rememberBrowserUpdateLocation, type MailLocation } from "./navigation";
-import { collectPrivateNames, redactPrivateText } from "./privacy";
+import { collectPrivateNames, messagePrivateNames, redactPrivateText } from "./privacy";
 import { ContactsPage } from "./contacts/ContactsPage";
 import { SettingsPage } from "./settings/SettingsPage";
 import { PaneHeader, type Corner } from "./shell/PaneHeader";
@@ -1753,7 +1753,7 @@ export function App() {
         )}
         {quickSource && <Dialog title="Track work" className="quick-track-dialog" onClose={() => { if (!work.pending) setQuickSource(null); }}>
           {state.messages.find((mail) => mail.id === quickSource && state.accounts.some((account) => account.id === mail.accountId)) ? <QuickTrack key={quickSource}
-            mail={state.messages.find((mail) => mail.id === quickSource)!} work={work} privateNames={workPrivateNames}
+            mail={state.messages.find((mail) => mail.id === quickSource)!} work={work} privateNames={messagePrivateNames(state.accounts, state.messages.find((mail) => mail.id === quickSource)!)}
             onDone={() => { setQuickSource(null); pushToast("Work tracked.", "success"); }}
             onEdit={(item, draft) => {
               setTrackingSource(quickSource); setTrackingItem(item); setTrackingDraft(draft); setTrackingSession((value) => value + 1); setQuickSource(null);

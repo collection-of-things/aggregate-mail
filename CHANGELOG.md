@@ -6,6 +6,10 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Fixed
+
+- Hide correspondent names and custom account labels while personal information is hidden: the sender and every To/Cc display name of the shown message are masked on per-message surfaces, accounts show neutral `Account N · Provider` labels, avatars drop provider logos whose URLs expose sender domains, and compose To/Cc/Bcc and Subject values hide until focused. ([#191](https://github.com/collection-of-things/aggregate-mail/issues/191))
+
 ## 0.2.26 - 2026-11-02
 
 ### Added

@@ -113,6 +113,33 @@ export function collectMailPrivateNames(
   return privateNames(candidates);
 }
 
+// Per-message surfaces need every correspondent name, not only the owner's:
+// sender and To/Cc display names join as whole phrases, because a third-party
+// first name or common surname would mask ordinary words across the surface.
+// Owner names keep collectPrivateNames's first-name/surname parts.
+export function messagePrivateNames(
+  accounts: readonly PrivacyAccount[],
+  mail: MailPrivacyInput,
+): string[] {
+  const names = new Map<string, string>();
+  for (const name of collectPrivateNames(accounts, mail)) names.set(name.toLowerCase(), name);
+  const add = (candidate: string) => {
+    const name = cleanName(candidate);
+    if (name && !name.includes("@") && /\p{L}/u.test(name)) names.set(name.toLowerCase(), name);
+  };
+  const sender = mail.sender || "";
+  if (sender && sender !== "Unknown sender") {
+    if (sender.includes("<")) for (const name of recipientNames(sender)) add(name);
+    else if (!sender.includes("@")) add(unquotedSender(sender));
+  }
+  for (const name of [
+    ...recipientNames(mail.to || ""),
+    ...recipientNames(mail.cc || ""),
+    ...recipientNames(mail.replyTo || ""),
+  ]) add(name);
+  return [...names.values()];
+}
+
 // Map decoded URL bytes back to source offsets, including malformed UTF-8.
 function decodedText(text: string) {
   let decoded = "";

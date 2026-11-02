@@ -1,6 +1,6 @@
 import { Notice, useFeedbackState } from "../ui/Toasts";
 import { attachmentSize } from "../../shared/attachments";
-import { useCallback, useEffect, useMemo, useRef, useState, useId, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useId, type ReactNode } from "react";
 import type { Draft, RendererMail as Mail, RendererState as State, McpSettings } from "../../shared/types";
 import type { AgentGrant, AgentProposal, AgentTool, Commitment, CommitmentStatus, Project } from "../../shared/workspace";
 import type { Api } from "../api";
@@ -333,7 +333,10 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       setTaskStatus("Task completed.");
     }
   };
-  const itemRow = (item: Commitment) => <article key={item.id} className={`work-item work-row${selectedId === item.id ? " selected" : ""}`}>
+  const sourceOf = (item: { sourceMailId: string; accountId: string }) =>
+    state.messages.find((mail) => mail.id === item.sourceMailId && mail.accountId === item.accountId);
+  const itemRow = (item: Commitment) => {
+    const row = <article className={`work-item work-row${selectedId === item.id ? " selected" : ""}`}>
     <input className="work-row-complete" type="checkbox" aria-label="Mark task complete" aria-describedby={`work-task-${encodeURIComponent(item.id)}`}
       checked={item.status === "done"} disabled={!openCommitment(item) || blocked || work.refreshing || sessionModal}
       onChange={(event) => void completeTask(item, event.currentTarget)} />
@@ -342,12 +345,17 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       <span className="work-meta">{`${statusNames[item.status]} · `}<Redact text={accountName(item)} />{deadlineDate(item) && ` · Due ${deadlineDate(item)}`}{item.followUpAt === undefined ? "" : ` · Remind ${new Date(item.followUpAt).toLocaleString()}`}</span>
     </button>
   </article>;
-  const detailBody = selected && <>
+    const source = sourceOf(item);
+    return source ? <MailPrivacy key={item.id} mail={source}>{row}</MailPrivacy> : row;
+  };
+  const detailSource = selected ? sourceOf(selected) : undefined;
+  const detailBodyContent = selected && <>
     <p><Redact text={selected.reason} /></p>
     <dl><dt>Account</dt><dd><Redact text={accountName(selected)} /></dd><dt>Deadline</dt><dd>{deadlineDate(selected) || "Not set"}</dd><dt>Follow up</dt><dd>{selected.followUpAt === undefined ? "Not set" : new Date(selected.followUpAt).toLocaleString()}</dd></dl>
     <h3>Source and evidence</h3>{[...new Set([selected.sourceMailId, ...selected.evidenceMailIds])].map((id) => <Source key={id} id={id} state={state} onOpen={onOpen} />)}
     <details><summary>Change history ({selected.history.length})</summary>{selected.history.map((change, index) => <div className="work-item" key={index}><p>{new Date(change.at).toLocaleString()} · {statusNames[change.status]}</p><p><Redact text={change.text} /> · <Redact text={change.reason} /></p><p>Deadline: {deadlineDate(change) || "Not set"} · Follow up: {change.followUpAt === undefined ? "Not set" : new Date(change.followUpAt).toLocaleString()}</p>{change.evidenceMailIds?.map((id) => <Source key={id} id={id} state={state} onOpen={onOpen} />)}</div>)}</details>
   </>;
+  const detailBody = detailSource ? <MailPrivacy mail={detailSource}>{detailBodyContent}</MailPrivacy> : detailBodyContent;
   const closeDetail = () => { if (sessionModal) return; restoreListFocus.current = mode !== "calendar"; setDetailOpen(false); missingSelection.current = false; onCloseReader?.(); };
   const detail = selected && detailOpen && <section className={mode === "calendar" ? "work-inspector" : "work-summary"} aria-label="Commitment details" ref={inspector} tabIndex={-1}
     onKeyDown={(event) => { if (mode === "calendar" && event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); closeDetail(); } }}>
@@ -483,7 +491,11 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
 
             </div>
             <aside className="today-reader" aria-label="Project reading pane"><div className="project-context" hidden={detailOpen || readerOpened}><span className="context-label">Project context</span><h2><Redact text={privacy ? `Project ${projects.indexOf(selectedProject) + 1}` : selectedProject.name} /></h2><dl><dt>Open tasks</dt><dd>{sorted.filter((item) => item.projectId === selectedProject.id && openCommitment(item)).length}</dd><dt>Source emails</dt><dd>{selectedProject.sourceMailIds.length}</dd></dl>              <section className="project-decisions"><h3>Decisions</h3>
-                {workspace.decisions.filter((item) => item.projectId === selectedProject.id).map((item) => <article className="work-item" key={item.id}><Redact text={item.text} /><details><summary>Supporting emails</summary>{item.sourceMailIds.map((id) => <Source key={id} id={id} state={state} onOpen={(mail, trigger) => { selectedRow.current = trigger; setSelectedId(null); setDetailOpen(false); missingSelection.current = false; onOpen(mail); }} />)}</details></article>)}
+                {workspace.decisions.filter((item) => item.projectId === selectedProject.id).map((item) => {
+                  const source = state.messages.find((mail) => item.sourceMailIds.includes(mail.id) && state.accounts.some((account) => account.id === mail.accountId));
+                  const row = <article className="work-item"><Redact text={item.text} /><details><summary>Supporting emails</summary>{item.sourceMailIds.map((id) => <Source key={id} id={id} state={state} onOpen={(mail, trigger) => { selectedRow.current = trigger; setSelectedId(null); setDetailOpen(false); missingSelection.current = false; onOpen(mail); }} />)}</details></article>;
+                  return source ? <MailPrivacy key={item.id} mail={source}>{row}</MailPrivacy> : <Fragment key={item.id}>{row}</Fragment>;
+                })}
                 {!workspace.decisions.some((item) => item.projectId === selectedProject.id) && <p className="work-empty">Keep a note of what was agreed.</p>}
                 <details key={selectedProject.id}><summary>Add a decision</summary><form className="settings-form" onSubmit={async(event) => { event.preventDefault(); if(!decisionSources.length)return; if(await mutate(()=>api(`/projects/${encodeURIComponent(selectedProject.id)}/decisions`,"POST",{text:decision,sourceMailIds:decisionSources}))) {setDecision("");setDecisionSources([]);} }}>
                   <PrivateField label="What was agreed" value={decision} onChange={setDecision} multiline required />

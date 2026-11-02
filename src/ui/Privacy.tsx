@@ -1,6 +1,6 @@
 import { Fragment, createContext, memo, useContext, useMemo, type ReactNode } from "react";
 import type { Account, RendererMail as Mail } from "../../shared/types";
-import { collectPrivateNames, segmentPrivateText, type PrivacySegment } from "../privacy";
+import { messagePrivateNames, segmentPrivateText, type PrivacySegment } from "../privacy";
 
 // Hidden tokens have no private text in the DOM until explicitly revealed.
 export const PrivacyContext = createContext<{
@@ -12,7 +12,7 @@ export const PrivacyContext = createContext<{
 }>({ on: false, revealed: new Set(), toggle() {} });
 export function MailPrivacy({ mail, children }: { mail: Mail; children: ReactNode }) {
   const context = useContext(PrivacyContext);
-  const value = useMemo(() => ({ ...context, names: collectPrivateNames(context.accounts || [], mail) }), [context, mail]);
+  const value = useMemo(() => ({ ...context, names: messagePrivateNames(context.accounts || [], mail) }), [context, mail]);
   return <PrivacyContext.Provider value={value}>
     {children}
   </PrivacyContext.Provider>;

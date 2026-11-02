@@ -123,7 +123,7 @@ test("privacy mode hides suggested names and addresses until revealed", async ()
     for (const text of ["Gregory", "gregory@example.test", "grace@example.test", "work@example.test"])
       assert.equal(list.outerHTML.includes(text), false, `${text} is hidden`);
     assert.deepEqual([...list.querySelectorAll('[role="option"]')].map((option) => option.getAttribute("aria-label")),
-      ["Hidden contact, Account 1 · Custom IMAP", "Hidden recipient, Home"]);
+      ["Hidden contact, Account 1 · Custom IMAP", "Hidden recipient, Account 2 · Custom IMAP"]);
     await act(async () => { list.querySelectorAll<HTMLElement>(".veiled")[1].click(); });
     assert.equal(changes.length, 1, "revealing does not pick");
     assert.ok(document.querySelector('[role="listbox"]')!.textContent!.includes("gregory@example.test"));

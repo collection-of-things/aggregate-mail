@@ -27,8 +27,8 @@ test("Projects hides known account names while preserving exact cross-account ap
   assert.ok(!ui.container.innerHTML.includes("Private Reader"));
   assert.ok(!ui.container.innerHTML.includes("reader@example.com"));
   assert.ok(!ui.container.innerHTML.includes("second@example.com"));
-  assert.ok(approvalLabel().querySelector('.veiled[aria-label="Reveal hidden name"]'));
-  assert.ok(approvalLabel().textContent?.includes("Account 2"));
+  assert.ok(approvalLabel().textContent?.includes("Account 1 · Custom IMAP"));
+  assert.ok(approvalLabel().textContent?.includes("Account 2 · Gmail"));
   assertSources();
   assert.equal(approval().checked,true);
   assert.equal(ui.button("Save project").disabled,false);
@@ -68,11 +68,11 @@ test("Agent Reviews hides known account names in allowed accounts and existing g
   await ui.click(checkbox());
   await ui.privacy();
   assert.deepEqual([allowed(),summary()].map(element=>element.textContent?.includes("Private Reader")),[false,false]);
-  assert.ok(allowed().querySelector('.veiled[aria-label="Reveal hidden name"]'));
-  assert.ok(summary().querySelector('.veiled[aria-label="Reveal hidden name"]'));
+  assert.ok(allowed().textContent?.includes("Account 1 · Custom IMAP"));
+  assert.ok(summary().textContent?.includes("Account 1 · Custom IMAP"));
   assert.ok(!ui.container.innerHTML.includes("Private Reader"));
   assert.ok(!ui.container.innerHTML.includes("reader@example.com"));
-  assert.ok(allowed().textContent?.includes("Account 2"));
+  assert.ok(allowed().textContent?.includes("Account 2 · Gmail"));
   assert.equal(checkbox().checked,true);
   await ui.click(checkbox());
   assert.equal(checkbox().checked,false);
