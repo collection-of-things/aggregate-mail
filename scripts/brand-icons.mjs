@@ -1,5 +1,5 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import path from "node:path";
 import sharp from "sharp";
 
@@ -104,7 +104,14 @@ export async function assetMatches(relative, existing, expected) {
       if (actual[i].key !== wanted[i].key) return false;
       const [a, b] = await Promise.all([pixels(actual[i].png), pixels(wanted[i].png)]);
       if (a.width !== b.width || a.height !== b.height) return false;
-      for (let j = 0; j < a.data.length; j++) if (Math.abs(a.data[j] - b.data[j]) > tolerance) return false;
+      // Compare colour weighted by alpha: on a nearly transparent edge pixel a
+      // one-level alpha rounding can swing the stored colour by up to 255, yet
+      // the visible result barely changes.
+      for (let j = 0; j < a.data.length; j += 4) {
+        if (Math.abs(a.data[j + 3] - b.data[j + 3]) > tolerance) return false;
+        for (let c = 0; c < 3; c++)
+          if (Math.abs(a.data[j + c] * a.data[j + 3] - b.data[j + c] * b.data[j + 3]) / 255 > tolerance) return false;
+      }
     }
     return true;
   } catch {
@@ -152,4 +159,4 @@ async function main() {
   else console.log(`${check ? "Verified" : "Generated"} ${outputs.size} brand assets from SVG sources.`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) await main();
+if (import.meta.main) await main();

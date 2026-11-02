@@ -83,10 +83,11 @@ pending; see [ADR 0045](adr/0045-agent-review-byok.md).
 
 ### Connect an MCP client
 
-For Claude Code:
+For Claude Code, run these three lines. After the first, paste the token and
+press Enter; nothing is shown while you paste.
 
 ```sh
-read -rs EMC2_MCP_TOKEN   # paste the token, then press Enter; nothing is shown
+read -rs EMC2_MCP_TOKEN
 claude mcp add --transport http emc2 http://127.0.0.1:32145/mcp --header "Authorization: Bearer $EMC2_MCP_TOKEN"
 unset EMC2_MCP_TOKEN
 ```

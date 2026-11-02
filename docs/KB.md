@@ -3573,8 +3573,9 @@ the shared geometry. See [ADR 0113](adr/0113-responsive-mail-layout.md).
 browser and website icons. Run `npm run icons` after changing these sources;
 `npm run check:icons` checks that every generated file matches. SVG copies and
 ICO/ICNS frame layouts must match exactly. Raster frames are compared as decoded
-pixels, within 8 of 255 levels per channel, because encoders and resampling
-may round differently on each platform and CPU. Windows and Linux produced
+pixels, within 8 of 255 levels for alpha and for colour weighted by alpha, because
+encoders and resampling may round differently on each platform and CPU. Weighting
+keeps rounding on nearly transparent edge pixels from failing the check. Windows and Linux produced
 identical bytes; macOS output has not been compared. Packaging commands run this
 check before building. Shared release steps also run it after the Linux tests and
 before building and packaging on each platform. The generator uses the pinned

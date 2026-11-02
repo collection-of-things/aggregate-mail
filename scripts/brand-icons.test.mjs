@@ -58,6 +58,30 @@ test("icon check accepts re-encoded pixels and rejects changed artwork", async (
   assert.equal(await assetMatches("build/icon.svg", Buffer.from(`${svg}\n`), svg), false);
 });
 
+// Nearly transparent edge pixels store colour that barely shows; encoder
+// rounding there must not fail the check, while a visible colour change must.
+test("icon check tolerates edge rounding but rejects a visible colour shift", async () => {
+  const png = await readFile("build/tray-icon.png");
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const encode = (pixels) => sharp(pixels, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
+  const rounded = Buffer.from(data);
+  let edges = 0;
+  for (let i = 0; i < rounded.length; i += 4) {
+    if (rounded[i + 3] === 0 || rounded[i + 3] >= 32) continue;
+    edges++;
+    // One level of alpha-weighted rounding moves the stored colour by about
+    // 255 / alpha, far beyond the tolerance for a plain channel comparison.
+    const step = Math.round(255 / rounded[i + 3]);
+    for (let c = 0; c < 3; c++) rounded[i + c] = rounded[i + c] >= step ? rounded[i + c] - step : rounded[i + c] + step;
+    if (edges % 2) rounded[i + 3] -= 1;
+  }
+  assert.ok(edges > 0, "the tray icon has soft edges");
+  assert.equal(await assetMatches("build/tray-icon.png", await encode(rounded), png), true);
+  const shifted = Buffer.from(data);
+  for (let i = 0; i < shifted.length; i += 4) if (shifted[i + 3] === 255) shifted[i] = shifted[i] > 127 ? shifted[i] - 40 : shifted[i] + 40;
+  assert.equal(await assetMatches("build/tray-icon.png", await encode(shifted), png), false);
+});
+
 test("repository logo recolour fails when the mark colour changes", async () => {
   const mark = await readFile("build/mark.svg");
   assert.match(energyMark(mark).toString(), /#A50685/);
