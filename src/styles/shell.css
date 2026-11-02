@@ -43,8 +43,7 @@
   font-size: calc(17px * var(--text-scale, 1));
   font-weight: 600;
 }
-.pane-head > .icon:first-child,
-.sidebar-head > .icon:first-child {
+.pane-head > .icon:first-child {
   margin-left: -8px;
 }
 .search {

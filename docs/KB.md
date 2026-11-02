@@ -265,13 +265,23 @@ recipient suggestions. No account migration is needed.
 `POST /api/contacts/import/preview` validates an account-bound UTF-8 CSV or vCard
 without writing. `POST /api/contacts/import` reparses the submitted file and saves
 all new entries in one transaction. Both inherit session, origin, CSRF and
-update guards. Files are bounded to 512 KiB and 5000 addresses; saved contacts
-remain limited to 1000 per account. Duplicate addresses are case-insensitive
-within the destination account and never overwrite existing names. Invalid and
-repeated addresses are counted as skipped. Only names and addresses are retained;
-no raw file, filename, photo, link, formula or provider credential is stored.
-An over-limit import writes nothing. See [contact imports](contacts-import.md)
-and [ADR 0098](adr/0098-contacts-page-and-imports.md).
+update guards. Each report classifies the file against the destination account
+as new addresses, saved addresses with a different non-empty file name, saved
+addresses with a matching or empty file name, saved contacts absent from the
+file and invalid or repeated addresses. The preview returns a `revision`
+fingerprint of the account's contacts (sha256 over sorted id/email/name/
+updatedAt rows), and the confirm must send it back: a mismatch fails the whole
+import with 409 and writes nothing, so edits made after the preview are never
+overwritten unseen. Every proposed rename is returned in `changes` (the
+interface shows the first five and folds the rest under a disclosure), while
+`sample` stays the first five new addresses. Only new addresses count toward
+the 1000-contact-per-account limit, and an opt-in `updateNames` import rewrites
+changed names inside the same transaction; import never removes contacts.
+Files are bounded to 512 KiB and 5000 addresses. Only names and addresses are
+retained; no raw file, filename, photo, link, formula or provider credential is
+stored. An over-limit import writes nothing. See [contact imports](contacts-import.md),
+[ADR 0098](adr/0098-contacts-page-and-imports.md) and
+[ADR 0118](adr/0118-contact-reimport-and-deferred-provider-sync.md).
 
 Plain unquoted search words of 4 to 32 letters allow one insertion, deletion,
 substitution or adjacent transposition within a word. Quoted phrases, field
@@ -449,6 +459,13 @@ older apps silently ignoring explicit options. Existing mail grants apply;
 mail tools exclude saved drafts and never search providers. CLI plain draft
 files accept string or bounded array To recipients and optional Bcc, preserving
 both through proposal review. See [ADR 0108](adr/0108-cli-mcp-cached-mail-parity.md).
+CLI `accounts`, `list`, `search`, `read` and `thread` support `--redact` (and MCP
+`redact: true`), masking account emails, participant names, email addresses,
+Message-IDs in headers and thread gaps, and coverage errors via `shared/privacy.ts`
+while preserving account IDs, thread IDs, timestamps, attachment metadata and
+control-character JSON escaping. Additive version 1 capability
+`redaction: ["accounts", "mail"]` is verified before invoking the target tool.
+See [ADR 0115](adr/0115-cli-mcp-privacy-redaction.md) and [#193](https://github.com/collection-of-things/aggregate-mail/issues/193).
 Run `node --test scripts/emc2.test.mjs` for the isolated synthetic CLI checks.
 
 
@@ -1588,9 +1605,14 @@ Keep credentials, personal contact details, absolute machine paths, private host
 to `main` (opened, reopened, ready for review and later pushes) and on manual
 dispatch. Changes touching only Markdown or `docs/` are skipped.
 Every job runs on GitHub-hosted runners: a budget gate and
-`tsc --noEmit` on `ubuntu-latest` capped at 2 and 8 minutes, and `npm test` on
-`ubuntu-latest` capped at 15 minutes. The repository is public, so these runs
-are not billed and the gate passes. If it becomes private, or a visibility
+`tsc --noEmit` on `ubuntu-latest` capped at 2 and 8 minutes, `npm test` on
+`ubuntu-latest` capped at 15 minutes, and Windows portability tests on
+`windows-latest` capped at 15 minutes. The Windows job runs
+`desktop/mac-source-update.test.ts`, `scripts/auto-release-workflow.test.mjs`,
+`scripts/web-deploy.test.mjs`, `scripts/web-startup.test.mjs` and
+`server/browser-access.test.ts`; Linux-only deployment tests skip there with a
+stated reason ([ADR 0116](adr/0116-windows-pr-test-job.md)). The repository is
+public, so these runs are not billed and the gate passes. If it becomes private, or a visibility
 lookup fails (`unknown`), the gate skips CI jobs after 150 executed runs in a
 calendar month; draft-PR runs that skip every job are not counted. Only a
 repository known to be private also disables the workflow until a maintainer
@@ -1827,7 +1849,7 @@ Window chrome outside macOS ([ADR 0026](adr/0026-native-window-chrome.md)): the 
 
 The renderer is split by area: [`App.tsx`](../src/App.tsx) holds state, handlers and pane layout (the reader keyboard test parses its `markRead`, `openMail` and keydown `handler` declarations, so they stay there); `src/mail/` holds the list, reader, filters and tabs; `src/shell/` the sidebar, pane headers and update notice; `src/settings/`, `src/dialogs/` and `src/compose/` their screens; `src/ui/` shared controls, icons, privacy bars and window controls. [`style.css`](../src/style.css) imports one stylesheet per area from `src/styles/` in cascade order, starting with the tokens; the stylesheet test reads them through those imports.
 
-[Interaction preferences](../src/interaction.ts) store opening mode, mouse-history enablement and validated shortcuts under `emc2.interaction.v1` in localStorage. New or reset preferences use Gmail defaults for supported actions: O/Enter opens, S pins locally, B snoozes, A replies all, Shift+I marks read and U returns to the list. G then I/T/D/A/S/B goes to Inbox/Sent/Drafts/All cached/Pinned/Snoozed across accounts, clearing mail filters. Settings, Keyboard and mouse records either single bindings or two-letter sequences for every registry action. Duplicate bindings, ambiguous sequence prefixes, editing and system keys are rejected. Sequences expire after 1.5 seconds, clear on focus/blur or blocked events, and consume an invalid printable second key without running a mail action. Editors and dialogs retain ownership. Older complete preferences retain all saved keys; new actions receive unused bindings if their defaults conflict. Reset applies Gmail defaults. Mouse side buttons can be disabled without changing toolbar or keyboard history. Right-click and hover/focus row actions retain existing behavior. Help, Commands and context menus use the saved bindings. Browser Mac detection uses the platform when the Electron bridge is absent. Storage failures keep the session choice and display a notice. See [ADR 0086](adr/0086-gmail-shortcuts-and-customization.md).
+[Interaction preferences](../src/interaction.ts) store opening mode, mouse-history enablement and validated shortcuts under `emc2.interaction.v1` in localStorage. New or reset preferences use Gmail defaults for supported actions: O/Enter opens, S pins locally, B snoozes, A replies all, Shift+I marks read and U returns to the list. G then I/T/D/A/S/B goes to Inbox/Sent/Drafts/All cached/Pinned/Snoozed across accounts, clearing mail filters. Settings, Keyboard and mouse records either single bindings or two-letter sequences for every registry action. Duplicate bindings, ambiguous sequence prefixes, editing and system keys are rejected. Sequences expire after 1.5 seconds, clear on focus/blur or blocked events, and consume an invalid printable second key without running a mail action. The `sidebar` action (default `[`) toggles the navigation rail at every width and appears in Commands as Show / hide sidebar. Editors and dialogs retain ownership, except that it also runs from non-editing controls inside the composer. Older complete preferences retain all saved keys; new actions receive unused bindings if their defaults conflict. Reset applies Gmail defaults. Mouse side buttons can be disabled without changing toolbar or keyboard history. Right-click and hover/focus row actions retain existing behavior. Help, Commands and context menus use the saved bindings. Browser Mac detection uses the platform when the Electron bridge is absent. Storage failures keep the session choice and display a notice. See [ADR 0086](adr/0086-gmail-shortcuts-and-customization.md).
 
 Tests use synthetic messages and accounts. The mounted App path covers Settings changes, custom-key dispatch, double/single-click transitions, read counts, history keys, recipient names in lists/headers/formatted content/attributes, image placement and privacy. Provider/API tests cover authentication, identity and cache races. Run `npm test` and `npm run build`. Native rendering, physical input, live providers and downloaded-app acceptance need separate proof. Browser testing remains prohibited by PRODUCT.md.
 

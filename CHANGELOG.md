@@ -9,7 +9,6 @@ unversioned history without treating it as a release record.
 ### Fixed
 
 - Keep website brand masks visible in forced-colors mode and check generated icons before release builds. The check compares decoded pixels, so encoder differences between platforms do not block a release. Clarify reply-draft approval, token privacy, browser setup, sender-logo lookups and platform storage in the guides. ([#197](https://github.com/collection-of-things/aggregate-mail/pull/197))
-
 - Render desktop and browser icons from vector artwork at each size, smoothing jagged logo edges and keeping Windows installer icons sharp across display sizes. ([#197](https://github.com/collection-of-things/aggregate-mail/pull/197))
 
 ### Changed
@@ -17,6 +16,21 @@ unversioned history without treating it as a release record.
 - Introduce Emc² with coloured brand artwork, a short product overview and a compact installation guide in the README. Detailed instructions now live in topic guides for accounts, daily mail, browser access, AI, backups and development. ([#197](https://github.com/collection-of-things/aggregate-mail/pull/197))
 - Use the brand logo across the website header, footer and inbox demo, with matching website icons. ([#197](https://github.com/collection-of-things/aggregate-mail/pull/197))
 - Open the Commands dialog instantly, collapse the sidebar on the documented spring curve, and remove unused entrance animations. ([#197](https://github.com/collection-of-things/aggregate-mail/pull/197))
+
+## 0.2.26 - 2026-11-02
+
+### Added
+
+- Mask account emails, participant names, email addresses, Message-IDs and thread gap references in CLI and MCP mail output with `--redact` and `redact: true`, guarded by version 1 `capabilities.redaction` so older apps fail closed instead of ignoring redaction. ([#193](https://github.com/collection-of-things/aggregate-mail/issues/193))
+- Repeating a contact import now previews new, changed-name, unchanged and missing-from-the-file counts, and can update changed saved names through an explicit per-import choice. Import still never removes contacts. ([#192](https://github.com/collection-of-things/aggregate-mail/issues/192))
+
+### Changed
+
+- Remove the sidebar toggle from the sidebar header. Hide or show the sidebar with the `[` shortcut (customizable in Keyboard and mouse) or the Show / hide sidebar command; the toolbar keeps a Show sidebar button while the sidebar is hidden. ([#196](https://github.com/collection-of-things/aggregate-mail/issues/196))
+
+## 0.2.25 - 2026-11-01
+
+### Changed
 
 - Add the Emc² brand mark as `public/favicon.png`. ([#195](https://github.com/collection-of-things/aggregate-mail/pull/195))
 

@@ -117,7 +117,7 @@ The version-tag release workflow remains unchanged.
 ### Close the window or quit
 
 The macOS menu provides standard Command shortcuts for editing, closing and
-quitting. The window controls sit at the top left, beside the sidebar toggle.
+quitting. The window controls sit at the top left, over the sidebar header.
 Closing the window keeps the app running in the background.
 
 On macOS, reopen it from the Dock and quit through the application menu. Windows

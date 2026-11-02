@@ -21,11 +21,18 @@ async function invoke(args, options = {}) {
 }
 
 test('help, validation and private input fail before connecting without echoing arguments', async () => {
-  assert.match((await invoke(['help'], { env: {} })).stdout, /Usage: emc2/);
+  const helpResult = await invoke(['help'], { env: {} });
+  assert.match(helpResult.stdout, /Usage: emc2/);
+  assert.match(helpResult.stdout, /--redact/);
   for (const args of [ ['unknown-secret'], ['archive', 'id'], ['read'], ['list', '--limit', '0'],
     ['list', '--limit', '1e2'], ['list', '--offset', '-1'], ['list', '--category', 'invalid'],
     ['list', '--view', ''], ['search', 'query', '--view', 'invalid'], ['read', 'id', '--view', 'all'],
     ['read', 'id', '--unread'], ['read', 'id', '--pinned'], ['list', '--syntax', 'app'], ['search', 'x', '--syntax', 'invalid'], ['accounts', 'extra'], ['accounts', '--confirm'],
+    ['status', '--redact'], ['archive', 'id', '--confirm', '--redact'], ['mark-read', 'id', '--confirm', '--redact'],
+    ['projects', '--account', 'a', '--redact'], ['commitments', '--account', 'a', '--redact'],
+    ['list', '--redact=true'], ['create-project', 'project.json', '--confirm', '--redact'],
+    ['track-commitment', 'commitment.json', '--confirm', '--redact'], ['propose-draft', 'draft.json', '--confirm', '--redact'],
+    ['reply', 'reply.json', '--confirm', '--redact'],
     ['status', '--token', 'secret'], ['status', '--url', 'https://127.0.0.1/mcp'],
     ['status', '--url', 'http://example.com/mcp'], ['status', '--url', 'http://secret@localhost/mcp'],
     ['status', '--url', 'http://localhost/mcp?secret'], ['status', '--url', 'http://localhost/api/state'] ]) {
@@ -65,10 +72,16 @@ test('CLI uses the real authenticated MCP contract with isolated synthetic encry
     for (const [id, fields] of [['expired', {direction:'received', pinned:true, snoozedUntil:Date.now()-1}], ['sent', {direction:'sent'}], ['archived', {archived:true}], ['snoozed', {snoozedUntil:Date.now()+60000}]]) {
       put('mail', id, {...mail, ...fields, id, threadId:id, date:mail.date - (1 + ['expired','sent','archived','snoozed'].indexOf(id))*1000});
     }
+    put('account', 'acc-synthetic', { id:'acc-synthetic', email:'sample-account@example.test', provider:'gmail', credentials:{} });
+    const sampleMail = { id:'msg-synthetic-1', accountId:'acc-synthetic', remoteId:'sm1', sender:'Sample Person', address:'sample-person@example.test', to:'"Recipient Person" <recipient@example.test>, "Dave Participant" <dave@example.test>', cc:'"Copied Person" <copied@example.test>', replyTo:'reply@example.test', subject:'Update for Sample with \\u001b[31mred\\u001b[0m text', preview:'Preview for Sample Person', body:'Hello Sample,\\nFrom Sample Person <sample-person@example.test>.\\nUnrelated body text keeps safe.\\n\\u001b[31mColored note\\u001b[0m\\nDave Participant wrote from dave@example.test', date:1699999000000, unread:true, category:'important', relevance:3, reason:'Team', archived:false, snoozedUntil:null, messageId:'<msg-1@example.test>', threadId:'thr-synthetic', references:['<parent-1@example.test>'] };
+    put('mail', sampleMail.id, sampleMail);
+    const sampleReply = { ...sampleMail, id:'msg-synthetic-2', sender:'Dave Participant', address:'dave@example.test', body:'Dave replies to Sample Person.\\nUnrelated reply text here.', date:sampleMail.date + 1000, messageId:'<reply-1@example.test>', inReplyTo:sampleMail.messageId, references:[sampleMail.messageId] };
+    put('mail', sampleReply.id, sampleReply);
     put('account', 'foreign', {id:'foreign', email:'foreign@example.test', provider:'gmail', credentials:{}});
     put('mail', 'foreign-mail', {...mail, id:'foreign-mail', accountId:'foreign', date:mail.date+1000});
     put('mcp', 'settings', { enabled:true, allowSending:false, token:'synthetic-global-discovery-token' });
     put('agent', 'fixture-agent', { id:'fixture-agent', name:'CLI fixture', accountIds:['fixture-account'], tools:['list_accounts','list_emails','search_emails','read_email','get_thread','reply_to_email','mark_read','archive_email','list_projects','list_commitments','create_project','track_commitment','propose_draft'], token:process.env.EMC2_MCP_TOKEN, createdAt:1700000000000 });
+    put('agent', 'sample-agent', { id:'sample-agent', name:'Sample agent', accountIds:['acc-synthetic'], tools:['list_accounts','list_emails','search_emails','read_email','get_thread'], token:'sample-agent-token', createdAt:1700000000000 });
     const app = express(); app.use(express.json()); app.use('/mcp', authorizeMcp); mountMcp(app, () => {}, () => {});
     const server = app.listen(0, '127.0.0.1', () => console.log(server.address().port));
     process.on('message', () => server.close(() => { closeStore(); process.disconnect(); }));
@@ -164,6 +177,56 @@ test('CLI uses the real authenticated MCP contract with isolated synthetic encry
       assert.equal((await call(['reply', filename, '--confirm'])).code, 1);
       assert.deepEqual(JSON.parse((await call(['read', 'fixture-mail'])).stdout), JSON.parse(read.stdout));
     });
+    const sampleEnv = { env: { EMC2_MCP_TOKEN: 'sample-agent-token' } };
+    const sampleCall = (args, options) => invoke([...args, '--url', url, '--json'], { ...sampleEnv, ...options });
+    const sampleCallIndented = (args, options) => invoke([...args, '--url', url], { ...sampleEnv, ...options });
+    const escapeControls = (text) => text.replace(/[\u0000-\u001f\u007f-\u009f]/g, (c) =>
+      c === '\n' || c === '\r' || c === '\t' ? c : `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+    const fixtureSensitive = [
+      'sample-account@example.test', 'Sample Person', 'Sample', 'Person', 'sample-person@example.test',
+      'Recipient Person', 'Recipient', 'recipient@example.test',
+      'Copied Person', 'Copied', 'copied@example.test', 'reply@example.test',
+      'Dave Participant', 'Dave', 'Participant', 'dave@example.test',
+      'msg-1@example.test', 'parent-1@example.test', 'reply-1@example.test',
+    ];
+
+    const expectedAccounts = [{ id: 'acc-synthetic', email: 'sample-account@example.test', provider: 'gmail' }];
+    assert.equal((await sampleCallIndented(['accounts'])).stdout, `${JSON.stringify(expectedAccounts, null, 2)}\n`);
+    assert.equal((await sampleCall(['accounts'])).stdout, `${JSON.stringify(expectedAccounts)}\n`);
+    for (const args of [['list'], ['search', 'Unrelated'], ['read', 'msg-synthetic-1'], ['thread', 'msg-synthetic-1']]) {
+      const indented = await sampleCallIndented(args);
+      const compact = await sampleCall(args);
+      assert.equal(indented.code, 0, indented.stderr);
+      assert.equal(compact.code, 0, compact.stderr);
+      const parsed = JSON.parse(compact.stdout);
+      assert.equal(indented.stdout, `${escapeControls(JSON.stringify(parsed, null, 2))}\n`);
+      assert.equal(compact.stdout, `${escapeControls(JSON.stringify(parsed))}\n`);
+      assert.ok(compact.stdout.includes('Sample Person'));
+    }
+
+    for (const [cmd, args] of [
+      ['accounts', ['accounts', '--redact']],
+      ['list', ['list', '--redact']],
+      ['search', ['search', 'Unrelated', '--redact']],
+      ['read', ['read', 'msg-synthetic-1', '--redact']],
+      ['thread', ['thread', 'msg-synthetic-1', '--redact']],
+    ]) {
+      for (const [mode, runner] of [['indented', sampleCallIndented], ['json', sampleCall]]) {
+        const result = await runner(args);
+        assert.equal(result.code, 0, `${cmd} ${mode}: ${result.stderr}`);
+        assert.ok(result.stdout.includes('••••••••'), `${cmd} (${mode}) includes mask`);
+        for (const word of fixtureSensitive) {
+          assert.equal(result.stdout.includes(word), false, `${cmd} (${mode}) must not contain sensitive ${word}`);
+        }
+        if (cmd === 'read' || cmd === 'thread') {
+          assert.ok(result.stdout.includes('Unrelated body text keeps safe.'), `${cmd} (${mode}) preserves unrelated body text`);
+          assert.ok(result.stdout.includes('\\u001b[31m'), `${cmd} (${mode}) preserves JSON control-character escaping`);
+        }
+        if (cmd === 'thread') {
+          assert.ok(result.stdout.includes('Unrelated reply text here.'), `thread (${mode}) preserves unrelated reply text`);
+        }
+      }
+    }
     const unauthorized = await call(['status'], { env: { EMC2_MCP_TOKEN: 'wrong-token' } });
     assert.equal(unauthorized.code, 1);
     assert.doesNotMatch(unauthorized.stderr, /wrong-token/);
@@ -423,8 +486,8 @@ test('feature-detected work commands preserve caller UUID, scoped reads, immedia
 test('explicit views and replies require a valid versioned contract; old commands keep working', async () => {
   const contract = {
     version: 1,
-    capabilities: { searchSyntax: ['substring', 'app'], mailFilters: ['pinnedOnly'], mailViews: ['inbox', 'sent', 'all'], reply: { mode: 'proposal', approval: 'draft', sendsMail: false } },
-    permissions: { tools: ['list_emails', 'search_emails', 'reply_to_email'], accountCount: 1 },
+    capabilities: { searchSyntax: ['substring', 'app'], mailFilters: ['pinnedOnly'], mailViews: ['inbox', 'sent', 'all'], redaction: ['accounts', 'mail'], reply: { mode: 'proposal', approval: 'draft', sendsMail: false } },
+    permissions: { tools: ['list_accounts', 'list_emails', 'search_emails', 'read_email', 'get_thread', 'reply_to_email'], accountCount: 1 },
   };
   let advertised = true, value = contract, contractError = false, targetMode = 'success';
   let targetCalls = 0, statusCalls = 0, expectedTool, expectedInput;
@@ -435,7 +498,7 @@ test('explicit views and replies require a valid versioned contract; old command
     if (rpc.id === undefined) { res.writeHead(202).end(); return; }
     let result;
     if (rpc.method === 'initialize') result = { protocolVersion: '2025-03-26', capabilities: { tools: {} }, serverInfo: { name: 'fixture', version: '1' } };
-    if (rpc.method === 'tools/list') result = { tools: [...(advertised ? ['get_connection_status'] : []), 'list_emails', 'search_emails', 'reply_to_email'].map((name) => ({name, inputSchema:{type:'object'}})) };
+    if (rpc.method === 'tools/list') result = { tools: [...(advertised ? ['get_connection_status'] : []), 'list_accounts', 'list_emails', 'search_emails', 'read_email', 'get_thread', 'reply_to_email'].map((name) => ({name, inputSchema:{type:'object'}})) };
     if (rpc.method === 'tools/call') {
       if (rpc.params.name === 'get_connection_status') {
         statusCalls++;
@@ -446,7 +509,7 @@ test('explicit views and replies require a valid versioned contract; old command
         assert.equal(rpc.params.name, expectedTool);
         assert.deepEqual(rpc.params.arguments, expectedInput);
         if (targetMode === 'disconnect') { req.socket.destroy(); return; }
-        result = { content: [{type:'text', text:JSON.stringify(expectedTool === 'reply_to_email' ? {status:'pending', reflected:token} : {emails:[], nextOffset:null})}], ...(targetMode === 'denied' ? {isError:true} : {}) };
+        result = { content: [{type:'text', text:JSON.stringify(expectedTool === 'reply_to_email' ? {status:'pending', reflected:token} : expectedTool === 'list_accounts' ? [] : {emails:[], nextOffset:null})}], ...(targetMode === 'denied' ? {isError:true} : {}) };
       }
     }
     res.writeHead(200, {'Content-Type':'application/json'}).end(JSON.stringify({jsonrpc:'2.0', id:rpc.id, result}));
@@ -455,7 +518,7 @@ test('explicit views and replies require a valid versioned contract; old command
     advertised = false;
     const legacyStatus = await call(['status']);
     assert.equal(legacyStatus.code, 0);
-    assert.deepEqual(JSON.parse(legacyStatus.stdout), {connected:true, tools:['list_emails','search_emails','reply_to_email']});
+    assert.deepEqual(JSON.parse(legacyStatus.stdout), {connected:true, tools:['list_accounts','list_emails','search_emails','read_email','get_thread','reply_to_email']});
     expectedTool = 'list_emails'; expectedInput = {limit:25, offset:0, unreadOnly:false};
     assert.equal((await call(['list'])).code, 0);
     assert.equal(statusCalls, 0);
@@ -464,6 +527,37 @@ test('explicit views and replies require a valid versioned contract; old command
       const withoutConfirm = await call(['reply', filename]);
       assert.equal(withoutConfirm.code, 2);
       assert.equal(statusCalls, 0);
+      for (const [args, missingCapability] of [
+        [['accounts', '--redact'], 'accounts'],
+        [['list', '--redact'], 'mail'],
+        [['read', 'fixture', '--redact'], 'mail'],
+        [['thread', 'fixture', '--redact'], 'mail'],
+      ]) {
+        const before = targetCalls;
+        advertised = false;
+        assert.equal((await call(args)).code, 1, 'Missing get_connection_status fails --redact');
+        assert.equal((await call(args)).stdout, '');
+        assert.equal(targetCalls, before);
+        advertised = true;
+        const invalidRedactContracts = [
+          null, 'not a contract', {}, { ...contract, version: 2 },
+          { ...contract, capabilities: {} },
+          { ...contract, capabilities: { ...contract.capabilities, redaction: undefined } },
+          { ...contract, capabilities: { ...contract.capabilities, redaction: 'invalid' } },
+          { ...contract, capabilities: { ...contract.capabilities, redaction: missingCapability === 'accounts' ? ['mail'] : ['accounts'] } },
+        ];
+        for (value of invalidRedactContracts) {
+          const rejected = await call(args);
+          assert.equal(rejected.code, 1, JSON.stringify(value));
+          assert.equal(rejected.stdout, '');
+          assert.equal(targetCalls, before);
+        }
+        value = contract; contractError = true;
+        assert.equal((await call(args)).code, 1);
+        assert.equal((await call(args)).stdout, '');
+        contractError = false;
+        assert.equal(targetCalls, before, 'Unsupported guarantees never invoke the target');
+      }
       for (const args of [['list', '--view', 'inbox'], ['search', 'meeting', '--view', 'sent'], ['search', 'subject:meeting', '--syntax', 'app'], ['list', '--pinned'], ['reply', filename, '--confirm']]) {
         const before = targetCalls;
         advertised = false;
@@ -491,6 +585,10 @@ test('explicit views and replies require a valid versioned contract; old command
       }
       value = contract;
       for (const [args, tool, input] of [
+        [['accounts', '--redact'], 'list_accounts', { redact: true }],
+        [['list', '--redact'], 'list_emails', { limit: 25, offset: 0, unreadOnly: false, redact: true }],
+        [['read', 'fixture', '--redact'], 'read_email', { id: 'fixture', markRead: false, redact: true }],
+        [['thread', 'fixture', '--redact'], 'get_thread', { id: 'fixture', redact: true }],
         [['list', '--view', 'inbox'], 'list_emails', {limit:25, offset:0, unreadOnly:false, view:'inbox'}],
         [['search', 'meeting', '--view', 'sent'], 'search_emails', {limit:25, offset:0, unreadOnly:false, view:'sent', query:'meeting'}],
         [['search', 'subject:meeting', '--syntax', 'app', '--pinned'], 'search_emails', {limit:25, offset:0, unreadOnly:false, query:'subject:meeting', syntax:'app', pinnedOnly:true}],

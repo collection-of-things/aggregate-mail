@@ -8,9 +8,10 @@ name: CI
 # not bill for public repositories. The gate checks visibility on every run:
 # while the repository is public it always passes. If the repository becomes
 # private, or its visibility cannot be read, the cap applies: the budget gate,
-# typecheck and test jobs are capped at 2, 8 and 15 minutes, and after MAX_RUNS
-# executed runs in a calendar month (at most about 3750 minutes) CI jobs are
-# skipped. A private repository also disables this workflow; re-enable it in
+# typecheck, test and Windows test jobs are capped at 2, 8, 15 and 15 minutes,
+# and after MAX_RUNS executed runs in a calendar month CI jobs are skipped.
+# Windows minutes bill at twice the Linux rate, so a month stays under about
+# 8250 billed minutes. A private repository also disables this workflow; re-enable it in
 # the Actions tab the next month.
 on:
   pull_request:
@@ -101,3 +102,23 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm test
+
+  # Contributors also run the suite on Windows. These files previously failed
+  # there on line endings, link permissions and disk allocation; Linux-only
+  # deployment tests skip themselves on Windows with a stated reason.
+  windows:
+    name: Windows tests (GitHub)
+    needs: budget
+    if: needs.budget.outputs.ok == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsx --test --test-concurrency=1 --test-timeout=120000 desktop/mac-source-update.test.ts scripts/auto-release-workflow.test.mjs scripts/web-deploy.test.mjs scripts/web-startup.test.mjs server/browser-access.test.ts

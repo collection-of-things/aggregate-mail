@@ -115,10 +115,46 @@ the selected mode. `--pinned` requires `mailFilters` to include `pinnedOnly`.
 Missing or malformed guarantees fail before calling the mail tool, including
 when the requested option would otherwise be ignored by an older app.
 
-`read` always sends `markRead: false`. These commands output private mail and
-addresses on request; the desktop's hidden-text preference does not redact CLI
-output. Treat terminal output, pipes and saved files accordingly. JSON escapes
-mail control characters rather than rendering terminal escape sequences.
+`accounts`, `list`, `search`, `read` and `thread` accept `--redact` (and direct
+MCP callers can pass `redact: true` per call on `list_accounts`, `list_emails`,
+`search_emails`, `read_email` and `get_thread`) to mask personal names and email
+addresses with `••••••••` before output:
+- **What is masked**:
+  - Account email addresses in `accounts` / `list_accounts`
+  - Sender and recipient display names and email addresses in `from`, `to`, `cc` and `replyTo`
+  - Whole-word and phrase mentions of permitted account names and message/conversation header participant names (excluding `Mr`/`Mrs`/`Ms`/`Mx`/`Dr`), plus email addresses (including percent-encoded URLs), in `subject`, `preview` and `body` (collapsing non-empty text to `••••••••` if candidate names exceed 64 unique names, 160 characters or 16 words)
+  - RFC 5322 Message-IDs in `messageId`, `inReplyTo`, `references` and thread `gaps`, always whole (`<••••••••>`), and participant names/addresses in thread `coverage.error`
+  - Name parts match as whole words, case-insensitively, as in privacy mode: a participant named "Will" also masks every "will" in the text
+- **What is not masked**:
+  - Third-party names mentioned only in `subject`, `preview` or `body` that do not appear in permitted account names or the message/conversation headers
+  - Phone numbers, physical addresses, and non-TLD local addresses inside free-form message text
+  - Attachment metadata and filenames (`attachments`)
+  - Opaque identifiers (`id`, `accountId`, `threadId`), provider types, dates/timestamps, pagination `nextOffset`, and status/sorting flags (`unread`, `pinned`, `category`, `relevance`, `reason`, `archived`, `snoozedUntil`, `direction`)
+  - Unrelated message text and JSON control-character escaping
+
+```sh
+emc2 accounts --redact
+emc2 list --view inbox --redact
+emc2 read 'message-id' --redact --json
+```
+
+When `--redact` is omitted (or MCP `redact` is omitted or `false`), raw output is
+preserved byte for byte. `redact` is caller-requested output masking, not an
+access-control boundary; account and tool grants are checked first. Explicit
+`--redact` requires `connection.capabilities.redaction` to include `accounts` for
+`accounts --redact` and `mail` for `list`, `search`, `read` and `thread --redact`.
+If the capability is missing or malformed, the CLI exits with code 1 and empty
+stdout before calling the target tool. Unsupported commands (`status`, `archive`,
+`mark-read`, `projects`, `commitments`, and file commands) reject `--redact` with
+exit code 2 before connecting.
+
+`read` always sends `markRead: false`. Without `--redact`, these commands output
+private mail and addresses on request; the desktop's hidden-text preference does
+not automatically redact CLI or MCP output. Treat terminal output, pipes and
+saved files accordingly: `--redact` writes already-masked JSON to pipes and
+redirected files, while both indented and `--json` output preserve JSON
+control-character escaping (such as `\u001b` ANSI sequences) rather than
+rendering terminal escapes.
 
 ## Request mailbox actions
 

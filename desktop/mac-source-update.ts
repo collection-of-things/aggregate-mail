@@ -55,7 +55,9 @@ export function sourceEnvironment(home: string, toolDirectory = "/usr/bin"): Nod
   GIT_CONFIG_GLOBAL: "/dev/null", GIT_TERMINAL_PROMPT: "0" };
 }
 
-export async function workspaceLimit(root: string) {
+// Tests pass a small limit; NTFS allocates truncated files, so a 6 GiB fixture
+// would need real disk space on Windows.
+export async function workspaceLimit(root: string, limit = maxWorkspaceBytes) {
   let bytes = 0, entries = 0;
   async function walk(directory: string): Promise<void> {
     const listing = await readdir(directory, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
@@ -71,7 +73,7 @@ export async function workspaceLimit(root: string) {
       });
       if (!stat) continue;
       bytes += stat.size;
-      if (bytes > maxWorkspaceBytes) throw invalid();
+      if (bytes > limit) throw invalid();
       if (stat.isDirectory()) await walk(file);
     }
   }

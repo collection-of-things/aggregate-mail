@@ -12,7 +12,10 @@ const job = (name) => workflow.slice(workflow.indexOf(`\n  ${name}:\n`) + 1).spl
 test("only the budgeted CI and release workflows remain", () => {
   assert.deepEqual(readdirSync(new URL("../.github/workflows/", import.meta.url)).sort(), ["ci.yml", "release.yml"]);
   const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-  assert.deepEqual(ci.match(/runs-on: \S+/g), ["runs-on: ubuntu-latest", "runs-on: ubuntu-latest", "runs-on: ubuntu-latest"]);
+  assert.deepEqual(ci.match(/runs-on: \S+/g), ["runs-on: ubuntu-latest", "runs-on: ubuntu-latest", "runs-on: ubuntu-latest", "runs-on: windows-latest"]);
+  const windows = ci.split("\n  windows:\n")[1];
+  assert.match(windows, /needs: budget\n    if: needs\.budget\.outputs\.ok == 'true'\n    runs-on: windows-latest\n    timeout-minutes: 15\n/);
+  assert.match(windows, /run: npx tsx --test --test-concurrency=1 --test-timeout=120000 desktop\/mac-source-update\.test\.ts scripts\/auto-release-workflow\.test\.mjs scripts\/web-deploy\.test\.mjs scripts\/web-startup\.test\.mjs server\/browser-access\.test\.ts\n/);
   assert.match(ci, /types: \[opened, synchronize, reopened, ready_for_review\]/);
   assert.match(ci, /paths-ignore:\n      - '\*\*\/\*\.md'\n      - 'docs\/\*\*'/);
   assert.match(ci, /if: github\.event_name == 'workflow_dispatch' \|\| !github\.event\.pull_request\.draft/);
@@ -175,7 +178,7 @@ test("release notes come from CHANGELOG.md before tagging or publishing", () => 
   const publish = job("publish");
   assert.equal(existsSync(new URL("../.github/release.yml", import.meta.url)), false);
   assert.doesNotMatch(workflow, /--generate-notes/);
-  const local = readFileSync(new URL("./release.mjs", import.meta.url), "utf8");
+  const local = readFileSync(new URL("./release.mjs", import.meta.url), "utf8").replace(/\r\n/g, "\n");
   assert.doesNotMatch(local, /--generate-notes/);
   assert.match(local, /releaseNotes\(.*, \{ allowUnreleased: true \}\)/);
   assert.match(local, /"--notes-file",\n\s+notesPath,/);
