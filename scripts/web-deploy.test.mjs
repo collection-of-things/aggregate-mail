@@ -7,6 +7,9 @@ import { createServer } from "node:http";
 import { releaseTag, newer, deploy, recover, buildEnvironment, probe, deploymentPackage } from "./web-deploy.mjs";
 const old = "a".repeat(40), next = "b".repeat(40), older = "c".repeat(40);
 const tag = "v1.1.0";
+// Deployment pointers are relative POSIX symlinks and deploy() requires Linux
+// systemd, so pointer tests skip on Windows. Pure checks still run there.
+const linuxOnly = { skip: process.platform === "win32" && "Deployment pointers are POSIX symlinks (Linux systemd only)" };
 const metadata = { tag_name: tag, draft: false, prerelease: false, published_at: "2026-01-01T00:00:00Z" };
 
 test("only published stable releases qualify, with monotonic numeric versions", () => {
@@ -39,14 +42,14 @@ async function fixture(t) {
   };
   return { root, options, calls, release, current: () => readlink(path.join(root, "current")) };
 }
-test("verified deployment switches current and retains previous", async t => {
+test("verified deployment switches current and retains previous", linuxOnly, async t => {
   const f = await fixture(t);
   assert.deepEqual(await deploy(f.options), { status: "updated", revision: next });
   assert.deepEqual(f.calls, ["build", "stop", "start", next]);
   assert.equal(await f.current(), `releases/${next}`);
   assert.equal(await readlink(path.join(f.root, "previous")), `releases/${old}`);
 });
-test("failed build leaves service untouched and requires an explicit retry", async t => {
+test("failed build leaves service untouched and requires an explicit retry", linuxOnly, async t => {
   const f = await fixture(t);
   const build = f.options.prepare;
   f.options.prepare = async () => ({ ...await build(), build: async () => { throw new Error("synthetic build failure"); } });
@@ -56,14 +59,14 @@ test("failed build leaves service untouched and requires an explicit retry", asy
   f.options.prepare = build;
   assert.equal((await deploy({ ...f.options, retry: true })).status, "updated");
 });
-test("failed drain leaves current unchanged and never starts replacement", async t => {
+test("failed drain leaves current unchanged and never starts replacement", linuxOnly, async t => {
   const f = await fixture(t);
   f.options.service.stop = async () => { throw new Error("busy"); };
   await assert.rejects(deploy(f.options), /did not stop safely/);
   assert.equal(await f.current(), `releases/${old}`);
   assert.deepEqual(f.calls, ["build"]);
 });
-test("failed revision check restores the previous service and pointers", async t => {
+test("failed revision check restores the previous service and pointers", linuxOnly, async t => {
   const f = await fixture(t);
   f.options.health = async (_port, revision) => { if (revision === next) throw new Error("wrong revision"); f.calls.push(revision); };
   await assert.rejects(deploy(f.options), /previous deployment restored/);
@@ -71,7 +74,7 @@ test("failed revision check restores the previous service and pointers", async t
   assert.deepEqual(f.calls, ["build", "stop", "start", "stop", "start", old]);
   assert.equal(await readlink(path.join(f.root, "previous")), `releases/${older}`);
 });
-test("failed rollback preserves an interrupted-switch record and blocks updates", async t => {
+test("failed rollback preserves an interrupted-switch record and blocks updates", linuxOnly, async t => {
   const f = await fixture(t);
   f.options.health = async () => { throw new Error("unhealthy"); };
   await assert.rejects(deploy(f.options), /operator recovery required/);
@@ -84,28 +87,28 @@ test("failed rollback preserves an interrupted-switch record and blocks updates"
   assert.equal(await f.current(), `releases/${old}`);
   await assert.rejects(deploy(f.options), /explicit retry/);
 });
-test("automatic updates never downgrade and reject moved installed tags", async t => {
+test("automatic updates never downgrade and reject moved installed tags", linuxOnly, async t => {
   const f = await fixture(t);
   assert.equal((await deploy({ ...f.options, latest: async () => "v0.9.0" })).status, "up to date");
   assert.deepEqual(f.calls, []);
   await assert.rejects(deploy({ ...f.options, latest: async () => "v1.0.0" }), /tag moved/);
   assert.deepEqual(f.calls, []);
 });
-test("incompatible profile formats block activation", async t => {
+test("incompatible profile formats block activation", linuxOnly, async t => {
   const f = await fixture(t);
   f.options.prepare = async () => ({ revision: next, directory: path.join(f.root, "releases", next), build: () => f.release(next, tag, 2) });
   await assert.rejects(deploy(f.options), /Profile format changed/);
   assert.equal(await f.current(), `releases/${old}`);
   assert.deepEqual(f.calls, []);
 });
-test("manual rollback suppresses automatic redeployment of the same release", async t => {
+test("manual rollback suppresses automatic redeployment of the same release", linuxOnly, async t => {
   const f = await fixture(t);
   await deploy(f.options);
   assert.equal((await deploy({ ...f.options, command: "rollback" })).status, "rolled back");
   assert.equal(await f.current(), `releases/${old}`);
   await assert.rejects(deploy(f.options), /explicit retry/);
 });
-test("concurrent runs and unsafe pointers are rejected before service actions", async t => {
+test("concurrent runs and unsafe pointers are rejected before service actions", linuxOnly, async t => {
   const f = await fixture(t);
   await mkdir(path.join(f.root, "update.lock"));
   await assert.rejects(deploy(f.options), /lock exists/);
@@ -123,7 +126,7 @@ test("probe accepts only the requested revision from the protected browser gate"
   await assert.rejects(probe(server.address().port, old, 1), /revision check failed/);
 });
 
-test("synthetic service processes switch and roll back using actual HTTP revision probes", async t => {
+test("synthetic service processes switch and roll back using actual HTTP revision probes", linuxOnly, async t => {
   const { spawn } = await import("node:child_process");
   const { once } = await import("node:events");
   const f = await fixture(t);
@@ -150,7 +153,7 @@ test("synthetic service processes switch and roll back using actual HTTP revisio
   await probe(port, old, 1000);
 });
 
-test("empty deployments bootstrap without touching an existing profile", async t => {
+test("empty deployments bootstrap without touching an existing profile", linuxOnly, async t => {
   const f = await fixture(t);
   await rm(path.join(f.root, "current"));
   await rm(path.join(f.root, "previous"));

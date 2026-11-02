@@ -7,7 +7,9 @@ import { fileURLToPath } from "node:url";
 import { smokeRelease } from "./web-deploy.mjs";
 
 const source = fileURLToPath(new URL("../", import.meta.url));
-test("real managed browser starts with a synthetic encrypted profile, rejects unauthenticated API reads and drains", { timeout: 60_000 }, async () => {
+// The managed browser is a Linux systemd service and drains on SIGUSR2, which Windows lacks.
+const skip = process.platform === "win32" && "Managed browser drain uses SIGUSR2 (Linux only)";
+test("real managed browser starts with a synthetic encrypted profile, rejects unauthenticated API reads and drains", { timeout: 60_000, skip }, async () => {
   const root = await mkdtemp(path.join(tmpdir(), "emc2-managed-test-"));
   const revision = "d".repeat(40), build = "e".repeat(64);
   const directory = path.join(root, "releases", revision);

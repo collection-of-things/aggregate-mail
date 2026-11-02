@@ -1559,9 +1559,14 @@ Keep credentials, personal contact details, absolute machine paths, private host
 to `main` (opened, reopened, ready for review and later pushes) and on manual
 dispatch. Changes touching only Markdown or `docs/` are skipped.
 Every job runs on GitHub-hosted runners: a budget gate and
-`tsc --noEmit` on `ubuntu-latest` capped at 2 and 8 minutes, and `npm test` on
-`ubuntu-latest` capped at 15 minutes. The repository is public, so these runs
-are not billed and the gate passes. If it becomes private, or a visibility
+`tsc --noEmit` on `ubuntu-latest` capped at 2 and 8 minutes, `npm test` on
+`ubuntu-latest` capped at 15 minutes, and Windows portability tests on
+`windows-latest` capped at 15 minutes. The Windows job runs
+`desktop/mac-source-update.test.ts`, `scripts/auto-release-workflow.test.mjs`,
+`scripts/web-deploy.test.mjs`, `scripts/web-startup.test.mjs` and
+`server/browser-access.test.ts`; Linux-only deployment tests skip there with a
+stated reason ([ADR 0116](adr/0116-windows-pr-test-job.md)). The repository is
+public, so these runs are not billed and the gate passes. If it becomes private, or a visibility
 lookup fails (`unknown`), the gate skips CI jobs after 150 executed runs in a
 calendar month; draft-PR runs that skip every job are not counted. Only a
 repository known to be private also disables the workflow until a maintainer
