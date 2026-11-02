@@ -563,7 +563,7 @@ test("a mail-linked saved event masks the source correspondent name in its detai
  try {
   ui.state.messages[2].sender = "Vera Bloom";
   const day = `${eventMonth()}-12`, start = new Date(`${day}T09:00`).toISOString(), end = new Date(`${day}T10:00`).toISOString();
-  ui.events.push({ id: "e1", source: "local", title: "Vera Bloom review", description: "Notes for Vera Bloom", accountId: "b", sourceMailId: "in-b", start, end, allDay: false, attendees: [], revision: 1, updatedAt: 1 });
+  ui.events.push({ id: "e1", source: "local", title: "Vera Bloom review", description: "Notes for Vera Bloom", accountId: "b", sourceMailId: "in-b", meetLink: "https://meet.example.test/Vera%20Bloom", start, end, allDay: false, attendees: [], revision: 1, updatedAt: 1 });
   await ui.click(ui.button("Refresh workspace"));
   await ui.click(ui.container.querySelector<HTMLButtonElement>(`button[aria-label="${day}, 1 scheduled"]`)!);
   await ui.click(ui.container.querySelector<HTMLButtonElement>(".calendar-agenda .calendar-event")!);
@@ -572,6 +572,8 @@ test("a mail-linked saved event masks the source correspondent name in its detai
   await ui.privacy();
   assert.equal(detail().innerHTML.includes("Vera"), false);
   assert.equal(detail().innerHTML.includes("Bloom"), false);
+  assert.equal(detail().innerHTML.includes("Vera%20Bloom"), false, "the meeting link never carries the encoded name");
+  assert.ok(detail().textContent?.includes("Link hidden while personal information is hidden"));
   assert.ok(detail().textContent?.includes("review"));
  } finally { await ui.close(); }
 });
