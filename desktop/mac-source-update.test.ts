@@ -152,6 +152,16 @@ test("workspace quota rejects oversized downloads and never follows dependency s
     await workspaceLimit(workspace, limit);
     await writeFile(path.join(workspace, "large"), ""); await truncate(path.join(workspace, "large"), oversized);
     await assert.rejects(workspaceLimit(workspace, limit));
+    // Linux and macOS keep truncated files sparse, so check the production
+    // default there; NTFS would allocate the 7 GiB.
+    if (process.platform !== "win32") {
+      const defaults = path.join(root, "default");
+      await mkdir(defaults);
+      await writeFile(path.join(defaults, "sparse"), ""); await truncate(path.join(defaults, "sparse"), 6 * 1024 ** 3);
+      await workspaceLimit(defaults);
+      await truncate(path.join(defaults, "sparse"), 7 * 1024 ** 3);
+      await assert.rejects(workspaceLimit(defaults));
+    }
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
