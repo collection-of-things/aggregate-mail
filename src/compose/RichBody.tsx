@@ -8,6 +8,13 @@ type Command = "bold" | "italic" | "underline" | "createLink" | "insertUnordered
 // A selection endpoint as a child-index chain from the editor root to the
 // range container, plus the range offset inside it.
 type Bookmark = { path: number[]; offset: number };
+// A node position as a child-index chain from a root element.
+const pathOf = (container: Node, root: Node): number[] => {
+  const path: number[] = [];
+  for (let item = container; item !== root; item = item.parentNode!)
+    path.unshift(Array.from(item.parentNode!.childNodes).indexOf(item as ChildNode));
+  return path;
+};
 const commands: { label: string; text: string; command: Command }[] = [
   { label: "Bold", text: "B", command: "bold" },
   { label: "Italic", text: "I", command: "italic" },
@@ -58,15 +65,80 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
     const range = selection.current && node.contains(selection.current.commonAncestorContainer) ? selection.current
       : live && node.contains(live.commonAncestorContainer) ? live : undefined;
     if (!range) return;
-    // DOM-path bookmark: the repaint rebuilds the same structure from
-    // draft.html, so the path resolves to the same container afterwards.
-    const bookmark = (container: Node, offset: number): Bookmark => {
-      const path: number[] = [];
-      for (let item = container; item !== node; item = item.parentNode!)
-        path.unshift(Array.from(item.parentNode!.childNodes).indexOf(item as ChildNode));
-      return { path, offset };
+    // The reveal repaints draft.html, not the live structure: publish leaves
+    // live nodes alone, so adjacent text nodes, newlines and stripped spans
+    // can shift child indices. Marker characters moved through the same
+    // publish pipeline locate the selection inside the canonical structure
+    // the repaint rebuilds; when the canonical structure no longer matches
+    // draft.html, or a marker was stripped, the live path is the fallback.
+    const bookmark = (container: Node, offset: number): Bookmark => ({ path: pathOf(container, node), offset });
+    veiledSelection.current = canonicalBookmark(node, range) || {
+      start: bookmark(range.startContainer, range.startOffset), end: bookmark(range.endContainer, range.endOffset),
     };
-    veiledSelection.current = { start: bookmark(range.startContainer, range.startOffset), end: bookmark(range.endContainer, range.endOffset) };
+  };
+  // Private-use markers placed at the live selection endpoints inside a clone,
+  // carried through publish's sanitizer and located in the canonical result.
+  // The markers never reach the live editor or the draft.
+  const canonicalBookmark = (node: HTMLElement, range: Range): { start: Bookmark; end: Bookmark } | undefined => {
+    const START = "\uE000", END = "\uE001";
+    try {
+      const clone = node.cloneNode(true) as HTMLElement;
+      const clonePoint = (container: Node, offset: number): [Node, number] => {
+        let item: Node = clone;
+        for (const index of pathOf(container, node)) item = item.childNodes[index];
+        return [item, offset];
+      };
+      const start = clonePoint(range.startContainer, range.startOffset);
+      const end = clonePoint(range.endContainer, range.endOffset);
+      const insert = ([container, offset]: [Node, number], mark: string) => {
+        const at = document.createRange(); at.setStart(container, offset); at.collapse(true);
+        at.insertNode(document.createTextNode(mark));
+      };
+      if (!range.collapsed) insert(end, END);
+      insert(start, START);
+      const reparsed = document.createElement("div");
+      reparsed.innerHTML = composeMarkup(clone.innerHTML).html;
+      let startMark: { node: Text; index: number } | undefined, endMark: { node: Text; index: number } | undefined;
+      const walker = document.createTreeWalker(reparsed, 4);
+      let item: Node | null;
+      while ((item = walker.nextNode()) && !(startMark && endMark)) {
+        const data = item.textContent || "";
+        const atStart = data.indexOf(START), atEnd = data.indexOf(END);
+        if (!startMark && atStart !== -1) startMark = { node: item as Text, index: atStart };
+        if (!endMark && atEnd !== -1) endMark = { node: item as Text, index: atEnd };
+      }
+      if (!startMark || (!range.collapsed && !endMark)) return undefined;
+      // Resolve each marker to its position after stripping; a marker earlier
+      // in the same text node shifts a later offset left.
+      const position = (mark: { node: Text; index: number }, earlier?: { node: Text; index: number }) => {
+        let offset = mark.index;
+        if (earlier && earlier.node === mark.node && earlier.index < mark.index) offset--;
+        return { node: mark.node, offset };
+      };
+      const startPoint = position(startMark);
+      const endPoint = range.collapsed ? startPoint : position(endMark!, startMark);
+      for (const mark of [startMark, endMark]) if (mark) mark.node.data = mark.node.data.replace(/[\uE000\uE001]/g, "");
+      const place = ({ node: target, offset }: { node: Text; offset: number }): Bookmark | undefined => {
+        if (target.data === "") {
+          const parent = target.parentNode;
+          if (!parent) return undefined;
+          const index = Array.from(parent.childNodes).indexOf(target as ChildNode);
+          parent.removeChild(target);
+          return { path: pathOf(parent, reparsed), offset: index };
+        }
+        return { path: pathOf(target, reparsed), offset };
+      };
+      const startBookmark = place(startPoint);
+      if (!startBookmark) return undefined;
+      const endBookmark = place(endPoint) || startBookmark;
+      // The canonical structure must match what the reveal repaints; a draft
+      // that drifted since publish (publish had not run yet) keeps the
+      // live-path bookmark.
+      const reference = document.createElement("div");
+      reference.innerHTML = composeMarkup(draft.html || "").html;
+      if (reparsed.innerHTML !== reference.innerHTML) return undefined;
+      return { start: startBookmark, end: endBookmark };
+    } catch { return undefined; }
   };
   const publish = () => {
     if (!editor.current) return;

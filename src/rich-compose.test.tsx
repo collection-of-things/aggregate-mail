@@ -237,6 +237,70 @@ test("a rich selection spanning paragraph boundaries restores both ends", async 
   } finally { await app.close(); }
 });
 
+test("the rich caret restores when live text nodes merged in the published draft", async () => {
+  const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "FirstSecond", html: "<p>FirstSecond</p>", sendUnknown: true });
+  try {
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]')!;
+    const para = editor.firstChild!;
+    // Adjacent live text nodes serialize as one into draft.html.
+    (para.firstChild as Text).splitText(5);
+    assert.equal(para.childNodes.length, 2, "the live structure has two text nodes");
+    await act(async () => editor.dispatchEvent(new app.dom.window.Event("input", { bubbles: true })));
+    assert.equal(app.value.html, "<p>FirstSecond</p>", "publish keeps the merged canonical text");
+    const range = document.createRange(); range.setStart(para.childNodes[1], 2); range.collapse(true);
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
+    await veilAndReveal(app, editor);
+    const current = window.getSelection()!.getRangeAt(0);
+    assert.equal((current.startContainer as Text).textContent, "FirstSecond", "the caret lands in the merged canonical text");
+    assert.equal(current.startOffset, 7, "offset past the merge boundary");
+  } finally { await app.close(); }
+});
+
+test("the rich caret restores across a stripped inline element", async () => {
+  const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "abcdef", html: "<p>abcdef</p>", sendUnknown: true });
+  try {
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]')!;
+    const para = editor.firstChild!;
+    // Wrap part of the text in a live-only span; publish flattens it away.
+    (para.firstChild as Text).splitText(4);
+    const middle = (para.firstChild as Text).splitText(2);
+    const span = document.createElement("span");
+    para.insertBefore(span, middle.nextSibling); span.appendChild(middle);
+    await act(async () => editor.dispatchEvent(new app.dom.window.Event("input", { bubbles: true })));
+    assert.equal(app.value.html, "<p>abcdef</p>", "the span flattens into canonical text");
+    const tail = para.childNodes[2] as Text;
+    assert.equal(tail.textContent, "ef");
+    const range = document.createRange(); range.setStart(tail, 1); range.collapse(true);
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
+    await veilAndReveal(app, editor);
+    const current = window.getSelection()!.getRangeAt(0);
+    assert.equal((current.startContainer as Text).textContent, "abcdef", "the caret lands in the canonical text, not the removed span");
+    assert.equal(current.startOffset, 5);
+  } finally { await app.close(); }
+});
+
+test("a rich selection across merged text nodes restores both ends", async () => {
+  const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "FirstSecond", html: "<p>FirstSecond</p>", sendUnknown: true });
+  try {
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+    const editor = document.querySelector<HTMLElement>('[contenteditable="true"]')!;
+    const para = editor.firstChild!;
+    (para.firstChild as Text).splitText(5);
+    await act(async () => editor.dispatchEvent(new app.dom.window.Event("input", { bubbles: true })));
+    const range = document.createRange();
+    range.setStart(para.childNodes[0], 2); range.setEnd(para.childNodes[1], 3);
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
+    await veilAndReveal(app, editor);
+    const current = window.getSelection()!.getRangeAt(0);
+    assert.equal(current.startContainer, current.endContainer, "both ends share the merged canonical text");
+    assert.equal((current.startContainer as Text).textContent, "FirstSecond");
+    assert.equal(current.startOffset, 2);
+    assert.equal(current.endOffset, 8, "the end maps past the merge boundary");
+  } finally { await app.close(); }
+});
+
 test("a veiled draft that drifted parks the caret at the end instead of throwing", async () => {
   const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "FirstSecond", html: "<p>First</p><p>Second</p>", sendUnknown: true });
   try {
