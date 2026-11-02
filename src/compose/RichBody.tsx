@@ -265,7 +265,7 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
     }
   }, [draft.html, hidden]);
   const format = (command: Command, linkValue?: string) => {
-    if (disabled) return;
+    if (disabled || hidden) return;
     if (typeof document.execCommand !== "function" || typeof document.queryCommandSupported !== "function" || !document.queryCommandSupported(command)) {
       setError("Formatting is unavailable here. Your plain-text message is unchanged."); return;
     }

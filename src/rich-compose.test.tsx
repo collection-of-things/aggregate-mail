@@ -188,6 +188,37 @@ test("turning privacy on veils a focused body and an open link address", async (
   } finally { await app.close(); }
 });
 
+test("a veiled body keeps an entered link address for later insertion", async () => {
+  const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "Draft for Sample Person", html: "<p>Draft for Sample Person</p>", sendUnknown: true }, false);
+  const calls: [string, string | undefined][] = [];
+  Object.defineProperty(document, "queryCommandSupported", { value: () => true, configurable: true });
+  Object.defineProperty(document, "execCommand", { configurable: true, value: (command: string, _ui: boolean, input?: string) => { calls.push([command, input]); return true; } });
+  try {
+    await act(async () => document.querySelector<HTMLElement>(".compose-rich-body")!.focus());
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Insert link"]')!.click());
+    const url = () => document.querySelector<HTMLInputElement>('[aria-label="Link address"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(app.dom.window.HTMLInputElement.prototype, "value")!.set!.call(url(), "https://example.test/kept");
+      url().dispatchEvent(new app.dom.window.Event("input", { bubbles: true }));
+    });
+    const html = app.value.html;
+    await app.setPrivacy(true);
+    assert.ok(document.querySelector(".compose-veiled-body"), "privacy veils the rich body");
+    // Enter on the field and a click on Add link are no-ops while the editor
+    // is veiled: the address is kept, not discarded or applied to nothing.
+    await act(async () => url().dispatchEvent(new app.dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    const addLink = () => [...document.querySelectorAll<HTMLButtonElement>(".compose-link-controls button")].find(button => button.textContent === "Add link")!;
+    await act(async () => addLink().click());
+    assert.equal(calls.some(([command]) => command === "createLink"), false, "no link is inserted while veiled");
+    assert.equal(app.value.html, html, "the body HTML is unchanged");
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.dispatchEvent(new app.dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    assert.ok(document.querySelector(".compose-rich-body"), "the editor returns");
+    assert.equal(url().value, "https://example.test/kept", "the entered address survives the veil");
+    await act(async () => addLink().click());
+    assert.ok(calls.some(([command, input]) => command === "createLink" && input?.includes("example.test/kept")), "the saved address is inserted");
+  } finally { await app.close(); }
+});
+
 test("an empty private draft keeps focus in the editor while typing", async () => {
   const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "", sendUnknown: true });
   try {
