@@ -145,11 +145,23 @@ test("workspace quota rejects oversized downloads and never follows dependency s
   try {
     const workspace = path.join(root, "workspace"), outside = path.join(root, "outside");
     await mkdir(workspace); await mkdir(outside);
-    await writeFile(path.join(outside, "sparse"), ""); await truncate(path.join(outside, "sparse"), 7 * 1024 ** 3);
+    // A small limit keeps the fixture portable; the production default is unchanged.
+    const limit = 1024 ** 2, oversized = 2 * limit;
+    await writeFile(path.join(outside, "large"), ""); await truncate(path.join(outside, "large"), oversized);
     await symlink(outside, path.join(workspace, "dependency-link"), "junction");
-    await workspaceLimit(workspace);
-    await writeFile(path.join(workspace, "sparse"), ""); await truncate(path.join(workspace, "sparse"), 7 * 1024 ** 3);
-    await assert.rejects(workspaceLimit(workspace));
+    await workspaceLimit(workspace, limit);
+    await writeFile(path.join(workspace, "large"), ""); await truncate(path.join(workspace, "large"), oversized);
+    await assert.rejects(workspaceLimit(workspace, limit));
+    // Linux and macOS keep truncated files sparse, so check the production
+    // default there; NTFS would allocate the 7 GiB.
+    if (process.platform !== "win32") {
+      const defaults = path.join(root, "default");
+      await mkdir(defaults);
+      await writeFile(path.join(defaults, "sparse"), ""); await truncate(path.join(defaults, "sparse"), 6 * 1024 ** 3);
+      await workspaceLimit(defaults);
+      await truncate(path.join(defaults, "sparse"), 7 * 1024 ** 3);
+      await assert.rejects(workspaceLimit(defaults));
+    }
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

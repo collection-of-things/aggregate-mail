@@ -26,7 +26,8 @@ test("browser startup rejects missing secrets, unsafe roots, symlinks and deskto
       { APP_URL: "https://example.test" }, { APP_URL: "http://127.0.0.1:3001/path" },
       { APP_URL: "http://user:password@localhost:3001" },
     ]) assert.throws(() => browserConfiguration({ ...env, ...changes }, root));
-    symlinkSync(root, path.join(outside, "source-link"), "dir");
+    // Windows directory symlinks need extra rights; Node reports a junction as a symlink too.
+    symlinkSync(root, path.join(outside, "source-link"), process.platform === "win32" ? "junction" : "dir");
     assert.throws(() => browserConfiguration({ ...env, MAIL_DATA_DIR: path.join(outside, "source-link", "new-mail") }, root));
     mkdirSync(env.MAIL_DATA_DIR);
     for (const name of ["key", "key.protected", "key.local", ".renamed-to-emc2"]) {
