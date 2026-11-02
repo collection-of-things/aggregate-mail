@@ -360,9 +360,15 @@ test("privacy sweep: no synthetic identity survives on any audited surface", { t
     sweep("projects");
 
     await app.click(app.button("Inbox"));
+    // The first count only sets the baseline; a toast needs a later increase.
+    app.state.unreadArrivals = 0;
+    app.state.mailArrivals = [];
+    await app.refresh();
+    const toastsBefore = app.container.querySelectorAll(".toast").length;
     app.state.unreadArrivals = 1;
     app.state.mailArrivals = [{ sequence: 1, mail: { id: "a:1", sender: "Sample Person", subject: "Plan from Sample Person", preview: "Update from Other Recipient" } }];
     await app.refresh();
+    assert.ok(app.container.querySelectorAll(".toast").length > toastsBefore, "the arrival toast mounted");
     sweep("arrival-toast");
 
     await app.click(app.button("Commands"));
