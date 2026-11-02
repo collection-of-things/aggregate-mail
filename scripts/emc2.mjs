@@ -35,6 +35,7 @@ Options:
   --unread         Only unread mail (list/search)
   --pinned         Only locally pinned mail (list/search; needs capability)
   --syntax <mode>  substring or app query syntax (search; needs capability)
+  --redact         Mask account addresses, participant names and email addresses (needs capability)
   --limit <n>      Page size, 1..100 (default 25)
   --offset <n>     Page offset, 0 or greater (default 0)
   --confirm        Explicitly request an action or creation; never approves proposals
@@ -57,6 +58,7 @@ const connectionSchema = z.object({
     searchSyntax: z.array(z.string()).optional(),
     mailFilters: z.array(z.string()).optional(),
     mailViews: z.array(z.enum(['inbox', 'sent', 'all'])).optional(),
+    redaction: z.array(z.string()).optional(),
     reply: z.object({ mode: z.string(), approval: z.string(), sendsMail: z.boolean() }).optional(),
   }),
   permissions: z.object({ tools: z.array(z.string()), accountCount: z.number().int().nonnegative() }),
@@ -68,7 +70,7 @@ function command(args) {
     url: { type: 'string' }, 'token-stdin': { type: 'boolean' },
     account: { type: 'string' }, category: { type: 'string' }, view: { type: 'string' },
     unread: { type: 'boolean' }, pinned: { type: 'boolean' }, syntax: { type: 'string' }, limit: { type: 'string' }, offset: { type: 'string' },
-    confirm: { type: 'boolean' },
+    confirm: { type: 'boolean' }, redact: { type: 'boolean' },
   } });
   const [name = 'help', argument] = positionals;
   if (values.help || name === 'help') return { help: true };
@@ -83,11 +85,13 @@ function command(args) {
   if (positionals.length !== (needsArgument ? 2 : 1) || (needsArgument && !argument?.trim())) throw new Error();
   const paged = ['list', 'search'].includes(name);
   const mutation = file || ['mark-read', 'archive'].includes(name);
+  const redactable = ['accounts', 'list', 'search', 'read', 'thread'].includes(name);
   for (const option of Object.keys(values)) {
     if (option === 'account' && !paged && !scoped) throw new Error();
     if (['category', 'view', 'unread', 'pinned', 'limit', 'offset'].includes(option) && !paged) throw new Error();
     if (option === 'syntax' && name !== 'search') throw new Error();
     if (option === 'confirm' && !mutation) throw new Error();
+    if (option === 'redact' && !redactable) throw new Error();
   }
   if (mutation && !values.confirm) throw new Error();
   const input = file ? fileInput(name, argument) : {};
@@ -121,6 +125,7 @@ function command(args) {
     }
   } else if (needsArgument && !file) input.id = argument;
   if (name === 'read') input.markRead = false;
+  if (values.redact) input.redact = true;
   const url = new URL(values.url || 'http://127.0.0.1:32145/mcp');
   if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(url.hostname) ||
       url.username || url.password || url.pathname !== '/mcp' || url.search || url.hash) throw new Error();
@@ -170,7 +175,7 @@ export async function run(args, { env = process.env, stdin = process.stdin, out 
       cursor = page.nextCursor;
     } while (cursor);
     let connection;
-    const needsContract = request.input.view !== undefined || request.input.syntax !== undefined || request.input.pinnedOnly || request.name === 'reply';
+    const needsContract = request.input.view !== undefined || request.input.syntax !== undefined || request.input.pinnedOnly || request.input.redact || request.name === 'reply';
     if ((request.name === 'status' || needsContract) && names.includes('get_connection_status')) {
       const response = await client.callTool({ name: 'get_connection_status', arguments: {} });
       const parsed = connectionSchema.safeParse(response.structuredContent ?? (() => {
@@ -188,8 +193,10 @@ export async function run(args, { env = process.env, stdin = process.stdin, out 
       (request.input.view !== undefined && !connection.capabilities.mailViews?.includes(request.input.view)) ||
       (request.input.syntax !== undefined && !connection.capabilities.searchSyntax?.includes(request.input.syntax)) ||
       (request.input.pinnedOnly && !connection.capabilities.mailFilters?.includes('pinnedOnly')) ||
+      (request.input.redact && request.name === 'accounts' && !connection.capabilities.redaction?.includes('accounts')) ||
+      (request.input.redact && request.name !== 'accounts' && !connection.capabilities.redaction?.includes('mail')) ||
       (request.name === 'reply' && (connection.capabilities.reply?.mode !== 'proposal' || connection.capabilities.reply?.approval !== 'draft' || connection.capabilities.reply?.sendsMail !== false)))) {
-      err.write('This app does not guarantee the requested mail filters, search syntax or reviewed reply to Drafts. No operation requested.\n'); return 1;
+      err.write('This app does not guarantee the requested mail filters, search syntax, redaction or reviewed reply to Drafts. No operation requested.\n'); return 1;
     }
     let result;
     if (request.name === 'status') result = { connected: true, tools: names, ...(connection ? { connection } : {}) };

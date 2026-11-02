@@ -420,6 +420,13 @@ older apps silently ignoring explicit options. Existing mail grants apply;
 mail tools exclude saved drafts and never search providers. CLI plain draft
 files accept string or bounded array To recipients and optional Bcc, preserving
 both through proposal review. See [ADR 0108](adr/0108-cli-mcp-cached-mail-parity.md).
+CLI `accounts`, `list`, `search`, `read` and `thread` support `--redact` (and MCP
+`redact: true`), masking account emails, participant names, email addresses,
+Message-IDs in headers and thread gaps, and coverage errors via `shared/privacy.ts`
+while preserving account IDs, thread IDs, timestamps, attachment metadata and
+control-character JSON escaping. Additive version 1 capability
+`redaction: ["accounts", "mail"]` is verified before invoking the target tool.
+See [ADR 0115](adr/0115-cli-mcp-privacy-redaction.md) and [#193](https://github.com/collection-of-things/aggregate-mail/issues/193).
 Run `node --test scripts/emc2.test.mjs` for the isolated synthetic CLI checks.
 
 

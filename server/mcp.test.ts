@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Mail, McpSettings } from "../shared/types.js";
 import type { SendInput } from "./providers.js";
+import { PRIVACY_MASK } from "../shared/privacy.js";
 
 test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
   const directory = mkdtempSync(path.join(tmpdir(), "aggregate-mcp-"));
@@ -254,7 +255,7 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
         const discoveryStatus = decode(await call("get_connection_status"));
         assert.deepEqual(discoveryStatus, {
           version: 1,
-          capabilities: { searchSyntax: ["substring", "app"], mailFilters: ["pinnedOnly"], mailViews: ["inbox", "sent", "all"], reply: { mode: "proposal", approval: "draft", sendsMail: false } },
+          capabilities: { searchSyntax: ["substring", "app"], mailFilters: ["pinnedOnly"], mailViews: ["inbox", "sent", "all"], redaction: ["accounts", "mail"], reply: { mode: "proposal", approval: "draft", sendsMail: false } },
           permissions: { tools: [], accountCount: 0 },
         });
         const grantResponse = await fetch(`${base}/api/agent/grants`, { method: "POST", headers: settingsHeaders, body: JSON.stringify({ name: "Synthetic scoped agent", accountIds: ["a"], tools: ["list_accounts", "list_emails", "search_emails", "read_email", "get_thread", "reply_to_email", "archive_email", "mark_read", "propose_draft"] }) });
@@ -627,6 +628,182 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
       assert.deepEqual(result.payload.cc, ["other@example.com", "carol@example.com"]);
       assert.equal(sent.length, 1, "Preparing a Sent reply cannot send");
     });
+    await t.test(
+      "redaction masks accounts, mail summaries, full read, threads and gaps while preserving grants and proposals",
+      async () => {
+        const discovery = decode(await call("get_connection_status")) as { capabilities: { redaction?: string[] } };
+        assert.deepEqual(discovery.capabilities.redaction, ["accounts", "mail"]);
+
+        const accountsDefault = decode(await call("list_accounts"));
+        const accountsFalse = decode(await call("list_accounts", { redact: false }));
+        assert.deepEqual(accountsDefault, accountsFalse);
+        assert.deepEqual(accountsDefault, [{ id: "a", email: "me@example.com", provider: "gmail" }]);
+
+        const listDefault = decode(await call("list_emails", { accountId: "a" }));
+        const listFalse = decode(await call("list_emails", { accountId: "a", redact: false }));
+        assert.deepEqual(listDefault, listFalse);
+
+        const searchDefault = decode(await call("search_emails", { query: "Meeting", accountId: "a" }));
+        const searchFalse = decode(await call("search_emails", { query: "Meeting", accountId: "a", redact: false }));
+        assert.deepEqual(searchDefault, searchFalse);
+
+        const readDefault = decode(await call("read_email", { id: mail.id }));
+        const readFalse = decode(await call("read_email", { id: mail.id, redact: false }));
+        assert.deepEqual(readDefault, readFalse);
+
+        const threadDefault = decode(await call("get_thread", { id: mail.id }));
+        const threadFalse = decode(await call("get_thread", { id: mail.id, redact: false }));
+        assert.deepEqual(threadDefault, threadFalse);
+
+        for (const [toolName, input] of [
+          ["list_emails", { accountId: "b", redact: true }],
+          ["search_emails", { query: "secret", accountId: "b", redact: true }],
+          ["read_email", { id: "b:secret", redact: true }],
+          ["get_thread", { id: "b:secret", redact: true }],
+        ] as const) {
+          const denied = await call(toolName, input);
+          assert.equal(denied.isError, true, `Grant check runs before redaction for ${toolName}`);
+          assert.equal((decode(denied) as { code: string }).code, "MCP_PERMISSION_REQUIRED");
+        }
+
+        const accountsRedacted = decode(await call("list_accounts", { redact: true })) as Array<{ id: string; email: string; provider: string }>;
+        assert.deepEqual(accountsRedacted, [{ id: "a", email: PRIVACY_MASK, provider: "gmail" }]);
+
+        const listRedacted = decode(await call("list_emails", { accountId: "a", redact: true })) as { emails: Array<{ id: string; from: { name: string; address: string }; to: string; subject: string; preview: string; category: string }> };
+        const foundMail = listRedacted.emails.find((e) => e.id === mail.id)!;
+        assert.equal(foundMail.from.name, PRIVACY_MASK);
+        assert.equal(foundMail.from.address, PRIVACY_MASK);
+        assert.equal(foundMail.to, `"${PRIVACY_MASK}" <${PRIVACY_MASK}>, ${PRIVACY_MASK} <${PRIVACY_MASK}>`);
+        assert.equal(foundMail.subject, "Meeting");
+        assert.equal(foundMail.preview, "Discuss the plan");
+
+        const searchRedacted = decode(await call("search_emails", { query: "Meeting", accountId: "a", redact: true })) as { emails: typeof listRedacted.emails };
+        const searchFound = searchRedacted.emails.find((e) => e.id === mail.id)!;
+        assert.equal(searchFound.from.name, PRIVACY_MASK);
+        assert.equal(searchFound.from.address, PRIVACY_MASK);
+        assert.equal(searchFound.to, `"${PRIVACY_MASK}" <${PRIVACY_MASK}>, ${PRIVACY_MASK} <${PRIVACY_MASK}>`);
+
+        const readRedacted = decode(await call("read_email", { id: mail.id, redact: true })) as {
+          from: { name: string; address: string };
+          to: string;
+          cc: string;
+          replyTo: string;
+          messageId: string;
+          references: string[];
+          body: string;
+          subject: string;
+        };
+        assert.equal(readRedacted.from.name, PRIVACY_MASK);
+        assert.equal(readRedacted.from.address, PRIVACY_MASK);
+        assert.equal(readRedacted.to, `"${PRIVACY_MASK}" <${PRIVACY_MASK}>, ${PRIVACY_MASK} <${PRIVACY_MASK}>`);
+        assert.equal(readRedacted.cc, `${PRIVACY_MASK} <${PRIVACY_MASK}>`);
+        assert.equal(readRedacted.replyTo, PRIVACY_MASK);
+        assert.equal(readRedacted.messageId, `<${PRIVACY_MASK}>`);
+        assert.deepEqual(readRedacted.references, [`<${PRIVACY_MASK}>`]);
+        assert.equal(readRedacted.body, mail.body);
+
+        put("mail", mail.id, { ...mail, messageId: "<alice.20261101@mx-relay>", inReplyTo: "<Alice-7f3a9c@internal-host>", references: ["<Alice-7f3a9c@internal-host>"] });
+        try {
+          const nonTld = decode(await call("read_email", { id: mail.id, redact: true })) as { messageId: string; inReplyTo: string; references: string[] };
+          assert.equal(nonTld.messageId, `<${PRIVACY_MASK}>`, "non-TLD Message-ID host and token are masked whole");
+          assert.equal(nonTld.inReplyTo, `<${PRIVACY_MASK}>`);
+          assert.deepEqual(nonTld.references, [`<${PRIVACY_MASK}>`]);
+        } finally {
+          put("mail", mail.id, mail);
+        }
+
+        const rawReadOmitted = (await call("read_email", { id: mail.id })).content[0].text;
+        const rawReadFalse = (await call("read_email", { id: mail.id, redact: false })).content[0].text;
+        assert.equal(rawReadOmitted, rawReadFalse, "byte-for-byte raw JSON parity when redact is omitted vs false");
+
+        const markReadRedacted = decode(await call("read_email", { id: mail.id, markRead: true, redact: true })) as { id: string; digest: string; status: string };
+        assert.equal(markReadRedacted.status, "pending");
+        assert.ok(markReadRedacted.digest);
+        remove("proposal", markReadRedacted.id);
+
+        const bulkIds: string[] = [];
+        try {
+          for (let i = 0; i < 25; i++) {
+            const id = `a:bulk-${i}`;
+            bulkIds.push(id);
+            put("mail", id, {
+              ...mail,
+              id,
+              threadId: `thread-bulk-${i}`,
+              messageId: `<bulk-${i}@example.test>`,
+              references: [],
+              sender: `SenderFirst${i} SenderLast${i}`,
+              address: `sender${i}@example.test`,
+              to: `"RecipientFirst${i} RecipientLast${i}" <recipient${i}@example.test>`,
+              subject: `Quarterly status note ${i}`,
+              preview: `Plain summary ${i}`,
+              date: mail.date + 10000 + i,
+            });
+          }
+          const bulkPage = decode(await call("list_emails", { accountId: "a", limit: 25, redact: true })) as {
+            emails: Array<{ id: string; from: { name: string; address: string }; subject: string; preview: string }>;
+          };
+          assert.equal(bulkPage.emails.length, 25);
+          for (const row of bulkPage.emails) {
+            assert.equal(row.from.name, PRIVACY_MASK);
+            assert.equal(row.from.address, PRIVACY_MASK);
+            assert.match(row.subject, /^Quarterly status note \d+$/);
+            assert.match(row.preview, /^Plain summary \d+$/);
+          }
+        } finally {
+          for (const id of bulkIds) remove("mail", id);
+        }
+
+        put("mail", "a:thread-reply", {
+          ...mail,
+          id: "a:thread-reply",
+          sender: "Dave Participant",
+          address: "dave@example.com",
+          body: "Dave replies to Alice and Me.",
+          date: mail.date + 1000,
+          inReplyTo: mail.messageId,
+          references: [mail.messageId!],
+        });
+        put("mail", mail.id, {
+          ...mail,
+          body: "Alice quotes Dave Participant in original body.",
+          references: ["<missing-parent@example.com>", "<alice.20261101@mx-relay>"],
+        });
+        put("coverage", "a", {
+          accountId: "a",
+          count: 1,
+          bound: 50,
+          observedAt: Date.now(),
+          truncated: false,
+          error: "Sync error for Alice <alice@example.com>",
+        });
+
+        try {
+          const threadRedacted = decode(await call("get_thread", { id: mail.id, redact: true })) as {
+            emails: Array<{ id: string; from: { name: string; address: string }; body: string }>;
+            gaps: string[];
+            coverage: { error?: string };
+          };
+          const original = threadRedacted.emails.find((e) => e.id === mail.id)!;
+          assert.equal(original.body, `${PRIVACY_MASK} quotes ${PRIVACY_MASK} in original body.`);
+
+          const replyMsg = threadRedacted.emails.find((e) => e.id === "a:thread-reply")!;
+          assert.equal(replyMsg.from.name, PRIVACY_MASK);
+          assert.equal(replyMsg.from.address, PRIVACY_MASK);
+          assert.equal(replyMsg.body, `${PRIVACY_MASK} replies to ${PRIVACY_MASK} and ${PRIVACY_MASK}.`);
+
+          assert.ok(threadRedacted.gaps.some((g) => g === `Referenced message unavailable: <${PRIVACY_MASK}>`));
+          assert.ok(!threadRedacted.gaps.some((g) => g.includes("missing-parent@example.com") || g.includes("mx-relay") || g.includes("20261101")));
+
+          assert.equal(threadRedacted.coverage.error, `Sync error for ${PRIVACY_MASK} <${PRIVACY_MASK}>`);
+          assert.ok(threadRedacted.gaps.some((g) => g === `Sync error for ${PRIVACY_MASK} <${PRIVACY_MASK}>`));
+        } finally {
+          remove("mail", "a:thread-reply");
+          put("mail", mail.id, mail);
+          remove("coverage", "a");
+        }
+      },
+    );
     await t.test(
       "approved reply is saved as a draft; token rotation and disable revoke access",
       async () => {

@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Parser } from "htmlparser2";
 import {
-  collectPrivateNames, privateRanges, redactPrivateText,
+  PRIVACY_MASK, collectMailPrivateNames, collectPrivateNames, privateRanges,
+  redactAddress, redactPrivateText, redactSenderName,
   segmentPrivateParts, segmentPrivateText,
 } from "./privacy";
 
@@ -205,4 +206,41 @@ test("Unicode expansion does not hide original name from fallback matching", () 
 test("both Greek sigma forms match, like case-insensitive Unicode matching", () => {
   assert.equal(redactPrivateText("Γεια Νίκοσ", ["Νίκος"]), "Γεια ••••••••");
   assert.equal(redactPrivateText("Γεια Νίκος Λάμπρος", ["ΝΊΚΟΣ ΛΆΜΠΡΟΣ"]), "Γεια ••••••••");
+});
+
+test("mail output collects account, sender and recipient display names but not bare addresses", () => {
+  assert.equal(PRIVACY_MASK, "••••••••");
+  assert.deepEqual(collectMailPrivateNames(
+    [{ email: "sample-account@example.test", name: "Sample Account" }],
+    {
+      sender: "Sample Person",
+      to: '"Recipient Person" <recipient@example.test>, copied@example.test',
+      cc: '"Copied Person" <copied@example.test>',
+      replyTo: "Reply Person <reply@example.test>",
+    },
+  ), ["Sample Account", "Sample Person", "Recipient Person", "Copied Person", "Reply Person",
+    "Sample", "Account", "Person", "Recipient", "Copied", "Reply"]);
+  assert.deepEqual(collectMailPrivateNames([], { sender: '"Quoted Person"' }),
+    ["Quoted Person", "Quoted", "Person"]);
+  assert.deepEqual(collectMailPrivateNames([], { sender: '"Sample Person" <sample-account@example.test>' }),
+    ["Sample Person", "Sample", "Person"]);
+  assert.deepEqual(collectMailPrivateNames([], { sender: "sample-account@example.test" }), []);
+  assert.deepEqual(collectMailPrivateNames([], { sender: "Unknown sender" }), []);
+  assert.deepEqual(collectMailPrivateNames([], [{ sender: "First Person" }, { sender: "Second Person" }]),
+    ["First Person", "Second Person", "First", "Person", "Second"]);
+});
+
+test("sender and address fields never leave a non-letter label or malformed local address visible", () => {
+  assert.equal(redactSenderName("Sample Person", ["Sample Person"]), PRIVACY_MASK);
+  assert.equal(redactSenderName("Sample Person <sample-account@example.test>", ["Sample Person"]),
+    `${PRIVACY_MASK} <${PRIVACY_MASK}>`);
+  assert.equal(redactSenderName("+1 555 0100"), PRIVACY_MASK);
+  assert.equal(redactSenderName("Unknown sender"), "Unknown sender");
+  assert.equal(redactSenderName(""), "");
+  assert.equal(redactAddress("sample-account@example.test"), PRIVACY_MASK);
+  assert.equal(redactAddress("local-only"), PRIVACY_MASK);
+  assert.equal(redactAddress(""), "");
+  assert.equal(redactAddress("  "), "  ");
+  assert.equal(redactAddress("Sample Person <sample-account@example.test>", ["Sample Person"]),
+    `${PRIVACY_MASK} <${PRIVACY_MASK}>`);
 });

@@ -10,6 +10,8 @@ import { AgentPermissionError, agentCommitmentSchema, agentProjectSchema, assert
 import { plainContentSchema } from "./drafts.js";
 import type { Mail, McpSettings } from "../shared/types.js";
 import { compileMailSearch } from "../shared/mail-search.js";
+import { PRIVACY_MASK, collectMailPrivateNames, redactAddress, redactPrivateText, redactSenderName } from "../shared/privacy.js";
+import { conversationMembers } from "./conversation-members.js";
 import { all, account, put } from "./store.js";
 import { findMail } from "./mail-actions.js";
 
@@ -52,6 +54,39 @@ const full = (m: Mail) => ({
   ...(m.inReplyTo ? { inReplyTo: m.inReplyTo } : {}),
   ...(m.attachments ? { attachments: m.attachments } : {}),
 });
+const redactedSummary = (m: Mail, names: readonly string[]) => ({
+  ...summary(m),
+  from: {
+    name: redactSenderName(m.sender, names),
+    address: redactAddress(m.address, names),
+  },
+  to: redactAddress(m.to, names),
+  subject: redactPrivateText(m.subject, names),
+  preview: redactPrivateText(m.preview, names),
+});
+// Message-IDs carry unique tokens and internal hostnames, so mask them whole.
+const redactMessageId = (id: string | null | undefined) => {
+  if (!id) return id ?? null;
+  return id.startsWith("<") && id.endsWith(">") ? `<${PRIVACY_MASK}>` : PRIVACY_MASK;
+};
+const redactFull = (m: Mail, names: readonly string[]) => ({
+  ...redactedSummary(m, names),
+  body: redactPrivateText(m.body, names),
+  cc: m.cc ? redactAddress(m.cc, names) : "",
+  replyTo: redactAddress(m.replyTo || m.address, names),
+  messageId: redactMessageId(m.messageId),
+  threadId: m.threadId || null,
+  references: (m.references || []).map((r) => redactMessageId(r)!),
+  ...(m.inReplyTo ? { inReplyTo: redactMessageId(m.inReplyTo) } : {}),
+  ...(m.attachments ? { attachments: m.attachments } : {}),
+});
+function redactGap(gap: string, names: readonly string[]): string {
+  const prefix = "Referenced message unavailable: ";
+  if (gap.startsWith(prefix)) {
+    return prefix + redactMessageId(gap.slice(prefix.length));
+  }
+  return redactPrivateText(gap, names);
+}
 const limit = z.number().int().min(1).max(100).default(25);
 const filters = {
   view: z.enum(["inbox", "sent", "all"]).optional(),
@@ -59,6 +94,7 @@ const filters = {
   accountId: z.string().optional(),
   unreadOnly: z.boolean().default(false),
   pinnedOnly: z.boolean().default(false),
+  redact: z.boolean().default(false),
   limit,
   offset: z.number().int().min(0).default(0),
 };
@@ -69,10 +105,10 @@ function page(input: z.infer<z.ZodObject<typeof filters>>, allowedAccounts: stri
     ? compileMailSearch(query, all("account").filter((a) => allowedAccounts.includes(a.id))) : undefined;
   if (search?.error) throw new InvalidSearchError();
   const now = Date.now();
-  const matches = all("mail")
+  const permittedMails = all("mail").filter((m) => allowedAccounts.includes(m.accountId));
+  const matches = permittedMails
     .filter(
       (m) =>
-        allowedAccounts.includes(m.accountId) &&
         (input.view !== "sent" || m.direction === "sent") &&
         (input.view !== "inbox" || (m.direction !== "sent" && !m.archived && !(m.snoozedUntil && m.snoozedUntil > now))) &&
         (!input.category || category(m) === input.category) &&
@@ -86,8 +122,28 @@ function page(input: z.infer<z.ZodObject<typeof filters>>, allowedAccounts: stri
     )
     .sort((a, b) => b.date - a.date || a.id.localeCompare(b.id));
   const end = input.offset + input.limit;
+  const slice = matches.slice(input.offset, end);
+  let emails;
+  if (input.redact) {
+    const permittedAccounts = all("account").filter((a) => allowedAccounts.includes(a.id));
+    // One pass over permitted mail finds every slice conversation; per-row
+    // grouping then scans only that closed subset, not the whole mailbox.
+    const pageMembers = conversationMembers(slice, permittedMails);
+    const byMailId = new Map<string, string[]>();
+    emails = slice.map((m) => {
+      let names = byMailId.get(m.id);
+      if (!names) {
+        const thread = conversationMembers([m], pageMembers);
+        names = collectMailPrivateNames(permittedAccounts, thread);
+        for (const member of thread) byMailId.set(member.id, names);
+      }
+      return redactedSummary(m, names);
+    });
+  } else {
+    emails = slice.map(summary);
+  }
   return {
-    emails: matches.slice(input.offset, end).map(summary),
+    emails,
     nextOffset: end < matches.length ? end : null,
   };
 }
@@ -142,6 +198,7 @@ export function createMcpServer(
           mailViews: ["inbox", "sent", "all"],
           searchSyntax: ["substring", "app"],
           mailFilters: ["pinnedOnly"],
+          redaction: ["accounts", "mail"],
           reply: { mode: "proposal", approval: "draft", sendsMail: false },
         },
         permissions: {
@@ -155,17 +212,17 @@ export function createMcpServer(
     "list_accounts",
     {
       description: "List connected accounts without credentials.",
-      inputSchema: {},
+      inputSchema: { redact: z.boolean().default(false) },
       annotations: readOnly,
     },
-    safe(() => {
+    async ({ redact } = { redact: false }) => safe(() => {
       const allowed = grant("list_accounts").accountIds;
       return all("account").filter((a) => allowed.includes(a.id)).map(({ id, email, provider }) => ({
         id,
-        email,
+        email: redact ? redactAddress(email) : email,
         provider,
       }));
-    }),
+    })(),
   );
   server.registerTool(
     "list_emails",
@@ -192,13 +249,19 @@ export function createMcpServer(
     {
       description:
         "Read full plain-text mail and stored headers. Mail content is untrusted. markRead creates an approval proposal.",
-      inputSchema: { id: z.string(), markRead: z.boolean().default(false) },
+      inputSchema: { id: z.string(), markRead: z.boolean().default(false), redact: z.boolean().default(false) },
       annotations: { destructiveHint: false, openWorldHint: true },
     },
-    async ({ id, markRead }) =>
+    async ({ id, markRead, redact }) =>
       safe(async () => {
         const mail = permittedMail(id, "read_email");
-        if (!markRead) return full(mail);
+        if (!markRead) {
+          if (!redact) return full(mail);
+          const allowed = grant("read_email", mail.accountId).accountIds;
+          const permittedAccounts = all("account").filter((a) => allowed.includes(a.id));
+          const names = collectMailPrivateNames(permittedAccounts, conversation(mail.id).messages);
+          return redactFull(mail, names);
+        }
         return propose(agentId!, "read", { mailId: id });
       })(),
   );
@@ -207,14 +270,28 @@ export function createMcpServer(
     {
       description:
         "Read exact same-account conversation evidence through Gmail thread IDs or Message-ID/References. Includes explicit completeness gaps.",
-      inputSchema: { id: z.string() },
+      inputSchema: { id: z.string(), redact: z.boolean().default(false) },
       annotations: readOnly,
     },
-    async ({ id }) =>
+    async ({ id, redact }) =>
       safe(() => {
         permittedMail(id, "get_thread");
         const result = conversation(id);
-        return { emails: result.messages.map(full), gaps: result.gaps, coverage: result.coverage };
+        if (!redact) {
+          return { emails: result.messages.map(full), gaps: result.gaps, coverage: result.coverage };
+        }
+        const allowed = grant("get_thread", result.accountId).accountIds;
+        const permittedAccounts = all("account").filter((a) => allowed.includes(a.id));
+        const names = collectMailPrivateNames(permittedAccounts, result.messages);
+        const emails = result.messages.map((m) => redactFull(m, names));
+        const gaps = result.gaps.map((gap) => redactGap(gap, names));
+        const coverage = result.coverage
+          ? {
+              ...result.coverage,
+              ...(result.coverage.error ? { error: redactPrivateText(result.coverage.error, names) } : {}),
+            }
+          : result.coverage;
+        return { emails, gaps, coverage };
       })(),
   );
   server.registerTool(

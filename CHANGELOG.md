@@ -6,6 +6,10 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Added
+
+- Mask account emails, participant names, email addresses, Message-IDs and thread gap references in CLI and MCP mail output with `--redact` and `redact: true`, guarded by version 1 `capabilities.redaction` so older apps fail closed instead of ignoring redaction. ([#193](https://github.com/collection-of-things/aggregate-mail/issues/193))
+
 ### Changed
 
 - Add the Emc² brand mark as `public/favicon.png`. ([#195](https://github.com/collection-of-things/aggregate-mail/pull/195))
