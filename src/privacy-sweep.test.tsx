@@ -17,7 +17,7 @@ const NEEDLES = [
   "sample-account", "second-account",
   "maya lind", "maya.lind", "third party", "third.party",
   "contact person", "contact.person", "recent.person", "draft.person",
-  "import person", "import.person", "example.test",
+  "import person", "import.person", "renamed person", "earlier person", "rename.person", "example.test",
 ];
 
 type Violation = { surface: string; needle: string; where: string };
@@ -177,8 +177,9 @@ async function mount(
       return { ok: true, json: async () => ({}) } as Response;
     }
     if (url === "/api/contacts/import/preview" || url === "/api/contacts/import")
-      return { ok: true, json: async () => ({ added: 1, skipped: 0, duplicates: 0,
-        sample: [{ name: "Import Person", email: "import.person@example.test" }] }) } as Response;
+      return { ok: true, json: async () => ({ added: 1, changed: 1, updated: 0, unchanged: 0, missing: 0, skipped: 0,
+        sample: [{ name: "Import Person", email: "import.person@example.test" }],
+        changes: [{ email: "rename.person@example.test", name: "Renamed Person", previousName: "Earlier Person" }], revision: "synthetic-preview" }) } as Response;
     if (url.startsWith("/api/contacts/suggestions"))
       return { ok: true, json: async () => suggestions } as Response;
     if (url === "/api/contacts")
