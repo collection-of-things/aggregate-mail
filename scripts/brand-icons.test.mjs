@@ -82,6 +82,30 @@ test("icon check tolerates edge rounding but rejects a visible colour shift", as
   assert.equal(await assetMatches("build/tray-icon.png", await encode(shifted), png), false);
 });
 
+// Sharp decodes TIFF too, but Windows and macOS only use the PNG frames the
+// generator writes; same pixels in another format must not pass.
+test("icon check rejects frames that are not PNG", async () => {
+  const png = await readFile("build/icon.png");
+  assert.equal(await assetMatches("build/icon.png", await sharp(png).tiff({ compression: "lzw" }).toBuffer(), png), false);
+
+  const ico = await readFile("build/icon.ico");
+  const count = ico.readUInt16LE(4);
+  const payloads = [];
+  for (let n = 0; n < count; n++) {
+    const entry = 6 + n * 16;
+    const frame = ico.subarray(ico.readUInt32LE(entry + 12), ico.readUInt32LE(entry + 12) + ico.readUInt32LE(entry + 8));
+    payloads.push(n === 0 ? await sharp(frame).tiff({ compression: "lzw" }).toBuffer() : frame);
+  }
+  const header = Buffer.from(ico.subarray(0, 6 + count * 16));
+  let offset = header.length;
+  for (let n = 0; n < count; n++) {
+    header.writeUInt32LE(payloads[n].length, 6 + n * 16 + 8);
+    header.writeUInt32LE(offset, 6 + n * 16 + 12);
+    offset += payloads[n].length;
+  }
+  assert.equal(await assetMatches("build/icon.ico", Buffer.concat([header, ...payloads]), ico), false);
+});
+
 test("repository logo recolour fails when the mark colour changes", async () => {
   const mark = await readFile("build/mark.svg");
   assert.match(energyMark(mark).toString(), /#A50685/);

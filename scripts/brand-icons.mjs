@@ -59,6 +59,14 @@ export function energyMark(mark) {
   return Buffer.from(recoloured);
 }
 
+const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+// Generated containers hold only PNG frames; another payload, such as TIFF,
+// would still decode here but Windows and macOS would not use it.
+function pngFrame(png) {
+  if (!png.subarray(0, 8).equals(pngSignature)) throw new Error("Icon frame is not a PNG");
+  return png;
+}
+
 // Split an icon container into its PNG frames; other rasters are one frame.
 function frames(relative, bytes) {
   if (relative.endsWith(".ico")) {
@@ -68,7 +76,7 @@ function frames(relative, bytes) {
       const length = bytes.readUInt32LE(entry + 8);
       const offset = bytes.readUInt32LE(entry + 12);
       if (offset + length > bytes.length) throw new Error("Truncated ICO");
-      return { key: bytes.subarray(entry, entry + 8).toString("hex"), png: bytes.subarray(offset, offset + length) };
+      return { key: bytes.subarray(entry, entry + 8).toString("hex"), png: pngFrame(bytes.subarray(offset, offset + length)) };
     });
   }
   if (relative.endsWith(".icns")) {
@@ -77,12 +85,12 @@ function frames(relative, bytes) {
     for (let offset = 8; offset < bytes.length;) {
       const length = bytes.readUInt32BE(offset + 4);
       if (length < 8 || offset + length > bytes.length) throw new Error("Truncated ICNS");
-      list.push({ key: bytes.toString("latin1", offset, offset + 4), png: bytes.subarray(offset + 8, offset + length) });
+      list.push({ key: bytes.toString("latin1", offset, offset + 4), png: pngFrame(bytes.subarray(offset + 8, offset + length)) });
       offset += length;
     }
     return list;
   }
-  return [{ key: "", png: bytes }];
+  return [{ key: "", png: pngFrame(bytes) }];
 }
 
 async function pixels(png) {
