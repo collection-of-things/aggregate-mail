@@ -1,7 +1,7 @@
 {
   "name": "emc2",
   "private": true,
-  "version": "0.2.26",
+  "version": "0.2.27",
   "license": "MIT",
   "webDeployment": { "protocol": 1, "profile": 1 },
   "type": "module",
