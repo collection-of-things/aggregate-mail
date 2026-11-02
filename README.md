@@ -234,7 +234,7 @@ Do not remove quarantine or disable Gatekeeper to make a build launch. If signat
 
 For local DMG and ZIP output, `npm run package:mac` uses the same signing hook. Local packaging never publishes downloads. Public binary distribution with a verified publisher still requires Developer ID signing and notarization by an authorized Apple team. The version-tag release workflow remains unchanged.
 
-The macOS menu provides standard Command shortcuts for editing, closing and quitting. The window controls sit at the top left, beside the sidebar toggle. Closing the window keeps the app running in the background. On macOS, reopen it from the Dock and quit through the application menu. Windows and Linux retain Open and Quit in the tray menu. Unsent drafts still require confirmation.
+The macOS menu provides standard Command shortcuts for editing, closing and quitting. The window controls sit at the top left, over the sidebar header. Closing the window keeps the app running in the background. On macOS, reopen it from the Dock and quit through the application menu. Windows and Linux retain Open and Quit in the tray menu. Unsent drafts still require confirmation.
 
 ## Search and compose tools
 

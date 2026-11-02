@@ -44,8 +44,7 @@
   font-weight: 600;
   animation: fade-in 220ms var(--ease-out);
 }
-.pane-head > .icon:first-child,
-.sidebar-head > .icon:first-child {
+.pane-head > .icon:first-child {
   margin-left: -8px;
 }
 .search {

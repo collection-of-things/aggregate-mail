@@ -5,7 +5,7 @@ import { accountLabel } from "../mail-ui";
 import { ProviderIcon } from "../mail/Avatar";
 import { relative, sidebarViews, viewNames, type View } from "../mail/format";
 import { SlidingNav } from "../ui/SlidingNav";
-import { ChevronDown, Mail as MailIcon, Plus, Settings, SidebarIcon } from "../ui/icons";
+import { ChevronDown, Mail as MailIcon, Plus, Settings } from "../ui/icons";
 import { captionDoubleClick, type Corner } from "./PaneHeader";
 import { TrafficLights } from "../ui/TrafficLights";
 
@@ -40,12 +40,11 @@ function Heading({ id, folded, onFold, children }: {
  * Persistent mail navigation, account filters and bottom Settings action.
  */
 export function Sidebar({
-  open, corner, maximized, onToggle, settings, mail, sections,
+  open, corner, maximized, settings, mail, sections,
 }: {
   open: boolean;
   corner: Corner;
   maximized: boolean;
-  onToggle: () => void;
   settings: boolean;
   mail: {
     view: View;
@@ -92,15 +91,6 @@ export function Sidebar({
       inert={!open}
     >
       <div className={corner === "reserve" ? "sidebar-head reserve-lights" : "sidebar-head"} onDoubleClick={captionDoubleClick}>
-        <button
-          className="icon"
-          aria-label="Hide sidebar"
-          aria-expanded={open}
-          aria-controls="sidebar"
-          onClick={onToggle}
-        >
-          <SidebarIcon color="currentColor" size={16} />
-        </button>
         {corner === "left" && <TrafficLights maximized={maximized} />}
         <span className="sidebar-brand" role="img" aria-label="Emc²">
           <img className="brand-light" src="/brand/lockup-mass.svg" alt="" />

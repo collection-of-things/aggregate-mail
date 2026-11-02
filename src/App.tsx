@@ -309,7 +309,7 @@ export function App() {
   useEffect(() => {
     if (roomy) { setMobileSidebarOpen(false); return; }
     if (!mobileSidebarOpen) return;
-    document.querySelector<HTMLButtonElement>("#sidebar .sidebar-head button")?.focus();
+    document.querySelector<HTMLButtonElement>("#sidebar .new-message")?.focus();
     const close = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault(); event.stopImmediatePropagation();
@@ -319,6 +319,17 @@ export function App() {
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
   }, [roomy, mobileSidebarOpen]);
+  // A sidebar hidden by the shortcut or Commands must not strand focus inside
+  // the inert tree or lose it with an unmounted control; land on Show sidebar.
+  const wasSidebarShown = useRef(sidebarShown);
+  useEffect(() => {
+    const was = wasSidebarShown.current;
+    wasSidebarShown.current = sidebarShown;
+    if (sidebarShown || !was) return;
+    const active = document.activeElement;
+    if (!active || !active.isConnected || active === document.body || active.closest("#sidebar"))
+      document.getElementById("sidebar-toggle")?.focus();
+  }, [sidebarShown]);
   const [textScale, setTextScale] = useState(() => {
     const value = Number(localStorage.getItem("emc2.text-scale"));
     return Number.isFinite(value) && value >= 0.8 && value <= 1.5 ? value : 1;
@@ -1066,6 +1077,7 @@ export function App() {
         }
         if (action === "returnToList" && opened) { event.preventDefault(); closeReader(); return; }
       }
+      if (action === "sidebar" && !(target instanceof HTMLElement && target.closest('[role="dialog"], [role="menu"]'))) { event.preventDefault(); toggleSidebar(); return; }
       if (target instanceof HTMLElement && target.closest("#sidebar")) return;
       const draftControl = target instanceof HTMLElement && !!target.closest(".draft-list, .draft-tab-bar");
       const inbox = !draftControl && !settings && !nonMailView && view !== "drafts";
@@ -1209,6 +1221,7 @@ export function App() {
       aria-label="Show sidebar"
       aria-expanded={false}
       aria-controls="sidebar"
+      title={`Show sidebar (${shortcut("sidebar")})`}
       onClick={toggleSidebar}
     >
       <SidebarIcon color="currentColor" size={16} />
@@ -1300,6 +1313,7 @@ export function App() {
     important: () => switchView("inbox"), search: showSearch, compose: () => startCompose(),
     settings: () => setSettings(true), privacy: togglePrivacy, help: () => setShortcuts(true),
     density: () => setDensity((value) => value === "comfortable" ? "compact" : "comfortable"),
+    sidebar: toggleSidebar,
   };
   const findPinned = (scope: PinnedScope) => {
     navigate({ page: "mail", ...(scope === "all" || contactsView ? { view: "all" as const } : {}), query: "is:pinned", selectedId: null, opened: false });
@@ -1318,6 +1332,7 @@ export function App() {
     compose: ["new", "write"],
     settings: ["preferences"],
     privacy: ["redact", "hide"],
+    sidebar: ["navigation", "collapse"],
     help: ["keys"],
     sync: ["refresh"],
     "archive-view": ["archived"],
@@ -1410,7 +1425,6 @@ export function App() {
           {!roomy && mobileSidebarOpen && <button type="button" className="mobile-sidebar-backdrop" aria-label="Close navigation" onClick={() => { setMobileSidebarOpen(false); requestAnimationFrame(() => document.getElementById("sidebar-toggle")?.focus()); }} />}
           <Sidebar
             open={sidebarShown}
-            onToggle={toggleSidebar}
             corner={corner("sidebar")}
             maximized={maximized}
             settings={false}

@@ -215,6 +215,31 @@ test("Gmail bindings, sequence conflicts, custom sequences and legacy preference
   }
 });
 
+test("stored preferences predating the sidebar action keep custom bindings and gain a valid key", () => {
+  const old = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  const dom = new JSDOM("", { url: "http://localhost" });
+  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: dom.window.localStorage });
+  try {
+    const legacy = copy(); legacy.shortcuts.next = { key: "n" };
+    const { sidebar: _sidebar, ...complete } = legacy.shortcuts;
+    localStorage.setItem("emc2.interaction.v1", JSON.stringify({ ...legacy, shortcuts: complete }));
+    const restored = read();
+    assert.equal(restored.shortcuts.next.key, "n", "the custom binding survives");
+    assert.deepEqual(restored.shortcuts.sidebar, defaults.shortcuts.sidebar);
+    assert.equal(shortcutLabel(restored.shortcuts.sidebar), "[");
+    const taken = copy(); taken.shortcuts.next = { key: "[" };
+    const { sidebar: _takenSidebar, ...withoutSidebar } = taken.shortcuts;
+    localStorage.setItem("emc2.interaction.v1", JSON.stringify({ ...taken, shortcuts: withoutSidebar }));
+    const migrated = read();
+    assert.equal(migrated.shortcuts.next.key, "[", "an existing [ binding is untouched");
+    assert.notDeepEqual(migrated.shortcuts.sidebar, { key: "[" });
+    assert.equal(validateShortcut("sidebar", migrated.shortcuts.sidebar, migrated), null);
+  } finally {
+    if (old) Object.defineProperty(globalThis, "localStorage", old); else Reflect.deleteProperty(globalThis, "localStorage");
+    dom.window.close();
+  }
+});
+
 test("web sessions detect Mac modifiers without the desktop bridge", () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, "window");
   const dom = new JSDOM();
