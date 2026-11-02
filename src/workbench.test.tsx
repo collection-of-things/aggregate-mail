@@ -27,8 +27,8 @@ test("Projects hides known account names while preserving exact cross-account ap
   assert.ok(!ui.container.innerHTML.includes("Private Reader"));
   assert.ok(!ui.container.innerHTML.includes("reader@example.com"));
   assert.ok(!ui.container.innerHTML.includes("second@example.com"));
-  assert.ok(approvalLabel().querySelector('.veiled[aria-label="Reveal hidden name"]'));
-  assert.ok(approvalLabel().textContent?.includes("Account 2"));
+  assert.ok(approvalLabel().textContent?.includes("Account 1 · Custom IMAP"));
+  assert.ok(approvalLabel().textContent?.includes("Account 2 · Gmail"));
   assertSources();
   assert.equal(approval().checked,true);
   assert.equal(ui.button("Save project").disabled,false);
@@ -68,11 +68,11 @@ test("Agent Reviews hides known account names in allowed accounts and existing g
   await ui.click(checkbox());
   await ui.privacy();
   assert.deepEqual([allowed(),summary()].map(element=>element.textContent?.includes("Private Reader")),[false,false]);
-  assert.ok(allowed().querySelector('.veiled[aria-label="Reveal hidden name"]'));
-  assert.ok(summary().querySelector('.veiled[aria-label="Reveal hidden name"]'));
+  assert.ok(allowed().textContent?.includes("Account 1 · Custom IMAP"));
+  assert.ok(summary().textContent?.includes("Account 1 · Custom IMAP"));
   assert.ok(!ui.container.innerHTML.includes("Private Reader"));
   assert.ok(!ui.container.innerHTML.includes("reader@example.com"));
-  assert.ok(allowed().textContent?.includes("Account 2"));
+  assert.ok(allowed().textContent?.includes("Account 2 · Gmail"));
   assert.equal(checkbox().checked,true);
   await ui.click(checkbox());
   assert.equal(checkbox().checked,false);
@@ -221,6 +221,7 @@ async function mount(mode: "actions"|"calendar"|"projects"|"agents"|"assistants"
     else if(url.endsWith("/approve")){const input=body as any;assert.equal(input.digest,workspace.proposals[0].digest);workspace.proposals[0].status="succeeded";result=workspace.proposals[0];}
     else if(url.startsWith("/messages/") && method==="PATCH") { const mail=state.messages.find(mail=>url.endsWith(encodeURIComponent(mail.id)));if(mail)mail.unread=false;result={}; }
     else if(url.startsWith("/calendar/events?")&&method==="GET")result={events:structuredClone(events),google:structuredClone(google)};
+    else if(url.startsWith("/calendar/work-sessions?")&&method==="GET")result={sessions:[],available:true};
     else if(url.startsWith("/calendar/google/")&&method==="POST"){const accountId=decodeURIComponent(url.split("/")[3]);const value=google.find(value=>value.accountId===accountId)!;value.stale=false;value.syncedAt=Date.now();if(syncEvents){for(let i=events.length-1;i>=0;i--)if(events[i].source==="google"&&events[i].accountId===accountId)events.splice(i,1);events.push(...syncEvents);}result={ok:true};}
     else if(url.startsWith("/calendar/google/")&&method==="PATCH"){const value=google.find(value=>value.accountId===decodeURIComponent(url.split("/")[3]))!;value.selectedIds=(body as any).selectedIds;value.stale=true;value.syncedAt=0;result={ok:true};}
     else if(url==="/calendar/events"&&method==="POST"){await eventSave;if(eventFailure)throw new Error("Synthetic event failure");const input=body as any;const saved=events.find(event=>event.id===input.id);if(saved)result=saved;else{const event:CalendarEvent={...input,attendees:input.attendees.map((email:string)=>({email})),source:"local",revision:1,updatedAt:1};events.push(event);result=event;}}
@@ -412,6 +413,200 @@ test("workspace hides source-header-only names in commitments, history and propo
   ui.workspace.proposals.push({id:"p",agentId:"agent",accountId:"a",action:"draft",payload:{accountId:"a",to: ["recipient@example.com"],subject:"Nora Lane plan",body:"Nora Lane evidence"},digest:"e".repeat(64),sourceMailId:"in-a",createdAt:1,status:"rejected"});
   ui.setMode("agents");await ui.render();assert.ok(!ui.container.innerHTML.includes("Nora"));assert.ok(!ui.container.innerHTML.includes("Lane"));
  }finally{await ui.close();}
+});
+
+test("a project decision masks a correspondent named only on a later supporting email", async () => {
+ const ui = await mount("projects");
+ try {
+  ui.state.messages[2].sender = "Vera Bloom";
+  ui.workspace.projects.push({ id: "p1", name: "Synthetic project", sourceMailIds: ["in-a", "in-b"], accountIds: ["a", "b"], crossAccountConfirmed: false, revision: 1, updatedAt: 1 });
+  ui.workspace.decisions.push({ id: "d1", projectId: "p1", text: "Vera Bloom agreed to the plan", sourceMailIds: ["in-a", "in-b"], createdAt: 1 });
+  await ui.click(ui.button("Refresh workspace"));
+  await ui.click(ui.button("Synthetic project"));
+  const decisions = () => ui.container.querySelector(".project-decisions")!;
+  assert.ok(decisions().textContent?.includes("Vera Bloom agreed to the plan"));
+  await ui.privacy();
+  assert.equal(decisions().innerHTML.includes("Vera"), false);
+  assert.equal(decisions().innerHTML.includes("Bloom"), false);
+  assert.ok(decisions().textContent?.includes("agreed to the plan"));
+ } finally { await ui.close(); }
+});
+
+test("a commitment row and its detail mask a correspondent named only on an evidence email", async () => {
+ const ui = await mount("actions");
+ try {
+  ui.state.messages[1].sender = "Vera Bloom";
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["sent-a"], revision: 1, updatedAt: 1, history: [] });
+  await ui.click(ui.button("Refresh workspace"));
+  const row = () => ui.container.querySelector("#work-task-c1")!.closest("article")!;
+  assert.ok(row().textContent?.includes("Vera Bloom confirmation"));
+  await ui.privacy();
+  assert.equal(row().innerHTML.includes("Vera"), false);
+  assert.equal(row().innerHTML.includes("Bloom"), false);
+  await ui.click(ui.container.querySelector<HTMLButtonElement>(".work-select")!);
+  const detail = ui.container.querySelector('[aria-label="Commitment details"]')!;
+  assert.ok(detail);
+  assert.equal(detail.innerHTML.includes("Vera"), false);
+  assert.equal(detail.innerHTML.includes("Bloom"), false);
+  assert.ok(detail.textContent?.includes("confirmation"));
+ } finally { await ui.close(); }
+});
+
+test("commitment history masks a correspondent named only on a past evidence email", async () => {
+ const ui = await mount("actions");
+ try {
+  ui.state.messages[1].sender = "Vera Bloom";
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Synthetic task", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1,
+    history: [{ at: 1, status: "needs-work", text: "Vera Bloom draft", reason: "Vera Bloom asked", evidenceMailIds: ["sent-a"] }] });
+  await ui.click(ui.button("Refresh workspace"));
+  await ui.click(ui.container.querySelector<HTMLButtonElement>(".work-select")!);
+  const detail = () => ui.container.querySelector('[aria-label="Commitment details"]')!;
+  assert.ok(detail());
+  assert.ok(detail().textContent?.includes("Vera Bloom"));
+  await ui.privacy();
+  assert.equal(detail().innerHTML.includes("Vera"), false);
+  assert.equal(detail().innerHTML.includes("Bloom"), false);
+  assert.ok(detail().textContent?.includes("draft"));
+ } finally { await ui.close(); }
+});
+
+test("the uncertain-save recovery list masks evidence-only correspondent names", async () => {
+ const ui = await mount("actions");
+ try {
+  ui.state.messages[1].sender = "Vera Bloom";
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["sent-a"], revision: 1, updatedAt: 1, history: [] });
+  await ui.click(ui.button("Refresh workspace"));
+  await ui.click(ui.button("Add task"));
+  await ui.fill("What needs to happen", "Synthetic task"); await ui.fill("Why track this or change it", "Synthetic reason");
+  await ui.click(ui.container.querySelector<HTMLInputElement>('input[type="radio"]')!);
+  ui.fail(); await ui.submit();
+  const recovery = () => ui.container.querySelector(".work-recovery ul")!;
+  assert.ok(recovery());
+  assert.ok(recovery().textContent?.includes("Vera Bloom confirmation"));
+  await ui.privacy();
+  assert.equal(recovery().innerHTML.includes("Vera"), false);
+  assert.equal(recovery().innerHTML.includes("Bloom"), false);
+  assert.ok(recovery().textContent?.includes("confirmation"));
+ } finally { await ui.close(); }
+});
+
+test("the calendar agenda masks a commitment's source correspondent name", async () => {
+ const ui = await mount("calendar");
+ try {
+  ui.state.messages[0].sender = "Vera Bloom";
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [] });
+  await ui.click(ui.button("Refresh workspace"));
+  await ui.click(ui.button("Agenda"));
+  const agenda = () => ui.container.querySelector(".work-calendar > .calendar-agenda")!;
+  assert.ok(agenda().textContent?.includes("Vera Bloom confirmation"));
+  await ui.privacy();
+  assert.equal(agenda().innerHTML.includes("Vera"), false);
+  assert.equal(agenda().innerHTML.includes("Bloom"), false);
+  assert.ok(agenda().textContent?.includes("confirmation"));
+ } finally { await ui.close(); }
+});
+
+test("commitment rows and the agenda mask a history-only correspondent name", async () => {
+ for (const mode of ["actions", "calendar"] as const) {
+  const ui = await mount(mode);
+  try {
+   ui.state.messages[1].sender = "Vera Bloom";
+   ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [{ at: 1, status: "needs-work", text: "Synthetic", reason: "Synthetic", evidenceMailIds: ["sent-a"] }] });
+   await ui.click(ui.button("Refresh workspace"));
+   if (mode === "calendar") await ui.click(ui.button("Agenda"));
+   const surface = () => mode === "calendar" ? ui.container.querySelector(".work-calendar > .calendar-agenda")! : ui.container.querySelector("#work-task-c1")!.closest("article")!;
+   assert.ok(surface().textContent?.includes("Vera Bloom confirmation"));
+   await ui.privacy();
+   assert.equal(surface().innerHTML.includes("Vera"), false);
+   assert.equal(surface().innerHTML.includes("Bloom"), false);
+   assert.ok(surface().textContent?.includes("confirmation"));
+  } finally { await ui.close(); }
+ }
+});
+
+test("a commitment row keeps aliases from uncited messages private inside its mail scope", async () => {
+ const ui = await mount("actions");
+ try {
+  // The alias is an owner display name on an uncited message; Workbench's
+  // outer list collects it, but the row's MailPrivacy scope must inherit it.
+  ui.state.messages[2].to = "Outer Alias <second@example.com>";
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Outer Alias confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["in-a"], revision: 1, updatedAt: 1, history: [] });
+  await ui.click(ui.button("Refresh workspace"));
+  const row = () => ui.container.querySelector("#work-task-c1")!.closest("article")!;
+  assert.ok(row().textContent?.includes("Outer Alias confirmation"));
+  await ui.privacy();
+  assert.equal(row().innerHTML.includes("Outer"), false);
+  assert.equal(row().innerHTML.includes("Alias"), false);
+  assert.ok(row().textContent?.includes("confirmation"));
+ } finally { await ui.close(); }
+});
+
+test("the plan work dialog masks a correspondent named only on an evidence email", async () => {
+ const ui = await mount("actions");
+ try {
+  ui.state.messages[1].sender = "Vera Bloom";
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["sent-a"], revision: 1, updatedAt: 1, history: [] });
+  await ui.click(ui.button("Refresh workspace"));
+  await ui.click(ui.container.querySelector<HTMLButtonElement>(".work-select")!);
+  await ui.privacy();
+  await ui.click(ui.button("Plan work"));
+  const dialog = () => ui.container.querySelector<HTMLElement>(".session-dialog")!;
+  assert.ok(dialog());
+  assert.equal(dialog().innerHTML.includes("Vera"), false);
+  assert.equal(dialog().innerHTML.includes("Bloom"), false);
+  assert.ok(dialog().textContent?.includes("confirmation"));
+ } finally { await ui.close(); }
+});
+
+test("a mail-linked saved event masks the source correspondent name in its detail", async () => {
+ const ui = await mount("calendar");
+ try {
+  ui.state.messages[2].sender = "Vera Bloom";
+  const day = `${eventMonth()}-12`, start = new Date(`${day}T09:00`).toISOString(), end = new Date(`${day}T10:00`).toISOString();
+  ui.events.push({ id: "e1", source: "local", title: "Vera Bloom review", description: "Notes for Vera Bloom", accountId: "b", sourceMailId: "in-b", meetLink: "https://meet.example.test/Vera%20Bloom", start, end, allDay: false, attendees: [], revision: 1, updatedAt: 1 });
+  await ui.click(ui.button("Refresh workspace"));
+  await ui.click(ui.container.querySelector<HTMLButtonElement>(`button[aria-label="${day}, 1 scheduled"]`)!);
+  await ui.click(ui.container.querySelector<HTMLButtonElement>(".calendar-agenda .calendar-event")!);
+  const detail = () => ui.container.querySelector<HTMLElement>('[aria-label="Event details"]')!;
+  assert.ok(detail().textContent?.includes("Vera Bloom review"));
+  await ui.privacy();
+  assert.equal(detail().innerHTML.includes("Vera"), false);
+  assert.equal(detail().innerHTML.includes("Bloom"), false);
+  assert.equal(detail().innerHTML.includes("Vera%20Bloom"), false, "the meeting link never carries the encoded name");
+  assert.ok(detail().textContent?.includes("Link hidden while personal information is hidden"));
+  assert.ok(detail().textContent?.includes("review"));
+ } finally { await ui.close(); }
+});
+
+test("a timed commitment in Day view masks an evidence-only correspondent name", async () => {
+ const ui = await mount("calendar");
+ try {
+  ui.state.messages[1].sender = "Vera Bloom";
+  ui.workspace.commitments.push({ id: "c1", accountId: "a", sourceMailId: "in-a", text: "Vera Bloom confirmation", reason: "Synthetic reason", status: "needs-work", evidenceMailIds: ["sent-a"], revision: 1, updatedAt: 1, followUpAt: Date.now(), history: [] });
+  await ui.click(ui.button("Refresh workspace"));
+  await ui.click(ui.button("Day"));
+  const timed = () => ui.container.querySelector(".calendar-timed-list")!;
+  assert.ok(timed().textContent?.includes("Vera Bloom confirmation"));
+  await ui.privacy();
+  assert.equal(timed().innerHTML.includes("Vera"), false);
+  assert.equal(timed().innerHTML.includes("Bloom"), false);
+  assert.ok(timed().textContent?.includes("confirmation"));
+ } finally { await ui.close(); }
+});
+
+test("agent proposals mask the source correspondent name in subject and body", async () => {
+ const ui = await mount("agents");
+ try {
+  ui.state.messages[0].sender = "Vera Bloom";
+  ui.workspace.proposals.push({ id: "p", agentId: "agent", accountId: "a", action: "draft", payload: { accountId: "a", to: ["recipient@example.com"], subject: "Vera Bloom plan", body: "Vera Bloom evidence" }, digest: "e".repeat(64), sourceMailId: "in-a", createdAt: 1, status: "pending" });
+  await ui.click(ui.button("Refresh workspace"));
+  const card = () => ui.container.querySelector(".agent-proposal")!;
+  assert.ok(card().textContent?.includes("Vera Bloom"));
+  await ui.privacy();
+  assert.equal(card().innerHTML.includes("Vera"), false);
+  assert.equal(card().innerHTML.includes("Bloom"), false);
+  assert.ok(card().textContent?.includes("plan"));
+ } finally { await ui.close(); }
 });
 
 test("reader tracking source is consumed and returning to Actions does not start duplicate confirmation",async()=>{

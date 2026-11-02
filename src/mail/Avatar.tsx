@@ -1,6 +1,5 @@
 import { memo, useContext, useState } from "react";
 import { logoDomain, type Mail, type Provider } from "../../shared/types";
-import { redactPrivateText } from "../privacy";
 import { PrivacyContext } from "../ui/Privacy";
 import { Cloud, Gmail, Mail as MailIcon } from "../ui/icons";
 
@@ -30,11 +29,11 @@ export const Avatar = memo(function Avatar({
 }) {
   const domain = logoDomain(mail.address);
   const [broken, setBroken] = useState(false);
-  const { on, names } = useContext(PrivacyContext);
+  const { on } = useContext(PrivacyContext);
   const initial = mail.sender.slice(0, 1).toUpperCase();
   return (
     <span className="avatar" aria-hidden="true">
-      {domain && !broken ? (
+      {!on && domain && !broken ? (
         <img
           className="avatar-logo"
           src={`/api/logo/${domain}`}
@@ -45,7 +44,7 @@ export const Avatar = memo(function Avatar({
         />
       ) : (
         <span className="avatar-letter">
-          {on && redactPrivateText(initial, names) !== initial ? "·" : initial}
+          {on ? "·" : initial}
         </span>
       )}
       {provider && <ProviderIcon provider={provider} />}

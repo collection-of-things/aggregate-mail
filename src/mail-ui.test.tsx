@@ -6,15 +6,16 @@ import { LabelForm } from "./dialogs/LabelForm";
 import { PrivacyContext } from "./ui/Privacy";
 import { accountLabel, customLabels, textSizeShortcut, filterMail, markMailRead, matchesLabel, selectedMail } from "./mail-ui";
 
-test("account labels keep custom names visible while redacting literal and encoded addresses", () => {
+test("account labels hide custom names and addresses while personal information is hidden", () => {
   const account = { id: "a", provider: "imap" as const, email: "first@example.com" };
   assert.equal(accountLabel(account, 0, false), "first@example.com");
   assert.equal(accountLabel(account, 0, true), "Account 1 · Custom IMAP");
-  assert.equal(accountLabel({ ...account, name: "Work inbox" }, 0, true), "Work inbox");
+  // Custom labels can be personal names, so hidden mode never shows them.
+  assert.equal(accountLabel({ ...account, name: "Work inbox" }, 0, true), "Account 1 · Custom IMAP");
+  assert.equal(accountLabel({ ...account, name: "Work inbox" }, 0, false), "Work inbox");
   for (const name of ["Work <first@example.com>", "Work first%40example.com"]) {
     assert.equal(accountLabel({ ...account, name }, 0, false), name);
-    assert.doesNotMatch(accountLabel({ ...account, name }, 0, true), /first|example\.com/);
-    assert.match(accountLabel({ ...account, name }, 0, true), /Work/);
+    assert.equal(accountLabel({ ...account, name }, 0, true), "Account 1 · Custom IMAP");
   }
 });
 

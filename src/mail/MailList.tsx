@@ -4,7 +4,7 @@ import { previewText } from "../../shared/mail-content";
 import type { InteractionPreferences } from "../interaction";
 import { MailListWindow } from "../MailListWindow";
 import type { MailLocation } from "../navigation";
-import { collectPrivateNames, redactPrivateText } from "../privacy";
+import { messagePrivateNames, redactPrivateText } from "../privacy";
 import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
 import type { MenuAction } from "../ui/ContextMenu";
 import { Archive, Check, Clock, Important, Inbox, Mail as MailIcon, More, Pin, Reply, Trash } from "../ui/icons";
@@ -80,7 +80,7 @@ export function MailList<T extends Mail>({
     const current = m.id === selectedId;
     const accountIndex = accounts.findIndex((account) => account.id === m.accountId);
     const accountName = accountIndex < 0 ? "Account unavailable" : accountLabel(accounts[accountIndex], accountIndex, privacy, accounts);
-    const names = privacy ? collectPrivateNames(accounts, m) : [];
+    const names = privacy ? messagePrivateNames(accounts, m) : [];
     const reason = privacy ? redactPrivateText(m.reason, names) : m.reason;
     const label = `${m.pinned ? "Pinned: " : ""}${relevance === 3 ? "Important: " : ""}${m.unread ? "Unread: " : ""}${m.sender}, ${m.subject}`;
     const reasonLabel = m.relevance === 3 && reason && (

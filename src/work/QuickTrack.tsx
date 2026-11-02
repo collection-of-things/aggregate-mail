@@ -1,5 +1,5 @@
 import { Notice, useFeedbackState } from "../ui/Toasts";
-import { useContext, useEffect, useId, useRef, useState } from "react";
+import { useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { RendererMail as Mail } from "../../shared/types";
 import type { Commitment } from "../../shared/workspace";
 import { openCommitment } from "../../shared/commitment-dates";
@@ -7,11 +7,13 @@ import { followUpPreset, type FollowUpPreset } from "../../shared/follow-up-pres
 import { PrivateField } from "../ui/PrivateField";
 import { PrivacyContext, Redact } from "../ui/Privacy";
 import { Segmented } from "../ui/Segmented";
+import { messagePrivateNames } from "../privacy";
+import { commitmentMails } from "./commitment-privacy";
 import type { WorkspaceState } from "./useWorkspace";
 
 const trackingStatuses = { "needs-reply": "Needs reply", "needs-work": "Needs work", waiting: "Waiting" } as const;
 
-export function QuickTrack({ mail, work, privateNames, onEdit, onDone }: { mail: Mail; work: WorkspaceState; privateNames: readonly string[]; onEdit: (item?: Commitment, draft?: Partial<Commitment>) => void; onDone?: () => void }) {
+export function QuickTrack({ mail, work, privateNames, messages, onEdit, onDone }: { mail: Mail; work: WorkspaceState; privateNames: readonly string[]; messages: readonly Mail[]; onEdit: (item?: Commitment, draft?: Partial<Commitment>) => void; onDone?: () => void }) {
   const privacy = useContext(PrivacyContext);
   const statusLabel = useId();
   const reminderLabel = useId();
@@ -32,6 +34,20 @@ export function QuickTrack({ mail, work, privateNames, onEdit, onDone }: { mail:
   const showTitle = privacy.on || items.length <= 1 || target === "new";
   const changed = !!target && target !== "new" && (!current || current.revision !== target.revision);
   const resolved = savedId ? work.workspace.commitments.find((item) => item.id === savedId) : undefined;
+  // Saved text stays visible even when its commitment leaves the items list, so
+  // cover every mail the shown commitments cite, including history evidence.
+  const names = useMemo(() => {
+    const union = new Map<string, string>();
+    for (const name of privateNames) union.set(name.toLowerCase(), name);
+    const add = (cited: Mail | undefined) => {
+      if (cited) for (const name of messagePrivateNames(privacy.accounts || [], cited)) union.set(name.toLowerCase(), name);
+    };
+    add(mail);
+    for (const item of items) for (const cited of commitmentMails(item, messages)) add(cited);
+    if (target && target !== "new") for (const cited of commitmentMails(target, messages)) add(cited);
+    if (resolved) for (const cited of commitmentMails(resolved, messages)) add(cited);
+    return [...union.values()];
+  }, [privateNames, privacy.accounts, mail, items, target, resolved, messages]);
   const choose = (item: Commitment | "new" | null) => {
     setTarget(item);
     if (item && item !== "new") {
@@ -64,7 +80,7 @@ export function QuickTrack({ mail, work, privateNames, onEdit, onDone }: { mail:
     });
     if (ok) { setSaved(true); if (closeWhenSaved) onDone?.(); }
   };
-  return <PrivacyContext.Provider value={{ ...privacy, names: privateNames }}><form ref={form} className="settings-form quick-track" onSubmit={(event) => { event.preventDefault(); void save(); }}>
+  return <PrivacyContext.Provider value={{ ...privacy, names }}><form ref={form} className="settings-form quick-track" onSubmit={(event) => { event.preventDefault(); void save(); }}>
 
     {work.error && <Notice text={work.error} />}
     {(work.stale || work.reviewRequired) && <div className="work-recovery">

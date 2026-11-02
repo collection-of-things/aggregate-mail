@@ -26,7 +26,7 @@ test("quick tracking shows one summary, explicit new and saved choices, and requ
   };
   const render = async (items: Commitment[], key: string) => {
     work.workspace.commitments = items;
-    await act(async () => root.render(<QuickTrack key={key} mail={mail} work={work} privateNames={[]} onEdit={() => {}} />));
+    await act(async () => root.render(<QuickTrack key={key} mail={mail} work={work} privateNames={[]} messages={[mail]} onEdit={() => {}} />));
   };
   const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find(node => node.textContent === text)!;
   try {

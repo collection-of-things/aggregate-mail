@@ -1,6 +1,6 @@
 import { Fragment, createContext, memo, useContext, useMemo, type ReactNode } from "react";
 import type { Account, RendererMail as Mail } from "../../shared/types";
-import { collectPrivateNames, segmentPrivateText, type PrivacySegment } from "../privacy";
+import { messagePrivateNames, segmentPrivateText, type PrivacySegment } from "../privacy";
 
 // Hidden tokens have no private text in the DOM until explicitly revealed.
 export const PrivacyContext = createContext<{
@@ -10,9 +10,17 @@ export const PrivacyContext = createContext<{
   accounts?: readonly Account[];
   names?: readonly string[];
 }>({ on: false, revealed: new Set(), toggle() {} });
-export function MailPrivacy({ mail, children }: { mail: Mail; children: ReactNode }) {
+export function MailPrivacy({ mail, children }: { mail: Mail | readonly Mail[]; children: ReactNode }) {
   const context = useContext(PrivacyContext);
-  const value = useMemo(() => ({ ...context, names: collectPrivateNames(context.accounts || [], mail) }), [context, mail]);
+  const value = useMemo(() => {
+    // Inherited names (owner aliases and other outer-list entries) stay private
+    // inside the scope; the cited messages only add their correspondents.
+    const names = new Map<string, string>();
+    for (const name of context.names ?? []) names.set(name.toLowerCase(), name);
+    for (const message of Array.isArray(mail) ? mail : [mail])
+      for (const name of messagePrivateNames(context.accounts || [], message)) names.set(name.toLowerCase(), name);
+    return { ...context, names: [...names.values()] };
+  }, [context, mail]);
   return <PrivacyContext.Provider value={value}>
     {children}
   </PrivacyContext.Provider>;

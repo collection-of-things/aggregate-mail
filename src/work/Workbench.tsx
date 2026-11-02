@@ -1,6 +1,6 @@
 import { Notice, useFeedbackState } from "../ui/Toasts";
 import { attachmentSize } from "../../shared/attachments";
-import { useCallback, useEffect, useMemo, useRef, useState, useId, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useId, type ReactNode } from "react";
 import type { Draft, RendererMail as Mail, RendererState as State, McpSettings } from "../../shared/types";
 import type { AgentGrant, AgentProposal, AgentTool, Commitment, CommitmentStatus, Project } from "../../shared/workspace";
 import type { Api } from "../api";
@@ -23,6 +23,7 @@ import { blankEvent, eventFields, useCalendarEvents, type EventFields } from "./
 import { AgentProvider } from "./AgentProvider";
 import type { WorkspaceState } from "./useWorkspace";
 import { deadlineDate, localDate, localTimeInput, openCommitment } from "../../shared/commitment-dates";
+import { commitmentMails } from "./commitment-privacy";
 import { openCodeConfig, openCodeConfigPreview, type OpenCodeSetupResult } from "../../shared/opencode";
 
 const statusNames: Record<CommitmentStatus, string> = { "needs-reply": "Needs reply", "needs-work": "Needs work", waiting: "Waiting", done: "Completed", cancelled: "Cancelled" };
@@ -333,7 +334,8 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       setTaskStatus("Task completed.");
     }
   };
-  const itemRow = (item: Commitment) => <article key={item.id} className={`work-item work-row${selectedId === item.id ? " selected" : ""}`}>
+  const itemRow = (item: Commitment) => {
+    const row = <article className={`work-item work-row${selectedId === item.id ? " selected" : ""}`}>
     <input className="work-row-complete" type="checkbox" aria-label="Mark task complete" aria-describedby={`work-task-${encodeURIComponent(item.id)}`}
       checked={item.status === "done"} disabled={!openCommitment(item) || blocked || work.refreshing || sessionModal}
       onChange={(event) => void completeTask(item, event.currentTarget)} />
@@ -342,14 +344,20 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       <span className="work-meta">{`${statusNames[item.status]} · `}<Redact text={accountName(item)} />{deadlineDate(item) && ` · Due ${deadlineDate(item)}`}{item.followUpAt === undefined ? "" : ` · Remind ${new Date(item.followUpAt).toLocaleString()}`}</span>
     </button>
   </article>;
-  const detailBody = selected && <>
+    const mails = commitmentMails(item, state.messages);
+    return mails.length ? <MailPrivacy key={item.id} mail={mails}>{row}</MailPrivacy> : <Fragment key={item.id}>{row}</Fragment>;
+  };
+  const detailMails = selected ? commitmentMails(selected, state.messages) : [];
+  const detailBodyContent = selected && <>
     <p><Redact text={selected.reason} /></p>
     <dl><dt>Account</dt><dd><Redact text={accountName(selected)} /></dd><dt>Deadline</dt><dd>{deadlineDate(selected) || "Not set"}</dd><dt>Follow up</dt><dd>{selected.followUpAt === undefined ? "Not set" : new Date(selected.followUpAt).toLocaleString()}</dd></dl>
     <h3>Source and evidence</h3>{[...new Set([selected.sourceMailId, ...selected.evidenceMailIds])].map((id) => <Source key={id} id={id} state={state} onOpen={onOpen} />)}
     <details><summary>Change history ({selected.history.length})</summary>{selected.history.map((change, index) => <div className="work-item" key={index}><p>{new Date(change.at).toLocaleString()} · {statusNames[change.status]}</p><p><Redact text={change.text} /> · <Redact text={change.reason} /></p><p>Deadline: {deadlineDate(change) || "Not set"} · Follow up: {change.followUpAt === undefined ? "Not set" : new Date(change.followUpAt).toLocaleString()}</p>{change.evidenceMailIds?.map((id) => <Source key={id} id={id} state={state} onOpen={onOpen} />)}</div>)}</details>
   </>;
   const closeDetail = () => { if (sessionModal) return; restoreListFocus.current = mode !== "calendar"; setDetailOpen(false); missingSelection.current = false; onCloseReader?.(); };
-  const detail = selected && detailOpen && <section className={mode === "calendar" ? "work-inspector" : "work-summary"} aria-label="Commitment details" ref={inspector} tabIndex={-1}
+  // The whole detail block, title included, lives inside the source message's
+  // privacy context so correspondent names in the task text are masked.
+  const detailContent = selected && detailOpen && <section className={mode === "calendar" ? "work-inspector" : "work-summary"} aria-label="Commitment details" ref={inspector} tabIndex={-1}
     onKeyDown={(event) => { if (mode === "calendar" && event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); closeDetail(); } }}>
     <div className="work-summary-bar">
       <button type="button" className="icon" aria-label={mode === "calendar" ? "Back to calendar" : "Back to work list"} title={mode === "calendar" ? "Back to calendar" : "Back to work list"} onClick={closeDetail}><ArrowLeft size={15} /></button>
@@ -360,8 +368,9 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       <button type="button" disabled={blocked || sessions.locked || !sessions.value?.available} onClick={() => sessions.open(selected)}>Plan work</button>
     </div>
     <WorkSessions parent={selected} sessions={sessions} disabled={blocked} />
-    {mode === "calendar" ? detailBody : <details key={selected.id} className="work-task-details"><summary>Details{deadlineDate(selected) && ` · Due ${deadlineDate(selected)}`}{selected.followUpAt !== undefined && ` · Remind ${new Date(selected.followUpAt).toLocaleString()}`}</summary>{detailBody}</details>}
+    {mode === "calendar" ? detailBodyContent : <details key={selected.id} className="work-task-details"><summary>Details{deadlineDate(selected) && ` · Due ${deadlineDate(selected)}`}{selected.followUpAt !== undefined && ` · Remind ${new Date(selected.followUpAt).toLocaleString()}`}</summary>{detailBodyContent}</details>}
   </section>;
+  const detail = detailMails.length ? <MailPrivacy mail={detailMails}>{detailContent}</MailPrivacy> : detailContent;
   const dueFollowUps = sorted.filter((item) => openCommitment(item) && item.followUpAt !== undefined && item.followUpAt <= now);
   const [calendarStatus, setCalendarStatus] = useState("");
   const [calendarJump, setCalendarJump] = useState<{ day: string; key: number }>();
@@ -483,7 +492,11 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
 
             </div>
             <aside className="today-reader" aria-label="Project reading pane"><div className="project-context" hidden={detailOpen || readerOpened}><span className="context-label">Project context</span><h2><Redact text={privacy ? `Project ${projects.indexOf(selectedProject) + 1}` : selectedProject.name} /></h2><dl><dt>Open tasks</dt><dd>{sorted.filter((item) => item.projectId === selectedProject.id && openCommitment(item)).length}</dd><dt>Source emails</dt><dd>{selectedProject.sourceMailIds.length}</dd></dl>              <section className="project-decisions"><h3>Decisions</h3>
-                {workspace.decisions.filter((item) => item.projectId === selectedProject.id).map((item) => <article className="work-item" key={item.id}><Redact text={item.text} /><details><summary>Supporting emails</summary>{item.sourceMailIds.map((id) => <Source key={id} id={id} state={state} onOpen={(mail, trigger) => { selectedRow.current = trigger; setSelectedId(null); setDetailOpen(false); missingSelection.current = false; onOpen(mail); }} />)}</details></article>)}
+                {workspace.decisions.filter((item) => item.projectId === selectedProject.id).map((item) => {
+                  const sources = state.messages.filter((mail) => item.sourceMailIds.includes(mail.id) && state.accounts.some((account) => account.id === mail.accountId));
+                  const row = <article className="work-item"><Redact text={item.text} /><details><summary>Supporting emails</summary>{item.sourceMailIds.map((id) => <Source key={id} id={id} state={state} onOpen={(mail, trigger) => { selectedRow.current = trigger; setSelectedId(null); setDetailOpen(false); missingSelection.current = false; onOpen(mail); }} />)}</details></article>;
+                  return sources.length ? <MailPrivacy key={item.id} mail={sources}>{row}</MailPrivacy> : <Fragment key={item.id}>{row}</Fragment>;
+                })}
                 {!workspace.decisions.some((item) => item.projectId === selectedProject.id) && <p className="work-empty">Keep a note of what was agreed.</p>}
                 <details key={selectedProject.id}><summary>Add a decision</summary><form className="settings-form" onSubmit={async(event) => { event.preventDefault(); if(!decisionSources.length)return; if(await mutate(()=>api(`/projects/${encodeURIComponent(selectedProject.id)}/decisions`,"POST",{text:decision,sourceMailIds:decisionSources}))) {setDecision("");setDecisionSources([]);} }}>
                   <PrivateField label="What was agreed" value={decision} onChange={setDecision} multiline required />
@@ -571,7 +584,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       {editor && <Dialog title={editor === "new" ? "Add task" : "Edit task"} onClose={() => { if (!pending) { setEditor(null); setDraft(undefined); } }}>
         {error && <Notice text={error} />}
         {(stale || work.reviewRequired || acknowledged.current) && <button type="button" disabled={pending || work.refreshing} onClick={() => void load()}>Refresh saved work</button>}
-        {work.reviewRequired && <div className="work-recovery"><p>Review the refreshed saved work. The earlier save may already exist.</p><ul>{commitments.map((item) => <li key={item.id}><Redact text={item.text} /> · {statusNames[item.status]} · revision {item.revision}</li>)}</ul><button type="button" disabled={stale || work.refreshing || pending} onClick={work.acknowledgeReview}>I reviewed saved work</button></div>}
+        {work.reviewRequired && <div className="work-recovery"><p>Review the refreshed saved work. The earlier save may already exist.</p><ul>{commitments.map((item) => { const mails = commitmentMails(item, state.messages); return mails.length ? <MailPrivacy key={item.id} mail={mails}><li><Redact text={item.text} /> · {statusNames[item.status]} · revision {item.revision}</li></MailPrivacy> : <li key={item.id}><Redact text={item.text} /> · {statusNames[item.status]} · revision {item.revision}</li>; })}</ul><button type="button" disabled={stale || work.refreshing || pending} onClick={work.acknowledgeReview}>I reviewed saved work</button></div>}
         {editor !== "new" && workspace.commitments.find((item) => item.id === editor.id)?.revision !== editor.revision && <p role="alert">This deliverable changed or was removed. Close this editor and review the current saved item before editing again. Your earlier input is retained here.</p>}
         <fieldset disabled={blocked || acknowledged.current || editor !== "new" && workspace.commitments.find((item) => item.id === editor.id)?.revision !== editor.revision} className="work-editing"><CommitmentForm key={editor === "new" ? "new" : `${editor.id}:${editor.revision}`} existing={editor === "new" ? undefined : editor} draft={draft} state={state} projects={projects} source={source || (mode === "projects" ? selectedProject?.sourceMailIds.find((id) => state.messages.some((mail) => mail.id === id && (accountFilter === "all" || mail.accountId === accountFilter))) : undefined)} accountFilter={accountFilter} pending={pending || work.refreshing} onCancel={() => { setEditor(null); setDraft(undefined); }} onSave={async (input) => {
           if (editor !== "new" && workspace.commitments.find((item) => item.id === editor.id)?.revision !== editor.revision) return false;
@@ -616,7 +629,8 @@ function Proposal({ permissionAvailable, proposal, state, pending, onOpen, onRev
   const stale = proposal.sourceChanged;
   const action = { send: "Reply (opens as draft)", draft: "Save reply draft", archive: "Archive email", read: "Mark email as read" }[proposal.action];
   const sources = [...new Set([...("mailId" in payload ? [payload.mailId] : []), ...(proposal.sourceMailId ? [proposal.sourceMailId] : [])])];
-  return <article className="work-item agent-proposal"><header className="proposal-header"><h3>{action}</h3><p>Status: {proposal.status}</p></header>
+  const sourceMails = sources.map((id) => state.messages.find((mail) => mail.id === id)).filter((mail): mail is Mail => !!mail);
+  const card = <article className="work-item agent-proposal"><header className="proposal-header"><h3>{action}</h3><p>Status: {proposal.status}</p></header>
     <dl className="proposal-envelope"><dt>From</dt><dd><Redact text={account?.email||"Account unavailable"} /></dd>
       {"to" in payload && <><dt>To</dt><dd><Redact text={Array.isArray(payload.to) ? payload.to.join(", ") : payload.to}/></dd>{!!payload.cc?.length && <><dt>Cc</dt><dd><Redact text={payload.cc.join(", ")}/></dd></>}{!!payload.bcc?.length && <><dt>Bcc</dt><dd><Redact text={payload.bcc.join(", ")}/></dd></>}<dt>Subject</dt><dd><Redact text={payload.subject}/></dd></>}
     </dl>
@@ -630,4 +644,5 @@ function Proposal({ permissionAvailable, proposal, state, pending, onOpen, onRev
     {proposal.status === "pending"&&<><label><input type="checkbox" checked={reviewed} onChange={(event)=>setReviewed(event.target.checked)}/>I reviewed the exact account, recipients, content, attachments and change above.</label><button type="button" disabled={pending||!permissionAvailable||!reviewed||unavailable||stale||!account} onClick={()=>void onReview(true)}>{proposal.action==="send"?"Approve and open in Drafts":proposal.action === "draft" ? "Approve and save draft" : proposal.action === "archive" ? "Approve and archive email" : "Approve and mark as read"}</button><button type="button" disabled={pending} onClick={()=>void onReview(false)}>Reject proposal</button></>}
     {proposal.receipt&&<p>{new Date(proposal.receipt.at).toLocaleString()} · <Redact text={proposal.receipt.message}/></p>}
   </article>;
+  return sourceMails.length ? <MailPrivacy mail={sourceMails}>{card}</MailPrivacy> : card;
 }

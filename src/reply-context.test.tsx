@@ -69,6 +69,9 @@ test("reply context recovers formatted content and resets image consent on priva
     assert.ok(context().querySelector('img[src]'));
     await render({ ...source, id: 'replacement', accountId: 'b' }, true);
     assert.equal(context().querySelector('img[src]'), null, 'another source requires new consent');
+    const body = document.querySelector<HTMLElement>('[aria-label="Message body"]')!;
+    assert.equal(body.textContent, 'Hidden. Focus to edit.', 'the draft body stays veiled');
+    await act(async () => body.focus());
     assert.equal((document.querySelector('[aria-label="Message body"]') as HTMLTextAreaElement).value, 'Unchanged reply');
   } finally {
     await act(async () => root.unmount()); dom.window.close();
