@@ -1026,7 +1026,7 @@ export function App() {
       if (sequence && !action && sequenceScope && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); return; }
       const prefixKey = event.key.toLowerCase();
       const allowedSequences = settings ? ["search", "privacy", "back", "forward", "settings"] :
-        compose ? ["search", "privacy", "back", "forward", "settings", "help", "compose"] : null;
+        compose ? ["search", "privacy", "back", "forward", "settings", "help", "compose", "sidebar"] : null;
       if (!action && sequenceScope && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey &&
         !event.getModifierState?.("AltGraph") && interactionActions.some(({ id }) =>
           (!allowedSequences || allowedSequences.includes(id)) && interaction.shortcuts[id].prefix === prefixKey)) {

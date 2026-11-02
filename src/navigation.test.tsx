@@ -1144,6 +1144,38 @@ test("the sidebar shortcut stays available while composing, outside text fields"
   } finally { await app.close(); }
 });
 
+test("a custom two-key sidebar sequence works while composing", async () => {
+  const app = await mount(false, (_state, storage) => {
+    const custom = structuredClone(defaults);
+    custom.shortcuts.sidebar = { prefix: "z", key: "q" };
+    storage.setItem("emc2.interaction.v1", JSON.stringify(custom));
+  });
+  try {
+    await app.click(app.button("New message"));
+    const dialog = app.container.querySelector<HTMLElement>(".compose-dialog")!;
+    assert.ok(dialog, "composer open");
+    const press = (key: string) => new app.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+    const close = dialog.querySelector<HTMLButtonElement>('button[aria-label="Close dialog"]')!;
+    await act(async () => close.dispatchEvent(press("z")));
+    await act(async () => close.dispatchEvent(press("q")));
+    assert.ok(app.container.querySelector(".sidebar.closed[inert]"), "z then q hides the sidebar while composing");
+    assert.equal(app.storage.getItem("sidebar"), "closed");
+    await act(async () => close.dispatchEvent(press("z")));
+    await act(async () => close.dispatchEvent(press("q")));
+    assert.equal(app.container.querySelector(".sidebar.closed, .sidebar[inert]"), null, "z then q restores the sidebar");
+    assert.equal(app.storage.getItem("sidebar"), "open");
+    // Text fields keep both keys for typing.
+    const body = app.container.querySelector<HTMLTextAreaElement>(".compose-form textarea")!;
+    for (const key of ["z", "q"]) {
+      const event = press(key);
+      await act(async () => body.dispatchEvent(event));
+      assert.equal(event.defaultPrevented, false, `the field owns ${key}`);
+      assert.equal(app.container.querySelector(".sidebar.closed, .sidebar[inert]"), null, "no toggle from a text field");
+      assert.equal(app.storage.getItem("sidebar"), "open");
+    }
+  } finally { await app.close(); }
+});
+
 test("Commands lists Show / hide sidebar with its shortcut and running it lands focus on the toolbar toggle", async () => {
   const app = await mount();
   try {
