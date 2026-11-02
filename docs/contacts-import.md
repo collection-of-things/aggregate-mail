@@ -41,7 +41,8 @@ lists every contact whose saved name differs from the file (the first five
 inline, the rest under "Show all"), and you choose per import whether to
 update them. The preview fingerprints your saved contacts; if they changed
 since the preview — for example after editing or deleting one — the import is
-refused and nothing is written, so preview again to see what changed. Saved
+refused, nothing is written, and the preview refreshes automatically for you
+to review before confirming again. Saved
 contacts missing from the file stay saved; import never removes anything.
 After an uncertain response, preview again to see what remains. Imported
 contacts are encrypted with the existing local store and feed To, Cc and Bcc

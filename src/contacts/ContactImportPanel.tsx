@@ -2,7 +2,7 @@ import { Notice, useFeedbackState } from "../ui/Toasts";
 import { useContext, useRef, useState } from "react";
 import type { ContactImport, ContactImportPreview } from "../../shared/contacts";
 import type { Account } from "../../shared/types";
-import type { Api } from "../api";
+import { ApiError, type Api } from "../api";
 import { accountLabel } from "../mail-ui";
 import { Dropdown } from "../ui/Dropdown";
 import { Address, PrivacyContext } from "../ui/Privacy";
@@ -56,7 +56,17 @@ export function ContactImportPanel({ api, accounts, accountFilter, busy, onImpor
       reset();
       setStatus(`Added ${result.added}, updated ${result.updated}, skipped ${result.unchanged + result.changed - result.updated} already saved and ${result.skipped} invalid or repeated. None removed.`);
       try { await onImported(); } catch { setError("Import saved, but the contact list could not refresh. Open Saved contacts again to check it."); }
-    } catch { setError("Import could not be confirmed. Preview the file again to check what remains; existing contacts are never removed."); }
+    } catch (failure) {
+      // A 409 means the contacts moved since the preview; refresh it so the
+      // next confirm sends the new revision instead of retrying the stale one.
+      if (failure instanceof ApiError && failure.status === 409) {
+        try {
+          setPreview(await api<ContactImportPreview>("/contacts/import/preview", "POST", { accountId: input.accountId, format: input.format, content: input.content }));
+          setUpdateNames(false);
+          setError("Contacts changed since your preview. Review the updated preview before importing.");
+        } catch { reset(); setError("Import could not be confirmed. Preview the file again to check what remains; existing contacts are never removed."); }
+      } else setError("Import could not be confirmed. Preview the file again to check what remains; existing contacts are never removed.");
+    }
     finally { lock.current = false; setPending(false); }
   };
   return <section aria-label="Import contacts">

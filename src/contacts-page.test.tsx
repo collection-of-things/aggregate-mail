@@ -234,6 +234,96 @@ test("changed names beyond five hide behind a disclosure and a rejected confirm 
   });
 });
 
+// A file-input fixture for the import flows.
+const pickFile = async (document: Document) => {
+  const file = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+  const bytes = new TextEncoder().encode('Name,Email\nSomeone,someone@example.test');
+  Object.defineProperty(file, "files", { configurable: true, value: [{ name: "contacts.csv", size: bytes.length, arrayBuffer: async () => bytes.buffer }] });
+  await act(async () => { file.dispatchEvent(new window.Event("change", { bubbles: true })); });
+  return bytes;
+};
+
+test("a stale confirm refreshes the preview and the next confirm sends its revision", async () => {
+  await withDOM(async ({ document, render }) => {
+    const { ApiError } = await import("./api");
+    const bodies: unknown[] = [];
+    const previews: unknown[] = [];
+    const first = {
+      added: 2, changed: 1, updated: 0, unchanged: 1, missing: 0, skipped: 0,
+      sample: [{ name: "New One", email: "new.one@example.test" }],
+      changes: [{ email: "old@example.test", name: "New Name", previousName: "Old Name" }],
+      revision: "a".repeat(64),
+    };
+    const second = {
+      added: 1, changed: 1, updated: 0, unchanged: 1, missing: 0, skipped: 0,
+      sample: [{ name: "New Two", email: "new.two@example.test" }],
+      changes: [{ email: "other@example.test", name: "Now This", previousName: "Was That" }],
+      revision: "b".repeat(64),
+    };
+    let imports = 0;
+    const api: Api = async <T,>(url: string, method = "GET", body?: unknown) => {
+      if (method === "POST") bodies.push(body);
+      if (url === "/contacts") return { saved: [], recent: [] } as T;
+      if (url === "/contacts/import/preview") { previews.push(body); return (previews.length === 1 ? first : second) as T; }
+      if (url === "/contacts/import") {
+        if (++imports === 1) throw new ApiError(409, "Contacts changed since this preview. Preview the file again.");
+        return { ...second, updated: 1, revision: "c".repeat(64) } as T;
+      }
+      return {} as T;
+    };
+    await render(<ContactsPage api={api} accounts={accounts} />);
+    await click(button(document, "Import contacts"));
+    const bytes = await pickFile(document);
+    assert.equal(previews.length, 1);
+    await act(async () => { document.querySelector<HTMLInputElement>('.contact-import-preview input[type="checkbox"]')!.click(); });
+    await click(button(document, "Import 2 and update 1"));
+    // The stale confirm is rejected; the same file is previewed again without
+    // revision or updateNames, and the shown counts are the fresh ones.
+    assert.equal(previews.length, 2, "the stale preview is refreshed");
+    assert.deepEqual(previews[1], { accountId: "work", format: "csv", content: new TextDecoder().decode(bytes) }, "the refresh resends the file, not the stale revision");
+    assert.match(document.body.textContent!, /Contacts changed since your preview\. Review the updated preview before importing\./);
+    assert.match(document.body.textContent!, /1 new, 1 with a changed name, 1 unchanged, 0 not in this file\./);
+    const update = document.querySelector<HTMLInputElement>('.contact-import-preview input[type="checkbox"]')!;
+    assert.equal(update.checked, false, "the update choice resets with the fresh preview");
+    // The next confirm sends the new preview's revision.
+    await act(async () => { update.click(); });
+    await click(button(document, "Import 1 and update 1"));
+    const sent = bodies.at(-1) as { updateNames?: boolean; revision?: string };
+    assert.equal(sent.updateNames, true);
+    assert.equal(sent.revision, "b".repeat(64), "the retry carries the refreshed revision");
+    assert.match(document.body.textContent!, /Added 1, updated 1, skipped 1 already saved and 0 invalid or repeated\. None removed\./);
+  });
+});
+
+test("a stale confirm whose refresh also fails leaves no actionable preview", async () => {
+  await withDOM(async ({ document, render }) => {
+    const { ApiError } = await import("./api");
+    let previews = 0;
+    let imports = 0;
+    const api: Api = async <T,>(url: string, method = "GET") => {
+      if (url === "/contacts") return { saved: [], recent: [] } as T;
+      if (url === "/contacts/import/preview") {
+        if (++previews === 1) return {
+          added: 1, changed: 0, updated: 0, unchanged: 0, missing: 0, skipped: 0,
+          sample: [{ name: "New One", email: "new.one@example.test" }], changes: [], revision: "a".repeat(64),
+        } as T;
+        throw new ApiError(500, "Synthetic refresh failure");
+      }
+      if (url === "/contacts/import" && ++imports === 1) throw new ApiError(409, "Contacts changed since this preview. Preview the file again.");
+      return {} as T;
+    };
+    await render(<ContactsPage api={api} accounts={accounts} />);
+    await click(button(document, "Import contacts"));
+    await pickFile(document);
+    await click(button(document, "Import 1 contact"));
+    assert.equal(previews, 2, "a stale confirm tries to refresh the preview");
+    assert.match(document.body.textContent!, /Import could not be confirmed/);
+    assert.equal(document.querySelector('[aria-label="Import preview"]'), null, "no stale preview stays actionable");
+    const action = document.querySelector<HTMLButtonElement>(".contacts-actions .button");
+    assert.equal(action, null, "the confirm button is gone with the preview");
+  });
+});
+
 test("contacts missing from the file get the stay-saved note without a name change", async () => {
   await withDOM(async ({ document, render }) => {
     const api: Api = async <T,>(url: string) => (url === "/contacts" ? { saved: [], recent: [] }
