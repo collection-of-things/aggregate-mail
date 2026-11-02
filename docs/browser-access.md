@@ -10,8 +10,9 @@ private Tailscale route.
 The optional browser target uses the same mail interface without Electron. It
 requires Node 24.x and installed dependencies. Build once with `npm run
 build:web`, then run `npm run start:web` and open the configured `APP_URL`.
-The default is `http://127.0.0.1:3001`; `MAIL_WEB_PORT` changes the default port,
-and `APP_URL` can override the browser origin.
+The default is `http://127.0.0.1:3001`; `MAIL_WEB_PORT` changes the listener port.
+For direct `start:web` access, `APP_URL` must use the same port. A separate
+frontend or proxy can use another port.
 
 This build does not package or compile Electron. The local service must remain
 running.

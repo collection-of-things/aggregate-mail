@@ -86,12 +86,16 @@ pending; see [ADR 0045](adr/0045-agent-review-byok.md).
 For Claude Code:
 
 ```sh
-claude mcp add --transport http emc2 http://127.0.0.1:32145/mcp --header "Authorization: Bearer <token>"
+read -rs EMC2_MCP_TOKEN   # paste the token, then press Enter; nothing is shown
+claude mcp add --transport http emc2 http://127.0.0.1:32145/mcp --header "Authorization: Bearer $EMC2_MCP_TOKEN"
+unset EMC2_MCP_TOKEN
 ```
 
-Replacing `<token>` with a real credential may store the bearer token in shell
-history. Remove that history entry afterward, or use the JSON configuration
-alternative below and keep that file private.
+Reading the token into a variable keeps it out of shell history; do not paste it
+into the command itself. In bash and zsh, `read -rs` does not echo the token.
+The expanded token is still briefly visible to other processes on the machine
+while the command runs, and Claude Code saves it in its own configuration file;
+keep that file private. Alternatively, use the JSON configuration below.
 
 For JSON-config clients that support Streamable HTTP `url` and `headers` entries,
 including compatible Claude Desktop/Cursor configurations:
