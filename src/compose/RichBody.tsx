@@ -1,5 +1,5 @@
 import { Notice, useFeedbackState } from "../ui/Toasts";
-import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useContext, useLayoutEffect, useRef, useState } from "react";
 import { composeLink, composeMarkup, plainComposeHtml } from "../../shared/compose-content";
 import { PrivacyContext } from "../ui/Privacy";
 import type { Compose } from "./draft-session";
@@ -199,8 +199,10 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
     }
   }, [hidden, privacy, revealed]);
   // Turning privacy on re-veils even while the scope is focused; the live
-  // selection is saved first so a later reveal restores the real caret.
-  useEffect(() => {
+  // selection is saved first so a later reveal restores the real caret. A
+  // layout effect re-renders before paint, so the draft never shows for a
+  // frame after privacy turns on.
+  useLayoutEffect(() => {
     if (privacy) {
       refocusVeil.current = Boolean((draft.body || draft.html) && scope.current?.contains(document.activeElement));
       saveSelection(); setRevealed(false);
