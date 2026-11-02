@@ -1115,6 +1115,35 @@ test("sidebar hides with its shortcut, reopens from the toolbar and survives a r
   } finally { await restarted.close(); }
 });
 
+test("the sidebar shortcut stays available while composing, outside text fields", async () => {
+  const app = await mount();
+  try {
+    await app.click(app.button("New message"));
+    const dialog = app.container.querySelector<HTMLElement>(".compose-dialog")!;
+    assert.ok(dialog, "composer open");
+    const bracket = () => new app.window.KeyboardEvent("keydown", { key: "[", bubbles: true, cancelable: true });
+    // A non-editable compose control toggles like the removed header button did.
+    const close = dialog.querySelector<HTMLButtonElement>('button[aria-label="Close dialog"]')!;
+    await act(async () => close.dispatchEvent(bracket()));
+    assert.ok(app.container.querySelector(".sidebar.closed[inert]"), "[ hides the sidebar while composing");
+    assert.equal(app.storage.getItem("sidebar"), "closed");
+    await act(async () => close.dispatchEvent(bracket()));
+    assert.equal(app.container.querySelector(".sidebar.closed, .sidebar[inert]"), null, "[ restores the sidebar");
+    assert.equal(app.storage.getItem("sidebar"), "open");
+    // Text fields keep the key for typing.
+    for (const field of [
+      app.container.querySelector<HTMLTextAreaElement>(".compose-form textarea")!,
+      app.container.querySelector<HTMLInputElement>('.compose-form input[aria-label="To"]')!,
+    ]) {
+      const event = bracket();
+      await act(async () => field.dispatchEvent(event));
+      assert.equal(event.defaultPrevented, false, "the field owns [");
+      assert.equal(app.container.querySelector(".sidebar.closed, .sidebar[inert]"), null, "no toggle from a text field");
+      assert.equal(app.storage.getItem("sidebar"), "open");
+    }
+  } finally { await app.close(); }
+});
+
 test("Commands lists Show / hide sidebar with its shortcut and running it lands focus on the toolbar toggle", async () => {
   const app = await mount();
   try {
@@ -2119,7 +2148,7 @@ test("compose navigation keeps failed saves open and sidebar navigation saves be
 test("compose keyboard cycle reaches sidebar and toolbar without stealing editing or native field keys", async () => {
   const app = await mount();
   try {
-    // The shortcut is guarded while composing, so hide the sidebar first.
+    // Collapse first; the focus cycle below exercises the Show sidebar state.
     await app.key("[");
     await app.key("c");
     const doc = app.window.document;

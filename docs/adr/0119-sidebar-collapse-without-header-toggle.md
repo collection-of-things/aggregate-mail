@@ -15,8 +15,9 @@ navigation drawer as before, focusing New message.
 
 Hiding the sidebar moves focus to Show sidebar when focus would otherwise
 stay inside the inert tree or be lost. The shortcut also works while focus
-is inside the sidebar, but not while composing or in Settings, matching the
-existing command guards.
+is inside the sidebar and while composing, as long as focus is outside the
+composer's text fields, but not in Settings, matching the existing command
+guards.
 
 ## Verification
 

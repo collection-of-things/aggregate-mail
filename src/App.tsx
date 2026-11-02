@@ -1060,6 +1060,7 @@ export function App() {
         else if (action === "settings") { event.preventDefault(); setSettings(value => !value); }
         else if (action === "help") { event.preventDefault(); leaveCompose({ type: "shortcuts" }); }
         else if (action === "compose") { event.preventDefault(); leaveCompose({ type: "new" }); }
+        else if (action === "sidebar") { event.preventDefault(); toggleSidebar(); }
         return;
       }
       if (toolbarBlocked || teach || snooze || trashMail || shortcuts || labelMail || connecting) return;
