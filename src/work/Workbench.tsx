@@ -355,9 +355,10 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
     <h3>Source and evidence</h3>{[...new Set([selected.sourceMailId, ...selected.evidenceMailIds])].map((id) => <Source key={id} id={id} state={state} onOpen={onOpen} />)}
     <details><summary>Change history ({selected.history.length})</summary>{selected.history.map((change, index) => <div className="work-item" key={index}><p>{new Date(change.at).toLocaleString()} · {statusNames[change.status]}</p><p><Redact text={change.text} /> · <Redact text={change.reason} /></p><p>Deadline: {deadlineDate(change) || "Not set"} · Follow up: {change.followUpAt === undefined ? "Not set" : new Date(change.followUpAt).toLocaleString()}</p>{change.evidenceMailIds?.map((id) => <Source key={id} id={id} state={state} onOpen={onOpen} />)}</div>)}</details>
   </>;
-  const detailBody = detailSource ? <MailPrivacy mail={detailSource}>{detailBodyContent}</MailPrivacy> : detailBodyContent;
   const closeDetail = () => { if (sessionModal) return; restoreListFocus.current = mode !== "calendar"; setDetailOpen(false); missingSelection.current = false; onCloseReader?.(); };
-  const detail = selected && detailOpen && <section className={mode === "calendar" ? "work-inspector" : "work-summary"} aria-label="Commitment details" ref={inspector} tabIndex={-1}
+  // The whole detail block, title included, lives inside the source message's
+  // privacy context so correspondent names in the task text are masked.
+  const detailContent = selected && detailOpen && <section className={mode === "calendar" ? "work-inspector" : "work-summary"} aria-label="Commitment details" ref={inspector} tabIndex={-1}
     onKeyDown={(event) => { if (mode === "calendar" && event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); closeDetail(); } }}>
     <div className="work-summary-bar">
       <button type="button" className="icon" aria-label={mode === "calendar" ? "Back to calendar" : "Back to work list"} title={mode === "calendar" ? "Back to calendar" : "Back to work list"} onClick={closeDetail}><ArrowLeft size={15} /></button>
@@ -368,8 +369,9 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       <button type="button" disabled={blocked || sessions.locked || !sessions.value?.available} onClick={() => sessions.open(selected)}>Plan work</button>
     </div>
     <WorkSessions parent={selected} sessions={sessions} disabled={blocked} />
-    {mode === "calendar" ? detailBody : <details key={selected.id} className="work-task-details"><summary>Details{deadlineDate(selected) && ` · Due ${deadlineDate(selected)}`}{selected.followUpAt !== undefined && ` · Remind ${new Date(selected.followUpAt).toLocaleString()}`}</summary>{detailBody}</details>}
+    {mode === "calendar" ? detailBodyContent : <details key={selected.id} className="work-task-details"><summary>Details{deadlineDate(selected) && ` · Due ${deadlineDate(selected)}`}{selected.followUpAt !== undefined && ` · Remind ${new Date(selected.followUpAt).toLocaleString()}`}</summary>{detailBodyContent}</details>}
   </section>;
+  const detail = detailSource ? <MailPrivacy mail={detailSource}>{detailContent}</MailPrivacy> : detailContent;
   const dueFollowUps = sorted.filter((item) => openCommitment(item) && item.followUpAt !== undefined && item.followUpAt <= now);
   const [calendarStatus, setCalendarStatus] = useState("");
   const [calendarJump, setCalendarJump] = useState<{ day: string; key: number }>();

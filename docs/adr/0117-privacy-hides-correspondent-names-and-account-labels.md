@@ -22,8 +22,10 @@ labels, including duplicate-name numbering.
 
 Avatars show `·` and load no provider logo while hidden, since the logo URL
 exposes the sender domain. Editable fields that carry private values — compose
-To/Cc/Bcc and Subject — keep the existing focus-to-reveal pattern: an empty
-value with "Hidden. Focus to edit." until focused.
+To/Cc/Bcc, Subject and the plain or rich body — keep the existing
+focus-to-reveal pattern: an empty value with "Hidden. Focus to edit." until
+focused. Masking only blanks what the field shows: the real recipient value
+keeps its own validity, so a hidden invalid entry still fails the form.
 
 Work surfaces that show per-message text adopt that message's names through
 `MailPrivacy`; the app-wide matcher lists stay capped so a crowded dictionary

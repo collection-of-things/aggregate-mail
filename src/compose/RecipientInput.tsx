@@ -35,6 +35,24 @@ export function RecipientInput({ label, value, onChange, accountId, accounts, ap
   const [active, setActive] = useState(-1);
   const [dismissed, setDismissed] = useState(false);
   const [focused, setFocused] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+  // Masking blanks the visible value, which would make any hidden recipient
+  // valid. A detached probe re-checks the real value with the field's own
+  // constraints, so an invalid hidden entry still blocks the form.
+  useEffect(() => {
+    const input = field.current;
+    let message = "";
+    if (input && privacy && !focused && value.trim()) {
+      const probe = document.createElement("input");
+      probe.type = "email";
+      probe.multiple = multiple;
+      probe.required = required;
+      probe.value = value;
+      if (!probe.checkValidity()) message = "Enter a valid email address.";
+    }
+    input?.setCustomValidity(message);
+    return () => input?.setCustomValidity("");
+  }, [privacy, focused, value, multiple, required]);
   const pending = useRef<{ timer: ReturnType<typeof setTimeout>; controller: AbortController }>(undefined);
   const cancel = () => {
     if (!pending.current) return;
@@ -76,6 +94,7 @@ export function RecipientInput({ label, value, onChange, accountId, accounts, ap
     <label>
       <span>{label}</span>
       <input
+        ref={field}
         type="email"
         aria-label={label}
         multiple={multiple}

@@ -328,6 +328,8 @@
 .compose-dialog .compose-toolbar { min-height: 44px; }
 .compose-dialog .compose-file-action { font-size: calc(10px * var(--text-scale, 1)); }
 .compose-dialog .compose-body { font-size: calc(13px * var(--text-scale, 1)); line-height: 1.85; }
+.compose-dialog .compose-veiled-body { min-height: 180px; margin: 12px 0; padding: 8px 0; color: var(--text-3); cursor: text; user-select: none; }
+.compose-dialog .compose-veiled-body:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 /* Work lists remain mounted when the existing source reader opens. */
 .work-view-tabs { display: flex; gap: 24px; height: 42px; flex-shrink: 0; align-items: stretch; padding: 0 26px; border-bottom: 1px solid var(--line); }

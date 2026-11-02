@@ -1,6 +1,7 @@
 import { Notice, useFeedbackState } from "../ui/Toasts";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useContext, useLayoutEffect, useRef, useState } from "react";
 import { composeLink, composeMarkup, plainComposeHtml } from "../../shared/compose-content";
+import { PrivacyContext } from "../ui/Privacy";
 import type { Compose } from "./draft-session";
 
 type Command = "bold" | "italic" | "underline" | "createLink" | "insertUnorderedList" | "insertOrderedList" | "formatBlock";
@@ -15,6 +16,17 @@ const commands: { label: string; text: string; command: Command }[] = [
 ];
 export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabled: boolean; onChange: (draft: Compose) => void }) {
   const editor = useRef<HTMLDivElement>(null), plain = useRef<HTMLTextAreaElement>(null);
+  const { on: privacy } = useContext(PrivacyContext);
+  const [revealed, setRevealed] = useState(false);
+  // Under privacy an unfocused non-empty body is a veil: no draft text or
+  // markup stays in the DOM. Focus reveals the real editor; leaving it hides
+  // the body again. An empty draft keeps its normal placeholder.
+  const hidden = Boolean(privacy && !revealed && (draft.body || draft.html));
+  const hide = (event: React.FocusEvent) => {
+    // Keep the body revealed while focus moves between the rich editor and its
+    // insert-link controls; any other target hides it again.
+    if (!(event.relatedTarget instanceof Element && event.relatedTarget.closest(".compose-rich-body, .compose-link-controls"))) setRevealed(false);
+  };
   const emitted = useRef<string | undefined>(undefined);
   const pending = useRef<{ command: Command; value?: string; start: number; end: number } | undefined>(undefined);
   const selection = useRef<Range | undefined>(undefined);
@@ -53,6 +65,16 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
     } catch { setError("This formatting action is unavailable. Your message is still here."); }
   };
   useLayoutEffect(() => {
+    if (hidden) {
+      // The editors remount empty after a veil; repaint from the draft then.
+      emitted.current = undefined;
+      selection.current = undefined;
+    } else if (privacy && revealed) {
+      // Reveal came from the veil's own focus; hand it to the real editor.
+      (editor.current || plain.current)?.focus();
+    }
+  }, [hidden, privacy, revealed]);
+  useLayoutEffect(() => {
     const node = editor.current;
     if (!node || draft.html === undefined) return;
     if (emitted.current !== draft.html) {
@@ -82,7 +104,7 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
     };
     const range = document.createRange(); range.setStart(...point(action.start)); range.setEnd(...point(action.end));
     selection.current = range; execute(action.command, action.value);
-  }, [draft.html]);
+  }, [draft.html, hidden]);
   const format = (command: Command, linkValue?: string) => {
     if (disabled) return;
     if (typeof document.execCommand !== "function" || typeof document.queryCommandSupported !== "function" || !document.queryCommandSupported(command)) {
@@ -114,24 +136,29 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
   return <>
     <div className="compose-format-tools" role="group" aria-label="Message formatting">
       {commands.map(({ label, text, command }) => <button key={command} type="button" aria-label={label} title={label}
-        disabled={disabled} onMouseDown={event => { event.preventDefault(); remember(); }} onClick={() => format(command)}>{text}</button>)}
+        disabled={disabled || hidden} onMouseDown={event => { event.preventDefault(); remember(); }} onClick={() => format(command)}>{text}</button>)}
     </div>
     {link !== null && <div className="compose-link-controls" role="group" aria-label="Insert link" data-escape-owner
       onKeyDown={event => {
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancelLink(); }
       }}>
       <input autoFocus type="url" aria-label="Link address" placeholder="https://example.com" value={link} disabled={disabled}
+        onBlur={hide}
         onChange={event => setLink(event.target.value)} onKeyDown={event => {
           if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); format("createLink", link); }
         }} />
       <button type="button" disabled={disabled} onClick={() => format("createLink", link)}>Add link</button>
       <button type="button" onClick={cancelLink}>Cancel link</button>
     </div>}
-    {draft.html === undefined ? <textarea ref={plain} className="compose-body" aria-label="Message body" placeholder="Write your message"
-      required disabled={disabled} onKeyDown={shortcut} maxLength={1000000} value={draft.body} onChange={event => onChange({ ...draft, body: event.target.value })} /> :
+    {hidden ? <div className="compose-body compose-veiled-body" role="textbox" aria-label="Message body" aria-multiline="true"
+        aria-readonly="true" data-private-field tabIndex={disabled ? -1 : 0}
+        onFocus={() => { if (!disabled) setRevealed(true); }}
+        onClick={() => { if (!disabled) setRevealed(true); }}>Hidden. Focus to edit.</div> :
+      draft.html === undefined ? <textarea ref={plain} className="compose-body" aria-label="Message body" placeholder="Write your message"
+      required disabled={disabled} onKeyDown={shortcut} maxLength={1000000} value={draft.body} onBlur={hide} onChange={event => onChange({ ...draft, body: event.target.value })} /> :
       <div ref={editor} className="compose-body compose-rich-body" role="textbox" aria-label="Message body" aria-multiline="true" aria-required="true"
         aria-disabled={disabled} tabIndex={disabled ? -1 : 0} contentEditable={!disabled} suppressContentEditableWarning
-        onInput={publish} onKeyUp={remember} onMouseUp={remember} onBlur={remember}
+        onInput={publish} onKeyUp={remember} onMouseUp={remember} onBlur={(event) => { remember(); hide(event); }}
         onClick={event => { if ((event.target as Element).closest("a")) event.preventDefault(); }}
         onPaste={event => {
           event.preventDefault();

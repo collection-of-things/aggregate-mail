@@ -90,7 +90,14 @@ const suggestions: ContactSuggestion[] = [
 
 const fixtureDrafts: Draft[] = [{
   id: "d1", accountId: "a", revision: 1, updatedAt: 1, sendUnknown: false,
-  to: ["draft.person@example.test"], subject: "Draft for Draft Person", body: "Draft body",
+  to: ["draft.person@example.test"], subject: "Draft for Draft Person",
+  // A plain body with quoted reply text carries correspondent names.
+  body: "Draft reply\n\nOn 2026-11-01, Sample Person <sample.person@example.test> wrote:\n> Passing the plan to Other Recipient.",
+}, {
+  id: "d2", accountId: "a", revision: 1, updatedAt: 1, sendUnknown: false,
+  to: ["draft.person@example.test"], subject: "Rich draft",
+  body: "Rich plain part",
+  html: "<p>Rich note for Sample Person via draft.person@example.test</p>",
 }];
 
 const fixtureWorkspace = {
@@ -297,6 +304,17 @@ test("privacy sweep: no synthetic identity survives on any audited surface", { t
 
     await app.click(app.button("Drafts"));
     sweep("drafts-list");
+    // Each saved draft opens in compose; the veiled body must hide both the
+    // plain textarea content (including quoted reply text) and the rich HTML.
+    for (const [index, surface] of ["draft-compose-plain", "draft-compose-rich"].entries()) {
+      await app.click(app.button("Drafts"));
+      const row = app.container.querySelectorAll<HTMLElement>(".draft-row")[index];
+      assert.ok(row, `${surface} row`);
+      await app.click(row);
+      await app.settle(50);
+      sweep(surface);
+      await app.key("Escape");
+    }
     await app.click(app.button("Inbox"));
     sweep("sidebar-accounts");
 
@@ -324,6 +342,15 @@ test("privacy sweep: no synthetic identity survives on any audited surface", { t
     await app.click(app.button("Today"));
     await app.settle(50);
     sweep("today");
+    // The selected task's title names a correspondent; opening the detail must
+    // keep it inside the source message's privacy context.
+    const task = app.container.querySelector<HTMLElement>(".work-select");
+    assert.ok(task, "work task row");
+    await app.click(task);
+    sweep("today-detail");
+    const back = [...app.container.querySelectorAll<HTMLButtonElement>(".work-summary-bar button")]
+      .find((item) => item.getAttribute("aria-label") === "Back to work list");
+    if (back) await app.click(back);
     await app.click(app.button("Projects"));
     await app.settle(50);
     const project = [...app.container.querySelectorAll<HTMLButtonElement>(".project-filters button")][0];

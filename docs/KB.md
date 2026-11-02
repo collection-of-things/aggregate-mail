@@ -1811,7 +1811,7 @@ Sources: [reader](../src/mail/Reader.tsx), [styles](../src/styles/reader.css),
 
 Replies use the safe formatted reader for the original message. Reopened drafts require exactly one cached source matching the draft account and `inReplyTo` message ID; a missing or ambiguous match shows no original. Authenticated single-message recovery can load missing HTML, while remote images require explicit per-opening consent. Rejected or unavailable HTML retains the cached body or preview. Privacy uses the source recipients and clears image consent. The outgoing draft and source mail are unchanged. See [ADR 0074](adr/0074-formatted-reply-context.md).
 
-[Privacy matching](../src/privacy.ts) learns names from optional account display names and the current To/Cc display names tied to connected account addresses. Per-message surfaces use `messagePrivateNames`, which adds the sender and every To/Cc display name of that message as full names only — third-party first names and surnames are never inferred. Owner names still cover full names, first names and surnames, including one-letter Unicode components, with Unicode-aware boundaries, case/whitespace variation and URL encoding. The opened message's dictionary also protects Gmail label filter options and the label editor. A sender avatar shows a neutral dot and loads no provider logo, whose URL would expose the sender domain. Sender-markup splits cannot expose a known name. Hidden bars have no private children, title or accessibility text. Explicit reveal applies to the clicked token; re-enabling privacy clears it. Unknown names that appear only in a body cannot be identified. A name that is also an ordinary word can hide that word while privacy is on. Editable compose fields retain their focus-to-reveal behavior.
+[Privacy matching](../shared/privacy.ts) learns names from optional account display names and the current To/Cc display names tied to connected account addresses. Per-message surfaces use `messagePrivateNames`, which adds the sender and every To/Cc display name of that message as full names only — third-party first names and surnames are never inferred. Owner names still cover full names, first names and surnames, including one-letter Unicode components, with Unicode-aware boundaries, case/whitespace variation and URL encoding. The opened message's dictionary also protects Gmail label filter options and the label editor. A sender avatar shows a neutral dot and loads no provider logo, whose URL would expose the sender domain. Sender-markup splits cannot expose a known name. Hidden bars have no private children, title or accessibility text. Explicit reveal applies to the clicked token; re-enabling privacy clears it. Unknown names that appear only in a body cannot be identified. A name that is also an ordinary word can hide that word while privacy is on. Editable compose fields retain their focus-to-reveal behavior.
 
 ### Privacy screenshot audit (2026-11-02)
 
@@ -1821,9 +1821,11 @@ A mounted-App sweep ([`src/privacy-sweep.test.tsx`](../src/privacy-sweep.test.ts
 | --- | --- | --- |
 | Inbox list (wide, narrow card) | Sender display names, recipient names in previews and row labels, custom account labels, avatar logo URLs (sender domain) | All names and addresses veiled or replaced; avatars show `·` |
 | Reader (split) | Sender and Cc display names; recipient names inside body text and mailto links | Message correspondent names hidden; mailto/image URLs suppressed |
-| Reply composer | Source sender and body names; To/Subject field values carried raw addresses and names | Context redacted; To/Subject values hide until focused ("Hidden. Focus to edit.") |
+| Reply composer | Source sender and body names; To/Subject field values carried raw addresses and names | Context redacted; To/Subject/body values hide until focused ("Hidden. Focus to edit.") |
 | New compose suggestions | Contact/recipient values already veiled; suggestion `aria-label` leaked the account name | Neutral account names in labels |
 | Drafts list | Custom account labels | Neutral account names |
+| Draft compose (plain, rich, quoted reply) | Body text and rich HTML carried correspondent names and addresses | Veiled editor shows "Hidden. Focus to edit."; focus restores the real editor, blur hides again |
+| Work item detail | Selected task title naming a source correspondent rendered outside the source message's privacy context | Whole detail section adopts the source message's names |
 | Sidebar accounts and footer | Custom account labels in rows, titles and labels | Neutral account names |
 | Settings > Accounts | Custom account labels in rows and `aria-label` | Neutral account names |
 | Settings > Compose | Signature labels already neutralised; account names in labels | Neutral account names |
@@ -1831,6 +1833,8 @@ A mounted-App sweep ([`src/privacy-sweep.test.tsx`](../src/privacy-sweep.test.ts
 | Today / Projects rows | Commitment text naming the source sender; project email sender/subject | Rows adopt their source message's names and hide them |
 | Arrival toast (all detail options) | Already reduced to "1 new unread email." | Unchanged |
 | Commands palette | No private content; background leaks fixed with the surfaces above | Unchanged |
+
+Masked recipient fields keep their real validity: a hidden invalid entry still fails form validation and blocks send.
 
 Limits: first-name-only mentions of third parties inside bodies are not matched (only full display names are collected for correspondents); image pixels are not redacted; native notifications and other OS surfaces are not covered by the DOM sweep. See [ADR 0117](adr/0117-privacy-hides-correspondent-names-and-account-labels.md).
 
