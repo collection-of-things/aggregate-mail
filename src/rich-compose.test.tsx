@@ -60,7 +60,7 @@ test("rich compose preserves selection, saves alternatives and inserts only plai
 
 // Shared mount for the privacy-veil checks: the Outside button gives focus
 // moves a destination outside the editor scope.
-const mountPrivateBody = async (initial: Compose) => {
+const mountPrivateBody = async (initial: Compose, on = true) => {
   const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost" });
   const globals = { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, Node: dom.window.Node, IS_REACT_ACT_ENVIRONMENT: true };
   const previous = new Map(Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
@@ -74,13 +74,16 @@ const mountPrivateBody = async (initial: Compose) => {
     apply = next => { value = next; update(next); };
     return <RichBody draft={draft} disabled={false} onChange={next => { value = next; update(next); }} />;
   }
-  await act(async () => root.render(
-    <PrivacyContext.Provider value={{ on: true, revealed: new Set(), toggle() {} }}>
+  let privacyOn = on;
+  const paint = () => act(async () => root.render(
+    <PrivacyContext.Provider value={{ on: privacyOn, revealed: new Set(), toggle() {} }}>
       <div><button type="button" className="outside">Outside</button><Editor /></div>
     </PrivacyContext.Provider>));
+  await paint();
   return {
     dom, get value() { return value; },
     setDraft: (next: Compose) => apply(next),
+    setPrivacy: (next: boolean) => { privacyOn = next; return paint(); },
     outside: () => document.querySelector<HTMLButtonElement>(".outside")!,
     close: async () => {
       await act(async () => root.unmount()); dom.window.close();
@@ -158,6 +161,30 @@ test("the link address field veils even when the body is empty", async () => {
     const addLink = [...document.querySelectorAll<HTMLButtonElement>(".compose-link-controls button")].find(button => button.textContent === "Add link")!;
     await act(async () => addLink.click());
     assert.ok(calls.some(([command, value]) => command === "createLink" && value === "mailto:vera@example.test"), "the real address is inserted");
+  } finally { await app.close(); }
+});
+
+test("turning privacy on veils a focused body and an open link address", async () => {
+  const app = await mountPrivateBody({ accountId: "a", to: [""], subject: "", body: "Draft for Sample Person", sendUnknown: true }, false);
+  Object.defineProperty(document, "queryCommandSupported", { value: () => true, configurable: true });
+  Object.defineProperty(document, "execCommand", { configurable: true, value: () => true });
+  try {
+    await act(async () => document.querySelector<HTMLTextAreaElement>("textarea")!.focus());
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Insert link"]')!.click());
+    const url = () => document.querySelector<HTMLInputElement>('[aria-label="Link address"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(app.dom.window.HTMLInputElement.prototype, "value")!.set!.call(url(), "https://vera-bloom.example.test/x");
+      url().dispatchEvent(new app.dom.window.Event("input", { bubbles: true }));
+    });
+    assert.equal(url().value, "https://vera-bloom.example.test/x");
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Bold"]')!.focus());
+    await app.setPrivacy(true);
+    assert.ok(document.querySelector(".compose-veiled-body"), "the body veils when privacy turns on while focused");
+    assert.equal(document.body.textContent!.includes("Sample Person"), false);
+    assert.equal(url().value, "", "the link address hides with the body");
+    await act(async () => document.querySelector<HTMLElement>(".compose-veiled-body")!.focus());
+    assert.equal(document.querySelector<HTMLTextAreaElement>("textarea")!.value, "Draft for Sample Person");
+    assert.equal(url().value, "https://vera-bloom.example.test/x");
   } finally { await app.close(); }
 });
 

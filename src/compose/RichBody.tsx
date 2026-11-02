@@ -1,5 +1,5 @@
 import { Notice, useFeedbackState } from "../ui/Toasts";
-import { useContext, useLayoutEffect, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { composeLink, composeMarkup, plainComposeHtml } from "../../shared/compose-content";
 import { PrivacyContext } from "../ui/Privacy";
 import type { Compose } from "./draft-session";
@@ -189,6 +189,11 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
       if (!fromVeil || plain.current) veiledSelection.current = undefined;
     }
   }, [hidden, privacy, revealed]);
+  // Turning privacy on re-veils even while the scope is focused; the live
+  // selection is saved first so a later reveal restores the real caret.
+  useEffect(() => {
+    if (privacy) { saveSelection(); setRevealed(false); }
+  }, [privacy]);
   useLayoutEffect(() => {
     const node = editor.current;
     if (!node || draft.html === undefined) return;
