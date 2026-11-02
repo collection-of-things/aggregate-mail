@@ -52,7 +52,7 @@ export function ContactImportPanel({ api, accounts, accountFilter, busy, onImpor
     if (!input || !preview || (!preview.added && !(updateNames && preview.changed)) || disabled || lock.current || !accounts.some(account => account.id === input.accountId)) return;
     lock.current = true; setPending(true); setError(""); setStatus("");
     try {
-      const result = await api<ContactImportPreview>("/contacts/import", "POST", updateNames ? { ...input, updateNames: true } : input);
+      const result = await api<ContactImportPreview>("/contacts/import", "POST", { ...input, revision: preview.revision, ...(updateNames ? { updateNames: true } : {}) });
       reset();
       setStatus(`Added ${result.added}, updated ${result.updated}, skipped ${result.unchanged + result.changed - result.updated} already saved and ${result.skipped} invalid or repeated. None removed.`);
       try { await onImported(); } catch { setError("Import saved, but the contact list could not refresh. Open Saved contacts again to check it."); }
@@ -79,9 +79,14 @@ export function ContactImportPanel({ api, accounts, accountFilter, busy, onImpor
       {preview && <div className="contact-import-preview">
         <p role="status">{preview.added} new, {preview.changed} with a changed name, {preview.unchanged} unchanged, {preview.missing} not in this file. {preview.skipped} invalid or repeated addresses skipped.</p>
         {!!preview.sample.length && <ul aria-label="Import preview">{preview.sample.map(contact => <li key={contact.email}><Address value={contact.name || contact.email} kind={contact.name ? "name" : "address"} />{contact.name && <> · <Address value={contact.email} /></>}</li>)}</ul>}
-        {!!preview.changes.length && <ul aria-label="Changed names">{preview.changes.map(change => <li key={change.email}>
+        {!!preview.changes.length && <ul aria-label="Changed names">{preview.changes.slice(0, 5).map(change => <li key={change.email}>
           {change.previousName ? <Address value={change.previousName} kind="name" /> : "No name"} → <Address value={change.name} kind="name" /> · <Address value={change.email} />
         </li>)}</ul>}
+        {preview.changes.length > 5 && <details className="contact-import-changes"><summary>Show all {preview.changes.length} changed names</summary>
+          <ul aria-label="Changed names (all)">{preview.changes.slice(5).map(change => <li key={change.email}>
+            {change.previousName ? <Address value={change.previousName} kind="name" /> : "No name"} → <Address value={change.name} kind="name" /> · <Address value={change.email} />
+          </li>)}</ul>
+        </details>}
         {preview.changed > 0 && <label className="settings-row"><input type="checkbox" checked={updateNames} disabled={disabled} onChange={event => setUpdateNames(event.target.checked)} />
           Update {preview.changed} existing {preview.changed === 1 ? "name" : "names"} from this file
         </label>}

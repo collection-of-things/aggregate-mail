@@ -1,9 +1,9 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import express from "express";
 import { z } from "zod";
 import type { ContactList, ContactSuggestion, RecentRecipient, SavedContact } from "../shared/contacts.js";
 import { all, get, put, remove, transaction } from "./store.js";
-import { contactSchema, contactImportSchema, parseContactImport } from "./contact-import.js";
+import { contactSchema, contactImportSchema, contactImportPreviewSchema, parseContactImport } from "./contact-import.js";
 
 export const MAX_SAVED_CONTACTS_PER_ACCOUNT = 1000;
 export const MAX_RECENT_RECIPIENTS_PER_ACCOUNT = 200;
@@ -127,14 +127,24 @@ export function mountContacts(app: express.Express) {
     const { query, accountId } = suggestionSchema.parse(req.query);
     res.json(suggestContacts(query, accountId));
   });
+  // The saved contacts of one account in a stable order; a confirm repeats the
+  // check and must see the same fingerprint before any write.
+  const contactRevision = (contacts: SavedContact[]) => {
+    const rows = [...contacts].sort((a, b) => a.id.localeCompare(b.id))
+      .map(contact => [contact.id, contact.email, contact.name, contact.updatedAt].join("\u0000")).join("\n");
+    return createHash("sha256").update(rows).digest("hex");
+  };
   const importContacts = (value: unknown, commit: boolean) => {
-    const input = contactImportSchema.parse(value);
+    const input = commit ? contactImportSchema.parse(value) : contactImportPreviewSchema.parse(value);
     let parsed: ReturnType<typeof parseContactImport>;
     try { parsed = parseContactImport(input.content, input.format); }
     catch { throw new ContactError(400, "Could not read this contact file. Use a UTF-8 Google, Yahoo or Outlook CSV, or a vCard file, up to 512 KB and 5000 addresses."); }
     return transaction(() => {
       requireAccount(input.accountId);
       const existing = all("contact").filter(contact => contact.accountId === input.accountId);
+      const revision = contactRevision(existing);
+      if (commit && "revision" in input && input.revision !== revision)
+        throw new ContactError(409, "Contacts changed since this preview. Preview the file again.");
       const byAddress = new Map(existing.map(contact => [contact.email.toLowerCase(), contact]));
       const fileAddresses = new Set(parsed.contacts.map(contact => contact.email.toLowerCase()));
       const fresh: { name: string; email: string }[] = [];
@@ -162,7 +172,8 @@ export function mountContacts(app: express.Express) {
         missing: existing.filter(contact => !fileAddresses.has(contact.email.toLowerCase())).length,
         skipped: parsed.skipped,
         sample: fresh.slice(0, 5),
-        changes: changes.slice(0, 5).map(({ contact, name }) => ({ email: contact.email, name, previousName: contact.name })),
+        changes: changes.map(({ contact, name }) => ({ email: contact.email, name, previousName: contact.name })),
+        revision,
       };
     });
   };

@@ -239,8 +239,14 @@ all new entries in one transaction. Both inherit session, origin, CSRF and
 update guards. Each report classifies the file against the destination account
 as new addresses, saved addresses with a different non-empty file name, saved
 addresses with a matching or empty file name, saved contacts absent from the
-file and invalid or repeated addresses. Only new addresses count toward the
-1000-contact-per-account limit, and an opt-in `updateNames` import rewrites
+file and invalid or repeated addresses. The preview returns a `revision`
+fingerprint of the account's contacts (sha256 over sorted id/email/name/
+updatedAt rows), and the confirm must send it back: a mismatch fails the whole
+import with 409 and writes nothing, so edits made after the preview are never
+overwritten unseen. Every proposed rename is returned in `changes` (the
+interface shows the first five and folds the rest under a disclosure), while
+`sample` stays the first five new addresses. Only new addresses count toward
+the 1000-contact-per-account limit, and an opt-in `updateNames` import rewrites
 changed names inside the same transaction; import never removes contacts.
 Files are bounded to 512 KiB and 5000 addresses. Only names and addresses are
 retained; no raw file, filename, photo, link, formula or provider credential is

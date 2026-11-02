@@ -22,10 +22,20 @@ account's saved contacts before any write:
 - **skipped** file rows, invalid or repeated addresses.
 
 The confirmation reports added, updated and skipped counts and states that
-nothing was removed. File limits, validation, per-account scope, the
-1000-contact limit and encrypted storage are unchanged; only new addresses
-count toward the limit. Error messages still never echo submitted names or
-addresses.
+nothing was removed. Every proposed rename is returned in the report (the
+interface shows the first five and folds the rest under a "Show all"
+disclosure), while the new-contact sample stays at five.
+
+The preview fingerprints the destination account's saved contacts (a sha256
+over the sorted id/email/name/updatedAt rows) and returns it as `revision`.
+The confirm must send that fingerprint back; the write transaction recomputes
+it before any write and rejects a mismatch with 409 without writing, so a
+confirm older than another client's edits cannot overwrite them unseen. A
+fresh preview discloses the drift under its own classification.
+
+File limits, validation, per-account scope, the 1000-contact limit and
+encrypted storage are unchanged; only new addresses count toward the limit.
+Error messages still never echo submitted names or addresses.
 
 ## Decision 2: defer provider contact sync
 

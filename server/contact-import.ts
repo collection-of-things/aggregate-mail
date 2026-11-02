@@ -9,12 +9,16 @@ export const contactSchema = z.object({
   email: contactEmail,
 }).strict();
 
-export const contactImportSchema = z.object({
+const contactImportShape = {
   accountId: z.string().min(1).max(200),
   format: z.enum(["csv", "vcf"]),
   content: z.string().max(MAX_CONTACT_FILE_BYTES).refine(value => Buffer.byteLength(value, "utf8") <= MAX_CONTACT_FILE_BYTES),
   updateNames: z.boolean().optional(),
-}).strict();
+};
+export const contactImportPreviewSchema = z.object(contactImportShape).strict();
+// A confirm must carry the preview's revision; the server re-checks it in the
+// write transaction so contacts edited after the preview are never overwritten.
+export const contactImportSchema = z.object({ ...contactImportShape, revision: z.string().regex(/^[0-9a-f]{64}$/) }).strict();
 
 // Parse data only. No formulas, links, vCard resources or attachments are executed.
 function csvRows(text: string): string[][] {

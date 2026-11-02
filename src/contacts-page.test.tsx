@@ -126,6 +126,7 @@ test("import requires a preview and confirmation, hides personal preview data, a
         added: 2, changed: 1, updated: 0, unchanged: 1, missing: 1, skipped: 1,
         sample: [{ name: "Private Person", email: "private@example.test" }, { name: "Second Person", email: "second@example.test" }],
         changes: [{ email: "renamed@example.test", name: "Renamed After", previousName: "Renamed Before" }],
+        revision: "f".repeat(64),
       } as T;
     };
     await render(<PrivacyContext.Provider value={{ on: true, revealed: new Set(), toggle() {} }}><ContactsPage api={api} accounts={accounts} /></PrivacyContext.Provider>);
@@ -147,12 +148,16 @@ test("import requires a preview and confirmation, hides personal preview data, a
     assert.equal(update.closest("label")!.querySelector("p"), null, "the update label holds only the checkbox and its text");
     await click(button(document, "Import 2 contacts"));
     assert.match(document.body.textContent!, /Import could not be confirmed/);
-    assert.equal((bodies.at(-1) as { updateNames?: boolean }).updateNames, undefined, "updateNames is sent only when chosen");
+    const confirmed = bodies.at(-1) as { updateNames?: boolean; revision?: string };
+    assert.equal(confirmed.updateNames, undefined, "updateNames is sent only when chosen");
+    assert.equal(confirmed.revision, "f".repeat(64), "the confirm carries the preview's revision");
     fail = false;
     await act(async () => { update.click(); });
     assert.ok(button(document, "Import 2 and update 1"));
     await click(button(document, "Import 2 and update 1"));
-    assert.equal((bodies.at(-1) as { updateNames?: boolean }).updateNames, true);
+    const updated = bodies.at(-1) as { updateNames?: boolean; revision?: string };
+    assert.equal(updated.updateNames, true);
+    assert.equal(updated.revision, "f".repeat(64), "the update confirm carries the preview's revision too");
     assert.match(document.body.textContent!, /Added 2, updated 0, skipped 2 already saved and 1 invalid or repeated\. None removed\./);
     assert.equal(document.querySelector('[aria-label="Import preview"]'), null);
   });
@@ -168,6 +173,7 @@ test("an import with only changed names stays disabled until the update choice",
         added: 0, changed: 1, updated: 1, unchanged: 2, missing: 0, skipped: 0,
         sample: [],
         changes: [{ email: "renamed@example.test", name: "Renamed After", previousName: "Renamed Before" }],
+        revision: "e".repeat(64),
       } as T;
     };
     await render(<ContactsPage api={api} accounts={accounts} />);
@@ -185,15 +191,53 @@ test("an import with only changed names stays disabled until the update choice",
     await act(async () => { update.click(); });
     assert.ok(button(document, "Update 1 name"));
     await click(button(document, "Update 1 name"));
-    assert.equal((bodies.at(-1) as { updateNames?: boolean }).updateNames, true);
+    const sent = bodies.at(-1) as { updateNames?: boolean; revision?: string };
+    assert.equal(sent.updateNames, true);
+    assert.equal(sent.revision, "e".repeat(64), "the confirm carries the preview's revision");
     assert.match(document.body.textContent!, /Added 0, updated 1, skipped 2 already saved and 0 invalid or repeated\. None removed\./);
+  });
+});
+
+test("changed names beyond five hide behind a disclosure and a rejected confirm shows an error", async () => {
+  await withDOM(async ({ document, render }) => {
+    const bodies: unknown[] = [];
+    let fail = false;
+    const changes = Array.from({ length: 6 }, (_, index) => ({ email: `old-${index}@example.test`, name: `New ${index}`, previousName: `Old ${index}` }));
+    const api: Api = async <T,>(url: string, method = "GET", body?: unknown) => {
+      if (method === "POST") bodies.push(body);
+      if (url === "/contacts") return { saved: [], recent: [] } as T;
+      if (url === "/contacts/import" && fail) throw new Error("Synthetic failure");
+      return { added: 0, changed: 6, updated: 0, unchanged: 0, missing: 0, skipped: 0, sample: [], changes, revision: "e".repeat(64) } as T;
+    };
+    await render(<PrivacyContext.Provider value={{ on: true, revealed: new Set(), toggle() {} }}><ContactsPage api={api} accounts={accounts} /></PrivacyContext.Provider>);
+    await click(button(document, "Import contacts"));
+    const file = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const bytes = new TextEncoder().encode('Name,Email\nNew 0,old-0@example.test');
+    Object.defineProperty(file, "files", { configurable: true, value: [{ name: "contacts.csv", size: bytes.length, arrayBuffer: async () => bytes.buffer }] });
+    await act(async () => { file.dispatchEvent(new window.Event("change", { bubbles: true })); });
+    assert.match(document.body.textContent!, /0 new, 6 with a changed name, 0 unchanged, 0 not in this file\./);
+    assert.equal(document.querySelectorAll('[aria-label="Changed names"] li').length, 5, "the first five renames are listed directly");
+    const disclosure = document.querySelector<HTMLDetailsElement>("details.contact-import-changes")!;
+    assert.ok(disclosure, "the rest hide behind a disclosure");
+    assert.equal(disclosure.querySelector("summary")!.textContent, "Show all 6 changed names");
+    const rest = disclosure.querySelectorAll('[aria-label="Changed names (all)"] li');
+    assert.equal(rest.length, 1, "the disclosure holds the sixth rename");
+    for (const text of ["Old 0", "Old 5", "New 0", "New 5", "old-0@example.test", "old-5@example.test"])
+      assert.equal(document.body.innerHTML.includes(text), false, `${text} is hidden in text and attributes`);
+    await act(async () => { (document.querySelector('.contact-import-preview input[type="checkbox"]') as HTMLInputElement).click(); });
+    fail = true;
+    await click(button(document, "Update 6 names"));
+    assert.match(document.body.textContent!, /Import could not be confirmed/);
+    const sent = bodies.at(-1) as { updateNames?: boolean; revision?: string };
+    assert.equal(sent.updateNames, true);
+    assert.equal(sent.revision, "e".repeat(64), "the confirm carries the preview's revision");
   });
 });
 
 test("contacts missing from the file get the stay-saved note without a name change", async () => {
   await withDOM(async ({ document, render }) => {
     const api: Api = async <T,>(url: string) => (url === "/contacts" ? { saved: [], recent: [] }
-      : { added: 1, changed: 0, updated: 0, unchanged: 1, missing: 2, skipped: 0, sample: [{ name: "New Person", email: "new@example.test" }], changes: [] }) as T;
+      : { added: 1, changed: 0, updated: 0, unchanged: 1, missing: 2, skipped: 0, sample: [{ name: "New Person", email: "new@example.test" }], changes: [], revision: "d".repeat(64) }) as T;
     await render(<ContactsPage api={api} accounts={accounts} />);
     await click(button(document, "Import contacts"));
     const file = document.querySelector<HTMLInputElement>('input[type="file"]')!;
@@ -226,7 +270,7 @@ test("account removal clears cached contacts, edits and import previews while Co
   await withDOM(async ({ document, render }) => {
     const home: Account = { id: "home", email: "home@example.test", provider: "imap" };
     const list: ContactList = { saved: [{ kind: "saved", id: "c1", accountId: "work", name: "Removed Person", email: "removed@example.test", updatedAt: 1 }], recent: [{ kind: "recent", id: "r1", accountId: "work", email: "removed-recent@example.test", lastSentAt: 1 }] };
-    const api: Api = async <T,>(url: string) => (url === "/contacts" ? structuredClone(list) : { added: 1, changed: 0, updated: 0, unchanged: 0, missing: 0, skipped: 0, sample: [{ name: "Preview Person", email: "preview@example.test" }], changes: [] }) as T;
+    const api: Api = async <T,>(url: string) => (url === "/contacts" ? structuredClone(list) : { added: 1, changed: 0, updated: 0, unchanged: 0, missing: 0, skipped: 0, sample: [{ name: "Preview Person", email: "preview@example.test" }], changes: [], revision: "c".repeat(64) }) as T;
     await render(<ContactsPage api={api} accounts={[...accounts, home]} />);
     await click(button(document, "Edit contact 1"));
     await render(<ContactsPage api={api} accounts={[home]} />);

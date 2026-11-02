@@ -37,14 +37,18 @@ executed or used to fetch external resources.
 
 Import is a one-time copy. Later provider edits do not sync automatically.
 Repeat an import to add new addresses and to review name changes: the preview
-lists contacts whose saved name differs from the file, and you choose per
-import whether to update them. Saved contacts missing from the file stay
-saved; import never removes anything. After an uncertain response, preview
-again to see what remains. Imported contacts are encrypted with the existing
-local store and feed To, Cc and Bcc suggestions. Disconnecting the destination
-account removes its contacts. The Contacts page clears open edits and import
-previews when connected accounts change. Privacy hides the find query until
-you focus its field. See [ADR 0118](adr/0118-contact-reimport-and-deferred-provider-sync.md).
+lists every contact whose saved name differs from the file (the first five
+inline, the rest under "Show all"), and you choose per import whether to
+update them. The preview fingerprints your saved contacts; if they changed
+since the preview — for example after editing or deleting one — the import is
+refused and nothing is written, so preview again to see what changed. Saved
+contacts missing from the file stay saved; import never removes anything.
+After an uncertain response, preview again to see what remains. Imported
+contacts are encrypted with the existing local store and feed To, Cc and Bcc
+suggestions. Disconnecting the destination account removes its contacts. The
+Contacts page clears open edits and import previews when connected accounts
+change. Privacy hides the find query until you focus its field.
+See [ADR 0118](adr/0118-contact-reimport-and-deferred-provider-sync.md).
 
 The export you downloaded remains a personal-data file on your computer.
 Remove it when you no longer need it. Emc² does not retain that file or its name.
