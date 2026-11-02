@@ -55,7 +55,7 @@ export function CommandPalette({ commands, onClose }: { commands: PaletteCommand
     onClose();
     command.run();
   };
-  return <Dialog title="Commands" onClose={onClose}>
+  return <Dialog title="Commands" className="command-dialog" onClose={onClose}>
     <div className="command-palette">
       <input role="combobox" aria-label="Search commands" aria-autocomplete="list" aria-expanded="true"
         aria-controls={`${id}-list`} aria-activedescendant={active ? optionId(active) : undefined}

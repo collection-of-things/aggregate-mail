@@ -538,11 +538,11 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
 .compose-dialog .compose-actions > button { min-height: 26px; padding-block: 0; }
 
 /* A transient glow and press, without adding permanent depth or layout work. */
-.primary-button.new-message, .compose-dialog .compose-send { transition: transform 140ms ease-out; }
+.primary-button.new-message, .compose-dialog .compose-send { transition: transform 140ms var(--ease-out); }
 .primary-button.new-message::before, .compose-dialog .compose-send::before {
   content: ""; position: absolute; inset: -2px; border-radius: inherit; pointer-events: none;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 26%, transparent);
-  opacity: 0; transition: opacity 140ms ease-out;
+  opacity: 0; transition: opacity 140ms var(--ease-out);
 }
 .primary-button.new-message:active:not(:disabled), .compose-dialog .compose-send:active:not(:disabled) { transform: translateY(1px) scale(.985); }
 .primary-button.new-message:active:not(:disabled)::before, .compose-dialog .compose-send:active:not(:disabled)::before { opacity: 1; }

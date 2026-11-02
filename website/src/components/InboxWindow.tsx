@@ -554,7 +554,7 @@ export default function InboxWindow() {
             <Icon name="sidebar" />
           </button>
           <span aria-hidden="true" className="ctl-mac"><i /><i /><i /></span>
-          <span className="sbrand">Emc²</span>
+          <span className="sbrand brand-lockup" role="img" aria-label="Emc²" />
         </div>
         <div className="side-content">
           <button className="new-msg" onClick={() => openComposer()} type="button">

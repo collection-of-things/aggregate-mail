@@ -124,6 +124,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - if: runner.os == 'Linux'
         run: npm test
+      - run: npm run check:icons
       - run: npm run build
       - name: Check desktop startup
         if: runner.os != 'Linux'

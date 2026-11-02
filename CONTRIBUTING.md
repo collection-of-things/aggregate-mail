@@ -96,7 +96,7 @@ npm run dev      # Electron with React/CSS hot reload; restart after desktop or 
 
 `npm run dev:web` is the optional browser target. Follow the required password,
 external encryption-key and isolated-profile setup in
-[Local browser access](README.md#local-browser-access). Export these startup
+[Local browser access](docs/browser-access.md#local-browser-access). Export these startup
 variables before launching; `.env` is not the browser security configuration.
 The browser gate authenticates browser requests; desktop requests retain their
 per-launch token. Never commit secrets. Other environment variables

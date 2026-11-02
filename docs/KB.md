@@ -1,7 +1,36 @@
 # Repository knowledge
 
+## User guides
+
+The [README](../README.md#guides) introduces the app and links to topic guides
+for installation, accounts, daily mail, browser and phone access, AI and agents,
+storage and backups, and development. Maintained links point directly to those
+guides. Earlier README section anchors remain at the guide index for old links.
+CONTRIBUTING.md remains the authority for contributor and release procedures.
+
+## Brand assets
+
+The repository README uses `.github/assets/emc2-cover.jpg`, an unchanged copy
+of the approved cover board. `.github/assets/emc2-logo.svg` is the Energy
+lockup and `.github/assets/emc2-repository-logo.png` is the Energy mark at
+1024px. These are separate from desktop icons and website social metadata.
+GitHub's repository social-preview image is a hosting setting; committing
+README artwork does not update that setting.
+
+The app sidebar uses the theme-specific lockups in root `public/brand/`.
+The website uses its independent `public/brand/emc2-lockup.svg` as a CSS
+mask in the header, footer and inbox demo. Desktop icons in `build/` are
+generated from vector artwork.
+
+Root `public/brand/` supplies the browser client's favicon and touch icon. The
+website keeps its own favicon, touch icon and 192px/512px manifest icons.
+Raster sizes are rendered directly from the approved vectors, and SVG favicons
+retain the original mark paths. The brand-kit boards and PDF are reference material,
+not application dependencies. Icon format checks and builds do not prove
+installed Windows/macOS/Linux icon rendering or OS icon-cache refresh.
+
 User-facing steps for saved views, Contacts imports and reviewed unsubscribe
-actions are in the [README](../README.md#search-and-compose-tools). Product
+actions are in the [mail guide](mail-guide.md#search-and-compose-tools). Product
 scope is summarized in [PRODUCT.md](../PRODUCT.md#saved-views-contacts-and-unsubscribe-review).
 
 ## Saved search views
@@ -155,7 +184,7 @@ HttpOnly, Strict and the `__Host-` prefix. MCP retains its own loopback boundary
 Focused synthetic checks: `server/phone-access.test.ts`,
 `server/browser-access.test.ts`, `src/phone-access.test.tsx`.
 See [ADR 0081](adr/0081-private-phone-access.md) and
-[phone setup](../README.md#phone-access-over-tailscale). Live Tailscale, provider
+[phone setup](browser-access.md#phone-access-over-tailscale). Live Tailscale, provider
 OAuth and phone interaction require separate proof.
 
 ## Local browser access gate
@@ -171,7 +200,7 @@ polling counts as activity. Existing CSRF and MCP authorization remain in place;
 only the Google return callback bypasses the browser session and still validates
 its single-use consent state and separate cookie.
 
-See [browser setup](../README.md#local-browser-access) and
+See [browser setup](browser-access.md#local-browser-access) and
 [ADR 0080](adr/0080-local-browser-access-gate.md). Focused synthetic proof:
 `server/browser-access.test.ts`. Vite proxies `/auth` and denies private files.
 The development endpoint is not a packaged browser distribution. Native,
@@ -1222,7 +1251,7 @@ copying to Sent fails.
 
 Source builds still require OAuth client configuration for Google browser
 sign-in. No shared client, cloud relay or provider-registration automation is
-included. See [connection instructions](../README.md#connect-an-account) and
+included. See [connection instructions](accounts.md#connect-an-account) and
 [ADR 0008](adr/0008-guided-account-connections.md). Synthetic tests do not prove
 live provider eligibility, login, mail delivery or installed desktop behavior.
 
@@ -3565,14 +3594,38 @@ the shared geometry. See [ADR 0113](adr/0113-responsive-mail-layout.md).
 
 ### Application branding assets
 
+`build/icon.svg` and `build/mark.svg` are the vector sources for app, tray,
+browser and website icons. Run `npm run icons` after changing these sources;
+`npm run check:icons` checks that every generated file matches. SVG copies and
+ICO/ICNS frame layouts must match exactly. Raster frames are compared as decoded
+pixels, within 8 of 255 levels for alpha and for colour weighted by alpha, because
+encoders and resampling may round differently on each platform and CPU. Weighting
+keeps rounding on nearly transparent edge pixels from failing the check. Windows and Linux produced
+identical bytes; macOS output has not been compared. Packaging commands run this
+check before building. Shared release steps also run it after the Linux tests and
+before building and packaging on each platform. The generator uses the pinned
+Sharp dev dependency and renders each size from SVG with supersampling, rather
+than resizing a low-resolution raster. Keep the SVG paths, colours and
+proportions intact. The repository avatar uses the same mark in Energy
+(`#A50685`); generation stops if `build/mark.svg` no longer contains the
+`#FFF3F2` fill it recolours.
+
+`node --test scripts/brand-icons.test.mjs` checks antialiased source edges,
+transparent corners, the dimensions of the PNG frames inside the Windows ICO,
+that the asset check accepts re-encoded pixels and rejects changed artwork or
+layout, and that the logo recolour fails loudly. These checks do not establish how Explorer renders an installed icon or
+whether a previously cached icon has refreshed. Existing downloaded installers
+keep their embedded artwork; rebuild the installer to include regenerated icons.
+
 `public/brand` holds the Mass/Lumen wordmarks and horizontal lockups, the 192px
 browser icon and the 180px Apple touch icon. Vite copies these production assets
 to `dist/brand`. The sidebar switches full horizontal lockups, including the
 symbol, with the resolved app scheme and scales them to fit window controls;
 public browser-access pages select the lockup using system color scheme.
 `build/icon.png` is the 1024px default dark app icon. `build/icon.ico` contains
-16, 24, 32, 48, 64, 128 and 256px representations; `build/icon.icns` contains the
-macOS representations. The tray asset uses the same artwork. No app identifier,
+16, 20, 24, 32, 40, 48, 64, 96, 128 and 256px PNG representations;
+`build/icon.icns` contains 16px through 1024px representations. The tray uses
+the standalone mark with a transparent background. No app identifier,
 profile, keychain, signing or release behavior changes with these assets.
 
 The browser gate serves only the six named brand files before authentication,

@@ -365,6 +365,30 @@ section {
   height: var(--bar-h);
 }
 
+.brand-lockup {
+  display: block;
+  width: 94px;
+  height: 24px;
+  flex-shrink: 0;
+  background: currentColor;
+  mask: url("/brand/emc2-lockup.svg") center / contain no-repeat;
+}
+
+.brand-symbol {
+  display: none;
+  width: 24px;
+  height: 24px;
+  background: currentColor;
+  mask: url("/brand/emc2-mark.svg") center / contain no-repeat;
+}
+
+@media (forced-colors: active) {
+  .brand-lockup, .brand-symbol {
+    background-color: CanvasText;
+    forced-color-adjust: none;
+  }
+}
+
 .bar-mark {
   display: flex;
   align-items: center;
@@ -529,6 +553,14 @@ section {
 }
 
 @media (max-width: 480px) {
+  .bar-mark .brand-lockup {
+    display: none;
+  }
+
+  .bar-mark .brand-symbol {
+    display: block;
+  }
+
   .bar-actions {
     gap: 8px;
   }
@@ -1850,29 +1882,19 @@ html:not(.no-js) .art-i[loading="lazy"]:not(.ok) {
   column-gap: 96px;
   max-width: var(--max);
   margin-inline: auto;
-  container-type: inline-size;
-  /* the wordmark is sized from the available width; the grid keeps enough
-     room below the description for its visible band — the font and the
-     reserved height derive from the same value. --word-fs resolves inside
-     the grid items where cqw is the inner width; the container's own
-     min-height resolves cqw against the viewport, so the px term carries
-     the --max-width value and the cqw term scales it down */
-  --word-fs: 33.7cqw;
-  min-height: calc(53px + min(168px, 12.8cqw));
 }
 
-/* the link columns ride toward the right edge; the left column's empty
-   space below the brand copy carries the embossed wordmark */
+/* Keep the logo separate from the navigation columns. */
 .footer-links nav {
   justify-self: end;
 }
 
-/* the brand column's content lines up with the embossed E's ink: Geist's
-   E carries ~0.07em of left side bearing (pixel-measured), so the logo
-   and the description indent by that same share of the wordmark's size */
 .footer-brand {
-  position: relative;
-  padding-left: calc(var(--word-fs) * 0.07);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 24px;
+  min-width: 0;
 }
 
 .footer-links h4 {
@@ -1904,54 +1926,12 @@ html:not(.no-js) .art-i[loading="lazy"]:not(.ok) {
   color: var(--ink);
 }
 
-/* a big Geist wordmark pressed into the links surface. The clip starts
-   20px under the description and ends exactly on the credits hairline
-   (24px below the grid cell); the glyphs hang about 45% of their cap
-   height past it, so the line reads as the cut edge — only the bottom is
-   ever clipped. The -row copy lives in the grid for the stacked layout */
-.footer-wordclip {
-  position: absolute;
-  left: 0;
-  /* spans to just short of the Product column — the same width the
-     glyphs occupy, so the right edge never clips them */
-  width: calc(var(--word-fs) * 2.34);
-  right: auto;
-  top: 47px;
-  bottom: -24px;
-  overflow: clip;
-  pointer-events: none;
-  user-select: none;
-}
-
-/* the grid copy is hidden at desktop widths; the brand cell's clip paints */
-.footer-wordclip-row {
-  display: none;
-}
-
-.footer-word {
-  position: absolute;
-  left: 0;
-  bottom: -0.32em;
-  display: block;
-  font-style: normal;
-  font-weight: 800;
-  /* sized from the links grid's width so the glyphs end 24px short of the
-     Product column; the clip's height is reserved by --word-fs above */
-  font-size: var(--word-fs);
-  line-height: 0.85;
-  letter-spacing: -0.04em;
-  white-space: nowrap;
-  color: color-mix(in srgb, var(--surface), #00131f 9%);
-  text-shadow:
-    -1px -1px 0 rgba(6, 40, 60, 0.5),
-    1px 1px 0 rgba(252, 255, 255, 0.5),
-    0 3px 8px rgba(6, 40, 60, 0.22);
-}
-
-.footer-word sup {
-  font-size: 0.5em;
-  vertical-align: super;
-  line-height: 0;
+.footer-brand-logo {
+  width: 192px;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 323.18 / 82.6;
+  color: var(--ink);
 }
 
 /* the credits are the bar's bottom row, under a hairline; unlike the grid
@@ -2007,38 +1987,14 @@ html:not(.no-js) .art-i[loading="lazy"]:not(.ok) {
     gap: 24px;
   }
 
-  /* the band wordmark uses the smaller size, so the brand indent follows
-     its own font-size — same 0.07em side bearing as desktop */
   .footer-brand {
-    padding-left: calc(min(96px, 28cqw) * 0.07);
+    grid-column: 1 / -1;
   }
 
   .footer-links nav {
     justify-self: start;
   }
 
-  /* below the stacked links the wordmark takes a real full-width row —
-     the in-cell clip is swapped for it; shifted down 24px its bottom edge
-     still lands exactly on the credits hairline */
-  .footer-brand .footer-wordclip {
-    display: none;
-  }
-
-  .footer-wordclip-row {
-    position: relative;
-    left: 0;
-    right: auto;
-    top: auto;
-    bottom: -24px;
-    grid-column: 1 / -1;
-    display: block;
-    height: 118px;
-    margin-top: 8px;
-  }
-
-  .footer-word {
-    font-size: min(96px, 28cqw);
-  }
 }
 
 @media (max-width: 480px) {
@@ -2390,8 +2346,8 @@ html:not(.no-js) .art-i[loading="lazy"]:not(.ok) {
 }
 
 .sbrand {
-  font-size: 13px;
-  font-weight: 600;
+  width: 78px;
+  height: 20px;
   color: var(--app-text);
 }
 
@@ -4997,15 +4953,6 @@ button.mrow:hover:not(.on) {
 :root[data-theme="dark"].look-skeuo.look-frame .cta-card {
   filter: drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.14))
     drop-shadow(0 -4px 14px rgba(0, 0, 0, 0.4));
-}
-
-/* the footer's pressed-in word loses its blue-black shading at night */
-:root[data-theme="dark"] .footer-word {
-  color: color-mix(in srgb, var(--surface), #000 40%);
-  text-shadow:
-    -1px -1px 0 rgba(0, 0, 0, 0.7),
-    1px 1px 0 rgba(255, 255, 255, 0.14),
-    0 3px 8px rgba(0, 0, 0, 0.4);
 }
 
 /* -- D. calmer light theme ----------------------------------------------------

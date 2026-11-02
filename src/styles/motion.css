@@ -22,39 +22,16 @@
     transform: translateY(8px);
   }
 }
-@keyframes row-in {
-  from {
-    opacity: 0;
-  }
-}
 @keyframes menu-in {
   from {
     opacity: 0;
     transform: translateY(-3px);
   }
 }
-@keyframes settings-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-}
 @keyframes sidebar-swap {
   from {
     opacity: 0;
     transform: translateY(4px);
-  }
-}
-@keyframes search-in {
-  from {
-    transform: translateX(6px);
-    opacity: 0;
-  }
-}
-@keyframes notice-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 8px);
   }
 }
 @keyframes dialog-in {

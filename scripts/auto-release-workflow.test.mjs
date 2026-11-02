@@ -92,7 +92,7 @@ test("every platform tests and packages with its existing architecture and runne
   assert.match(steps, /EMC2_BUILD_REF: \$\{\{ github\.event_name == 'push' && github\.sha \|\| github\.ref \}\}/);
   assert.match(steps, /EMC2_RELEASE_VERSION: \$\{\{ needs\.checks\.outputs\.version \}\}/);
   assert.match(steps, /run: node scripts\/set-build-version\.mjs/);
-  assert.match(steps, /- run: npm ci --no-audit --no-fund\n      - if: runner.os == 'Linux'\n        run: npm test\n      - run: npm run build/);
+  assert.match(steps, /- run: npm ci --no-audit --no-fund\n      - if: runner.os == 'Linux'\n        run: npm test\n      - run: npm run check:icons\n      - run: npm run build/);
   assert.match(steps, /name: Check desktop startup\n        if: runner.os != 'Linux'/);
   assert.match(steps, /--user-data-dir="\$\{\{ runner.temp \}\}\/emc2-check"/);
   assert.match(steps, /name: Install Rosetta for x64 builds\n        if: env.NODE_ARCH == 'x64' && runner.os == 'macOS'/);

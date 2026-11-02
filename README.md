@@ -1,573 +1,121 @@
+<p align="center">
+  <a href="https://emclient2.vercel.app">
+    <img src=".github/assets/emc2-cover.jpg" alt="Emc² logo on the pink and purple brand artwork" width="960" />
+  </a>
+</p>
+
 # Emc²
 
-An installable desktop email client for Windows, macOS and Linux, based on Ryan Vogel's video. Electron with React and TypeScript, a bundled mail service, and encrypted SQLite storage. The installed app needs no browser, terminal, or separate Node installation.
+One inbox for every account, on Windows, macOS and Linux.
 
-## Local browser access
+Emc² brings Gmail, iCloud, Fastmail, Yahoo and other IMAP accounts into one
+desktop email client. Read, search and reply across accounts without switching
+between mail apps. The installed app includes its runtime, so you do not need
+a browser, terminal or separate Node installation.
 
-The optional browser target uses the same mail interface without Electron.
-It requires Node 24.x and installed dependencies. Build once with
-`npm run build:web`, then run `npm run start:web` and open
-`http://127.0.0.1:3001`. This build does not package or compile Electron.
-The local service must remain running.
+[Download Emc²](https://github.com/collection-of-things/aggregate-mail/releases/latest)
+· [Visit the website](https://emclient2.vercel.app)
+· [Read the changelog](CHANGELOG.md)
+· [Contribute](CONTRIBUTING.md)
 
-After the host installs a new web build, an open browser checks for it every ten
-seconds and on returning to the tab. An **Update ready** notice offers **Update
-now** and **Later**. The client refreshes after 30 seconds without interaction
-when a mail view is ready and no editor, pending request or uncertain write
-blocks it. Attachment downloads and open previews also pause updates. Later
-pauses automatic refresh for that build. Finish editors and
-return to a mail view to update. The current mail view and selected message are
-restored within the same tab. Unknown write outcomes require checking their
-result before manually refreshing; the client never retries them to update.
+## What you can do
 
-For Linux host updates from published stable releases, see
-[stable-release web updates](docs/web-updates.md). Deployment templates are
-provided; live activation requires the deployment owner to clear its hold.
+- Read all your accounts in one inbox, with category tabs and account filters.
+- Search cached mail and drafts, then save searches you use often.
+- Archive, pin, snooze and select messages with the keyboard or mouse.
+- Write replies with templates and signatures, use Undo send, or schedule a send.
+- Import contacts, review unsubscribe destinations and keep local calendar events.
+- Add AI sorting or connect an AI client through scoped MCP permissions when you choose.
 
-This refresh loads a build already installed on the host. It does not download
-releases or change the existing browser sign-in lifetime. Older clients need
-one manual reload to adopt update detection.
+## Get started
 
-Before starting, supply these environment variables through your local secret
-manager or protected launch environment. Do not put secrets in shell history,
-URLs, source files or shared launch scripts:
+1. [Download the latest release](https://github.com/collection-of-things/aggregate-mail/releases/latest)
+   for your system and [install it](docs/install.md#install).
+2. Open Emc² and [connect an account](docs/accounts.md#connect-an-account). The connection
+   dialog guides you through Google sign-in or an app password.
+3. Read and sort your mail. Local sorting works without an AI key; use Teach
+   to make rules for a sender or group of messages.
 
-| Variable | Requirement |
-| --- | --- |
-| `MAIL_WEB_PASSWORD` | A host recovery passphrase of 16 to 256 characters, supplied by a password manager; phones use passkeys |
-| `MAIL_DATA_KEY` | Optional with `npm run start:web`: the launcher generates and protects the key in the OS credential store. Existing externally managed profiles must supply their original 32-byte base64 key |
-| `MAIL_DATA_DIR` | Optional separate browser profile; defaults to the user app-data directory, outside the source and frontend |
-| `MAIL_WEB_PORT` | Optional loopback backend port, 1024 to 65535; default 3001 |
-| `APP_URL` | Loopback frontend origin; defaults to `http://127.0.0.1:<MAIL_WEB_PORT>` |
+## Your mail and optional AI
 
-`npm run start:web` automatically provisions a data key in macOS Keychain,
-Windows Credential Manager or an unlocked persistent Linux Secret Service. It
-never asks users to type or remember that key. Linux memory-only keyutils and
-plaintext key files are not used. Missing, locked, unreadable or inconsistent
-existing credentials stop startup before SQLite opens. Unlock the original
-credential store to recover access. Do not delete keys or reset profiles.
+Emc² stores cached mail and account credentials in an encrypted database on
+your computer. It connects to your mail providers to sync and send messages.
+Snoozes and saved views stay local to this client.
 
-Browser and desktop profiles remain separate. Existing external-key profiles
-continue to require their original `MAIL_DATA_KEY`; they are not automatically
-migrated into the OS store. Losing that key prevents recovery. Direct backend
-and development startup still require explicit key and profile provisioning.
-
-Open `/auth` locally to unlock with the recovery passphrase; password managers
-can fill it. It is accepted only at the configured localhost Host and Origin.
-Five attempts per minute are allowed. Phones use paired passkeys instead.
-Pair each browser once. Paired browsers stay trusted across idle time, tab closes
-and host restarts. Temporary network or route outages hide the inbox and retry
-without removing trust. **Lock inbox** forgets the current browser; removing a
-paired device revokes every browser using that passkey. Clearing site cookies
-also requires another passkey unlock, but not host pairing while the passkey
-remains registered. Browser cookie limits may eventually require another unlock;
-normal use renews the cookie. No AI agent is needed for pairing or approval.
-
-Local recovery-password sessions still lock after 30 minutes without a request
-or eight hours total, and restart ends those local sessions. Paired-device trust
-never exposes the localhost recovery password or bypasses the private route.
-
-For development, export `APP_URL=http://127.0.0.1:5173` with the same required
-variables and run `npm run dev:web`. Open `http://127.0.0.1:5173/auth` first.
-The development server proxies access and API routes to the loopback service.
-Use built assets for normal use. Google OAuth callback registration must match
-`APP_URL` plus `/api/oauth/google/callback`.
-
-### Phone access over Tailscale
-
-For a headless host with Phone access already enabled, run `npm run phone:link`
-in the host installation with the same secure launch environment. It uses
-`MAIL_WEB_PASSWORD` and `APP_URL` (or `MAIL_WEB_PORT`). To pipe the recovery
-passphrase from a password manager instead, use `npm run phone:link -- --password-stdin`.
-Never pass a password as a command argument.
-
-Open the printed one-time link on your phone within two minutes, then choose
-**Save passkey and open inbox**. Complete the screen-lock prompt within ten
-minutes. The link grants its first recipient permission to register, so share
-it privately. No second approval on a host screen is needed. The command ends
-its temporary host recovery session. Logging in replaces other localhost
-recovery sessions and uses one of the shared five login attempts per minute;
-existing paired phones stay connected. If sync or an application update is
-running, wait for it to finish before running the command again.
-
-
-From the phone, open the private address and choose **Connect this device**.
-Compare its code with **Settings > Phone access** in the authenticated localhost
-browser on the host. Approve there, then save the passkey on the phone. Starting
-from the host with a QR or direct invitation also works.
-
-In the signed-in localhost browser, open **Settings > Phone access**, enable
-access and choose **Connect phone**. Scan the QR from another screen, or use
-**Copy setup link** to open the same invitation on your phone. Compare the code,
-approve on the host and save the passkey on your phone. Open invitations within
-two minutes; once opened, finish approval and passkey setup within ten minutes.
-Reloading the pairing page resumes the claimed setup. For an expired invitation,
-choose Connect phone on the host again. Future visits use **Unlock with passkey**
-in the browser or password manager where you saved it.
-
-
-Install and connect Tailscale on the host and phone. Start the built browser
-app, unlock it locally, then open **Settings → Phone access → Enable phone
-access**. Confirm to let Emc² create one private HTTPS Serve route on an unused
-port from 8444 to 8454. The host user must have permission to manage Serve.
-Emc² does not sign in to Tailscale or change its permissions.
-
-Settings shows the URL only after checking the live host, private route, TLS
-certificate and Emc² gate. Choose **Connect phone**, scan its QR code and compare
-the code shown on the phone with the host. Click **Approve matching phone** on
-the host. On the phone choose **Save passkey and open inbox**, using Face ID,
-fingerprint or the screen lock supported by that phone. Future visits offer
-**Unlock with passkey**. No password or encryption key needs typing on the phone.
-
-An invitation expires after two minutes and works once. QR and ordinary setup
-links require matching-code host approval. Terminal-generated headless links
-carry that approval for their first claim. All paths require a verified passkey
-before inbox access. Its token is a URL fragment, immediately removed from browser
-history. Registration and login challenges are cookie-bound and consumed once.
-Up to eight passkeys may be paired. Settings lists phones with Remove controls;
-a synced passkey may represent more than one physical device. Removing it
-revokes every session using that passkey.
-
-Privacy removes the URL, QR and comparison code from the Settings DOM and hides
-the approval action. Host route management and pairing require the signed-in
-localhost browser, exact Origin and CSRF. The desktop target does not configure
-browser hosting. Keep Emc² and Tailscale running on the host.
-
-The backend stays on loopback. Existing Serve routes are preserved and public
-Funnel is refused for the Emc² endpoint. Checks renew every 30 seconds with a
-60-second admission lease. Failed verification suspends phone access; an expired
-lease invalidates its browser session. Refresh checks the route again. Disable
-revokes admission first and removes only the matching owned route. Changed or
-unverifiable routes remain untouched, with an error in Settings. Avoid changing
-Serve configuration concurrently with setup or removal.
-
-For Google OAuth, register the verified HTTPS origin plus
-`/api/oauth/google/callback` with your Google client as well as the localhost
-callback. Google may impose its own authorized-domain restrictions; phone OAuth
-requires separate provider verification. Existing IMAP setup stays available.
-
-Do not expose the service through a public proxy or bind it to a network
-interface. The gate cannot protect a compromised host account or hostile local
-processes. Browser and desktop profiles stay separate; MCP still requires its
-own loopback-only opt-in and bearer permissions. Interactive browser, phone,
-installed-app and real-provider acceptance remain separate checks.
-
-Undo send holds outgoing mail in an encrypted local outbox for 10 seconds by
-default. Change the delay in the composer's Undo delay control. Undo restores the exact draft
-before submission. Emc² must be running to send. Restarted pending mail needs
-review, and unknown outcomes are never retried automatically. There is no recall
-after provider acceptance. Send later adds local scheduling while Emc² is running
-and online. Open Scheduled from Commands to edit, cancel or reschedule. Restart,
-sleep and missed offline schedules require review before sending.
-
-## Contents
-
-- [Install](#install)
-- [Connect an account](#connect-an-account)
-- [Jev sorting](#jev-sorting)
-- [Other providers](#other-providers)
-- [Inbox](#inbox)
-- [Search and compose tools](#search-and-compose-tools)
-- [MCP](#mcp)
-- [Keyboard and mouse](#keyboard-and-mouse)
-- [Local storage](#local-storage)
-- [Development](#development)
-- [CI](#ci)
-- [Contributing](#contributing)
-- [Releasing](#releasing)
-- [Verification](#verification)
+AI sorting is optional. When you enable it, the app sends the sender, subject
+and a short message preview to your configured AI provider. MCP access is off
+by default and requires explicit account and tool permissions. An approved
+`reply_to_email` request saves a local draft; only your own Send action in the
+composer delivers it. See [local storage](docs/storage-and-backups.md#local-storage),
+[AI sorting](docs/ai-and-agents.md#jev-sorting) and
+[MCP](docs/ai-and-agents.md#mcp) for the details.
 
 ## Install
 
-Download the newest published Windows setup installer from [Releases](https://github.com/collection-of-things/aggregate-mail/releases), named `Emc2-<version>-win-x64.exe` in new releases. It installs for the current user and creates Start menu and desktop shortcuts. Launch Emc² and connect accounts in Settings.
+Download the [latest release](https://github.com/collection-of-things/aggregate-mail/releases/latest)
+for your system. The installed app includes its runtime.
 
-To build it yourself instead, run `npm run package` and open the installer it writes to `release/`. You can also run `release/win-unpacked/Emc².exe` directly; keep its surrounding files together. The installer is unsigned, so Windows may show an unknown-publisher or SmartScreen warning.
-
-### macOS
-
-Published releases include `Emc2-<version>-mac-arm64.dmg` for Apple silicon and
-`Emc2-<version>-mac-x64.dmg` for Intel. For a first installation, drag Emc² into
-Applications and open it there. In an automatic-update-capable build,
-select **Download, install and restart**. Emc² verifies the architecture-matching
-DMG against its release's `SHA256SUMS.txt`, prepares the app, finishes pending
-mail and saved drafts, replaces the running app and asks macOS to reopen it.
-Run the app from a writable Applications folder, not a mounted disk image.
-Your mail and settings stay outside the app. The previous app is retained until
-a later update confirms the exact replacement started successfully with the same
-profile. If replacement cannot finish, Finder shows the existing app or retained
-recovery files. Keep both copies and stop if macOS blocks the replacement.
-Downloaded releases are ad-hoc signed and not notarized; macOS can still show
-trust prompts or block opening. Checksums do not establish publisher trust.
-No quarantine attribute is removed and Gatekeeper remains enabled. This flow
-needs no Git, Node, npm, Xcode or Apple Developer account. It requires built-in
-curl 8.4 or newer for bounded transfers. Older builds retain their existing
-update behavior until replaced. See [ADR 0080](docs/adr/0080-macos-automatic-replacement.md).
-
-For a local source installation, build Emc² on the Mac that will run it. This route requires no Apple Developer account or signing certificate. Install [Node.js](https://nodejs.org/en/download) 24 or newer with npm, then install Apple's Command Line Tools if needed:
-
-```sh
-xcode-select --install
-```
-
-Clone the source with Git, install the locked dependencies and build the app:
-
-```sh
-git clone https://github.com/collection-of-things/aggregate-mail.git
-cd aggregate-mail
-npm ci
-npm run package:mac:dir
-```
-
-On Apple silicon, the app is `release/mac-arm64/Emc².app`; on Intel, it is `release/mac/Emc².app`. The command builds for the current Mac's architecture. Check the finished signature before opening the app in Finder:
-
-```sh
-# Apple silicon; use release/mac on Intel.
-codesign --verify --deep --strict --verbose=2 "release/mac-arm64/Emc².app"
-open "release/mac-arm64"
-```
-
-You can drag the app to your user Applications folder for later launches. Quit an existing copy first and keep it until the new build works. Replacing an app does not require deleting its saved accounts or mail. Node and build tools are needed to compile; the finished app includes its runtime.
-
-The packaging hook signs explicitly ad hoc and skips certificate and provisioning-profile discovery. Build and run the app locally. Copying it to another Mac creates a separate downloaded-app trust question. The existing GitHub macOS binaries are unnotarized, and the published 0.1.4 arm64 app has invalid signatures. Use the source route instead.
-
-Do not remove quarantine or disable Gatekeeper to make a build launch. If signature verification or startup fails, stop and report the error. See [the source-installation decision](docs/adr/0011-macos-source-installation.md).
-
-For local DMG and ZIP output, `npm run package:mac` uses the same signing hook. Local packaging never publishes downloads. Public binary distribution with a verified publisher still requires Developer ID signing and notarization by an authorized Apple team. The version-tag release workflow remains unchanged.
-
-The macOS menu provides standard Command shortcuts for editing, closing and quitting. The window controls sit at the top left, over the sidebar header. Closing the window keeps the app running in the background. On macOS, reopen it from the Dock and quit through the application menu. Windows and Linux retain Open and Quit in the tray menu. Unsent drafts still require confirmation.
-
-## Search and compose tools
-
-Start a search to find cached mail and saved local drafts across all accounts, including Sent, Archive and Snoozed. Use words, quoted phrases and combined filters. Plain unquoted words tolerate one typo. For example, `from:team@example.com is:unread after:2026-10-01 -subject:newsletter` combines sender, unread state, date and exclusion. Supported fields are `from:`, `to:`, `subject:`, `body:`, `account:`, `is:read`, `is:unread`, `is:pinned`, `before:` and `after:`. Dates use `YYYY-MM-DD` at midnight UTC; before excludes that day and after includes it. Account matches the full account ID, email address or custom label. After search starts, account, mailbox and mail filters can narrow results. Draft dates use the last saved time. Read/pin predicates and mail-only filters exclude drafts. Only imported mail and local drafts are searched; this does not fetch complete provider history.
-
-After searching or applying a mail filter, select **Save view** and enter a
-name. Commands also offers **Save current view**. Use Commands to open, rename
-or delete a saved view. Opening restores its query, account, mailbox, Inbox tab,
-filters and sort. Saved views stay in encrypted local storage and search the
-same cached mail and drafts. A view whose account or label was removed cannot
-open. Privacy mode hides view names and unfocused search text.
-
-Select Commands beside search, or press Command+K on macOS and Control+K elsewhere, to search app actions. Up/Down move through the command choices; Enter runs one. In the closed mail list, Up/Down select an email without opening or reading it. j/k remain available.
-
-Settings, Writing manages reusable plain-text templates and per-account signatures. Save preferences before composing. A new message or reply gets its account's signature. Changing From replaces an unchanged signature; edited text stays intact. In the composer, type in the Template field to filter templates by name and text, move with the arrows and insert with Enter or Insert template. Inserting appends text and only fills the subject if it is empty. These preferences use the encrypted local store.
-
-Pin email in the toolbar or context menu marks a cached message locally. Search `is:pinned`, or choose Show pinned emails in this view in Commands, to find it. Pins do not change the provider mailbox or mail sorting.
-
-In-app toasts report new unread arrivals after the initial import, sending and action outcomes. Errors and delivery warnings remain until dismissed. A send warning can mean delivery succeeded but the Sent copy failed; check the stated outcome before sending again.
-
-## Contacts
-
-Open **Contacts** from the sidebar or Commands. **Saved contacts** lets you add,
-edit, delete and find people. **Recent recipients** lists people you have emailed
-from Emc². The sidebar account filter applies to both lists, and saved contacts
-appear in recipient suggestions when composing.
-
-To bring an existing address book, choose **Import contacts**, select the source
-and destination account, then choose a UTF-8 CSV or vCard file. Review the preview
-before saving. Imports add new addresses without overwriting existing contacts.
-Google, Yahoo and Outlook-compatible CSV exports and Apple/iCloud vCards are
-supported. No developer account or paid service is required. See
-[contact import steps and limits](docs/contacts-import.md).
-
-## Review unsubscribe requests
-
-When a message supplies a supported unsubscribe destination, select
-**Unsubscribe** in the reader and review the destination before continuing.
-The sender supplies this destination; Emc² does not authenticate it. In privacy
-mode, reveal it before confirming.
-
-Depending on the message, you can send a direct HTTPS unsubscribe request,
-create a normal draft to review and send yourself, or check a link and choose
-**Open in browser**. Nothing unsubscribes automatically. Unsafe destinations
-are refused. The sender controls when mail stops; an accepted request is not
-proof that a subscription has ended. An uncertain result is never retried
-automatically.
-
-## Connect an account
-
-Select **Connect an account** in the empty inbox or add an account from Settings. Choose your provider. Known providers fill in the incoming and outgoing server settings; custom IMAP keeps those fields available.
-
-For Gmail and Google Workspace, use **Continue with Google** when Google OAuth is configured. Otherwise, the connection dialog offers an app-password option with a link to Google's account settings. Enter your email address and a dedicated [Google app password](https://support.google.com/accounts/answer/185833), not your normal Google password. This option needs no Google Cloud project. It requires 2-Step Verification and may be unavailable because of Workspace administrator policy, security-key-only verification or Advanced Protection. Google recommends OAuth when it is available.
-
-The app checks both incoming and outgoing access before saving an IMAP account. If a check fails, correct the connection form and retry. Account credentials stay in the encrypted local store. Gmail saves its own Sent copies; the app-password connection does not append another copy.
-
-Existing Gmail OAuth accounts keep their connection method and cached mail. The app does not switch an existing account between OAuth and IMAP during reconnection, because those methods use different message identifiers.
-
-### Advanced Google OAuth setup
-
-The source build does not include a shared Google OAuth client. A maintainer or self-hosting user can configure one once, then use Google sign-in for eligible personal Gmail and Workspace accounts.
-
-1. Create a project in [Google Cloud](https://console.cloud.google.com/apis/credentials) and enable the Gmail API.
-2. Configure the consent screen and add your Google accounts as test users.
-3. Create an OAuth client of type Web application.
-4. Register `http://127.0.0.1:32145/api/oauth/google/callback` as its authorized redirect URI.
-5. In Emc², save the client ID and secret under Settings, Google and connections. A ticked `Saved` line under each field shows what is on disk, so an existing client ID never needs re-entering. Use Continue with Google for each account.
-
-Sign-in opens in your default browser. After consent, the desktop app refreshes and syncs the account. Access includes reading mail, marking it read, archiving and sending. Google apps left in external testing may require periodic reconnection. See [Google's authorization documentation](https://developers.google.com/workspace/gmail/api/auth/web-server).
-
-## Jev sorting
-
-Jev classifies mail into Important and Other and rates relevance in one call per message. It is a decision model: it returns one option from a list you define rather than generated prose, which is why rows show a fixed label such as "Needs a reply".
-
-Pick the provider under Settings, Google and connections, then save that provider's API key beneath it. Sender rules still take priority, and Teach still overrides any classification.
-
-| Provider | Key from | Endpoint and model |
+| System | Download | Open it |
 | --- | --- | --- |
-| TypeSafe | `console.typesafe.ai` | `api.typesafe.ai/v1/systemone`, `jev-latest` |
-| Vercel AI Gateway | the Vercel AI Gateway in your Vercel dashboard | `ai-gateway.vercel.sh/typesafe/v1/systemone`, `typesafe-ai/jev` |
-| OpenRouter | `openrouter.ai/keys` | `openrouter.ai/api/alpha/decisions`, `typesafe/jev-1.13` |
+| Windows x64 | `.exe` setup installer | Run setup, then open Emc² from Start. |
+| macOS, Apple silicon | `mac-arm64.dmg` | Drag Emc² into Applications, then open it there. |
+| macOS, Intel | `mac-x64.dmg` | Drag Emc² into Applications, then open it there. |
+| Linux x64 | `.AppImage` | Allow it to run as a program, then open it. |
 
-All three serve Jev and accept the same request and answer shapes, so switching provider only changes the URL, the model name and which key you paste. TypeSafe paused new signups in September 2026; OpenRouter is the quickest route if you cannot get an account there.
+Windows may show an unknown-publisher warning. macOS releases are ad-hoc
+signed and not notarized, so macOS may block the first launch. See the
+[installation guide](docs/install.md) for source builds, updates and platform details.
 
-For any other endpoint that speaks this protocol, set the URL and model yourself in the app-data folder's `settings.env` (see Local storage):
+<!-- Keep existing README section links working after the guide split. -->
+<a id="contents"></a>
+<a id="windows"></a>
+<a id="macos"></a>
+<a id="linux"></a>
+<a id="local-browser-access"></a>
+<a id="phone-access-over-tailscale"></a>
+<a id="search-and-compose-tools"></a>
+<a id="contacts"></a>
+<a id="review-unsubscribe-requests"></a>
+<a id="connect-an-account"></a>
+<a id="advanced-google-oauth-setup"></a>
+<a id="jev-sorting"></a>
+<a id="other-providers"></a>
+<a id="sync-recovery"></a>
+<a id="inbox"></a>
+<a id="mcp"></a>
+<a id="keyboard-and-mouse"></a>
+<a id="local-storage"></a>
+<a id="development"></a>
+<a id="ci"></a>
+<a id="contributing"></a>
+<a id="releasing"></a>
+<a id="verification"></a>
+<a id="command-line"></a>
+<a id="encrypted-workspace-backups"></a>
 
-```
-TYPESAFE_API_KEY=<that endpoint's key>
-TYPESAFE_ENDPOINT=https://example.com/v1/systemone
-TYPESAFE_MODEL=<model id>
-```
+## Guides
 
-A call sends `state` (sender, subject and up to 220 characters of preview) with typed `questions` asking for a category, a relevance level and a row label. `server/sorting.ts` holds those questions, and a non-`http(s)` endpoint is refused before anything is sent.
+Pick the guide for what you want to do.
 
-## Other providers
-
-Choose iCloud, Fastmail or Yahoo and follow the dialog's app-password link. Custom IMAP supports a separate incoming username, a TLS IMAP host/port, and SMTP on port 465 with TLS or 587 with required STARTTLS.
-
-iCloud requires an [app-specific password](https://support.apple.com/en-ie/102525). Enter credentials only in the connection form, never in source or chat.
-
-### Sync recovery
-
-Use Retry connection beside an account in Settings to sync with its encrypted saved credentials. It keeps the account ID, cached mail, taught sorting and snooze state. Duplicate clicks share queued or running work. A failed account can retry while another account is still syncing. The account shows Retry queued or Syncing and retains its previous error until its run finishes.
-
-Retry connection cannot repair rejected credentials. For a Google sign-in rejection, use Continue with Google. For an IMAP authentication rejection, use Connect to replace the app password. Access failures point to provider permissions or administrator policy. Connection failures can be retried later; unreadable mail has a separate error. Failure details show only a fixed category, operation, allowlisted code and optional HTTP status, without raw provider errors or credentials.
-
-A partial listing retains cached mail and batches already fetched. Only a complete inbox listing archives cached messages absent from the provider. A cleanup warning preserves the sync result. Fresh Gmail mail appears in groups of up to ten while later downloads run; cached-only changes share page writes. Unchanged messages are not rewritten. Renderer notifications share one active read and one pending refresh, including a refresh requested during a failed read. These changes add no automatic provider retry. Real account recovery and native Settings interaction still need separate verification.
-
-## Inbox
-
-Custom account names can be edited in Settings, Accounts. Privacy keeps these labels visible while hiding email addresses. Back returns from an email to the list; immediate Forward restores that email. The update icon opens dismissible details without a banner. All cached mail remains reachable through the windowed list.
-
-- Inbox combines all connected inboxes and splits them into Primary, Social, Promotions, Newsletters, Transactions and Updates tabs. Gmail mail follows Gmail's own categories; codes, security notices, support threads and replies always stay in Primary. Numbered account controls filter the view. Each sender shows its company logo, fetched once by the app from a favicon service and cached on this computer; senders on Gmail, Outlook, iCloud and similar hosts keep their initial, because their favicon would be the provider's logo rather than their own.
-- In a full-width list, comfortable rows use 28px for low relevance, 34px for medium, and 48px on two lines for high relevance; compact mode uses uniform 24px rows. Beside the reader, rows become two- or three-line cards. Measurements are recorded in `DESIGN.md`.
-- Today's actions opens first, with manually confirmed Needs reply, Needs work and Waiting lists. Each item links to its evidence and changes only through explicit confirmation. Clients and projects groups selected conversations and decisions, with approval before combining accounts.
-- Search stays visible above mail, work and Settings; `/` focuses it. A new nonempty search opens All cached across all accounts and includes saved local drafts. Continued typing preserves deliberate narrowing. Inbox, Snoozed, Archive, Sent and All cached are listed in the left sidebar with account filters. Search normalizes Unicode, Latin accents and whitespace, and reuses documents in memory. The first text search builds the cache; no plaintext search index is written to disk.
-- Opened mail shows beside the list by default; Settings, Appearance can switch to Full width, which opens mail in place of the list. The same section offers System, Light and Dark modes, themes, accents and transparency.
-- In Settings, Appearance, choose Create theme to customize light and dark palettes with live preview. Advanced colors adjusts individual surfaces and text. Save keeps the theme on this device; Cancel restores the previous appearance. Select a custom theme to edit, duplicate, export or delete it. Import theme accepts an Emc² JSON file or pasted JSON. Exported files include both palettes and can be shared with another Emc² installation.
-- Local sorting works without an AI service. Add a Jev or OpenAI key under Settings, Google and connections to classify new mail with Jev by TypeSafe AI (used when its key is set) or OpenAI. Sender, subject and up to 220 characters of preview text go to that provider, a few messages at a time so a first sync stays quick. A failed call names the provider, then falls back to local sorting for the rest of that account's sync.
-- Teach previews an account-scoped sender rule and optional literal condition before saving. Future-only is the default; applying to existing matches requires its checkbox. The question condition checks question marks and does not infer intent. Removing a rule reapplies local sorting.
-- Archive removes mail from the Gmail inbox or moves IMAP mail to an archive folder. It does not delete mail.
-- Snooze is local to this client. Messages return to their category after the chosen time.
-- Compose and reply send plain text by default, with optional bold, italic, underline, links, lists and quotations and a matching plain-text alternative, with Cc, Bcc, multiple To recipients and up to 20 attachments (25 MiB total). Reply all retains the other participants. IMAP mail gets a Sent copy. If copying fails after delivery, the draft closes with a warning rather than encouraging a duplicate send.
-- IMAP watches for inbox changes while the app runs. Gmail API checks its mailbox revision every 15 seconds and syncs only when it changes, with backoff after failures. Opening, manual sync and a five-minute background recovery sync fetch the full inbox; large mailboxes can take time. Gmail reuses cached bodies and checks labels.
-- Bodies preserve a bounded, safe subset of the sender's formatted layout, with readable plain text when formatting is unavailable or rejected. Sender scripts, forms, stylesheets and resource-loading CSS are excluded. Show images sits above the body; images stay blocked until activated for that opening. Show images also works while personal text is hidden; image descriptions and captions stay masked. Image URLs containing detected private information remain blocked in that mode. Image pixels may contain personal information. Loading remote images can tell the sender you opened the email. HTTP and HTTPS links open in your default browser on desktop. Personal-information hiding suppresses links containing known recipient names or email addresses. Received attachments show metadata and an explicit, cancellable download for parts up to 25 MiB; automatic imports retain their smaller limits. Formatted composition uses a separate bounded outbound subset. Embedded images, arbitrary CSS, tables and pasted HTML are not supported; paste inserts text. Search covers the chosen cached view, including retained archives and explicitly imported Sent evidence.
-- Drafts autosave in the encrypted store, including recipients and attachment bytes. Closing retains the draft; discarding is separate. Unknown send outcomes remain visible to prevent accidental duplicates.
-
-## MCP
-
-AI clients can read synced mail and reply through the running app at `http://127.0.0.1:32145/mcp`. The server uses MCP Streamable HTTP. It shares the app's encrypted store and provider operations; no separate database process is needed.
-
-1. Open Settings, AI and agents and turn on Enable MCP. It is off by default.
-2. Open Agent review. Create a grant for the exact accounts and tools that client needs, then copy its credential. The legacy Settings token grants no account access.
-3. Review prepared drafts, sends, read changes and archives in Agent review’s Review queue. Each proposal needs separate approval. Approving a reply saves it to Drafts and opens it for editing; agents never send, so only your own Send delivers it.
-
-Each grant also offers **Bring your own key** for OpenAI-compatible providers.
-Choose OpenAI (default model `gpt-4.1-mini`), DeepSeek (`deepseek-chat`), or Other
-OpenAI-compatible with a custom public HTTPS base URL. Models stay editable.
-Save key encrypts the key on this device; it does not test the connection.
-Leave the key blank to keep it for the same endpoint. Changing the endpoint
-requires a new key. Remove key deletes the settings; revoking the agent also
-deletes them.
-
-To prepare a reply, the grant needs `read_email` and `propose_draft` for the
-selected account. Select one received email from the searchable local cache,
-optionally enter a short instruction, check the displayed provider destination,
-and click Prepare draft. That click sends only the selected email's subject,
-sender address, recipient and plain text (up to 24,000 characters), plus your
-instruction, to that provider. Attachments and other mail are excluded. Review
-the resulting pending proposal in action history and approve it to create a
-local draft. Nothing is sent. Existing approval requires MCP enabled in
-Settings; saving a key and preparing a proposal do not enable MCP or sending.
-BYOK testing and independent review are pending; see [ADR 0045](docs/adr/0045-agent-review-byok.md).
-
-For Claude Code:
-
-```sh
-claude mcp add --transport http emc2 http://127.0.0.1:32145/mcp --header "Authorization: Bearer <token>"
-```
-
-For JSON-config clients that support Streamable HTTP `url` and `headers` entries, including compatible Claude Desktop/Cursor configurations:
-
-```json
-{
-  "mcpServers": {
-    "emc2": {
-      "url": "http://127.0.0.1:32145/mcp",
-      "headers": { "Authorization": "Bearer <token>" }
-    }
-  }
-}
-```
-
-Replace `<token>` with that agent's credential. Client support and configuration locations vary by version. Codex and other MCP clients should use the same HTTP URL and Authorization header through their HTTP-server settings. The app must remain running.
-
-For OpenCode, each grant in Agent permissions and review has a Set up OpenCode button. On the desktop app it saves that grant's connection into your OpenCode user config (`~/.config/opencode/opencode.json`, or an existing `opencode.jsonc`) on this computer, editing only the `mcp.emc2` entry and keeping a private backup beside the file. It enables MCP on the same click when MCP is off. An existing different `emc2` connection is replaced only after you confirm. Restart OpenCode, then run `opencode mcp list`. If the app cannot find one safe config file to edit, or in the browser target, open Advanced: manual setup to copy the JSON instead: if you have no user config yet, save the copied JSON as one; if you already have one, add only the copied `mcp.emc2` entry to its existing `mcp` object and never the whole root. Never use a project config. The saved config contains that grant's credential, so keep it private.
-
-Tools: `list_accounts`, `list_emails`, `search_emails`, `read_email`, `get_thread`, `propose_draft`, `reply_to_email`, `archive_email`, `mark_read`, `list_projects`, `list_commitments`, `create_project`, and `track_commitment`. Each requires its named grant and permitted account. Email lists return summaries with ISO dates and numeric offset pagination (25 by default, maximum 100). Search matches sender, address, subject and plain-text body in cached mail. Threads link cached messages within one account using Gmail thread IDs or Message-ID references and report missing evidence. Older cached mail may lack Reply-To, Cc or References until fetched again. Reply-all includes the original To/Cc addresses except your own, plus optional extra Cc. IMAP replies save a Sent copy; a Sent-copy warning means delivery succeeded and you must not resend.
-
-The listener is bound to `127.0.0.1`. Agent credentials and action history are encrypted in the same SQLite store as mail, protected by Electron safeStorage on desktop. Credentials are never stored in `settings.env`. Requests with browser origins or non-local hostnames are rejected. Disabling MCP or revoking a grant blocks its access and pending approvals. Keep copied client configurations private because they contain credentials. A grant permits its selected reads, proposal preparation and any explicitly selected local creation tools. Mail-action approval rechecks the exact payload, current grant and conversation evidence before execution. Mail text is untrusted input and cannot authorize an action.
-
-Local work creation is off by default, including for existing grants and the Reply assistant preset. In Advanced: allowed tools, select `create_project` and/or `track_commitment` only if the agent may save that local work immediately without per-item approval. Select `list_projects` and `list_commitments` separately for discovery and readback. These tools require an explicit `accountId`. Projects need one or more `sourceMailIds` from that account. Commitments need `sourceMailId`, `text`, `reason`, and one open status: `needs-reply`, `needs-work`, or `waiting`; optional fields are same-account `evidenceMailIds`, a single-account `projectId`, a `dueDate` (YYYY-MM-DD) or legacy `dueAt` (epoch milliseconds), and `followUpAt` (epoch milliseconds displayed in local time). They appear in the existing Projects, Today and Calendar views. This does not schedule an external calendar event or operating-system notification.
-
-Each create requires a caller-generated UUID `requestId`. Generate it once for each intended project or deliverable, and retain it with the exact input. Identical retries by the same agent and tool return the same unchanged record. Different input or later user edits cause an error; a new UUID creates a distinct item even when its text matches. After an uncertain response, read saved work and retry only the identical request with its original UUID. Revocation, removed accounts or unavailable sources block retries. Work lists omit mixed-account projects, commitments linked to them, and items whose evidence is unavailable or belongs to another account. Lists include closed commitments for readback. These grants never complete, cancel, reopen or update work, approve proposals, or send mail. See [ADR 0047](docs/adr/0047-agent-local-work-creation.md).
-
-Approved replies use the same send path as the compose window. Sent imports remain explicit and separate from Inbox reconciliation. An unknown send result consumes the approval and requires a manual delivery check; it never triggers an automatic resend.
-
-## Keyboard and mouse
-
-New preferences use Gmail shortcuts for supported actions. Existing saved bindings stay unchanged.
-
-| Key | Action |
+| Guide | What it covers |
 | --- | --- |
-| `j` / `k` | Move selection |
-| `o` or Enter | Open message |
-| Escape | Go back |
-| `i` / Shift+`o` | Show Inbox / next Inbox category |
-| `0` to `9` | Filter by account |
-| `/` | Search |
-| `c` | Compose |
-| `r` | Reply |
-| `e` | Archive |
-| `b` | Snooze |
-| `s` | Pin or unpin locally |
-| `a` | Reply all |
-| Shift+`i` | Mark as read |
-| `u` | Return from reader to list |
-| `g` then `i` / `t` / `d` | Go to Inbox / Sent / Drafts |
-| `g` then `a` / `s` / `b` | Go to All cached / Pinned / Snoozed |
-| `m` or `t` | Teach |
-| `d` | Toggle Comfortable / Compact |
-| `p` | Hide email addresses and known connected-recipient names, select a hidden value to reveal it |
-| `,` | Settings |
-| `?` | Shortcut list |
+| [Accounts](docs/accounts.md) | Google sign-in, app passwords, custom IMAP and sync recovery. |
+| [Using your inbox](docs/mail-guide.md) | Search, saved views, compose, contacts, unsubscribe review and shortcuts. |
+| [Browser and phone access](docs/browser-access.md) | Local hosting, profile protection, Tailscale and passkey pairing. |
+| [AI sorting and agents](docs/ai-and-agents.md) | Optional Jev sorting, MCP permissions and draft review. |
+| [Storage and backups](docs/storage-and-backups.md) | Encryption, local data, backup contents and restore limits. |
+| [Command line](docs/cli.md) | Connect the CLI to the running app with scoped permissions. |
 
-Settings, Keyboard and mouse lets you customize each action with a single key or a two-letter sequence. Focus a binding to record a single key, or choose Sequence and press two letters. Conflicting keys and sequence prefixes are rejected. Sequences must finish within 1.5 seconds and cancel on focus changes, dialogs, editing or an invalid printable second key. Reset interaction defaults applies the Gmail defaults. Unsupported Gmail actions, such as mute and spam, are not added. Pin stays local to this app.
+## Build and contribute
 
-Click selects a row; double-click opens it by default. Settings, Keyboard and mouse can enable single-click opening and turn mouse side-button navigation on or off. Right-click opens mail actions; hover or focus reveals row actions. Alt+Left/Right go back and forward; macOS also supports Command+[ and Command+], including browser sessions. Tab moves focus on controls; on the page body it moves to the next Inbox category. Editing fields and dialogs retain their own keys.
+Start with [Contributing](CONTRIBUTING.md) for setup and required checks.
+The [development guide](docs/development.md) covers source commands,
+packaging and verification. See [releases](CONTRIBUTING.md#ci-and-releases)
+for publishing rules and [the changelog](CHANGELOG.md) for changes.
 
-## Local storage
+Report problems through [Issues](https://github.com/collection-of-things/aggregate-mail/issues).
+Use [the security policy](SECURITY.md) for vulnerabilities.
 
-Mail, account credentials, rules and sync metadata are AES-256-GCM encrypted in the app-data folder's `mail` directory. The app-data folder is `%APPDATA%/Emc²` on Windows and `~/Library/Application Support/Emc²` on macOS. Renamed from Aggregate Mail in `0.1.4`. The first launch under the new name moves the `mail` directory, `settings.env` and `Local State` from the old app-data folder into the new one, leaves the old folder behind, and records `.renamed-to-emc2` so it never runs twice. Electron safeStorage protects the database key using Windows DPAPI or the macOS Keychain. The renderer is sandboxed and has no Node access. Mail/configuration endpoints require a random desktop-session token, in addition to origin and CSRF checks.
+## License
 
-Managed Google OAuth, OpenAI and Typesafe connection settings are encrypted in the mail database with the existing installation key. Startup migrates managed entries from `settings.env` after committed encrypted readback and preserves unrelated settings. Launch-environment values retain precedence. Earlier filesystem or backup copies are not securely erased by migration. Protect your operating-system account and app-data folder. Never commit them or attach them to issues. Ignore rules and packaging exclusions cover local environment files, private keys and mail databases. `.env.example` contains placeholders only. Review source changes, commit metadata, logs, screenshots and packaged contents before sharing; exclusions cannot detect every secret embedded in source.
-
-The first development launch copies the earlier `.data` database using SQLite's backup API and preserves the original files. Packaged and development desktop builds share the app-data folder. `.data` and `.env` remain available to the earlier browser development target.
-
-This is a single-user desktop client. Its mail service runs while its window is open or hidden and stops when you quit. Updates require an explicit action through the update icon; the app has no public-hosting configuration.
-
-## Development
-
-Node 24.22.1 or a newer 24.x (see `.nvmrc`) is needed only for development:
-
-```powershell
-npm install
-npm run dev
-```
-
-`npm run dev` launches the desktop app with React Fast Refresh and live CSS updates. Choose Quit in the macOS application menu or the Windows/Linux tray menu to stop its development server. Restart this command after changing desktop or backend code. UI changes that require a full reload can reset an unsent draft. OAuth keeps the callback address above in development. `npm start` opens the last production build, created with `npm run build`. `npm run package` creates the Windows installer. `npm run check:desktop` checks production startup, database access and API isolation without driving the UI; `npm run dev -- --check-startup` also checks the hot reload client and development API proxy. `npm run dev:web` retains the earlier browser development target; it is not needed to use the app.
-
-## CI
-
-[Build installers and release](.github/workflows/release.yml) is the only Actions
-workflow. It runs only when manually dispatched for an existing stable version
-tag. Pull requests, merge queues, pushes and schedules start no workflow.
-Automatic releases, CodeQL workflows and Dependabot configuration are removed.
-Local verification remains documented in [CONTRIBUTING.md](CONTRIBUTING.md).
-
-An authorized manual release tests, builds and packages Windows x64, macOS
-arm64, macOS x64 on the native Intel image, and Linux x64, all on
-GitHub-hosted runners. Windows and macOS
-also run an isolated production-startup check. Publishing waits for all four
-platforms and complete asset validation. Packages and startup checks do not
-establish native account-operation or installed acceptance.
-
-Installer artifacts expire after one day. Manual release execution consumes
-runner time and artifact storage, so dispatch requires explicit authorization.
-Repository Actions enablement and required-check settings are separate from
-these source files. See [the workflow contract](docs/KB.md#ci).
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, verification and pull requests.
-AI contributors must also read the project instructions in [AGENTS.md](AGENTS.md).
-
-## Releasing
-
-GitHub hosts release downloads. Create a stable `v<major>.<minor>.<patch>` tag
-that matches `package.json`, then explicitly dispatch
-`.github/workflows/release.yml` against that existing tag. A tag push alone
-runs nothing. The workflow publishes the Windows installer, both macOS DMGs,
-the Linux AppImage, `latest.yml`, `latest-linux.yml` and `SHA256SUMS.txt` only
-after every build and release-asset check passes. Releases are never created
-from an ordinary push to `main`.
-
-New installer filenames use the GitHub-safe `Emc2-` prefix; the application name stays Emc². Linux x64 installers end in `linux-x86_64.AppImage`. CI validates the Windows/Linux manifest version, filename, size and SHA512 against the packaged installer before upload. See [ADR 0039](docs/adr/0039-release-update-assets.md).
-
-To cut a Windows build locally:
-
-```powershell
-node scripts/release.mjs --patch
-```
-
-That bumps the version, packages, prints the installer's SHA-256, and uploads it to the GitHub release when a GitHub remote exists. Delete the superseded installers in `release/`, which is ignored by git, so nothing there reaches either host.
-
-The installer is unsigned, so Windows SmartScreen can warn on first run. Compatible Windows and Linux AppImage builds offer updates through the update icon when a newer stable release supplies verified metadata. Installation requires an explicit action and waits for mail operations and draft saves. On macOS, the update action verifies the matching published DMG and staged app, drains mail and drafts, then replaces the app after normal quit and requests a restart through macOS. It preserves quarantine and retains the previous app for recovery. No source build or developer tools are involved. See [the macOS replacement decision](docs/adr/0080-macos-automatic-replacement.md). Installing a newer version over an older one keeps your mail and settings. Native update/restart acceptance requires separate testing.
-
-## Verification
-
-The macOS Apple silicon candidate builds as a DMG and ZIP. Its packaged startup check passed through the desktop launch path, including encrypted database access, renderer loading, native menu roles and API isolation. A maintainer confirmed the inbox window was visible. Intel runtime, live account operations and downloaded-app Gatekeeper acceptance remain unverified.
-
-Strict TypeScript and production builds pass. Tests cover sender-rule precedence, visual classification, header validation, message-link rendering and privacy, desktop navigation restrictions, configuration preservation, and MCP authentication, mail reads and mocked reply operations. `node scripts/check-mcp.mjs` checks an MCP initialize/tools-list handshake against a separate temporary server and verifies requests without a token get 401. Development and packaged native startup checks passed, including encrypted database access and rejection of requests outside the desktop session. The email-link repair was tested in a browser with synthetic mail: mouse and keyboard activation, quoted URLs, address privacy and escaped HTML. Native Windows and macOS browser handoff were not tested for this repair. Real account sign-in, mailbox operations and delivery remain unverified until provider credentials are supplied.
-
-Video frames at 25s, 65s, 104s, 140s and 178s were inspected and measured at native resolution. The transcript is `.reference/transcript.txt`. The video's future Cloudflare mailbox idea is outside this version.
-
-## Command line
-
-Use the [Emc² CLI](docs/cli.md) from a Node 24 source checkout. Run
-`npm run cli -- help`. It connects to the running app through scoped MCP
-grants; the desktop installer does not add a command to your PATH.
-
-Browser rendering also checks access before mounting private content and every
-10 seconds afterward. A revoked session or failed access check removes mounted
-mail and drafts. Hidden tabs conceal content and recheck access on return.
-The access page broadcasts explicit locking to other tabs on the same origin.
-Checks of session status do not renew request-idle expiry. Browser-session loss
-can discard unsaved edits; it never sends mail or retries an uncertain send.
-
-## Encrypted workspace backups
-
-In the desktop app, open **Settings → About and storage → Encrypted workspace
-backup**. Enter and confirm a passphrase of at least 12 characters, then choose
-**Export encrypted backup** and a destination. Keep the passphrase separately;
-it cannot be recovered. The file works independently of the original computer's
-protected storage key. Files are limited to 128 MiB.
-
-Backups contain local commitments, projects, decisions, Teach rules, pins,
-snoozes, drafts, templates, signatures and agent history. They exclude account
-credentials, OAuth tokens, agent/MCP secrets and cached provider mail bodies.
-Drafts and history can contain private text. This does not back up your mailbox
-or calendar and does not replace your provider's own recovery options.
-
-To restore, connect the same accounts first. Enter the backup passphrase,
-choose **Open backup and preview**, inspect the counts, then choose **Merge into
-current profile**. Exactly one connected account must match each required email
-address and provider. Existing record IDs, templates, signatures and active
-pin/snooze flags win; nothing is deleted. Pending/interrupted agent actions
-return as inactive, unknown history. Import does not send mail or change your
-provider mailbox. Reload afterward to refresh all views. Missing source mail
-can stay unavailable after resync, especially if provider message IDs changed.
-
-Draft attachments are carried as encrypted backup content and restored as new
-account-bound encrypted uploads. Device upload IDs, received attachment caches
-and queued/scheduled outbox actions are excluded. Missing or corrupt referenced
-bytes stop export. The encrypted file limit is 128 MiB, including both encoding
-layers; an oversized workspace must be reduced before export.
+Emc² is available under the [MIT license](LICENSE).

@@ -8,8 +8,8 @@
   background: color-mix(in srgb, var(--bg) 88%, var(--raised));
   border-right: 1px solid var(--line);
   transition:
-    width 220ms var(--ease-out),
-    opacity 220ms var(--ease-out);
+    width 450ms var(--spring),
+    opacity 450ms var(--spring);
 }
 .sidebar.closed {
   width: 0;

@@ -144,10 +144,19 @@ its URL; both card formats include descriptive alt text. When `SITE_URL` is
 set, the URL points to that site's `/og.jpg`; otherwise it uses the committed
 image on the main branch.
 
-The favicon set (`favicon.ico`, `apple-touch-icon.png`, `icon-192.png`,
-`icon-512.png`) and `site.webmanifest` are rendered from `favicon.svg` with
-sharp; the apple-touch-icon renders with square corners because iOS rounds
-it itself.
+`public/brand/emc2-lockup.svg` is the brand kit's original vector lockup.
+The header, footer and interactive inbox demo use it as a CSS mask so it
+follows each surface's foreground color without changing its proportions.
+The footer shows the complete logo with space around it. At phone widths,
+the header uses the kit's standalone mark to leave room for its controls.
+
+The favicon set (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`,
+`icon-192.png`, `icon-512.png`) uses the kit's default dark app icon: the
+Lumen mark on Mass. PNG and ICO sizes are rendered from the original vector paths by
+`npm run icons` from the repository root; `npm run check:icons` verifies them.
+The SVG preserves the supplied mark paths. `site.webmanifest` points
+at the 192px and 512px PNGs. These website assets are independent copies;
+the site imports no root application code.
 
 ## Provider marks
 

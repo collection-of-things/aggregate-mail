@@ -9,6 +9,14 @@ unversioned history without treating it as a release record.
 ### Fixed
 
 - Hide correspondent names and custom account labels while personal information is hidden: the sender and every To/Cc display name of the shown message are masked on per-message surfaces, accounts show neutral `Account N · Provider` labels, avatars drop provider logos whose URLs expose sender domains, compose To/Cc/Bcc, Subject and body values hide until focused, a masked invalid recipient still fails send validation, and a selected work item's detail adopts its source message's privacy context. ([#191](https://github.com/collection-of-things/aggregate-mail/issues/191))
+- Keep website brand masks visible in forced-colors mode and check generated icons before release builds. The check compares decoded pixels, so encoder differences between platforms do not block a release. Clarify reply-draft approval, token privacy, browser setup, sender-logo lookups and platform storage in the guides. ([#197](https://github.com/collection-of-things/aggregate-mail/pull/197))
+- Render desktop and browser icons from vector artwork at each size, smoothing jagged logo edges and keeping Windows installer icons sharp across display sizes. ([#197](https://github.com/collection-of-things/aggregate-mail/pull/197))
+
+### Changed
+
+- Introduce Emc² with coloured brand artwork, a short product overview and a compact installation guide in the README. Detailed instructions now live in topic guides for accounts, daily mail, browser access, AI, backups and development. ([#197](https://github.com/collection-of-things/aggregate-mail/pull/197))
+- Use the brand logo across the website header, footer and inbox demo, with matching website icons. ([#197](https://github.com/collection-of-things/aggregate-mail/pull/197))
+- Open the Commands dialog instantly, collapse the sidebar on the documented spring curve, and remove unused entrance animations. ([#197](https://github.com/collection-of-things/aggregate-mail/pull/197))
 
 ## 0.2.26 - 2026-11-02
 

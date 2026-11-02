@@ -1,4 +1,6 @@
 /* Command search and nonblocking action feedback. */
+/* A keyboard surface like Raycast: it opens instantly, without the dialog entrance. */
+.dialog.command-dialog { animation: none; }
 .command-palette input { width: 100%; margin-bottom: 10px; }
 .command-options { max-height: min(360px, 50dvh); overflow-y: auto; }
 .command-group + .command-group { margin-top: 6px; border-top: 1px solid var(--line); }

@@ -81,7 +81,7 @@ Reader unsubscribe actions require destination review and explicit confirmation.
 Supported actions send an HTTPS request, prepare an unsent mailto draft or check
 a manual browser link. Sender-supplied destinations are not authenticated;
 unsafe destinations are blocked and uncertain outcomes never retry automatically.
-See the [user guide](README.md#review-unsubscribe-requests) and
+See the [user guide](docs/mail-guide.md#review-unsubscribe-requests) and
 [implementation limits](docs/KB.md#reviewed-unsubscribe).
 
 ## Undo send

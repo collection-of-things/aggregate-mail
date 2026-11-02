@@ -27,7 +27,7 @@
   .sidebar.closed { width: 0; visibility: hidden; pointer-events: none; }
   .sidebar-head, .sidebar-content { width: 100%; }
   .sidebar button { min-height: 44px; }
-  .mobile-sidebar-backdrop { position: absolute; inset: 0; z-index: 5; border: 0; border-radius: 0; background: var(--backdrop); }
+  .mobile-sidebar-backdrop { position: absolute; inset: 0; z-index: 5; border: 0; border-radius: 0; background: var(--backdrop); animation: fade-in 200ms var(--ease-out); }
   .app-toolbar { flex-wrap: wrap; height: auto; min-height: 52px; padding: 4px 12px; gap: 6px; }
   .app-toolbar .app-context { flex: 1; }
   .app-toolbar > .icon { min-width: 44px; min-height: 44px; flex-shrink: 0; }
