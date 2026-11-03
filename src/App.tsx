@@ -55,7 +55,7 @@ import { reuseMailState } from "./mail-state";
 import { MailSearchApiContext, useMailSearch } from "./use-mail-search";
 import { replySource, useMailBody } from "./mail-body";
 import { useMailNavigation, rememberBrowserUpdateLocation, type MailLocation } from "./navigation";
-import { applyPrivacyWords, collectPrivateNames, emptyPrivacyWords, learnedOwnerNames, redactPrivateText, workOwnerNames } from "./privacy";
+import { applyPrivacyWords, collectPrivateNames, emptyPrivacyWords, learnedOwnerNames, redactPrivateText, sameNames, workOwnerNames } from "./privacy";
 import { ContactsPage } from "./contacts/ContactsPage";
 import { SettingsPage } from "./settings/SettingsPage";
 import { PaneHeader, type Corner } from "./shell/PaneHeader";
@@ -1159,9 +1159,9 @@ export function App() {
   // Mail updates rarely change learned names; reusing equal lists keeps the
   // privacy context, and every redacted span, from re-rendering on each update.
   const learnedNamesRef = useRef<string[]>([]), workNamesRef = useRef<string[]>([]);
-  const learnedNames = useMemo(() => learnedNamesRef.current = sameStrings(learnedNamesRef.current, learnedOwnerNames(state.accounts, state.messages)),
+  const learnedNames = useMemo(() => learnedNamesRef.current = sameNames(learnedNamesRef.current, learnedOwnerNames(state.accounts, state.messages)),
     [state.accounts, state.messages]);
-  const workNames = useMemo(() => workNamesRef.current = sameStrings(workNamesRef.current, workOwnerNames(state.accounts, state.messages)),
+  const workNames = useMemo(() => workNamesRef.current = sameNames(workNamesRef.current, workOwnerNames(state.accounts, state.messages)),
     [state.accounts, state.messages]);
   const ambientPrivateNames = useMemo(() => applyPrivacyWords([...collectPrivateNames(state.accounts), ...learnedNames], privacyWords),
     [state.accounts, learnedNames, privacyWords]);
@@ -1894,9 +1894,4 @@ export function App() {
       </div>
     </PrivacyContext.Provider></MailSearchApiContext.Provider></NotificationProvider>
   );
-}
-
-// The previous list when it holds the same names in order, else the next one.
-function sameStrings(previous: string[], next: string[]) {
-  return previous.length === next.length && previous.every((value, index) => value === next[index]) ? previous : next;
 }

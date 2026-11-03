@@ -24,10 +24,13 @@ quoted order confirmations, signatures). Postal addresses were never covered.
   so on those mailboxes (`no-reply`, `info`, `support`, `billing`, `alerts` and
   similar, followed only by a `+tag` or a number, so `info.jane@` is not one;
   not `hello`, `team` or `contact`, which people use personally) the name
-  stays visible only when it matches the domain as a whole
-  (`Bank of America <alerts@bankofamerica.com>`) or, without organization and
-  role words (`The`, `Team`, `Bank`, `Billing`), is empty or starts a domain
-  label (`The Varo Bank Team <alerts@varomoney.com>`).
+  stays visible only when it matches the domain or its brand label as a whole
+  (`Bank of America <alerts@bankofamerica.com>`), or when removing
+  organization and role words (`The`, `Team`, `Bank`, `Billing`) leaves
+  nothing or the start of the brand label
+  (`The Varo Bank Team <alerts@varomoney.com>`). Mail subdomains such as
+  `marketing.` never count, and a bare short form never does, so
+  `Dan <support@dancecenter.com>` stays hidden.
   Outside role mailboxes, a mailbox containing one of the name's words marks a
   person (`sean.ford@ford.com`), unless that word is the domain label itself
   (`spotify@news.spotify.com`). The same test applies to
@@ -47,7 +50,8 @@ quoted order confirmations, signatures). Postal addresses were never covered.
   lead. The four best full names, with their parts except single Latin letters
   and, for received phrases, common words, join the app-wide dictionary,
   within a budget of 24 learned names including parts; a name that would
-  exceed it is skipped and shorter later names can still join. Work
+  exceed it is skipped, does not use a slot, and lower-ranked names can still
+  join. Work
   surfaces use `workOwnerNames`: the same rules with one message and six names,
   which keeps them inside the matcher limit with Always hide and account names.
   The local-only `PUT /api/privacy-words` stays available during sync.
@@ -62,7 +66,8 @@ quoted order confirmations, signatures). Postal addresses were never covered.
   delivered in state): Always hide (up to 12 entries of at most six words) and Never hide (up to
   64). The matcher limit rises from 64 to 100 names, so a message keeps the
   64 account and message names it had room for before alongside 24 learned
-  and 12 Always hide names. Never
+  and 12 Always hide names. A name match cannot start inside a word, so the
+  matcher skips the rest of that word and long repeated runs scan linearly. Never
   hide removes a listed name from the name matchers; when that full name was
   listed, its single words leave too, except words the owner hid or another
   listed full name contains. On a message surface the app-wide list (with
@@ -77,7 +82,8 @@ quoted order confirmations, signatures). Postal addresses were never covered.
 ## Limits
 
 A person whose name is their domain (`Jane Doe <jd@janedoe.com>`), or whose
-name starts that domain's label on a role mailbox, stays visible; Always hide
+name, beside a role word, starts the brand label on a role mailbox
+(`Mark Support <support@marketingpros.com>`), stays visible; Always hide
 covers that. Brand names with extra words on a role mailbox
 (`Wells Fargo Online <alerts@notify.wellsfargo.com>`) stay hidden; Never hide
 covers that. Non-US postal formats are not

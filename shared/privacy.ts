@@ -130,9 +130,9 @@ const roleMailbox = /^(?:no-?reply|do-?not-?reply|donotreply|info|support|news|n
 // own non-personal domain (Kickstarter <…@kickstarter.com>,
 // Running Warehouse | Info <…@runningwarehouse.com>). Services relay people's
 // names from role mailboxes (Jane Smith <notifications@github.com>), so there a
-// name passes only when it matches the domain as a whole or, without
-// organization and role words, it is empty or starts a domain label
-// (The Varo Bank Team <alerts@varomoney.com>).
+// name passes only when it matches the domain or its brand label as a whole,
+// or when removing organization and role words leaves nothing or the start
+// of the brand label (The Varo Bank Team <alerts@varomoney.com>).
 // Otherwise a mailbox containing one of the name's words (sean.ford@ford.com) is a person.
 // A person whose name is their domain is a known gap; Always hide covers it.
 export function businessSender(name: string, email: string): boolean {
@@ -144,10 +144,15 @@ export function businessSender(name: string, email: string): boolean {
   const labels = domain.split(".").slice(0, -1).map((label) => label.replace(/[^a-z0-9]/g, ""));
   const tokens = name.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   if (roleMailbox.test(local)) {
+    // Only the brand label counts, not mail subdomains (Mark <no-reply@marketing.acme.com>).
+    const brand = labels.length > 1 && /^(?:co|com|org|net|ac|gov|edu|ne|or)$/.test(labels.at(-1) || "") ? labels.at(-2) : labels.at(-1);
+    const compactDomain = domain.replace(/[^a-z0-9]/g, "");
     // The whole name first, since role words can be part of it (Bank of America).
     const whole = tokens.join(""), rest = tokens.filter((word) => !roleNameWord.test(word)).join("");
-    if (whole.length >= 3 && (whole === domain.replace(/[^a-z0-9]/g, "") || labels.includes(whole))) return true;
-    return !rest || rest.length >= 3 && (rest === domain.replace(/[^a-z0-9]/g, "") || labels.some((label) => label.startsWith(rest)));
+    if (whole.length >= 3 && (whole === compactDomain || whole === brand)) return true;
+    // A short brand form counts only beside organization or role words, so a
+    // bare first name (Dan <support@dancecenter.com>) stays hidden.
+    return !rest || rest.length >= 3 && rest !== whole && (rest === compactDomain || !!brand?.startsWith(rest));
   }
   // A name word in the mailbox marks a person, unless that word is the brand label itself.
   if (tokens.some((word) => word.length >= 3 && local.includes(word) && !labels.includes(word))) return false;
@@ -204,10 +209,12 @@ export function learnedOwnerNames(
   }
   // A name on too few received messages is not yet trusted as the owner's.
   const ranked = [...counts.values()].filter((entry) => entry.sent || entry.count >= minimumMessages)
-    .sort((left, right) => Number(right.sent) - Number(left.sent) || right.count - left.count).slice(0, limit);
-  // Learned names with their parts stay inside a fixed share of the matcher budget.
+    .sort((left, right) => Number(right.sent) - Number(left.sent) || right.count - left.count);
+  // Learned names with their parts stay inside a fixed share of the matcher
+  // budget; a name that does not fit is skipped and lower-ranked names still can.
   const top: typeof ranked = [];
   for (const entry of ranked) {
+    if (top.length >= limit) break;
     if (privateNames([...top, entry].map((item) => item.name)).length > LEARNED_NAMES_BUDGET) continue;
     top.push(entry);
   }
@@ -217,6 +224,11 @@ export function learnedOwnerNames(
   const sentParts = new Set(privateNames(top.filter((entry) => entry.sent).map((entry) => entry.name)).map((name) => name.toLowerCase()));
   return privateNames(top.map((entry) => entry.name)).filter((name) => !/^[a-z]$/i.test(name) &&
     (sentParts.has(name.toLowerCase()) || !commonWords.has(name.toLowerCase())));
+}
+// The previous list when it holds the same names in order, else the next one,
+// so unchanged name lists keep their identity across mail updates.
+export function sameNames(previous: string[], next: string[]) {
+  return previous.length === next.length && previous.every((value, index) => value === next[index]) ? previous : next;
 }
 // Work surfaces cover owner aliases seen on any single cached message, bounded
 // so that with Always hide and account names they stay inside the matcher limit.
@@ -431,6 +443,12 @@ export function privateRanges(text: string, names: readonly string[] = []): Priv
         const start = lower.indexOf(first, at);
         if (start < 0) break;
         at = start + 1;
+        // A match cannot start inside a word, so skip the rest of that word;
+        // otherwise long repeated runs cost text length times name length.
+        if (start > 0 && wordCharacter.test(lower[start - 1])) {
+          while (at < lower.length && wordCharacter.test(lower[at])) at++;
+          continue;
+        }
         let end = start + first.length, matched = true;
         for (let index = 1; index < lowered.length; index++) {
           const gap = end;

@@ -20,6 +20,10 @@ test("business senders whose name matches their domain or a role mailbox stay vi
     ["Jane Smith", "notifications@github.example"], ["Jane Smith (via Dropbox)", "no-reply@dropbox.example"],
     ["Jane Smith", "notification@facebookmail.example"], ["jsmith", "notifications@github.example"],
     ["Jane from Acme Support", "support@acme.example"], ["Acme Billing", "billing@payments.example"],
+    // Bare first names that start the brand label or a mail subdomain.
+    ["Dan", "support@dancecenter.example"], ["Chris", "notifications@christies.example"],
+    ["Mai", "no-reply@mail.shop.example"], ["Mark", "no-reply@marketing.acme.example"],
+    ["Mark Support", "no-reply@marketing.acme.example"], ["Eve", "notifications@eventbrite.co.uk"],
   ]) assert.equal(businessSender(name, email), false, `${name} <${email}>`);
   assert.equal(businessSender("Nora Lane", "nora@gmail.com"), false);
   assert.equal(businessSender("Support", "support@gmail.com"), false);
@@ -86,8 +90,8 @@ test("owner names are learned across cached mail, most frequent first and bounde
 
 test("review cases: role prefixes, per-message counting, junk names and sent common words", () => {
   assert.equal(businessSender("Jane Doe", "info.jane@company.example"), false);
-  assert.equal(businessSender("Acme", "no-reply+abc@acme-mail.example"), true);
-  assert.equal(businessSender("Acme", "noreply-2@acme-mail.example"), true);
+  assert.equal(businessSender("Acme", "no-reply+abc@acme.example"), true);
+  assert.equal(businessSender("Acme", "noreply-2@acme.example"), true);
   // To and Cc on one message count once.
   assert.deepEqual(learnedOwnerNames(owner, [{ to: "Sam Example <owner@example.test>", cc: "Sam Example <owner@example.test>" }]), []);
   // Junk phrases cannot take the learned slots from a real name.
@@ -121,6 +125,10 @@ test("forged owner senders and plus-joined names cannot overflow the matcher", (
   const lettered = ["K", "L", "M"].map((seed) => ({ sender: Array.from("abcdefgh", (letter) => `${seed}${letter}ane`).join(" "), address: "owner@example.test", direction: "sent" }));
   const learned = learnedOwnerNames(owner, [...lettered, ...alias]);
   assert.ok(learned.includes("Sam Example") && learned.length <= 24, learned.join("|"));
+  // Skipped names do not use up ranking slots: a fifth-ranked alias joins too.
+  const many = ["K", "L", "M", "N"].map((seed) => ({ sender: Array.from("abcdefgh", (letter) => `${seed}${letter}ane`).join(" "), address: "owner@example.test", direction: "sent" }));
+  const fifth = learnedOwnerNames(owner, [...many, ...alias]);
+  assert.ok(fifth.includes("Sam Example") && fifth.length <= 24, fifth.join("|"));
 });
 
 test("crafted recipient names cannot exceed matcher limits or hide single letters", () => {
@@ -212,4 +220,13 @@ test("a full Always hide list and learned names leave the 64 account and message
   const cc = Array.from({ length: 62 }, (_, index) => `Guest${index} <guest${index}@example.org>`).join(", ");
   const names = scopedMessageNames(ambient, owner, [{ sender: "Kai Rivers", address: "kai@example.org", to: "owner@example.test", cc }]);
   assert.equal(redactPrivateText("Thanks Guest7 and Kai Rivers, see Learned3", names), "Thanks •••••••• and ••••••••, see ••••••••");
+});
+
+test("name matching skips the rest of a word, so long repeated runs scan linearly", () => {
+  const names = Array.from({ length: 100 }, (_, index) => "a".repeat(60 + index));
+  const text = "a".repeat(100_000);
+  const started = performance.now();
+  assert.equal(redactPrivateText(text, names), text);
+  assert.ok(performance.now() - started < 1000, `${Math.round(performance.now() - started)} ms`);
+  assert.equal(redactPrivateText(`x${"a".repeat(60)} ${"a".repeat(60)}`, names), `x${"a".repeat(60)} ••••••••`);
 });
