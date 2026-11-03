@@ -11,6 +11,7 @@ import type { Api } from "./api";
 import { Reader } from "./mail/Reader";
 import { conversationMembers } from "../server/conversation-members";
 import { LOCAL_EVIDENCE_CAVEAT } from "../shared/workspace";
+import { replyPreview } from "../shared/mail-content";
 
 for (const gmail of [true, false]) test(`${gmail ? "Gmail" : "IMAP"} inline stack ordering, keyboard, consent, privacy and coverage`, async () => {
   const dom = new JSDOM('<div id="root"></div>');
@@ -320,4 +321,42 @@ test("late initial cache cannot overwrite a completed expansion", async () => {
     assert.equal(ui.container.querySelectorAll(".conversation-message").length, 2);
     assert.equal(ui.changed(), 1);
   } finally { await ui.close(); }
+});
+
+const quotedReplyBody = `Sounds good, see you Thursday.
+
+Cheers,
+Synthetic Team
+
+On Mon, Nov 2, 2026 at 9:00 AM Alex Example <alex@example.test> wrote:
+> Can we move the review to Thursday? The earlier slot conflicts with the
+> planning
+> session that runs long every week, so Thursday afternoon works better.
+>
+>
+>
+>    On Sun, Nov 1, 2026 at 8:00 PM Sam Sample <sam@example.test> wrote:
+> > First draft of the quarterly report is ready. Please send comments by
+> > Friday.
+> >
+> >
+> > > Original request from the kickoff meeting about the zebrafinch survey.`;
+
+test("collapsed conversation snippets show reply text without signatures or quoted history", async () => {
+  const older = message("a:1", { remoteId: "1", date: 1000, body: quotedReplyBody, preview: "Sounds good, see you Thursday." });
+  const ui = await fixture(async <T,>() => ({ accountId: "a", messages: [older], gaps: [] }) as T);
+  try {
+    await ui.render();
+    const snippet = ui.container.querySelector<HTMLElement>(".conversation-snippet")!;
+    assert.equal(snippet.textContent, "Sounds good, see you Thursday.");
+    assert.doesNotMatch(snippet.textContent!, /wrote:|Cheers|Synthetic Team/);
+  } finally { await ui.close(); }
+});
+
+test("replyPreview trims signatures, valedictions and quoted history at display time", () => {
+  assert.equal(replyPreview(quotedReplyBody, ""), "Sounds good, see you Thursday.");
+  assert.equal(replyPreview("", "Sounds good. Cheers, Synthetic Team On Mon, Nov 2, 2026 at 9:00 AM Alex Example <alex@example.test> wrote: > Can we move"), "Sounds good.");
+  assert.equal(replyPreview("Looks right.\n-- \nSent from my test client\n\n> quoted", "ignored"), "Looks right.");
+  assert.equal(replyPreview("Thanks!", ""), "Thanks!");
+  assert.equal(replyPreview("", "A note -- signature"), "A note");
 });

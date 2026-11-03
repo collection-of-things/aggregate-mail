@@ -296,3 +296,28 @@ test("a short word never matches a common word one letter away", () => {
   // Even as a fallback, a typo match needs a word of at least four letters.
   assert.equal(compileMailSearch("ando", [], { typos: true }).matches({ ...common, subject: "x", preview: "and", body: "and" }), false);
 });
+
+const quotedReplyBody = `Sounds good, see you Thursday.
+
+Cheers,
+Synthetic Team
+
+On Mon, Nov 2, 2026 at 9:00 AM Alex Example <alex@example.test> wrote:
+> Can we move the review to Thursday? The earlier slot conflicts with the
+> planning
+> session that runs long every week, so Thursday afternoon works better.
+>
+>
+>
+>    On Sun, Nov 1, 2026 at 8:00 PM Sam Sample <sam@example.test> wrote:
+> > First draft of the quarterly report is ready. Please send comments by
+> > Friday.
+> >
+> >
+> > > Original request from the kickoff meeting about the zebrafinch survey.`;
+
+test("plain-text search still matches terms buried in nested quotes", () => {
+  const quoted = { ...mail, body: quotedReplyBody };
+  assert.equal(compileMailSearch("zebrafinch", accounts).matches(quoted), true);
+  assert.equal(compileMailSearch("body:zebrafinch", accounts).matches(quoted), true);
+});

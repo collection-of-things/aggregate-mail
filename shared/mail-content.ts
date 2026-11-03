@@ -36,6 +36,160 @@ export const previewText = (text: string) => {
   }
   return result.replace(/\s+/g, " ").trim();
 };
+export const PLAIN_QUOTE_DEPTH_LIMIT = 8;
+// Lines this long were almost certainly wrapped by the sender's client.
+const QUOTE_WRAP_COLUMN = 60;
+const QUOTE_LIST_MARKER = /^(?:[-*•+]|\d{1,3}[.)])\s/;
+const QUOTE_ATTRIBUTION_LIMIT = 400;
+
+export type PlainTextBlock =
+  | { kind: "text"; text: string; attribution?: true }
+  | { kind: "quote"; blocks: PlainTextBlock[] };
+
+type PlainLine = { depth: number; effective: number; text: string; blank: boolean };
+
+// Split a plain-text body into reply text and nested `>` quotes in one linear
+// pass. Quote markers allow spaces between `>` characters; one leading space
+// after the last marker is not content. Blank lines take the surrounding
+// non-blank depth so `>> a\n>\n>> b` stays one quote.
+export function parsePlainTextQuotes(text: string): { blocks: PlainTextBlock[]; history: PlainTextBlock[] } {
+  const lines: PlainLine[] = text.replace(/\r\n?/g, "\n").split("\n").map((raw) => {
+    let depth = 0, at = 0;
+    for (;;) {
+      let scan = at;
+      while (scan < raw.length && (raw[scan] === " " || raw[scan] === "\t")) scan++;
+      if (raw[scan] === ">") { depth++; at = scan + 1; } else break;
+    }
+    let content = raw.slice(at);
+    if (at > 0 && content.startsWith(" ")) content = content.slice(1);
+    return { depth: Math.min(depth, PLAIN_QUOTE_DEPTH_LIMIT), effective: 0, text: content, blank: !content.trim() };
+  });
+  // Nearest non-blank neighbour on each side, one pass per direction.
+  const prevDepth: (number | null)[] = new Array(lines.length);
+  const nextNonBlank: number[] = new Array(lines.length);
+  let seen: number | null = null;
+  lines.forEach((line, index) => { prevDepth[index] = seen; if (!line.blank) seen = line.depth; });
+  let next = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].blank) next = i;
+    nextNonBlank[i] = next;
+  }
+  lines.forEach((line, index) => {
+    if (!line.blank) { line.effective = line.depth; return; }
+    const previous = prevDepth[index], following = nextNonBlank[index] >= 0 ? lines[nextNonBlank[index]].depth : null;
+    line.effective = Math.max(line.depth, Math.min(previous ?? line.depth, following ?? line.depth));
+  });
+  const build = (start: number, end: number, depth: number): PlainTextBlock[] => {
+    const blocks: PlainTextBlock[] = [];
+    let paragraph: string[] = [];
+    const nextContent = (index: number) => {
+      const found = index < lines.length ? nextNonBlank[index] : -1;
+      return found >= 0 && found < end ? lines[found] : null;
+    };
+    const flush = () => {
+      if (!paragraph.length) return;
+      blocks.push({ kind: "text", text: reflow(paragraph, depth) });
+      paragraph = [];
+    };
+    for (let i = start; i < end; i++) {
+      const line = lines[i];
+      if (line.effective > depth) {
+        flush();
+        let stop = i;
+        while (stop < end && lines[stop].effective > depth) stop++;
+        const inner = build(i, stop, depth + 1);
+        if (inner.length) blocks.push({ kind: "quote", blocks: inner });
+        i = stop - 1;
+        continue;
+      }
+      if (line.blank) { flush(); continue; }
+      const trimmed = line.text.trim();
+      const following = nextContent(i + 1);
+      if (trimmed.length <= QUOTE_ATTRIBUTION_LIMIT && /\bwrote:$/i.test(trimmed) && following && following.effective > depth) {
+        // A wrapped attribution keeps its `On … <` lead-in line with the `wrote:` tail.
+        const lead = paragraph.at(-1);
+        const attribution = !trimmed.startsWith("On ") && lead && lead.trim().startsWith("On ")
+          ? `${lead.trim()}${lead.trim().endsWith("<") ? "" : " "}${trimmed}` : trimmed;
+        if (attribution !== trimmed) paragraph.pop();
+        flush();
+        blocks.push({ kind: "text", text: attribution, attribution: true });
+        continue;
+      }
+      paragraph.push(line.text);
+    }
+    flush();
+    return blocks;
+  };
+  const blocks = build(0, lines.length, 0);
+  const history: PlainTextBlock[] = [];
+  // Trailing quoted history collapses; quotes followed by reply text stay inline.
+  if (blocks.at(-1)?.kind === "quote") {
+    history.unshift(blocks.pop()!);
+    const attribution = blocks.at(-1);
+    if (attribution?.kind === "text" && attribution.attribution) history.unshift(blocks.pop()!);
+    if (!blocks.length) { blocks.push(...history); history.length = 0; }
+  }
+  return { blocks, history };
+}
+
+// Unquoted text keeps the sender's line breaks; inside quotes, wrapped lines
+// rejoin unless the next line opens a list. A short spill line rejoins only
+// when the following line is again long enough to be wrapped.
+function reflow(lines: string[], depth: number): string {
+  if (depth === 0) return lines.join("\n");
+  let result = lines[0], joinedLong = false;
+  for (let i = 1; i < lines.length; i++) {
+    const previous = lines[i - 1], next = lines[i];
+    const join: boolean = !QUOTE_LIST_MARKER.test(next.trimStart()) &&
+      (previous.endsWith(" ") || previous.trimEnd().length >= QUOTE_WRAP_COLUMN ||
+        (joinedLong && previous.trimEnd().length < QUOTE_WRAP_COLUMN && next.length >= QUOTE_WRAP_COLUMN));
+    result = join ? `${result.trimEnd()} ${next.trimStart()}` : `${result}\n${next}`;
+    joinedLong = join && previous.trimEnd().length >= QUOTE_WRAP_COLUMN;
+  }
+  return result;
+}
+
+const VALEDICTION = /^(?:cheers|thanks|thank you|many thanks|best|best regards|kind regards|warm regards|regards|all the best|sincerely|take care)[,.!]*$/i;
+
+// Display-time preview: reply text without signatures or trailing quoted
+// history. Stored previews and search stay unchanged.
+export function replyPreview(body: string, preview: string): string {
+  if (body.trim()) {
+    const lines: string[] = [];
+    for (const block of parsePlainTextQuotes(body).blocks)
+      if (block.kind === "text" && !block.attribution) lines.push(...block.text.split("\n"));
+    const kept: string[] = [];
+    for (const line of lines) {
+      if (line === "--" || line === "-- " || line.startsWith("Sent from my ")) break;
+      kept.push(line);
+    }
+    for (let i = 0; i < kept.length; i++) {
+      if (!VALEDICTION.test(kept[i].trim())) continue;
+      const rest = kept.slice(i + 1).filter((line) => line.trim());
+      if (rest.length <= 4 && rest.every((line) => line.length <= QUOTE_WRAP_COLUMN) &&
+          kept.slice(0, i).some((line) => line.trim())) { kept.length = i; break; }
+    }
+    return previewText(kept.join("\n")).slice(0, 220);
+  }
+  let flat = previewText(preview);
+  let cut = -1;
+  for (let scan = 0; ;) {
+    const on = flat.indexOf("On ", scan);
+    if (on < 0) break;
+    const wrote = flat.indexOf("wrote:", on + 3);
+    if (wrote >= 0 && wrote - on <= 300) { cut = on; break; }
+    scan = on + 3;
+  }
+  for (const marker of [" > ", " -- "]) {
+    const at = flat.indexOf(marker);
+    if (at >= 0 && (cut < 0 || at < cut)) cut = marker === " -- " ? at + 1 : at;
+  }
+  if (cut >= 0) flat = flat.slice(0, cut);
+  const valediction = /(?:best regards,|kind regards,|cheers,|thanks,|best,|regards,)[\s\S]{0,60}$/i.exec(flat);
+  if (valediction && flat.slice(0, valediction.index).trim()) flat = flat.slice(0, valediction.index);
+  return flat.trim();
+}
+
 export const MAIL_NODE_LIMIT = 4_000;
 // Newsletters nest tables about 50 deep; the node limit bounds the total work.
 export const MAIL_DEPTH_LIMIT = 96;

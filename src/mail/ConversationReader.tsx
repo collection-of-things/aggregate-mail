@@ -6,6 +6,7 @@ import type { Api } from "../api";
 import { ChevronDown, ChevronRight } from "../ui/icons";
 import { MailPrivacy, Redact } from "../ui/Privacy";
 import { relative } from "./format";
+import { replyPreview } from "../../shared/mail-content";
 
 type Props = {
   mail: Mail; gmail: boolean; api: Api; busy: boolean;
@@ -135,7 +136,7 @@ export function ConversationReader({ mail, gmail, api, busy, onChanged, onSelect
           }}>
           <span className="conversation-chevron">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
           <span className="conversation-sender">{item.unread && <span className="conversation-unread"><span className="visually-hidden">Unread</span></span>}<Redact text={item.sender} /></span>
-          {!open && <span className="conversation-snippet"><Redact text={item.preview} /></span>}
+          {!open && <span className="conversation-snippet"><Redact text={replyPreview("body" in item ? item.body : "", item.preview)} /></span>}
           <span className="conversation-meta">
             {item.id === mail.id && <span className="conversation-selected">Selected for actions</span>}
             <time dateTime={new Date(item.date).toISOString()} title={new Date(item.date).toLocaleString()}>{relative(item.date)}</time>
