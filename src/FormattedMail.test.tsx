@@ -356,3 +356,64 @@ test("social icon rows keep their sender layout: table cells, inline-block wrapp
   assert.equal(tables.length, 5);
   assert.deepEqual([...tables].map((node) => node.style.float), ["left", "left", "left", "left", "left"]);
 });
+
+test("an image the browser refuses is retried once through the mail service", async () => {
+  const dom = new JSDOM("<!doctype html><div id='root'></div>");
+  const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const oldDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+  const oldFetch = globalThis.fetch, oldCreate = URL.createObjectURL, oldRevoke = URL.revokeObjectURL;
+  Object.defineProperty(globalThis, "window", { configurable: true, value: dom.window });
+  Object.defineProperty(globalThis, "document", { configurable: true, value: dom.window.document });
+  const actGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  actGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+  const requests: string[] = [], revoked: string[] = [];
+  let ok = true;
+  globalThis.fetch = (async (url: string) => {
+    requests.push(url);
+    return new Response(ok ? new Blob(["GIF89a"], { type: "image/gif" }) : "{}", { status: ok ? 200 : 502 });
+  }) as typeof fetch;
+  URL.createObjectURL = () => `blob:copy-${requests.length}`;
+  URL.revokeObjectURL = (url: string) => { revoked.push(url); };
+  const container = dom.window.document.getElementById("root")!;
+  const root = createRoot(container);
+  const src = "https://images.example.com/hero.gif?size=2";
+  const show = (mailId: string) => act(async () => root.render(<FormattedMail key={mailId} mailId={mailId} html={`<img src="${src}" alt="Hero" width="120" height="40">`}
+    showImages privacy={false} renderText={(text) => text} redactText={(text) => text} />));
+  const fail = () => act(async () => { container.querySelector("img")!.dispatchEvent(new dom.window.Event("error")); });
+  try {
+    await show("a:1");
+    assert.equal(container.querySelector("img")?.getAttribute("src"), src);
+    await fail();
+    assert.deepEqual(requests, [`/api/messages/a%3A1/remote-image?src=${encodeURIComponent(src)}`]);
+    assert.equal(container.querySelector("img")?.getAttribute("src"), "blob:copy-1");
+    await fail();
+    assert.equal(requests.length, 1, "the service copy is not requested again");
+    assert.equal(container.querySelector("img"), null);
+    assert.ok(container.querySelector('[aria-label="Image could not be loaded."]'));
+    assert.deepEqual(revoked, ["blob:copy-1"]);
+    ok = false;
+    await show("a:2");
+    await fail();
+    assert.equal(requests.length, 2);
+    assert.equal(container.querySelector("img"), null);
+    assert.equal(container.querySelector<HTMLElement>('[aria-label="Image could not be loaded."]')?.style.width, "120px");
+    // Closing the reader mid-retry cancels the request and creates no blob URL.
+    let signal: AbortSignal | undefined, created = 0;
+    globalThis.fetch = ((_url: string, init?: RequestInit) => { signal = init?.signal ?? undefined; return new Promise<Response>(() => {}); }) as typeof fetch;
+    URL.createObjectURL = () => `blob:late-${++created}`;
+    await show("a:3");
+    await fail();
+    assert.ok(container.querySelector('[aria-label="Loading image…"]'));
+    assert.equal(signal?.aborted, false);
+    await act(async () => root.render(<></>));
+    assert.equal(signal?.aborted, true);
+    assert.equal(created, 0);
+  } finally {
+    await act(async () => root.unmount());
+    dom.window.close();
+    globalThis.fetch = oldFetch; URL.createObjectURL = oldCreate; URL.revokeObjectURL = oldRevoke;
+    if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow); else Reflect.deleteProperty(globalThis, "window");
+    if (oldDocument) Object.defineProperty(globalThis, "document", oldDocument); else Reflect.deleteProperty(globalThis, "document");
+    delete actGlobal.IS_REACT_ACT_ENVIRONMENT;
+  }
+});

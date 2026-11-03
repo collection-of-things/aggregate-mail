@@ -3,6 +3,7 @@ import { imageSource, type MailAttachment } from "../../shared/types";
 import { embeddedImageTypes, mailLink, mailStyle, mailStylesheet, parseMailContent, privateMailLink, type MailContentNode } from "../../shared/mail-content";
 import { segmentPrivateParts, type PrivacySegment } from "../privacy";
 import { IsolatedMail } from "./IsolatedMail";
+import { useRemoteImage } from "./remote-image";
 
 type Presentation = { className?: string; id?: string };
 
@@ -92,7 +93,7 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
       const src = imageSource(a.src || "");
       if (privacy && (privateMailLink(a.src || "", redactText) || (src && privateMailLink(src, redactText))))
         return <ImagePlaceholder {...presentation} key={key} style={style} reason="Image unavailable while personal information is hidden." />;
-      return src ? <FormattedImage {...presentation} key={`${key}:${src}`} src={src} alt={redactText(a.alt || "").slice(0, 500)} style={style} /> :
+      return src ? <FormattedImage {...presentation} key={`${key}:${src}`} mailId={mailId} src={src} alt={redactText(a.alt || "").slice(0, 500)} style={style} /> :
         <ImagePlaceholder {...presentation} key={key} style={style} reason="Unsupported image." />;
     }
     const props: Record<string, unknown> = { key, style, ...presentation };
@@ -182,17 +183,19 @@ function useEmbeddedImages(mailId: string | undefined, files: readonly MailAttac
   return state.binding === binding ? state.sources : {};
 }
 
-function FormattedImage({ src, alt, style, ...presentation }: { src: string; alt: string; style: CSSProperties } & Presentation) {
-  const [status, setStatus] = useState("loading");
+function FormattedImage({ mailId, src, alt, style, ...presentation }: { mailId?: string; src: string; alt: string; style: CSSProperties } & Presentation) {
+  const remote = useRemoteImage(mailId, src);
+  if (remote.failed || remote.retrying) return <span className="formatted-mail-image" style={{ display: "contents" }}>
+    <ImagePlaceholder {...presentation} style={style} reason={remote.failed ? "Image could not be loaded." : "Loading image…"} />
+  </span>;
   // `display: contents` keeps the image in the sender's line, so its own
   // vertical-align and float apply as they would in a mail client.
   return <span className="formatted-mail-image" style={{ display: "contents" }}>
-    {status !== "error" && <img {...presentation} src={src} alt={alt} referrerPolicy="no-referrer" decoding="async" loading="lazy"
+    <img {...presentation} src={remote.src} alt={alt} referrerPolicy="no-referrer" decoding="async" loading="lazy"
       // With a width, auto height keeps the shape when max-width narrows it;
       // icons sized only by height keep that height.
       style={{ ...style, maxWidth: "100%", height: style.width || !style.height ? "auto" : style.height }}
-      onLoad={() => setStatus("loaded")} onError={() => setStatus("error")} />}
-    {status === "error" && <ImagePlaceholder {...presentation} style={style} reason="Image could not be loaded." />}
+      onError={remote.onError} />
   </span>;
 }
 

@@ -6,6 +6,10 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Fixed
+
+- Show images now loads images whose host refuses to display them on other sites, such as the Claude Duet welcome email, by retrying them once through the mail service instead of leaving grey placeholders.
+
 ## 0.2.28 - 2026-11-03
 
 ### Added
