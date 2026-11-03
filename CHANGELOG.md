@@ -6,6 +6,8 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+## 0.2.28 - 2026-11-03
+
 ### Added
 
 - Settings > Privacy lists names to always hide and names to keep visible, and shows the names Emc² learned from your mail with a Keep visible action. The lists stay in encrypted storage. ([#207](https://github.com/collection-of-things/aggregate-mail/pull/207))
