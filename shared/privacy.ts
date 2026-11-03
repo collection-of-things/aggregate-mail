@@ -138,16 +138,19 @@ export function businessSender(name: string, email: string): boolean {
   if (roleMailbox.test(local)) return true;
   // Every label but the top-level one.
   const labels = domain.split(".").slice(0, -1).map((label) => label.replace(/[^a-z0-9]/g, ""));
-  const words = name.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((word) => word.length >= 3);
+  const tokens = name.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   // A name word in the mailbox marks a person, unless that word is the brand label itself.
-  if (words.some((word) => local.includes(word) && !labels.includes(word))) return false;
-  const compactName = words.join("");
+  if (tokens.some((word) => word.length >= 3 && local.includes(word) && !labels.includes(word))) return false;
+  // Every token counts, so "Ed Ford" never reduces to the label "ford".
+  const compactName = tokens.join("");
   if (compactName.length < 3) return false;
-  // The whole name is a label, optionally followed by organization words (Acme Inc).
+  // The whole name is a label or the whole domain (Amazon.com), optionally
+  // followed by one organization word (Acme Inc).
+  if (compactName === domain.replace(/[^a-z0-9]/g, "")) return true;
   return labels.some((label) => label === compactName ||
     label.length >= 3 && compactName.startsWith(label) && organizationSuffix.test(compactName.slice(label.length)));
 }
-const organizationSuffix = /^(?:inc|llc|ltd|co|corp|company|group|team|hq|app|official|store|shop|news|mail|bank|support|info|updates?)+$/;
+const organizationSuffix = /^(?:inc|llc|ltd|corp|company|group|hq|official|news|mail|bank|support|info|updates?)$/;
 
 // One message often omits the owner's display name (bare To, quoted orders),
 // so owner names also come from every cached message that names an account
@@ -211,6 +214,30 @@ export function applyPrivacyWords(names: readonly string[], words?: Partial<Priv
   const stillNamed = new Set([...result.keys()].filter((name) => /[\s,]/u.test(name)).flatMap((name) => name.split(/[\s,]+/u)));
   for (const part of parts) if (!hidden.has(part) && !stillNamed.has(part)) result.delete(part);
   return [...result.values()];
+}
+
+// Names for one surface: the inherited list stays whole; Never hide applies only
+// to the names the cited messages add, and their owner names always return,
+// so a kept-visible business can never reveal an owner or Always hide word.
+export function scopedMessageNames(
+  inherited: readonly string[],
+  accounts: readonly PrivacyAccount[],
+  mails: readonly MailPrivacyInput[],
+  visible: readonly string[] = [],
+): string[] {
+  const added = mails.flatMap((mail) => messagePrivateNames(accounts, mail));
+  const owner = mails.flatMap((mail) => messageOwnerNames(accounts, mail));
+  const result = new Map<string, string>();
+  for (const name of [...inherited, ...owner, ...applyPrivacyWords(added, { visible: [...visible] })]) {
+    const clean = cleanName(name);
+    if (clean) result.set(clean.toLowerCase(), clean);
+  }
+  return [...result.values()];
+}
+function messageOwnerNames(accounts: readonly PrivacyAccount[], mail: MailPrivacyInput): string[] {
+  const emails = new Set(accounts.map((account) => account.email.trim().toLowerCase()));
+  const owner = ownerSender(mail, emails);
+  return [...collectPrivateNames(accounts, mail), ...owner ? privateNames([owner]) : []];
 }
 
 // Per-message surfaces need every correspondent name, not only the owner's:

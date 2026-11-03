@@ -19,8 +19,9 @@ quoted order confirmations, signatures). Postal addresses were never covered.
 - A sender is a business, and its display name stays visible, when it writes
   from an automated or departmental mailbox (`no-reply`, `info`, `support`,
   `billing`, `alerts` and similar; not `hello`, `team` or `contact`, which
-  people use personally), or when its compacted name equals a label of its own
-  non-personal domain, optionally followed by organization words (`Acme Inc`).
+  people use personally), or when its whole compacted name, short words
+  included, equals a label of its own non-personal domain or the whole domain
+  (`Amazon.com`), optionally followed by one organization word (`Acme Inc`).
   Outside role mailboxes, a mailbox containing one of the name's words marks a
   person (`sean.ford@ford.com`), unless that word is the domain label itself
   (`spotify@news.spotify.com`). The same test applies to
@@ -46,9 +47,12 @@ quoted order confirmations, signatures). Postal addresses were never covered.
   (`privacyWords` record, authenticated CSRF-checked `PUT /api/privacy-words`,
   delivered in state): Always hide (up to 12 entries of at most six words,
   leaving matcher room for per-message names) and Never hide (up to 64). Never
-  hide removes a listed name from the name matchers, including work surfaces;
-  when that full name was listed, its single words leave too, except words the
-  owner hid or another listed full name contains. Addresses and postal lines
+  hide removes a listed name from the name matchers; when that full name was
+  listed, its single words leave too, except words the owner hid or another
+  listed full name contains. On a message surface Never hide applies only to
+  the names that message adds; the app-wide list and the message's owner names
+  always stay, so a kept-visible business never reveals an owner or Always hide
+  word, and an owner name wins inside a kept phrase. Addresses and postal lines
   stay hidden. The section lists learned names with a Keep visible
   action. Hidden and learned names are masked on that page while privacy is on.
 

@@ -8,7 +8,7 @@ import type { CalendarEvent, CalendarEventInput } from "../../shared/calendar";
 import { mailLink, privateMailLink } from "../../shared/mail-content";
 import type { Draft, RendererMail as Mail, RendererState as State } from "../../shared/types";
 import { accountLabel } from "../mail-ui";
-import { applyPrivacyWords, messagePrivateNames, redactPrivateText } from "../privacy";
+import { redactPrivateText, scopedMessageNames } from "../privacy";
 import { Address, MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
 import { PrivateField } from "../ui/PrivateField";
 import { addDays, eventInput, meetingFields, moveStart, sameEventFields, type EventFields } from "./events";
@@ -98,7 +98,7 @@ export const EventDetail = forwardRef<HTMLElement, {
   // The linked source email's names join the ambient list so a meeting URL
   // carrying that correspondent hides like the rest of its message.
   const scopedNames = sourceMail
-    ? applyPrivacyWords([...(names ?? []), ...messagePrivateNames(state.accounts, sourceMail)], { visible: [...visible ?? []] })
+    ? scopedMessageNames(names ?? [], state.accounts, [sourceMail], visible)
     : names;
   const link = event.meetLink ? mailLink(event.meetLink) : null;
   const linkHidden = !!link && privacy && privateMailLink(link, (text) => redactPrivateText(text, scopedNames));

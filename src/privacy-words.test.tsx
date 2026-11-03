@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FormattedMail } from "./mail/FormattedMail";
 import {
-  applyPrivacyWords, businessSender, learnedOwnerNames, messagePrivateNames, redactPrivateText,
+  applyPrivacyWords, businessSender, collectPrivateNames, learnedOwnerNames, messagePrivateNames, redactPrivateText, scopedMessageNames,
 } from "./privacy";
 
 const owner = [{ email: "owner@example.test", name: "Main" }];
@@ -27,9 +27,12 @@ test("business senders whose name matches their domain or a role mailbox stay vi
     ["Will Brown", "wb@williamsgroup.example"], ["Nora Example", "p@example.org"],
     ["Vera Bloom", "team@vendor.example"], ["Vera Bloom", "hello@verabloom-studio.example"],
     ["Chase Miller", "cm@chase.example"], ["Grant Lee", "gl@grant.example"], ["Morgan Price", "mp12345@morgan.example"],
+    ["Ed Ford", "ed.ford@ford.example"], ["Chase Li", "cli@chase.example"], ["Jo Chase", "jo@chase.example"],
+    ["Al Grant", "al@grant.example"], ["Anna Coco", "a@anna.example"], ["Grant Store", "g@grant.example"],
   ]) assert.equal(businessSender(name, email), false, `${name} <${email}>`);
   for (const [name, email] of [
     ["Spotify", "spotify@news.spotify.example"], ["Acme Inc", "x@acme.example"], ["Kickstarter", "hello@kickstarter.example"],
+    ["Amazon.example", "shipment-tracking@amazon.example"],
   ]) assert.equal(businessSender(name, email), true, `${name} <${email}>`);
   const names = messagePrivateNames(owner, {
     sender: "Kickstarter", address: "no-reply@kickstarter.example",
@@ -98,6 +101,24 @@ test("owner lists add hidden names and remove visible ones and their words, igno
   assert.equal(redactPrivateText("Hi Morgan, from Morgan Lee", owner), "Hi ••••••••, from ••••••••");
   assert.deepEqual(applyPrivacyWords(["Morgan Stanley", "Stanley"], { hidden: ["Morgan"], visible: ["Morgan Stanley"] }), ["Morgan"]);
   assert.deepEqual(applyPrivacyWords(["Morgan Lee", "Morgan", "Lee", "Morgan Stanley"], { visible: ["Morgan Stanley"] }), ["Morgan Lee", "Morgan", "Lee"]);
+});
+
+test("a kept-visible correspondent never reveals owner or Always hide words inside its message", () => {
+  const mail = { sender: "Morgan Stanley", address: "client.service@ms-wealth.example", to: "owner@example.test" };
+  const oneWordOwner = [{ email: "owner@example.test", name: "Morgan" }];
+  const inherited = applyPrivacyWords(collectPrivateNames(oneWordOwner), { visible: ["Morgan Stanley"] });
+  const names = scopedMessageNames(inherited, oneWordOwner, [mail], ["Morgan Stanley"]);
+  // The owner's name wins over the kept-visible phrase that contains it.
+  assert.equal(redactPrivateText("Hi Morgan, your Morgan Stanley statement is ready", names),
+    "Hi ••••••••, your •••••••• Stanley statement is ready");
+  const words = { hidden: ["Morgan"], visible: ["Morgan Stanley"] };
+  const hiddenWord = scopedMessageNames(applyPrivacyWords([], words), owner, [mail], words.visible);
+  assert.equal(redactPrivateText("Morgan's school called", hiddenWord), "••••••••'s school called");
+  // Without a Never hide entry the correspondent is hidden as usual.
+  assert.ok(scopedMessageNames([], owner, [mail]).includes("Morgan Stanley"));
+  // The owner's split sent name returns even when its full phrase is kept visible.
+  const sent = { sender: "Jane Owner", address: "owner@example.test", to: "x@shop.example" };
+  assert.ok(scopedMessageNames([], owner, [sent], ["Jane Owner"]).includes("Jane"));
 });
 
 test("postal matching stays linear on long punctuated runs", () => {
