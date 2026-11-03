@@ -216,9 +216,11 @@ export function applyPrivacyWords(names: readonly string[], words?: Partial<Priv
   return [...result.values()];
 }
 
-// Names for one surface: the inherited list stays whole; Never hide applies only
-// to the names the cited messages add, and their owner names always return,
-// so a kept-visible business can never reveal an owner or Always hide word.
+// Names for one surface: the inherited list (with Always hide) stays whole.
+// Never hide applies separately to the message's owner names and to its other
+// added names, so a kept-visible business phrase, absent from the owner list,
+// can never drop an owner or Always hide word, while the owner's own
+// Keep visible choices still apply.
 export function scopedMessageNames(
   inherited: readonly string[],
   accounts: readonly PrivacyAccount[],
@@ -228,7 +230,8 @@ export function scopedMessageNames(
   const added = mails.flatMap((mail) => messagePrivateNames(accounts, mail));
   const owner = mails.flatMap((mail) => messageOwnerNames(accounts, mail));
   const result = new Map<string, string>();
-  for (const name of [...inherited, ...owner, ...applyPrivacyWords(added, { visible: [...visible] })]) {
+  const lists = { visible: [...visible] };
+  for (const name of [...inherited, ...applyPrivacyWords(owner, lists), ...applyPrivacyWords(added, lists)]) {
     const clean = cleanName(name);
     if (clean) result.set(clean.toLowerCase(), clean);
   }

@@ -116,9 +116,20 @@ test("a kept-visible correspondent never reveals owner or Always hide words insi
   assert.equal(redactPrivateText("Morgan's school called", hiddenWord), "••••••••'s school called");
   // Without a Never hide entry the correspondent is hidden as usual.
   assert.ok(scopedMessageNames([], owner, [mail]).includes("Morgan Stanley"));
-  // The owner's split sent name returns even when its full phrase is kept visible.
+});
+
+test("Keep visible on the owner's own name applies inside message scopes", () => {
+  const jane = [{ email: "owner@example.test", name: "Jane Owner" }];
+  const mail = { sender: "Pat Friend", address: "pat@gmail.com", to: "Jane Owner <owner@example.test>" };
+  for (const visible of [["Jane Owner"], ["Jane"]]) {
+    const inherited = applyPrivacyWords(collectPrivateNames(jane), { visible });
+    const names = scopedMessageNames(inherited, jane, [mail], visible);
+    assert.equal(redactPrivateText("Hi Jane", names), "Hi Jane", visible[0]);
+    assert.equal(redactPrivateText("from Pat Friend", names), "from ••••••••");
+  }
   const sent = { sender: "Jane Owner", address: "owner@example.test", to: "x@shop.example" };
-  assert.ok(scopedMessageNames([], owner, [sent], ["Jane Owner"]).includes("Jane"));
+  assert.equal(redactPrivateText("Signed, Jane Owner", scopedMessageNames([], jane, [sent], ["Jane Owner"])), "Signed, Jane Owner");
+  assert.equal(redactPrivateText("Signed, Jane Owner", scopedMessageNames([], jane, [sent])), "Signed, ••••••••");
 });
 
 test("postal matching stays linear on long punctuated runs", () => {

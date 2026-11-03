@@ -49,10 +49,12 @@ quoted order confirmations, signatures). Postal addresses were never covered.
   leaving matcher room for per-message names) and Never hide (up to 64). Never
   hide removes a listed name from the name matchers; when that full name was
   listed, its single words leave too, except words the owner hid or another
-  listed full name contains. On a message surface Never hide applies only to
-  the names that message adds; the app-wide list and the message's owner names
-  always stay, so a kept-visible business never reveals an owner or Always hide
-  word, and an owner name wins inside a kept phrase. Addresses and postal lines
+  listed full name contains. On a message surface the app-wide list (with
+  Always hide) stays whole, and Never hide applies separately to the message's
+  owner names and to its other added names. A kept-visible business phrase is
+  never in the owner list, so it cannot reveal an owner or Always hide word,
+  and an owner name wins inside a kept phrase; the owner's own Keep visible
+  choices still apply. Addresses and postal lines
   stay hidden. The section lists learned names with a Keep visible
   action. Hidden and learned names are masked on that page while privacy is on.
 
