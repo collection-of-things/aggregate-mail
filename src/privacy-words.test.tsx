@@ -12,7 +12,14 @@ test("business senders whose name matches their domain or a role mailbox stay vi
   assert.equal(businessSender("Kickstarter", "no-reply@kickstarter.example"), true);
   assert.equal(businessSender("Running Warehouse | Info", "info@runningwarehouse.example"), true);
   assert.equal(businessSender("The Varo Bank Team", "alerts@varomoney.example"), true);
-  assert.equal(businessSender("Acme Billing", "billing@payments.example"), true);
+  assert.equal(businessSender("Acme Billing", "billing@acme.example"), true);
+  assert.equal(businessSender("Billing Team", "billing@payments.example"), true);
+  // Services relay people's names from their role mailboxes; those stay hidden.
+  for (const [name, email] of [
+    ["Jane Smith", "notifications@github.example"], ["Jane Smith (via Dropbox)", "no-reply@dropbox.example"],
+    ["Jane Smith", "notification@facebookmail.example"], ["jsmith", "notifications@github.example"],
+    ["Jane from Acme Support", "support@acme.example"], ["Acme Billing", "billing@payments.example"],
+  ]) assert.equal(businessSender(name, email), false, `${name} <${email}>`);
   assert.equal(businessSender("Nora Lane", "nora@gmail.com"), false);
   assert.equal(businessSender("Support", "support@gmail.com"), false);
   assert.equal(businessSender("Nora Lane", "nora.lane@acme.example"), false);
@@ -190,4 +197,13 @@ test("US-style postal lines are hidden while ordinary numbers and prose stay vis
     "Thank you, Sam",
     "Total 1099.99 Sales Tax: 73.01",
   ]) assert.equal(redactPrivateText(visible), visible);
+});
+
+test("a full Always hide list and learned names leave the 64 account and message names room", () => {
+  const learned = Array.from({ length: 24 }, (_, index) => `Learned${index}`);
+  const ambient = applyPrivacyWords(learned, { hidden: Array.from({ length: 12 }, (_, index) => `Hidden${index}`), visible: [] });
+  // Account name Main, sender Kai Rivers and 62 Cc names make 64.
+  const cc = Array.from({ length: 62 }, (_, index) => `Guest${index} <guest${index}@example.org>`).join(", ");
+  const names = scopedMessageNames(ambient, owner, [{ sender: "Kai Rivers", address: "kai@example.org", to: "owner@example.test", cc }]);
+  assert.equal(redactPrivateText("Thanks Guest7 and Kai Rivers, see Learned3", names), "Thanks •••••••• and ••••••••, see ••••••••");
 });

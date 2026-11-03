@@ -191,7 +191,7 @@ test("names beyond the matcher's limits hide the whole text", () => {
   assert.equal(redactPrivateText(`Hello ${long}`, [long, "Lane"]), "••••••••");
   assert.equal(redactPrivateText(`Hello ${wordy}`, [wordy]), "••••••••");
   assert.equal(redactPrivateText("Hello Nora", ["   ", "Nora"]), "Hello ••••••••");
-  const names = Array.from({ length: 64 }, (_, index) => `Person${index}`);
+  const names = Array.from({ length: 100 }, (_, index) => `Person${index}`);
   assert.equal(redactPrivateText("Hello Nora", [...names, "Nora"]), "••••••••");
   assert.deepEqual(segmentPrivateText("Hello Nora", [...names, "Nora"]).map(({ kind, text }) => [kind, text]), [["hidden", "Hello Nora"]]);
   // Leaves share no reveal key, so one control cannot expose the whole message.

@@ -1156,11 +1156,17 @@ export function App() {
   }, [compose, eventDirty]);
   const privacyWords = state.privacyWords ?? emptyPrivacyWords;
   // Owner names learned from every cached message, before the owner's own lists apply.
-  const learnedNames = useMemo(() => learnedOwnerNames(state.accounts, state.messages), [state.accounts, state.messages]);
+  // Mail updates rarely change learned names; reusing equal lists keeps the
+  // privacy context, and every redacted span, from re-rendering on each update.
+  const learnedNamesRef = useRef<string[]>([]), workNamesRef = useRef<string[]>([]);
+  const learnedNames = useMemo(() => learnedNamesRef.current = sameStrings(learnedNamesRef.current, learnedOwnerNames(state.accounts, state.messages)),
+    [state.accounts, state.messages]);
+  const workNames = useMemo(() => workNamesRef.current = sameStrings(workNamesRef.current, workOwnerNames(state.accounts, state.messages)),
+    [state.accounts, state.messages]);
   const ambientPrivateNames = useMemo(() => applyPrivacyWords([...collectPrivateNames(state.accounts), ...learnedNames], privacyWords),
     [state.accounts, learnedNames, privacyWords]);
-  const workPrivateNames = useMemo(() => applyPrivacyWords([...ambientPrivateNames, ...workOwnerNames(state.accounts, state.messages)], privacyWords),
-    [ambientPrivateNames, state.accounts, state.messages, privacyWords]);
+  const workPrivateNames = useMemo(() => applyPrivacyWords([...ambientPrivateNames, ...workNames], privacyWords),
+    [ambientPrivateNames, workNames, privacyWords]);
 
   // Pick the entrance once per pane so re-renders never restart its animation.
   // Beside the reader, the list keeps its pane while mail opens and closes.
@@ -1888,4 +1894,9 @@ export function App() {
       </div>
     </PrivacyContext.Provider></MailSearchApiContext.Provider></NotificationProvider>
   );
+}
+
+// The previous list when it holds the same names in order, else the next one.
+function sameStrings(previous: string[], next: string[]) {
+  return previous.length === next.length && previous.every((value, index) => value === next[index]) ? previous : next;
 }

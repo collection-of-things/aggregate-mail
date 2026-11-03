@@ -16,13 +16,17 @@ quoted order confirmations, signatures). Postal addresses were never covered.
 
 ## Decision
 
-- A sender is a business, and its display name stays visible, when it writes
-  from an automated or departmental mailbox (`no-reply`, `info`, `support`,
-  `billing`, `alerts` and similar, followed only by a `+tag` or a number, so
-  `info.jane@` stays a person; not `hello`, `team` or `contact`, which people
-  use personally), or when its whole compacted name, short words
-  included, equals a label of its own non-personal domain or the whole domain
-  (`Amazon.com`), optionally followed by one organization word (`Acme Inc`).
+- A sender is a business, and its display name stays visible, when its whole
+  compacted name, short words included, equals a label of its own
+  non-personal domain or the whole domain (`Amazon.com`), optionally followed
+  by one organization word (`Acme Inc`). Services relay people's names from
+  automated or departmental mailboxes (`Jane Smith <notifications@github.com>`),
+  so on those mailboxes (`no-reply`, `info`, `support`, `billing`, `alerts` and
+  similar, followed only by a `+tag` or a number, so `info.jane@` is not one;
+  not `hello`, `team` or `contact`, which people use personally) the name
+  stays visible only when, without organization and role words (`The`, `Team`,
+  `Bank`, `Billing`), it is empty or starts a domain label
+  (`The Varo Bank Team <alerts@varomoney.com>`).
   Outside role mailboxes, a mailbox containing one of the name's words marks a
   person (`sean.ford@ford.com`), unless that word is the domain label itself
   (`spotify@news.spotify.com`). The same test applies to
@@ -53,8 +57,10 @@ quoted order confirmations, signatures). Postal addresses were never covered.
   punctuated runs scan linearly.
 - Settings > Privacy keeps two owner-chosen lists in the encrypted store
   (`privacyWords` record, authenticated CSRF-checked `PUT /api/privacy-words`,
-  delivered in state): Always hide (up to 12 entries of at most six words,
-  leaving matcher room for per-message names) and Never hide (up to 64). Never
+  delivered in state): Always hide (up to 12 entries of at most six words) and Never hide (up to
+  64). The matcher limit rises from 64 to 100 names, so a message keeps the
+  64 account and message names it had room for before alongside 24 learned
+  and 12 Always hide names. Never
   hide removes a listed name from the name matchers; when that full name was
   listed, its single words leave too, except words the owner hid or another
   listed full name contains. On a message surface the app-wide list (with
@@ -68,8 +74,10 @@ quoted order confirmations, signatures). Postal addresses were never covered.
 
 ## Limits
 
-A person whose name is their domain (`Jane Doe <jd@janedoe.com>`), or who
-writes from a role mailbox such as `support@`, stays visible; Always hide
+A person whose name is their domain (`Jane Doe <jd@janedoe.com>`), or whose
+name starts that domain's label on a role mailbox, stays visible; Always hide
+covers that. Brand names with extra words on a role mailbox
+(`Wells Fargo Online <alerts@notify.wellsfargo.com>`) stay hidden; Never hide
 covers that. Non-US postal formats are not
 detected. On work surfaces, owner aliases from uncited mail beyond the six
 most frequent, or longer than four words, are no longer collected; cited
@@ -79,9 +87,10 @@ gain postal-line detection through the shared matcher.
 
 ## Verification
 
-`src/privacy-words.test.tsx` covers the business test, brand images and links
+`src/privacy-words.test.tsx` covers the business test (including names relayed from role mailboxes), brand images and links
 in privacy mode, owner-sender splitting, learned names, list application and
-postal detection including visible look-alikes. `src/privacy-settings.test.tsx`
+postal detection including visible look-alikes, and matcher room for 64
+account and message names beside full learned and Always hide lists. `src/privacy-settings.test.tsx`
 mounts the section with masking and saving. `server/mail-features.test.ts`
 covers validation, encryption at rest and state delivery. The existing privacy
 sweep still passes.

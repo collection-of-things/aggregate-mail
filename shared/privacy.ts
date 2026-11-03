@@ -5,7 +5,7 @@ export type PrivacyAccount = { email: string; name?: string };
 // name matchers only, so addresses and postal lines stay hidden.
 export type PrivacyWords = { hidden: string[]; visible: string[] };
 export const emptyPrivacyWords: PrivacyWords = { hidden: [], visible: [] };
-// Hidden entries share the 64-name matcher budget with per-message names.
+// Hidden entries share the 100-name matcher budget with learned and per-message names.
 export const PRIVACY_WORDS_HIDDEN_MAX = 12, PRIVACY_WORDS_VISIBLE_MAX = 64, PRIVACY_WORD_LENGTH_MAX = 100, PRIVACY_WORD_WORDS_MAX = 6;
 type RecipientHeaders = { to?: string; cc?: string };
 export type MailPrivacyInput = { sender?: string; address?: string; to?: string; cc?: string; replyTo?: string; direction?: string };
@@ -126,9 +126,12 @@ export function collectMailPrivateNames(
 // people often use personally (hello@, team@, contact@) are not listed.
 // Only a +tag or a number may follow, so info.jane@ stays a person.
 const roleMailbox = /^(?:no-?reply|do-?not-?reply|donotreply|info|support|news|newsletters?|notifications?|notify|alerts?|updates?|marketing|billing|accounts?|customer-?service|mailer|orders?|receipts?|security|digest)(?:\+[^@]*|[-_.]?\d+)?$/i;
-// A sender is a business when it writes from a role mailbox or its display
-// name matches a whole label of its own non-personal domain
-// (Kickstarter <…@kickstarter.com>, Running Warehouse | Info <…@runningwarehouse.com>).
+// A sender is a business when its display name matches a whole label of its
+// own non-personal domain (Kickstarter <…@kickstarter.com>,
+// Running Warehouse | Info <…@runningwarehouse.com>). Services relay people's
+// names from role mailboxes (Jane Smith <notifications@github.com>), so there a
+// name passes only when, without organization and role words, it is empty or
+// starts a domain label (The Varo Bank Team <alerts@varomoney.com>).
 // Otherwise a mailbox containing one of the name's words (sean.ford@ford.com) is a person.
 // A person whose name is their domain is a known gap; Always hide covers it.
 export function businessSender(name: string, email: string): boolean {
@@ -136,10 +139,13 @@ export function businessSender(name: string, email: string): boolean {
   if (at < 1) return false;
   const local = email.slice(0, at).trim().toLowerCase(), domain = email.slice(at + 1).trim().toLowerCase();
   if (!domain || personalMailDomains.has(domain)) return false;
-  if (roleMailbox.test(local)) return true;
   // Every label but the top-level one.
   const labels = domain.split(".").slice(0, -1).map((label) => label.replace(/[^a-z0-9]/g, ""));
   const tokens = name.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  if (roleMailbox.test(local)) {
+    const rest = tokens.filter((word) => !roleNameWord.test(word)).join("");
+    return !rest || rest.length >= 3 && (rest === domain.replace(/[^a-z0-9]/g, "") || labels.some((label) => label.startsWith(rest)));
+  }
   // A name word in the mailbox marks a person, unless that word is the brand label itself.
   if (tokens.some((word) => word.length >= 3 && local.includes(word) && !labels.includes(word))) return false;
   // Every token counts, so "Ed Ford" never reduces to the label "ford".
@@ -152,6 +158,7 @@ export function businessSender(name: string, email: string): boolean {
     label.length >= 3 && compactName.startsWith(label) && organizationSuffix.test(compactName.slice(label.length)));
 }
 const organizationSuffix = /^(?:inc|llc|ltd|corp|company|group|hq|official|news|mail|bank|support|info|updates?)$/;
+const roleNameWord = /^(?:the|of|and|by|team|inc|llc|ltd|corp|company|group|hq|official|news|newsletters?|mail|bank|support|info|updates?|billing|alerts?|notifications?|orders?|receipts?|security|service|customer|care|accounts?|marketing|digest)$/;
 
 // One message often omits the owner's display name (bare To, quoted orders),
 // so owner names also come from every cached message that names an account
@@ -359,7 +366,9 @@ function postalRanges(text: string): [number, number][] {
   return ranges;
 }
 
-const PRIVATE_NAMES_MAX = 64, PRIVATE_NAME_LENGTH_MAX = 160, PRIVATE_NAME_WORDS_MAX = 16;
+// 64 names per message plus room for the app-wide learned (24) and Always
+// hide (12) names. Matching scans once per name, so cost stays linear.
+const PRIVATE_NAMES_MAX = 100, PRIVATE_NAME_LENGTH_MAX = 160, PRIVATE_NAME_WORDS_MAX = 16;
 // Names the bounded matcher can check, deduplicated case-insensitively because
 // matching ignores case. Returns null when any name exceeds the limits.
 function matchableNames(names: readonly string[]): string[] | null {
