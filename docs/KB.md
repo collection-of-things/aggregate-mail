@@ -1791,8 +1791,12 @@ New MIME parsing records at most 50 unique image URLs and 500 characters of alt
 text per image. Only explicit HTTPS sources with public-looking DNS names, no
 credentials and the default port are accepted. HTTP, local hostnames, IP
 literals, relative URLs, data URLs and CID sources are excluded. The renderer
-checks sources again. Images use `referrerPolicy="no-referrer"`; the server never
-fetches an image URL. The formatted reader stores bounded HTML in encrypted mail JSON and constructs allowed React elements. It discards scripts, active elements, sender stylesheets, event handlers and resource-loading CSS. See the formatted-content decision below. The renderer CSP permits HTTPS in `img-src`
+checks sources again. Images use `referrerPolicy="no-referrer"`. When a direct
+load fails, for example because the image host sends
+`Cross-Origin-Resource-Policy: same-origin`, the reader retries once through
+`/api/messages/:id/remote-image`, which fetches only an image that message
+references, over pinned public DNS, without redirects, as PNG, JPEG, GIF, WebP,
+BMP or AVIF up to 5 MiB. See [ADR 0121](adr/0121-remote-image-service-fallback.md). The formatted reader stores bounded HTML in encrypted mail JSON and constructs allowed React elements. It discards scripts, active elements, sender stylesheets, event handlers and resource-loading CSS. See the formatted-content decision below. The renderer CSP permits HTTPS in `img-src`
 while retaining the existing script, connection and sandbox restrictions.
 
 Loading remote images can expose the reader's IP address and send cookies to

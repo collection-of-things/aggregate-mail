@@ -7,6 +7,7 @@ import { redactPrivateText } from "../privacy";
 import { PrivacyContext, Redact } from "../ui/Privacy";
 import { Attachments } from "./Attachments";
 import { FormattedMail } from "./FormattedMail";
+import { useRemoteImage } from "./remote-image";
 
 export function MessageBody({ text }: { text: string }) {
   const { on, names } = useContext(PrivacyContext);
@@ -50,20 +51,22 @@ export function MessageText({ text }: { text: string }) {
     .filter((paragraph) => paragraph.trim())
     .map((paragraph, index) => <p key={index}><MessageBody text={paragraph} /></p>)}</>;
 }
-function ReaderImage({ image, index }: { image: MailImage; index: number }) {
+function ReaderImage({ mailId, image, index }: { mailId: string; image: MailImage; index: number }) {
   const { on, names } = useContext(PrivacyContext);
-  const [status, setStatus] = useState("loading");
+  const [loaded, setLoaded] = useState(false);
+  const remote = useRemoteImage(mailId, image.src);
+  const status = remote.failed ? "error" : loaded ? "loaded" : "loading";
   // Provider metadata may end mid-token at its 500-unit limit.
   const description = on && image.alt.length >= 500 ? `Image ${index + 1}` : image.alt;
   const privateSource = on && privateMailLink(image.src, (value) => redactPrivateText(value, names));
   return <figure>
-    {!privateSource && status !== "error" && <img
-      src={image.src}
+    {!privateSource && status !== "error" && !remote.retrying && <img
+      src={remote.src}
       alt={on ? redactPrivateText(description, names) : description}
       referrerPolicy="no-referrer"
       decoding="async"
-      onLoad={() => setStatus("loaded")}
-      onError={() => setStatus("error")}
+      onLoad={() => setLoaded(true)}
+      onError={remote.onError}
     />}
     <figcaption>
       {privateSource ? "Image unavailable while personal information is hidden." :
@@ -142,7 +145,7 @@ function ImageConsent({ mail, loadImages, loadContent, body, api }: ImageProps) 
     (content.images ?? mail.images)?.length === 0 && !/<img\b/i.test(content.html || "");
   const shown = status === "shown" && (!privacy || consentInPrivacy);
   const gallery = shown && (images.length ? images.map((image, index) =>
-    <ReaderImage key={image.src} image={image} index={index} />) :
+    <ReaderImage key={image.src} mailId={mail.id} image={image} index={index} />) :
     <p role="status">No supported remote images in this email. Embedded images require a matching supported attachment.</p>);
   const textBody = <MessageText text={mail.body || "This email has no plain-text body."} />;
   return <section className="message-images" aria-label="Email content">
