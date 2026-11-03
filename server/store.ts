@@ -354,28 +354,38 @@ export async function searchMail(query: string, accounts: Account[], signal?: Ab
       if (mailCursor !== `${generation}:${mailRevision}` || token !== draftToken) throw new Error("Cache changed during search. Refresh and try again.");
       const select = reader.prepare("SELECT value FROM records WHERE kind='mail' AND id=?");
       let scanned = 0;
-      for (const [id, summary] of entries) {
-        const version = summary.contentVersion;
-        signal?.throwIfAborted();
-        if (!connected.has(summary.accountId)) continue;
-        const known = search.matchesSummary(summary);
-        if (known !== undefined) {
-          if (known) result.matches.push({ kind: "mail", id, accountId: summary.accountId, contentVersion: version });
+      const scan = async (current: typeof search) => {
+        const matches: MailSearchResult["matches"] = [];
+        for (const [id, summary] of entries) {
+          const version = summary.contentVersion;
+          signal?.throwIfAborted();
+          if (!connected.has(summary.accountId)) continue;
+          const known = current.matchesSummary(summary);
+          if (known !== undefined) {
+            if (known) matches.push({ kind: "mail", id, accountId: summary.accountId, contentVersion: version });
+            if (++scanned % 32 === 0) await yieldMail();
+            continue;
+          }
+          const row = select.get(id);
+          if (!row) throw new Error("Mail changed during read. Reload the app and try again.");
+          const mail = decrypt(String(row.value)) as Mail;
+          if (connected.has(mail.accountId) && current.matches(mail)) matches.push({ kind: "mail", id, accountId: mail.accountId, contentVersion: version });
           if (++scanned % 32 === 0) await yieldMail();
-          continue;
         }
-        const row = select.get(id);
-        if (!row) throw new Error("Mail changed during read. Reload the app and try again.");
-        const mail = decrypt(String(row.value)) as Mail;
-        if (connected.has(mail.accountId) && search.matches(mail)) result.matches.push({ kind: "mail", id, accountId: mail.accountId, contentVersion: version });
-        if (++scanned % 32 === 0) await yieldMail();
-      }
-      for (const row of reader.prepare("SELECT value FROM records WHERE kind='draft' ORDER BY id").iterate()) {
-        signal?.throwIfAborted();
-        const draft = decrypt(String(row.value)) as Draft;
-        const account = connected.get(draft.accountId);
-        if (account && search.matchesDraft(draft, account)) result.matches.push({ kind: "draft", ...draftSummary(draft) });
-        if (++scanned % 32 === 0) await yieldMail();
+        for (const row of reader.prepare("SELECT value FROM records WHERE kind='draft' ORDER BY id").iterate()) {
+          signal?.throwIfAborted();
+          const draft = decrypt(String(row.value)) as Draft;
+          const account = connected.get(draft.accountId);
+          if (account && current.matchesDraft(draft, account)) matches.push({ kind: "draft", ...draftSummary(draft) });
+          if (++scanned % 32 === 0) await yieldMail();
+        }
+        return matches;
+      };
+      result.matches = await scan(search);
+      // Close spellings only when the exact words match nothing, in the same snapshot.
+      if (!result.matches.length && search.typoEligible) {
+        result.matches = await scan(compileMailSearch(query, accounts, { typos: true }));
+        if (result.matches.length) result.typos = true;
       }
       signal?.throwIfAborted();
       reader.exec("COMMIT");

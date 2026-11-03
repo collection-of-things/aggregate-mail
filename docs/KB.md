@@ -283,10 +283,18 @@ stored. An over-limit import writes nothing. See [contact imports](contacts-impo
 [ADR 0098](adr/0098-contacts-page-and-imports.md) and
 [ADR 0118](adr/0118-contact-reimport-and-deferred-provider-sync.md).
 
-Plain unquoted search words of 4 to 32 letters allow one insertion, deletion,
-substitution or adjacent transposition within a word. Quoted phrases, field
-terms, exclusions, addresses, account filters and invalid recognized operators
-retain exact semantics. Typo matching stays local to the existing cached search.
+Plain search words match exact case-insensitive substrings first. Only when the
+whole query has no exact match in cached mail and saved drafts do plain unquoted
+words of 4 to 32 letters allow one insertion, deletion, substitution or adjacent
+transposition within a word of at least 4 letters
+([ADR 0122](adr/0122-exact-first-search-typo-fallback.md)). The service runs
+the fallback in the same snapshot and returns `typos: true`. The renderer keeps
+that decision for the same query while flag or version changes refetch. The
+All cached and Sent headers say close spellings are shown; the search live
+status announces it in every view. Quoted phrases, field terms, exclusions,
+addresses, account filters and invalid recognized operators retain exact
+semantics. CLI and MCP `--syntax app` decide the fallback over all granted mail
+before view and page filters and add `typos: true` to the result.
 
 The sidebar footer and collapsed coverage bar are 42px tall. Today status-tab
 counts and Refresh/Add task share one row. See [ADR 0069](adr/0069-responsiveness-and-compose-toolbar.md).

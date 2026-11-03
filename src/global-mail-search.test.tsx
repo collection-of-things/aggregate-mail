@@ -69,7 +69,7 @@ test("draft opening rejects query/account/compose changes and stale revisions be
   const opened: Draft[] = [];
   let resolve: ((value: Draft) => void) | undefined;
   const api: Api = url => url.endsWith("/drafts/same") ? new Promise(done => { resolve = value => done(value as never); }) : Promise.resolve((url.startsWith("/accounts/a/") ? [summary] : []) as never);
-  const render = (filter = "all", active = true, refreshKey = "d1", list = accounts, query = "") => act(async () => ui.root.render(<DraftList accounts={list} api={api} accountFilter={filter} query={query} search={query ? { drafts: [summary], pending: false, error: undefined, matches: () => false, refresh() {} } : undefined} refreshKey={refreshKey} active={active} onOpen={value => opened.push(value)} />));
+  const render = (filter = "all", active = true, refreshKey = "d1", list = accounts, query = "") => act(async () => ui.root.render(<DraftList accounts={list} api={api} accountFilter={filter} query={query} search={query ? { drafts: [summary], pending: false, error: undefined, matches: () => false, refresh() {}, typos: false } : undefined} refreshKey={refreshKey} active={active} onOpen={value => opened.push(value)} />));
   const click = () => act(async () => ui.container.querySelector<HTMLButtonElement>(".draft-row")!.click());
   try {
     await render(); await click(); await render("all", true, "d1", accounts, "needle"); await act(async () => resolve?.(draft));

@@ -6,6 +6,10 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Fixed
+
+- Search finds what you type. A short word such as a sender name no longer matches almost every email: one-typo matching made "ando" match "and" and "skip" match "ship" and "slip". Words now match exactly first; close spellings are used only when nothing matches exactly, and the list says so. CLI and MCP `--syntax app` follow the same rule.
+
 ## 0.2.29 - 2026-11-03
 
 ### Fixed

@@ -111,6 +111,13 @@ else test("cold summaries, exact scans, local body identity and full internal re
       assert.deepEqual(result.matches.map(m => m.id).sort(), expected, query);
       assert.ok(result.matches.every(m => Object.keys(m).sort().join(",") === "accountId,contentVersion,id,kind"));
     }
+    // Exact words win; one-typo matching runs only when nothing matches exactly.
+    const exactWord = await store.searchMail("projet", accounts);
+    assert.deepEqual(exactWord.matches.map(m => m.id), ["1"]); assert.equal(exactWord.typos, undefined);
+    const misspelled = await store.searchMail("porjet", accounts);
+    assert.deepEqual(misspelled.matches.map(m => m.id), ["1"]); assert.equal(misspelled.typos, true);
+    const absent = await store.searchMail("zzzzqqq", accounts);
+    assert.deepEqual(absent.matches, []); assert.equal(absent.typos, undefined);
     const httpSearch = await (await fetch(`${origin}/messages/search?query=${encodeURIComponent('body:"reunion du projet"')}`, { headers })).json();
     assert.deepEqual(httpSearch.matches.map((m: { id: string }) => m.id), ["1"]);
     assert.equal(JSON.stringify(httpSearch).includes("private-body-only"), false);

@@ -268,9 +268,31 @@ test("cached evicted and oversized documents preserve Unicode phrase and exclusi
   check({ ...message, body: message.body + " " + "x".repeat(750_000) });
 });
 
-test("plain words tolerate one typo while phrases, exclusions, addresses and operators stay exact", () => {
-  for (const query of ['quaterly', 'plannign', 'projcet']) assert.equal(compileMailSearch(query, accounts).matches(mail), true, query);
-  for (const query of ['"quaterly"', 'subject:quaterly', 'ada@exampel.com', 'account:wrok-id']) assert.equal(compileMailSearch(query, accounts).matches(mail), false, query);
-  assert.equal(compileMailSearch('quarterly -plannign', accounts).matches(mail), true, 'negative text stays exact');
-  assert.equal(compileMailSearch('is:unred', accounts).matches(mail), false);
+test("typo fallback lets plain words tolerate one typo while phrases, exclusions, addresses and operators stay exact", () => {
+  const typos = { typos: true };
+  for (const query of ['quaterly', 'plannign', 'projcet']) {
+    assert.equal(compileMailSearch(query, accounts, typos).matches(mail), true, query);
+    assert.equal(compileMailSearch(query, accounts).matches(mail), false, `${query} is exact by default`);
+    assert.equal(compileMailSearch(query, accounts).typoEligible, true, query);
+  }
+  for (const query of ['"quaterly"', 'subject:quaterly', 'ada@exampel.com', 'account:wrok-id']) {
+    assert.equal(compileMailSearch(query, accounts, typos).matches(mail), false, query);
+    assert.equal(compileMailSearch(query, accounts).typoEligible, false, query);
+  }
+  assert.equal(compileMailSearch('quarterly -plannign', accounts, typos).matches(mail), true, 'negative text stays exact');
+  assert.equal(compileMailSearch('is:unred', accounts, typos).matches(mail), false);
+});
+
+test("a short word never matches a common word one letter away", () => {
+  const common: Mail = { ...mail, sender: "Store", address: "news@store.example", subject: "Deals and offers ship soon",
+    preview: "Don't let this slip away", body: "Thanks and see you." };
+  const named: Mail = { ...mail, id: "named", sender: "Ando", address: "hello@mail.ando.example", subject: "Skipping our waitlist",
+    preview: "Thanks for your interest", body: "Thanks for your interest in Ando." };
+  for (const query of ["ando", "skip"]) {
+    assert.equal(compileMailSearch(query).matches(common), false, query);
+    assert.equal(compileMailSearch(query).matches(named), true, query);
+    assert.notEqual(compileMailSearch(query).matchesSummary({ ...common, body: undefined } as never), true, `${query} summary`);
+  }
+  // Even as a fallback, a typo match needs a word of at least four letters.
+  assert.equal(compileMailSearch("ando", [], { typos: true }).matches({ ...common, subject: "x", preview: "and", body: "and" }), false);
 });

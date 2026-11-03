@@ -149,10 +149,10 @@ test("pending body searches retain confirmed header matches through result and v
   const api: Api = () => { calls++; return new Promise(done => { resolve = done; }) as never; };
   const hit = { ...summary(), subject: 'Design review' };
   const other = { ...summary(), id: 'other', subject: 'Different subject' };
-  function Probe({ version = 'v1', query = 'desgin' }) {
+  function Probe({ version = 'v1', query = 'design' }) {
     const rows = [{ ...hit, contentVersion: version }, other];
     const search = useMailSearch(query, [], rows, api);
-    return <div>{rows.filter(search.matches).map(m => <span key={m.id}>{m.id}</span>)}<p>{search.pending ? 'Searching' : 'Ready'}</p></div>;
+    return <div>{rows.filter(search.matches).map(m => <span key={m.id}>{m.id}</span>)}<p>{search.pending ? 'Searching' : 'Ready'}{search.typos ? ' close spellings' : ''}</p></div>;
   }
   try {
     await act(async () => root.render(<Probe />));
@@ -172,6 +172,14 @@ test("pending body searches retain confirmed header matches through result and v
     assert.equal(calls, before + 1, 'header matches remain immediate while saved drafts are searched');
     await act(async () => resolve!({ mailCursor: 'one:2', draftToken: 'd1', matches: [{ kind: 'mail', ...hit }] }));
     assert.match(document.body.textContent!, /Ready/);
+    // A misspelling shows nothing until the service reports a close-spelling fallback.
+    await act(async () => root.render(<Probe query="desgin" />));
+    assert.doesNotMatch(document.body.textContent!, /same-id/);
+    await act(async () => { await new Promise(r => setTimeout(r, 150)); });
+    await act(async () => resolve!({ mailCursor: 'one:3', draftToken: 'd1', typos: true, matches: [{ kind: 'mail', ...hit }] }));
+    assert.match(document.body.textContent!, /same-id/);
+    assert.doesNotMatch(document.body.textContent!, /other/);
+    assert.match(document.body.textContent!, /Ready close spellings/);
   } finally {
     await act(async () => root.unmount()); dom.window.close();
     for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);
