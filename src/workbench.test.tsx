@@ -50,6 +50,17 @@ test("Projects hides known account names while preserving exact cross-account ap
  }finally{await ui.close();}
 });
 
+test("Refresh workspace reloads each assistant's automatic reply status",async()=>{
+ const ui=await mount("assistants");try{
+  ui.grants.push({id:"status-grant",token:"synthetic-status-only",name:"Reply assistant",accountIds:["a"],tools:["read_email","propose_draft"],createdAt:1});
+  await ui.click(ui.button("Refresh workspace"));
+  const loads=()=>ui.requests.filter(request=>request.method==="GET"&&request.url==="/agent/grants/status-grant/automation").length;
+  const before=loads();assert.ok(before>=1);
+  await ui.click(ui.button("Refresh workspace"));
+  assert.ok(loads()>before,"refresh reloads the card status");
+ }finally{await ui.close();}
+});
+
 test("Agent Reviews hides known account names in allowed accounts and existing grants",async()=>{
  const ui=await mount("assistants");try{
   ui.grants.push({id:"privacy-grant",token:"synthetic-privacy-only",name:"Review assistant",accountIds:["a"],tools:["read_email","propose_draft"],createdAt:1});

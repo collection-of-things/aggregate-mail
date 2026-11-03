@@ -615,10 +615,11 @@ automated-sender and already-proposed mail, waits up to 60 seconds for a manual
 preparation on the same grant, rechecks for an existing proposal before the
 request and before saving, counts every request that reaches the provider
 toward the daily limit, stops a batch on 401, 403, 429, 502 or 504, and
+runs each batch as `trackMailWork` so the update drain waits for it, and
 records a sanitized last result
 without changing the revision. Grant PATCH turns automation off when
-`read_email` or `propose_draft` is removed. The card's status refreshes when
-Agent Reviews reloads, not live. `src/work/AgentAutomation.tsx` shows the switch, status and options
+`read_email` or `propose_draft` is removed. The card's status refreshes on Refresh workspace and
+key changes, not live. `src/work/AgentAutomation.tsx` shows the switch, status and options
 on each assistant card. A first key save turns it on once with defaults.
 Synthetic checks: `server/agent-provider.test.ts`,
 `src/agent-automation.test.tsx`, `src/agent-provider.test.tsx`. See

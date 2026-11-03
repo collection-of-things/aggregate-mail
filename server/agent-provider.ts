@@ -9,6 +9,7 @@ import { agentProviders, type AgentAutomationSettings, type AgentProviderSetting
 import { all, get, put, remove } from "./store.js";
 import { assertAgent, fingerprint, propose } from "./workspace.js";
 import { contentSchema } from "./drafts.js";
+import { mailIsQuiesced, trackMailWork } from "./mail-actions.js";
 
 export type StoredAgentProvider = Omit<AgentProviderSettings, "hasKey"> & { apiKey: string };
 class ProviderError extends Error {
@@ -201,7 +202,8 @@ async function automate(mailIds: string[]) {
       const current = get("agentAutomation", agentId);
       const permission = get("agent", agentId);
       const config = get("agentProvider", agentId);
-      if (!current?.enabled || !permission) break;
+      // An update pauses mail work; stop between emails so its drain finishes quickly.
+      if (!current?.enabled || !permission || mailIsQuiesced()) break;
       if (!config) { result = "Save a provider key to run automatically."; break; }
       const mail = get("mail", mailId);
       if (!mail || mail.direction === "sent" || !mail.unread || mail.archived || !permission.accountIds.includes(mail.accountId)) continue;
@@ -212,9 +214,12 @@ async function automate(mailIds: string[]) {
       if (count >= current.dailyLimit) { result = `Daily limit of ${current.dailyLimit} reached. More new mail waits until tomorrow.`; break; }
       // A manual Prepare draft holds the grant for at most its 30-second deadline.
       for (let waited = 0; inFlight.has(agentId) && waited < 60000; waited += 250) await new Promise((resolve) => setTimeout(resolve, 250));
+      // The user may switch off, change the key or start an update during the wait.
+      const latest = get("agentAutomation", agentId);
+      if (!latest?.enabled || get("agentProvider", agentId)?.revision !== config.revision || mailIsQuiesced()) break;
       try {
         // Every provider request counts, so a failing provider cannot receive more mail than the limit.
-        const proposal = await prepareProposal(agentId, mailId, config.revision, current.instruction, {
+        const proposal = await prepareProposal(agentId, mailId, config.revision, latest.instruction, {
           attempt: () => automationStatus(agentId, (latest) => ({ day: today(), count: (latest.day === today() ? latest.count ?? 0 : 0) + 1 })),
         });
         if (proposal) { prepared++; created++; }
@@ -231,8 +236,10 @@ async function automate(mailIds: string[]) {
 }
 let automationQueue: Promise<void> = Promise.resolve();
 // Runs after a sync reports new unread mail. Runs one batch at a time.
+// Each batch is admitted as mail work when queued, so an update drain waits for it.
 export function runAgentAutomations(mailIds: string[]) {
-  automationQueue = automationQueue.then(() => automate(mailIds)).catch(() => undefined);
+  const previous = automationQueue;
+  automationQueue = trackMailWork(() => previous.then(() => automate(mailIds))).catch(() => undefined);
   return automationQueue;
 }
 export function mountAgentProvider(app: express.Express, dependencies: ProviderDependencies = {}) {

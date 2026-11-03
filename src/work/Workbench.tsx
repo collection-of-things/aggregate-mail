@@ -275,6 +275,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   const [mcpEnabled, setMcpEnabled] = useState(false);
   // Per assistant, so a key change on one card never reloads another.
   const [automationReload, setAutomationReload] = useState<Record<string, number>>({});
+  const [automationRefresh, setAutomationRefresh] = useState(0);
   const [shownToken, setShownToken] = useState<string | undefined>();
   const [editingGrant, setEditingGrant] = useState<string | null>(null);
   const privacyContext = useContext(PrivacyContext);
@@ -304,6 +305,8 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
       try {
         setGrants(await api<AgentGrant[]>("/agent/grants"));
         const settings = await api<McpSettings>("/mcp"); setMcpEnabled(settings.enabled); setAgentStale(false); setAgentError("");
+        // Refresh also reloads each card's automatic reply status.
+        setAutomationRefresh((value) => value + 1);
       } catch { setAgentError("Agent permissions could not be refreshed. Refresh before editing."); return false; }
     }
     return ok;
@@ -536,7 +539,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
             onSave={async (input) => { if (await mutate(() => api(`/agent/grants/${encodeURIComponent(grant.id)}`, "PATCH", input))) setEditingGrant(null); }} />
           : <><details className="agent-permissions"><summary>Permissions ({grant.tools.length})</summary><ul>{grant.tools.map((tool) => <li key={tool}>{toolNames[tool]}</li>)}</ul>
           </details><button type="button" disabled={pending || agentStale} onClick={() => setEditingGrant(grant.id)}>Edit access</button></>}
-          <AgentAutomation grant={grant} api={api} mcpEnabled={mcpEnabled} disabled={pending || stale} reload={automationReload[grant.id] ?? 0} />
+          <AgentAutomation grant={grant} api={api} mcpEnabled={mcpEnabled} disabled={pending || stale} reload={(automationReload[grant.id] ?? 0) + automationRefresh} />
           <AgentProvider grant={grant} state={state} api={api} mcpEnabled={mcpEnabled} disabled={pending || stale} onPrepared={work.refreshFresh} onKeyChanged={() => setAutomationReload((value) => ({ ...value, [grant.id]: (value[grant.id] ?? 0) + 1 }))} />
           <details className="agent-external work-opencode"><summary>Connect OpenCode or another agent</summary>
             <OpenCodeSetup token={grant.token} enabled={mcpEnabled} api={api} onEnabled={() => setMcpEnabled(true)} onNotice={onNotice} />

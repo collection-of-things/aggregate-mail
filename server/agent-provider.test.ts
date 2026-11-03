@@ -308,6 +308,38 @@ test("BYOK settings and reviewed drafts preserve provider, account and evidence 
       assert.equal((await request(`/agent/grants/${agent.id}`, "PATCH", { tools: ["read_email"] })).status, 200);
       assert.equal(store.get("agentAutomation", agent.id)!.enabled, false, "losing reply permission turns automation off");
     });
+    await t.test("automatic replies respect a switch-off during the wait and the update drain", async () => {
+      const { quiesceMailWork, resumeMailWork } = await import("./mail-actions.js");
+      const route = await fixture();
+      const automation = route.replace(/provider$/, "automation");
+      const incoming = (id: string) => { store.put("mail", id, { ...mail, id, messageId: `<${id}@example.test>` }); return id; };
+      const config = await save(route);
+      assert.equal((await request(automation, "PUT", { enabled: true, scope: "all", instruction: "", dailyLimit: 20, revision: null })).status, 200);
+      let release!: (response: Response) => void; let started!: () => void;
+      let entered = new Promise<void>((resolve) => { started = resolve; });
+      respond = () => { started(); return new Promise<Response>((resolve) => { release = resolve; }); };
+      const manual = prepare(route, config); await entered;
+      const automatic = runAgentAutomations([incoming("waiting")]);
+      const current = store.get("agentAutomation", agent.id)!;
+      store.put("agentAutomation", agent.id, { ...current, enabled: false });
+      release(success()); await manual; await automatic;
+      assert.equal(calls.length, 1, "switching off during the wait sends nothing");
+      store.put("agentAutomation", agent.id, { ...store.get("agentAutomation", agent.id)!, enabled: true });
+      calls.length = 0;
+      entered = new Promise<void>((resolve) => { started = resolve; });
+      respond = () => { started(); return new Promise<Response>((resolve) => { release = resolve; }); };
+      const running = runAgentAutomations([incoming("drain-1"), incoming("drain-2")]); await entered;
+      let drained = false;
+      const drain = quiesceMailWork(10000).then(() => { drained = true; });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      assert.equal(drained, false, "an update drain waits for the active provider request");
+      release(success()); await drain; await running;
+      assert.equal(calls.length, 1, "the batch stops once an update pauses mail");
+      assert.ok(store.all("proposal").some((proposal) => proposal.sourceMailId === "drain-1"), "the active request saves its proposal before the drain finishes");
+      await runAgentAutomations([incoming("during-update")]);
+      assert.equal(calls.length, 1, "no batch starts while mail is paused");
+      resumeMailWork();
+    });
   } finally {
     globalThis.fetch = nativeFetch;
     await new Promise<void>((resolve) => server.close(() => resolve()));

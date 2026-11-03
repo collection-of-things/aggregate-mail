@@ -48,6 +48,11 @@ draft on that assistant reports that it is busy; retry after the batch. Every
 request that reaches the provider counts toward the daily limit, including
 failures, so the limit bounds how much mail reaches the provider. A rejected
 key, lost permission, rate limit, provider failure or timeout stops the batch.
+Each batch is admitted as tracked mail work when it is queued, so an
+application update's drain waits for an active provider request and its
+proposal. Once an update pauses mail, a batch stops before the next email and
+new batches are refused. Switching off, changing the key or an update during
+the wait for a manual preparation also stops the batch before the request.
 A sync that reports an error emits no `new-mail` event, so its new mail is not
 prepared automatically; Prepare draft still works for it.
 
