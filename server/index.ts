@@ -334,7 +334,8 @@ app.put("/api/compose-preferences", (req, res) => {
 app.put("/api/privacy-words", (req, res) => {
   const word = z.string().transform((value) => value.trim().replace(/\s+/g, " "))
     .pipe(z.string().min(1).max(PRIVACY_WORD_LENGTH_MAX).regex(/\p{L}/u)
-      .refine((value) => value.split(" ").length <= PRIVACY_WORD_WORDS_MAX));
+      // Count words as the privacy matcher splits them, on spaces and +.
+      .refine((value) => value.split(/[\s+]+/u).filter(Boolean).length <= PRIVACY_WORD_WORDS_MAX));
   const input = z.object({
     hidden: z.array(word).max(PRIVACY_WORDS_HIDDEN_MAX),
     visible: z.array(word).max(PRIVACY_WORDS_VISIBLE_MAX),

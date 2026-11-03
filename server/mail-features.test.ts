@@ -82,7 +82,7 @@ test("local mail features persist encrypted preferences and pins without provide
     } finally { wordInspection.close(); }
     for (const body of [null, {}, { hidden: [] }, { hidden: [], visible: [], extra: [] }, { hidden: ["1234"], visible: [] },
       { hidden: ["x".repeat(101)], visible: [] }, { hidden: Array.from({ length: 13 }, (_, i) => `Name ${i}`), visible: [] },
-      { hidden: ["one two three four five six seven"], visible: [] },
+      { hidden: ["one two three four five six seven"], visible: [] }, { hidden: ["a+b+c+d+e+f+g"], visible: [] },
       { hidden: ["Same Name"], visible: ["same name"] }])
       assert.equal((await request("/privacy-words", "PUT", body)).status, 400);
     assert.equal((await request("/privacy-words", "PUT", words, desktop)).status, 403);
