@@ -24,8 +24,11 @@ resource policy, and the web host has no Electron request hooks.
   A second failure shows the existing could-not-be-loaded placeholder.
 - The route answers only for an image the stored message references (its
   formatted HTML `img` sources or its image metadata), after the same
-  `imageSource` validation the renderer uses. It is behind the existing
-  session, host and origin checks.
+  `imageSource` validation the renderer uses; a fragment is dropped because it
+  never reaches the host. It is behind the existing session, host and origin
+  checks. Like a direct image load, it trusts the authenticated renderer to
+  ask only after Show images; the renderer remains the consent boundary of
+  ADR 0009 and ADR 0020, and the service records no consent state.
 - The service fetches over HTTPS on port 443 only, resolves DNS once, refuses
   the request if any answer is private, local or reserved (the unsubscribe
   policy) and pins each connection to a checked address, trying them in order.

@@ -81,7 +81,8 @@ export function remoteImageService(dependencies: Dependencies = {
   resolve: host => lookup(host, { all: true, verbatim: true }), fetch: fetchRemoteImage,
 }) {
   return async (source: string, cancel?: AbortSignal): Promise<RemoteImage> => {
-    const url = unsubscribeUrl(source);
+    // A fragment never reaches the image host, so it is dropped before the network policy.
+    const url = unsubscribeUrl(source.replace(/#.*$/s, ""));
     if (!url) throw new RemoteImageError(400, "Only public HTTPS images can be loaded.");
     const host = url.hostname.replace(/^\[|\]$/g, "");
     const signal = cancel ? AbortSignal.any([cancel, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000);

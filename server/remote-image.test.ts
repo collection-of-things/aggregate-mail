@@ -35,9 +35,9 @@ test("remote image fallback fetches only images the email references, over pinne
   store.put("account", "a", account);
   const mail = await parse(account, "1", Buffer.from(["From: Sender <sender@example.com>", "To: reader@example.com", "", "Synthetic"].join("\r\n")), false);
   store.put("mail", mail.id, { ...mail, category: "other", relevance: 1, reason: "Update", archived: false, snoozedUntil: null,
-    html: `<p>Hi</p><img src="${image}" alt="Hero"><img src="https://10.0.0.1/a.png">`, images: [{ src: "https://cdn.example.com/plain.png", alt: "" }] });
+    html: `<p>Hi</p><img src="${image}" alt="Hero"><img src="${image}#preview"><img src="https://10.0.0.1/a.png">`, images: [{ src: "https://cdn.example.com/plain.png", alt: "" }] });
   assert.deepEqual([...mailImageSources(store.get("mail", mail.id)!)].sort(),
-    ["https://cdn.example.com/plain.png", image], "raw IP image hosts are never sources");
+    ["https://cdn.example.com/plain.png", image, `${image}#preview`], "raw IP image hosts are never sources");
   const app = express(); mountRemoteImage(app, load);
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>(resolve => server.once("listening", resolve));
@@ -50,6 +50,8 @@ test("remote image fallback fetches only images the email references, over pinne
     assert.equal(loaded.headers.get("x-content-type-options"), "nosniff");
     assert.equal(Buffer.from(await loaded.arrayBuffer()).toString(), "GIF89a");
     assert.equal(calls, 1);
+    assert.equal((await request(`${image}#preview`)).status, 200, "a fragment is dropped, not refused");
+    assert.equal(calls, 2); calls = 1;
     addresses = [{ address: "2001:4860:4860::8888", family: 6 }, { address: "8.8.8.8", family: 4 }]; tried = [];
     assert.equal((await request(image)).status, 200, "an unreachable first address falls back to the next checked one");
     assert.deepEqual(tried, ["2001:4860:4860::8888", "8.8.8.8"]);
