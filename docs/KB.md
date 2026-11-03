@@ -612,15 +612,17 @@ without `read_email` and `propose_draft`. `server/index.ts` passes each
 `prepareProposal` (the Prepare draft path) serially and emits `mail-changed`
 when it creates proposals. It skips sent, read, archived, out-of-scope,
 automated-sender and already-proposed mail, waits up to 60 seconds for a manual
-preparation on the same grant, counts every attempt toward the daily limit,
-stops a batch on 401, 403, 429 or 504, and records a sanitized last result
+preparation on the same grant, rechecks for an existing proposal before the
+request and before saving, counts every request that reaches the provider
+toward the daily limit, stops a batch on 401, 403, 429, 502 or 504, and
+records a sanitized last result
 without changing the revision. Grant PATCH turns automation off when
 `read_email` or `propose_draft` is removed. The card's status refreshes when
 Agent Reviews reloads, not live. `src/work/AgentAutomation.tsx` shows the switch, status and options
 on each assistant card. A first key save turns it on once with defaults.
 Synthetic checks: `server/agent-provider.test.ts`,
 `src/agent-automation.test.tsx`, `src/agent-provider.test.tsx`. See
-[ADR 0122](adr/0122-automatic-assistant-replies.md).
+[ADR 0123](adr/0123-automatic-assistant-replies.md).
 
 Mounted `src/workbench.test.tsx` regressions hold an old workspace response
 across acknowledged and stored-but-lost preparation, then require a new read

@@ -24,33 +24,37 @@ export function AgentAutomation({ grant, api, disabled, reload, mcpEnabled }: { 
   const [error, setError] = useFeedbackState();
   const [status, setStatus] = useFeedbackState("success");
   const active = useRef(true);
-  // Only the newest load or save may update the form.
-  const sequence = useRef(0);
+  // Only the newest load may apply, and never over a save that started after it.
+  const loads = useRef(0);
+  const saves = useRef(0);
+  const dirty = useRef(false);
   const permitted = grant.tools.includes("read_email") && grant.tools.includes("propose_draft");
   const show = (value: AgentAutomationSettings | null) => {
     setSaved(value);
     setScope(value?.scope ?? automationDefaults.scope); setInstruction(value?.instruction ?? ""); setLimit(String(value?.dailyLimit ?? automationDefaults.dailyLimit));
   };
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   useEffect(() => {
-    active.current = true;
     if (!permitted || disabled) return;
     let cancelled = false;
-    const request = ++sequence.current;
+    const request = ++loads.current;
+    const saveAt = saves.current;
     void Promise.all([api<AgentProviderSettings | null>(`/agent/grants/${encodeURIComponent(grant.id)}/provider`), api<AgentAutomationSettings | null>(route)]).then(([key, value]) => {
-      if (cancelled || request !== sequence.current) return;
-      setProvider(key); show(value); setLoaded(true); setError("");
+      if (cancelled || request !== loads.current || saveAt !== saves.current) return;
+      // A reload keeps option edits the user has not saved yet.
+      setProvider(key); if (dirty.current) setSaved(value); else show(value); setLoaded(true); setError("");
     }).catch(() => { if (!cancelled) setError("Automatic reply settings could not be loaded."); });
-    return () => { cancelled = true; active.current = false; };
+    return () => { cancelled = true; };
   }, [api, route, grant.id, permitted, disabled, reload]);
   if (!permitted) return null;
   const dailyLimit = Math.max(1, Math.min(200, Math.trunc(Number(limit)) || 1));
   // The switch keeps saved options; Save options stores the edited ones.
   const save = async (enabled: boolean, message: string, edited?: { scope: AgentAutomationScope; instruction: string; dailyLimit: number }, options = edited ?? { scope: saved?.scope ?? automationDefaults.scope, instruction: saved?.instruction ?? "", dailyLimit: saved?.dailyLimit ?? automationDefaults.dailyLimit }) => {
-    const request = ++sequence.current;
+    const request = ++saves.current;
     setPending(true); setError(""); setStatus("");
     try {
       const value = await api<AgentAutomationSettings>(route, "PUT", { enabled, ...options, revision: saved?.revision ?? null });
-      if (!active.current || request !== sequence.current) return;
+      if (!active.current || request !== saves.current) return;
       // The switch leaves unsaved option edits in place.
       if (edited) show(value); else setSaved(value);
       setStatus(message);
@@ -59,6 +63,7 @@ export function AgentAutomation({ grant, api, disabled, reload, mcpEnabled }: { 
   };
   const enabled = Boolean(saved?.enabled);
   const unchanged = saved ? saved.scope === scope && saved.instruction === instruction.trim() && limit.trim() === String(saved.dailyLimit) : false;
+  dirty.current = Boolean(saved) && !unchanged;
   const count = saved?.day === new Date().toLocaleDateString("en-CA") ? saved.count ?? 0 : 0;
   return <div className="settings-form work-form agent-automation">
     {error && <Notice text={error} />}

@@ -26,9 +26,10 @@ async function mount(options: { key: boolean; automation: AgentAutomationSetting
   const { createRoot } = await import("react-dom/client");
   const { AgentAutomation } = await import("./work/AgentAutomation");
   const container = document.getElementById("root")!; const root = createRoot(container);
-  await act(async () => root.render(<AgentAutomation grant={grant} api={api} disabled={false} reload={0} mcpEnabled />));
+  const render = async (reload = 0, disabled = false) => act(async () => root.render(<AgentAutomation grant={grant} api={api} disabled={disabled} reload={reload} mcpEnabled />));
+  await render();
   const toggle = () => container.querySelector<HTMLInputElement>('input[role="switch"]');
-  return { container, calls, toggle, click: async (item: HTMLElement) => act(async () => item.click()),
+  return { container, calls, toggle, render, click: async (item: HTMLElement) => act(async () => item.click()),
     async close() { await act(async () => root.unmount()); dom.window.close(); for (const [key, descriptor] of old) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key); } } };
 }
 const settings = (enabled: boolean): AgentAutomationSettings => ({ agentId: "synthetic-agent", enabled, scope: "important", instruction: "", dailyLimit: 20, revision: "3c3e0f3e-6d0b-4b8c-9a55-8f1b0f0e1d10", day: new Date().toLocaleDateString("en-CA"), count: 3, lastRunAt: 1, lastResult: "Prepared 3 replies for review." });
@@ -78,5 +79,20 @@ test("assistants without reply permission show no switch", async () => {
   const ui = await mount({ key: true, automation: null, tools: ["read_email"] });
   try {
     assert.equal(ui.toggle(), null); assert.equal(ui.calls.length, 0);
+  } finally { await ui.close(); }
+});
+
+test("a reload or busy workspace keeps unsaved option edits", async () => {
+  const ui = await mount({ key: true, automation: settings(true) });
+  try {
+    const limit = [...ui.container.querySelectorAll("label")].find((label) => label.childNodes[0]?.textContent === "Daily limit")!.querySelector("input")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!.call(limit, "75");
+      limit.dispatchEvent(new window.Event("input", { bubbles: true }));
+    });
+    await ui.render(0, true); await ui.render(0, false); await ui.render(1, false);
+    assert.equal(ui.calls.filter((call) => call.method === "GET" && call.url.endsWith("/automation")).length, 3, "the card reloaded");
+    assert.equal(limit.value, "75", "unsaved edits survive reloads");
+    assert.equal(ui.toggle()!.checked, true);
   } finally { await ui.close(); }
 });

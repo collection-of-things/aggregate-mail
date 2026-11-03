@@ -147,7 +147,10 @@ async function completion(config: StoredAgentProvider, mail: ReturnType<typeof s
       signal.aborted || (error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name)) ? "Provider request timed out. No proposal was created." : "Provider request failed. No proposal was created.");
   }
 }
-async function prepareProposal(id: string, sourceMailId: string, revision: string, instruction: string) {
+const proposed = (agentId: string, mailId: string) => all("proposal").some((proposal) => proposal.agentId === agentId && proposal.sourceMailId === mailId);
+// `automatic` skips mail that already has a proposal from this grant and counts
+// only requests that actually reach the provider.
+async function prepareProposal(id: string, sourceMailId: string, revision: string, instruction: string, automatic?: { attempt: () => void }) {
   const mail = source(id, sourceMailId);
   const config = get("agentProvider", id);
   if (!config || config.revision !== revision) return fail(409, "Save or reload the provider settings before preparing a draft.");
@@ -159,12 +162,16 @@ async function prepareProposal(id: string, sourceMailId: string, revision: strin
   const evidence = fingerprint(sourceMailId);
   const permission = JSON.stringify(grant(id));
   const account = JSON.stringify(get("account", mail.accountId));
+  if (automatic && proposed(id, sourceMailId)) return null;
   inFlight.add(id);
   try {
+    automatic?.attempt();
     const body = await completion(config, mail, instruction, providerDependencies);
     const currentSource = source(id, sourceMailId);
     if (currentSource.preview !== mail.preview || get("agentProvider", id)?.revision !== revision || JSON.stringify(grant(id)) !== permission || JSON.stringify(get("account", mail.accountId)) !== account || fingerprint(sourceMailId) !== evidence)
       return fail(409, "Source, permission or provider changed. Prepare a fresh proposal.");
+    // A manual or MCP proposal may have landed during the provider request.
+    if (automatic && proposed(id, sourceMailId)) return null;
     return propose(id, "draft", { ...payload, body }, sourceMailId);
   } finally { inFlight.delete(id); }
 }
@@ -200,21 +207,21 @@ async function automate(mailIds: string[]) {
       if (!mail || mail.direction === "sent" || !mail.unread || mail.archived || !permission.accountIds.includes(mail.accountId)) continue;
       if (current.scope === "important" && mail.category !== "important") continue;
       if (automatedSender.test((mail.replyTo || mail.address).replace(/^.*</, "").trim())) continue;
-      // Checked per email: an outside MCP agent on this grant may have proposed meanwhile.
-      if (all("proposal").some((proposal) => proposal.agentId === agentId && proposal.sourceMailId === mailId)) continue;
+      if (proposed(agentId, mailId)) continue;
       const count = current.day === today() ? current.count ?? 0 : 0;
       if (count >= current.dailyLimit) { result = `Daily limit of ${current.dailyLimit} reached. More new mail waits until tomorrow.`; break; }
       // A manual Prepare draft holds the grant for at most its 30-second deadline.
       for (let waited = 0; inFlight.has(agentId) && waited < 60000; waited += 250) await new Promise((resolve) => setTimeout(resolve, 250));
-      // Every attempt counts, so a failing provider cannot receive more mail than the limit.
-      automationStatus(agentId, (latest) => ({ day: today(), count: (latest.day === today() ? latest.count ?? 0 : 0) + 1 }));
       try {
-        await prepareProposal(agentId, mailId, config.revision, current.instruction);
-        prepared++; created++;
+        // Every provider request counts, so a failing provider cannot receive more mail than the limit.
+        const proposal = await prepareProposal(agentId, mailId, config.revision, current.instruction, {
+          attempt: () => automationStatus(agentId, (latest) => ({ day: today(), count: (latest.day === today() ? latest.count ?? 0 : 0) + 1 })),
+        });
+        if (proposal) { prepared++; created++; }
       } catch (error) {
         result = error instanceof ProviderError ? error.message : "Automatic reply preparation failed.";
-        // Key, permission, rate-limit and timeout failures repeat for every email; stop this batch.
-        if (error instanceof ProviderError && [401, 403, 429, 504].includes(error.status)) break;
+        // Key, permission, rate-limit, outage and timeout failures repeat for every email; stop this batch.
+        if (error instanceof ProviderError && [401, 403, 429, 502, 504].includes(error.status)) break;
       }
     }
     if (prepared || result)

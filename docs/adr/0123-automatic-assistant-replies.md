@@ -1,4 +1,4 @@
-# ADR 0122: Automatic reply proposals for assistants with a provider key
+# ADR 0123: Automatic reply proposals for assistants with a provider key
 
 Date: 2026-11-03
 Status: Proposed for the local candidate by explicit user direction; pending
@@ -22,9 +22,10 @@ daily limit of 1 to 200 (default 20) and an opaque revision. The record also
 holds status: today's count, last run time and a sanitized last result.
 Status updates do not change the revision.
 
-Saving a provider key for the first time turns the switch on once with the
-defaults when no automation record exists. The key form says so before Save.
-Keys saved before this change stay off. The user can turn the switch off or on
+Saving a key while the assistant has no automation record turns the switch on
+once with the defaults: a first key, or a key saved again after an old key was
+removed. The key form says so before Save. Keys already saved before this
+change stay off. The user can turn the switch off or on
 at any time; the switch saves only on/off and keeps unsaved option edits. The
 server refuses to turn it on without a key or without both permissions.
 Removing either permission turns it off. Removing the assistant removes the
@@ -38,13 +39,17 @@ rechecks, per-grant in-flight guard and pending-proposal outcome are the same
 as for a click. It skips mail outside the grant's accounts, sent, read or
 archived mail, mail outside the chosen scope, automated senders such as
 no-reply addresses, and mail that already has a proposal from that
-assistant, checked just before each email. The settings are read again
-before each email, so switching off stops the rest of a batch. An automatic
-run waits up to 60 seconds for a manual Prepare draft on the same assistant
-instead of dropping the email. Every provider attempt counts toward the daily
-limit, including failures, so the limit bounds how much mail reaches the
-provider. A rejected key, lost permission, rate limit or timeout stops the
-batch.
+assistant, checked before the request and again before the proposal is
+saved, so a manual or MCP proposal made meanwhile wins. The settings are read
+again before each email, so switching off stops the rest of a batch. An
+automatic run waits up to 60 seconds for a manual Prepare draft on the same
+assistant instead of dropping the email. While a batch runs, a manual Prepare
+draft on that assistant reports that it is busy; retry after the batch. Every
+request that reaches the provider counts toward the daily limit, including
+failures, so the limit bounds how much mail reaches the provider. A rejected
+key, lost permission, rate limit, provider failure or timeout stops the batch.
+A sync that reports an error emits no `new-mail` event, so its new mail is not
+prepared automatically; Prepare draft still works for it.
 
 Proposals still need review. Approval still creates a local draft and still
 requires MCP on. Nothing is sent, and no mailbox state changes.
