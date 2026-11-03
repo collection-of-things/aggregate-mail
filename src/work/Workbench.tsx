@@ -8,7 +8,7 @@ import { accountLabel } from "../mail-ui";
 import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
 import { PrivateField } from "../ui/PrivateField";
 import { useContext } from "react";
-import { applyPrivacyWords, collectPrivateNames } from "../privacy";
+import { applyPrivacyWords, workOwnerNames } from "../privacy";
 import { useMailSearch } from "../use-mail-search";
 import { Segmented } from "../ui/Segmented";
 import { Dialog } from "../ui/Dialog";
@@ -279,7 +279,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   // Inherited names already apply the owner lists; the owner-only additions
   // apply Never hide on their own, so they cannot drop an inherited name.
   const privateNames = useMemo(() => [...new Set([...(privacyContext.names || []),
-    ...applyPrivacyWords(state.messages.flatMap((mail) => collectPrivateNames(state.accounts, mail)), { visible: [...privacyContext.visible ?? []] })])],
+    ...applyPrivacyWords(workOwnerNames(state.accounts, state.messages), { visible: [...privacyContext.visible ?? []] })])],
   [privacyContext.names, privacyContext.visible, state.messages, state.accounts]);
   const [source] = useState(initialSource);
   useEffect(() => { if (initialSource) onSourceConsumed?.(); }, []);

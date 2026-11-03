@@ -8,13 +8,13 @@ unversioned history without treating it as a release record.
 
 ### Added
 
-- Settings > Privacy lists names to always hide and names to keep visible, and shows the names Emc² learned from your mail with a Keep visible action. The lists stay in encrypted storage.
+- Settings > Privacy lists names to always hide and names to keep visible, and shows the names Emc² learned from your mail with a Keep visible action. The lists stay in encrypted storage. ([#207](https://github.com/collection-of-things/aggregate-mail/pull/207))
 
 ### Fixed
 
 - Align Offer times with the other reader actions, matching their text size and removing its surrounding borders and extra spacing while preserving the keyboard focus ring. ([#199](https://github.com/collection-of-things/aggregate-mail/issues/199))
-- Keep business sender names such as Kickstarter visible while personal information is hidden, and load their images and links after Show images instead of grey placeholders.
-- Hide your own name in mail whose headers omit it, using names learned from all cached mail and your Sent From name, and hide US-style postal addresses.
+- Keep business sender names such as Kickstarter visible while personal information is hidden, and load their images and links after Show images instead of grey placeholders. ([#207](https://github.com/collection-of-things/aggregate-mail/pull/207))
+- Hide your own name in mail whose headers omit it, using names learned from all cached mail and your Sent From name, and hide US-style postal addresses. ([#207](https://github.com/collection-of-things/aggregate-mail/pull/207))
 
 ## 0.2.27 - 2026-11-02
 

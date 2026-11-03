@@ -55,7 +55,7 @@ import { reuseMailState } from "./mail-state";
 import { MailSearchApiContext, useMailSearch } from "./use-mail-search";
 import { replySource, useMailBody } from "./mail-body";
 import { useMailNavigation, rememberBrowserUpdateLocation, type MailLocation } from "./navigation";
-import { applyPrivacyWords, collectPrivateNames, emptyPrivacyWords, learnedOwnerNames, redactPrivateText } from "./privacy";
+import { applyPrivacyWords, collectPrivateNames, emptyPrivacyWords, learnedOwnerNames, redactPrivateText, workOwnerNames } from "./privacy";
 import { ContactsPage } from "./contacts/ContactsPage";
 import { SettingsPage } from "./settings/SettingsPage";
 import { PaneHeader, type Corner } from "./shell/PaneHeader";
@@ -1159,7 +1159,7 @@ export function App() {
   const learnedNames = useMemo(() => learnedOwnerNames(state.accounts, state.messages), [state.accounts, state.messages]);
   const ambientPrivateNames = useMemo(() => applyPrivacyWords([...collectPrivateNames(state.accounts), ...learnedNames], privacyWords),
     [state.accounts, learnedNames, privacyWords]);
-  const workPrivateNames = useMemo(() => applyPrivacyWords([...ambientPrivateNames, ...state.messages.flatMap((mail) => collectPrivateNames(state.accounts, mail))], privacyWords),
+  const workPrivateNames = useMemo(() => applyPrivacyWords([...ambientPrivateNames, ...workOwnerNames(state.accounts, state.messages)], privacyWords),
     [ambientPrivateNames, state.accounts, state.messages, privacyWords]);
 
   // Pick the entrance once per pane so re-renders never restart its animation.

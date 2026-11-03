@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FormattedMail } from "./mail/FormattedMail";
 import {
-  applyPrivacyWords, businessSender, collectPrivateNames, learnedOwnerNames, messagePrivateNames, redactPrivateText, scopedMessageNames,
+  applyPrivacyWords, businessSender, collectPrivateNames, learnedOwnerNames, messagePrivateNames, redactPrivateText, scopedMessageNames, workOwnerNames,
 } from "./privacy";
 
 const owner = [{ email: "owner@example.test", name: "Main" }];
@@ -74,6 +74,25 @@ test("owner names are learned across cached mail, most frequent first and bounde
   assert.deepEqual(learnedOwnerNames(owner, mails, 1), ["SE Example", "SE", "Example"]);
   assert.deepEqual(learnedOwnerNames([], mails), []);
   assert.equal(redactPrivateText("Hi Sam,", learnedOwnerNames(owner, mails)), "Hi ••••••••,");
+});
+
+test("review cases: role prefixes, per-message counting, junk names and sent common words", () => {
+  assert.equal(businessSender("Jane Doe", "info.jane@company.example"), false);
+  assert.equal(businessSender("Acme", "no-reply+abc@acme-mail.example"), true);
+  assert.equal(businessSender("Acme", "noreply-2@acme-mail.example"), true);
+  // To and Cc on one message count once.
+  assert.deepEqual(learnedOwnerNames(owner, [{ to: "Sam Example <owner@example.test>", cc: "Sam Example <owner@example.test>" }]), []);
+  // Junk phrases cannot take the learned slots from a real name.
+  const junk = ["Customer", "Member", "User", "Subscriber", "Valued Customer"].flatMap((name) =>
+    [{ to: `${name} <owner@example.test>` }, { to: `${name} <owner@example.test>` }]);
+  const learned = learnedOwnerNames(owner, [...junk, { to: "Sam Example <owner@example.test>" }, { to: "Sam Example <owner@example.test>" }]);
+  assert.deepEqual(learned, ["Sam Example", "Sam", "Example"]);
+  // The owner's own sent name keeps a part that is also a common word.
+  assert.ok(learnedOwnerNames(owner, [{ sender: "Dear Smith", address: "owner@example.test" }]).includes("Dear"));
+  // Work surfaces take one-message aliases but stay bounded.
+  const many = Array.from({ length: 20 }, (_, index) => ({ to: `Alias${index} Person${index} Extra${index} <owner@example.test>` }));
+  assert.ok(workOwnerNames(owner, many).length <= 6 * 4);
+  assert.ok(workOwnerNames(owner, [{ to: "Nora Lane <owner@example.test>" }]).includes("Nora Lane"));
 });
 
 test("crafted recipient names cannot exceed matcher limits or hide single letters", () => {

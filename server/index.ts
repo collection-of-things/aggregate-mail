@@ -151,6 +151,7 @@ app.use("/api", (req, res, next) => {
     !req.path.startsWith("/outbox") &&
     req.path !== "/mcp" &&
     req.path !== "/storage/compact" &&
+    req.path !== "/privacy-words" &&
     !(req.method === "PATCH" && /^\/accounts\/[^/]+$/.test(req.path)) &&
     !(req.method === "PATCH" && /^\/messages\/[^/]+$/.test(req.path) && ["read", "pin", "unpin"].includes(req.body?.action)) &&
     !(req.method === "PATCH" && /^\/commitments\/[^/]+$/.test(req.path) && req.body?.status === "done" &&

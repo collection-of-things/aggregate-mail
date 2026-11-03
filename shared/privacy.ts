@@ -124,7 +124,8 @@ export function collectMailPrivateNames(
 
 // Automated and departmental mailboxes send for an organization. Addresses
 // people often use personally (hello@, team@, contact@) are not listed.
-const roleMailbox = /^(?:no-?reply|do-?not-?reply|donotreply|info|support|news|newsletters?|notifications?|notify|alerts?|updates?|marketing|billing|accounts?|customer-?service|mailer|orders?|receipts?|security|digest)(?:[+._-].*)?$/i;
+// Only a +tag or a number may follow, so info.jane@ stays a person.
+const roleMailbox = /^(?:no-?reply|do-?not-?reply|donotreply|info|support|news|newsletters?|notifications?|notify|alerts?|updates?|marketing|billing|accounts?|customer-?service|mailer|orders?|receipts?|security|digest)(?:\+[^@]*|[-_.]?\d+)?$/i;
 // A sender is a business when it writes from a role mailbox or its display
 // name matches a whole label of its own non-personal domain
 // (Kickstarter <…@kickstarter.com>, Running Warehouse | Info <…@runningwarehouse.com>).
@@ -161,31 +162,47 @@ export function learnedOwnerNames(
   accounts: readonly PrivacyAccount[],
   mails: readonly MailPrivacyInput[],
   limit = LEARNED_OWNER_NAMES_MAX,
+  minimumMessages = 2,
 ): string[] {
   const emails = new Set(accounts.map((account) => account.email.trim().toLowerCase()));
   const counts = new Map<string, { name: string; count: number; sent: boolean }>();
   // Recipient display names come from other senders: bound their shape so one
   // crafted header cannot exceed the matcher limits and hide whole texts.
-  const add = (candidate: string, sent: boolean) => {
+  const add = (candidate: string, sent: boolean, seen: Set<string>) => {
     const name = cleanName(candidate);
     if (!name || name.includes("@") || !/\p{L}/u.test(name) || name.length > 60 || name.split(" ").length > 4) return;
-    const entry = counts.get(name.toLowerCase());
+    // Received phrases made only of common words ("Valued Customer") are not names.
+    if (!sent && name.split(/[\s,]+/u).every((part) => commonWords.has(part.toLowerCase()))) return;
+    const key = name.toLowerCase();
+    // Each message counts once, even when To and Cc repeat a phrase.
+    if (seen.has(key)) return;
+    seen.add(key);
+    const entry = counts.get(key);
     if (entry) { entry.count++; entry.sent ||= sent; }
-    else counts.set(name.toLowerCase(), { name, count: 1, sent });
+    else counts.set(key, { name, count: 1, sent });
   };
   for (const mail of mails) {
-    for (const name of recipientNames(mail.to || "", emails)) add(name, false);
-    for (const name of recipientNames(mail.cc || "", emails)) add(name, false);
+    const seen = new Set<string>();
+    for (const name of recipientNames(mail.to || "", emails)) add(name, false, seen);
+    for (const name of recipientNames(mail.cc || "", emails)) add(name, false, seen);
     const owner = ownerSender(mail, emails);
-    if (owner) add(owner, true);
+    if (owner) add(owner, true, new Set());
   }
-  // A name on a single received message is not yet trusted as the owner's.
-  const top = [...counts.values()].filter((entry) => entry.sent || entry.count >= 2)
+  // A name on too few received messages is not yet trusted as the owner's.
+  const top = [...counts.values()].filter((entry) => entry.sent || entry.count >= minimumMessages)
     .sort((left, right) => Number(right.sent) - Number(left.sent) || right.count - left.count).slice(0, limit);
-  // Single Latin letters (middle initials) and common words would hide
-  // ordinary text everywhere, so those parts are not learned.
-  return privateNames(top.map((entry) => entry.name)).filter((name) => !/^[a-z]$/i.test(name) && !commonWords.has(name.toLowerCase()));
+  // Single Latin letters (middle initials) would hide that letter everywhere,
+  // and common words from received phrases would hide ordinary text. The
+  // owner's own sent name keeps every part.
+  const sentParts = new Set(privateNames(top.filter((entry) => entry.sent).map((entry) => entry.name)).map((name) => name.toLowerCase()));
+  return privateNames(top.map((entry) => entry.name)).filter((name) => !/^[a-z]$/i.test(name) &&
+    (sentParts.has(name.toLowerCase()) || !commonWords.has(name.toLowerCase())));
 }
+// Work surfaces cover owner aliases seen on any single cached message, bounded
+// so that with Always hide and account names they stay inside the matcher limit.
+export const WORK_OWNER_NAMES_MAX = 6;
+export const workOwnerNames = (accounts: readonly PrivacyAccount[], mails: readonly MailPrivacyInput[]) =>
+  learnedOwnerNames(accounts, mails, WORK_OWNER_NAMES_MAX, 1);
 function ownerSender(mail: MailPrivacyInput, emails: ReadonlySet<string>) {
   const sender = mail.sender || "";
   if (!sender || sender === "Unknown sender" || !emails.has((mail.address || "").trim().toLowerCase())) return "";

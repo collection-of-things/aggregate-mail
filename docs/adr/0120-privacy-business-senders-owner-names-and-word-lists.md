@@ -18,8 +18,9 @@ quoted order confirmations, signatures). Postal addresses were never covered.
 
 - A sender is a business, and its display name stays visible, when it writes
   from an automated or departmental mailbox (`no-reply`, `info`, `support`,
-  `billing`, `alerts` and similar; not `hello`, `team` or `contact`, which
-  people use personally), or when its whole compacted name, short words
+  `billing`, `alerts` and similar, followed only by a `+tag` or a number, so
+  `info.jane@` stays a person; not `hello`, `team` or `contact`, which people
+  use personally), or when its whole compacted name, short words
   included, equals a label of its own non-personal domain or the whole domain
   (`Amazon.com`), optionally followed by one organization word (`Acme Inc`).
   Outside role mailboxes, a mailbox containing one of the name's words marks a
@@ -33,10 +34,14 @@ quoted order confirmations, signatures). Postal addresses were never covered.
   first name and surname like an account name.
 - `learnedOwnerNames` collects owner display names from every cached message:
   To/Cc phrases tied to an owner address and the sender of mail sent from one.
-  Received phrases need two messages and at most four words and 60 characters,
-  because other senders write them; sent names lead. The four best full names,
-  with their parts except single Latin letters and common words, join the
-  app-wide dictionary.
+  Received phrases need two messages (each message counts once), at most four
+  words and 60 characters, and at least one word that is not a common word
+  (`Valued Customer` is skipped), because other senders write them; sent names
+  lead. The four best full names, with their parts except single Latin letters
+  and, for received phrases, common words, join the app-wide dictionary. Work
+  surfaces use `workOwnerNames`: the same rules with one message and six names,
+  which keeps them inside the matcher limit with Always hide and account names.
+  The local-only `PUT /api/privacy-words` stays available during sync.
 - Numbered US-style street lines (`422 Southeast 17th Place`) and
   `City, ST 12345` lines are hidden as revealable address tokens. Words must
   start with a capital or digit and the street line must end in a known
