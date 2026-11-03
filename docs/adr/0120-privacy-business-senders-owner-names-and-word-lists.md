@@ -24,9 +24,10 @@ quoted order confirmations, signatures). Postal addresses were never covered.
   so on those mailboxes (`no-reply`, `info`, `support`, `billing`, `alerts` and
   similar, followed only by a `+tag` or a number, so `info.jane@` is not one;
   not `hello`, `team` or `contact`, which people use personally) the name
-  stays visible only when, without organization and role words (`The`, `Team`,
-  `Bank`, `Billing`), it is empty or starts a domain label
-  (`The Varo Bank Team <alerts@varomoney.com>`).
+  stays visible only when it matches the domain as a whole
+  (`Bank of America <alerts@bankofamerica.com>`) or, without organization and
+  role words (`The`, `Team`, `Bank`, `Billing`), is empty or starts a domain
+  label (`The Varo Bank Team <alerts@varomoney.com>`).
   Outside role mailboxes, a mailbox containing one of the name's words marks a
   person (`sean.ford@ford.com`), unless that word is the domain label itself
   (`spotify@news.spotify.com`). The same test applies to
@@ -45,7 +46,8 @@ quoted order confirmations, signatures). Postal addresses were never covered.
   (`Valued Customer` is skipped), because other senders write them; sent names
   lead. The four best full names, with their parts except single Latin letters
   and, for received phrases, common words, join the app-wide dictionary,
-  within a budget of 24 learned names including parts. Work
+  within a budget of 24 learned names including parts; a name that would
+  exceed it is skipped and shorter later names can still join. Work
   surfaces use `workOwnerNames`: the same rules with one message and six names,
   which keeps them inside the matcher limit with Always hide and account names.
   The local-only `PUT /api/privacy-words` stays available during sync.

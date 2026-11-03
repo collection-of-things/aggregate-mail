@@ -130,8 +130,9 @@ const roleMailbox = /^(?:no-?reply|do-?not-?reply|donotreply|info|support|news|n
 // own non-personal domain (Kickstarter <…@kickstarter.com>,
 // Running Warehouse | Info <…@runningwarehouse.com>). Services relay people's
 // names from role mailboxes (Jane Smith <notifications@github.com>), so there a
-// name passes only when, without organization and role words, it is empty or
-// starts a domain label (The Varo Bank Team <alerts@varomoney.com>).
+// name passes only when it matches the domain as a whole or, without
+// organization and role words, it is empty or starts a domain label
+// (The Varo Bank Team <alerts@varomoney.com>).
 // Otherwise a mailbox containing one of the name's words (sean.ford@ford.com) is a person.
 // A person whose name is their domain is a known gap; Always hide covers it.
 export function businessSender(name: string, email: string): boolean {
@@ -143,7 +144,9 @@ export function businessSender(name: string, email: string): boolean {
   const labels = domain.split(".").slice(0, -1).map((label) => label.replace(/[^a-z0-9]/g, ""));
   const tokens = name.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   if (roleMailbox.test(local)) {
-    const rest = tokens.filter((word) => !roleNameWord.test(word)).join("");
+    // The whole name first, since role words can be part of it (Bank of America).
+    const whole = tokens.join(""), rest = tokens.filter((word) => !roleNameWord.test(word)).join("");
+    if (whole.length >= 3 && (whole === domain.replace(/[^a-z0-9]/g, "") || labels.includes(whole))) return true;
     return !rest || rest.length >= 3 && (rest === domain.replace(/[^a-z0-9]/g, "") || labels.some((label) => label.startsWith(rest)));
   }
   // A name word in the mailbox marks a person, unless that word is the brand label itself.
@@ -205,7 +208,7 @@ export function learnedOwnerNames(
   // Learned names with their parts stay inside a fixed share of the matcher budget.
   const top: typeof ranked = [];
   for (const entry of ranked) {
-    if (privateNames([...top, entry].map((item) => item.name)).length > LEARNED_NAMES_BUDGET) break;
+    if (privateNames([...top, entry].map((item) => item.name)).length > LEARNED_NAMES_BUDGET) continue;
     top.push(entry);
   }
   // Single Latin letters (middle initials) would hide that letter everywhere,

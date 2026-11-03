@@ -14,6 +14,7 @@ test("business senders whose name matches their domain or a role mailbox stay vi
   assert.equal(businessSender("The Varo Bank Team", "alerts@varomoney.example"), true);
   assert.equal(businessSender("Acme Billing", "billing@acme.example"), true);
   assert.equal(businessSender("Billing Team", "billing@payments.example"), true);
+  assert.equal(businessSender("Bank of America", "alerts@bankofamerica.example"), true);
   // Services relay people's names from their role mailboxes; those stay hidden.
   for (const [name, email] of [
     ["Jane Smith", "notifications@github.example"], ["Jane Smith (via Dropbox)", "no-reply@dropbox.example"],
@@ -115,6 +116,11 @@ test("forged owner senders and plus-joined names cannot overflow the matcher", (
   const joined = [{ to: `"${plus}" <owner@example.test>` }, { to: `"${plus}" <owner@example.test>` }];
   assert.deepEqual(learnedOwnerNames(owner, joined), []);
   assert.deepEqual(workOwnerNames(owner, joined.slice(0, 1)), []);
+  // An over-budget name is skipped, not the end of learning: a later short alias still fits.
+  const alias = [{ to: "Sam Example <owner@example.test>" }, { to: "Sam Example <owner@example.test>" }];
+  const lettered = ["K", "L", "M"].map((seed) => ({ sender: Array.from("abcdefgh", (letter) => `${seed}${letter}ane`).join(" "), address: "owner@example.test", direction: "sent" }));
+  const learned = learnedOwnerNames(owner, [...lettered, ...alias]);
+  assert.ok(learned.includes("Sam Example") && learned.length <= 24, learned.join("|"));
 });
 
 test("crafted recipient names cannot exceed matcher limits or hide single letters", () => {
