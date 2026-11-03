@@ -123,8 +123,12 @@ function page(input: z.infer<z.ZodObject<typeof filters>>, allowedAccounts: stri
     .sort((a, b) => b.date - a.date || a.id.localeCompare(b.id));
   // Like the app, allow one typo per plain word only when no granted mail in any
   // view matches exactly; page filters narrow the result, not that decision.
-  const typos = !!query && !!search?.typoEligible && !permittedMails.some(search.matches);
-  if (typos) search = compileMailSearch(query, searchAccounts, { typos: true });
+  let typos = false;
+  if (query && search?.typoEligible && !permittedMails.some(search.matches)) {
+    const close = compileMailSearch(query, searchAccounts, { typos: true });
+    // Report the fallback only when close spellings actually found granted mail.
+    if (permittedMails.some(close.matches)) { search = close; typos = true; }
+  }
   const matches = select();
   const end = input.offset + input.limit;
   const slice = matches.slice(input.offset, end);
