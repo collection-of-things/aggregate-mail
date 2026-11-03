@@ -101,12 +101,12 @@ const filters = {
 class InvalidSearchError extends Error {}
 
 function page(input: z.infer<z.ZodObject<typeof filters>>, allowedAccounts: string[], query?: string, syntax = "substring") {
-  const search = query && syntax === "app"
-    ? compileMailSearch(query, all("account").filter((a) => allowedAccounts.includes(a.id))) : undefined;
+  const searchAccounts = query && syntax === "app" ? all("account").filter((a) => allowedAccounts.includes(a.id)) : [];
+  let search = query && syntax === "app" ? compileMailSearch(query, searchAccounts) : undefined;
   if (search?.error) throw new InvalidSearchError();
   const now = Date.now();
   const permittedMails = all("mail").filter((m) => allowedAccounts.includes(m.accountId));
-  const matches = permittedMails
+  const select = () => permittedMails
     .filter(
       (m) =>
         (input.view !== "sent" || m.direction === "sent") &&
@@ -121,6 +121,15 @@ function page(input: z.infer<z.ZodObject<typeof filters>>, allowedAccounts: stri
           ))),
     )
     .sort((a, b) => b.date - a.date || a.id.localeCompare(b.id));
+  // Like the app, allow one typo per plain word only when no granted mail in any
+  // view matches exactly; page filters narrow the result, not that decision.
+  let typos = false;
+  if (query && search?.typoEligible && !permittedMails.some(search.matches)) {
+    const close = compileMailSearch(query, searchAccounts, { typos: true });
+    // Report the fallback only when close spellings actually found granted mail.
+    if (permittedMails.some(close.matches)) { search = close; typos = true; }
+  }
+  const matches = select();
   const end = input.offset + input.limit;
   const slice = matches.slice(input.offset, end);
   let emails;
@@ -145,6 +154,7 @@ function page(input: z.infer<z.ZodObject<typeof filters>>, allowedAccounts: stri
   return {
     emails,
     nextOffset: end < matches.length ? end : null,
+    ...(typos ? { typos: true } : {}),
   };
 }
 export function createMcpServer(
@@ -238,7 +248,7 @@ export function createMcpServer(
     "search_emails",
     {
       description:
-        "Search cached mail within grants and filters before pagination. Default syntax substring matches sender, address, subject and body. Opt-in syntax app uses the app query language (fields, phrases, exclusions, read/pin state and UTC dates). Saved drafts and provider history are excluded.",
+        "Search cached mail within grants and filters before pagination. Default syntax substring matches sender, address, subject and body. Opt-in syntax app uses the app query language (fields, phrases, exclusions, read/pin state and UTC dates); when no granted mail matches exactly, plain words allow one typo and the result has typos: true. Saved drafts and provider history are excluded.",
       inputSchema: { ...filters, query: z.string().trim().min(1).max(2000), syntax: z.enum(["substring", "app"]).default("substring") },
       annotations: readOnly,
     },

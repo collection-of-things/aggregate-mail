@@ -92,8 +92,9 @@ Only cached mail is covered. The CLI does not refresh the provider.
 Use `--syntax app` to match the app's query language: combined words, quoted
 phrases, exclusions, `from:`, `to:` (To/Cc), `subject:`, `body:`, `account:`,
 `is:read`, `is:unread`, `is:pinned`, `before:` and `after:`. Dates use UTC
-YYYY-MM-DD boundaries. Plain unquoted words tolerate one typo; phrases, field
-terms, addresses and exclusions remain exact. Account aliases resolve only
+YYYY-MM-DD boundaries. Plain unquoted words tolerate one typo only when no
+granted mail matches exactly; the result then includes `typos: true`. Phrases,
+field terms, addresses and exclusions remain exact. Account aliases resolve only
 within the connection's granted accounts. Mail tools do not search saved drafts.
 Omitting `--syntax` preserves literal case-insensitive substring matching.
 Direct MCP clients receive `isError: true` with `code: "MCP_INVALID_QUERY"`

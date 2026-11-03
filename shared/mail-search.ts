@@ -105,14 +105,18 @@ function dateValue(value: string): number | null {
     : null;
 }
 
-export function compileMailSearch(query: string, accounts: Account[] = []): { matches: (mail: Mail) => boolean; matchesSummary: (mail: MailSummary) => boolean | undefined; matchesDraft: (draft: Draft, account: Account) => boolean; error?: string } {
+// Plain words match exact substrings. Typo matching is a fallback for a query
+// with no exact results: on every search, a 4-letter word such as "ando" would
+// match the common word "and" in almost every message.
+export function compileMailSearch(query: string, accounts: Account[] = [], { typos = false }: { typos?: boolean } = {}): { matches: (mail: Mail) => boolean; matchesSummary: (mail: MailSummary) => boolean | undefined; matchesDraft: (draft: Draft, account: Account) => boolean; error?: string; typoEligible: boolean } {
   const tokens = tokenize(query);
-  if (!tokens) return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error };
+  if (!tokens) return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error, typoEligible: false };
   const terms: SearchTerm[] = [];
   const summaryTerms: ((mail: Mail, document: SearchDocument) => boolean | undefined)[] = [];
   const lower = (value: string) => value.toLowerCase();
   let needsDocument = false;
   let allowsDrafts = true;
+  let typoEligible = false;
 
   for (const { text: raw, phrase } of tokens) {
     let token = raw;
@@ -121,25 +125,25 @@ export function compileMailSearch(query: string, accounts: Account[] = []): { ma
       negative = true;
       token = token.slice(1);
     }
-    if (!token) return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error };
+    if (!token) return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error, typoEligible: false };
 
     const colon = token.indexOf(":");
     const prefix = colon < 0 ? "" : token.slice(0, colon).toLowerCase();
     const value = colon < 0 ? "" : token.slice(colon + 1);
-    if (fields.has(prefix) && !value) return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error };
+    if (fields.has(prefix) && !value) return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error, typoEligible: false };
 
     let term: SearchTerm;
     let bodyDependent = false;
     if (prefix === "is") {
       allowsDrafts = false;
       const state = lower(value);
-      if (state !== "read" && state !== "unread" && state !== "pinned") return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error };
+      if (state !== "read" && state !== "unread" && state !== "pinned") return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error, typoEligible: false };
       term = state === "read" ? (mail) => !mail.unread
         : state === "unread" ? (mail) => mail.unread
         : (mail) => mail.pinned === true;
     } else if (prefix === "before" || prefix === "after") {
       const date = dateValue(value);
-      if (date === null) return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error };
+      if (date === null) return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error, typoEligible: false };
       term = prefix === "before" ? (mail) => mail.date < date : (mail) => mail.date >= date;
     } else if (prefix === "account") {
       const needle = lower(value);
@@ -154,16 +158,19 @@ export function compileMailSearch(query: string, accounts: Account[] = []): { ma
       const text = fields.has(prefix) ? value : token;
       const exact = text.includes("@");
       const needle = exact ? canonical(text) : foldLatin(canonical(text));
-      if (!needle) return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error };
+      if (!needle) return { matches: () => false, matchesSummary: () => false, matchesDraft: () => false, error, typoEligible: false };
       const indexes = prefix === "from" ? [0, 1] : prefix === "to" ? [2, 3]
         : prefix === "subject" ? [4] : prefix === "body" ? [6] : [0, 1, 2, 3, 4, 5, 6];
       needsDocument = true;
       bodyDependent = indexes.includes(6);
-      const fuzzy = !negative && !phrase && colon < 0 && /^\p{L}{4,32}$/u.test(needle);
+      const eligible = !negative && !phrase && colon < 0 && /^\p{L}{4,32}$/u.test(needle);
+      if (eligible) typoEligible = true;
+      const fuzzy = typos && eligible;
       term = (_mail, document) => indexes.some((index) => {
         const text = (exact ? document.canonical : document.folded)[index];
         if (text.includes(needle)) return true;
-        if (fuzzy) for (const word of text.matchAll(/[\p{L}\p{M}]+/gu)) if (oneTypo(needle, word[0])) return true;
+        // Never accept a word shorter than four letters as a typo match.
+        if (fuzzy) for (const word of text.matchAll(/[\p{L}\p{M}]+/gu)) if (word[0].length >= 4 && oneTypo(needle, word[0])) return true;
         return false;
       });
     }
@@ -175,7 +182,7 @@ export function compileMailSearch(query: string, accounts: Account[] = []): { ma
       : negative ? (mail, document) => !term(mail, document) : term);
   }
 
-  return { matches: (mail) => {
+  return { typoEligible, matches: (mail) => {
     const document = needsDocument ? indexMail(mail) : emptyDocument;
     return terms.every((term) => term(mail, document));
   }, matchesSummary: (mail) => {

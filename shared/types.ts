@@ -192,6 +192,8 @@ export type MailSearchResult = {
   draftToken: string;
   matches: MailSearchMatch[];
   error?: string;
+  // True when no exact match existed and the matches allow one typo per word.
+  typos?: boolean;
 };
 // One explicit provider search for one account imports at most this many matches.
 export const providerSearchLimit = 100;

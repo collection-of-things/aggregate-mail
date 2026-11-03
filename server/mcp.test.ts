@@ -389,6 +389,12 @@ test("MCP HTTP authentication, tools and shared mail operations", async (t) => {
         assert.equal(advanced.emails[0].pinned, true);
         assert.ok(advanced.emails[0].snoozedUntil < Date.now());
         assert.equal(advanced.nextOffset, null);
+        const exactWord = decode(await call("search_emails", { query: "meeting", syntax: "app" })) as { emails: unknown[]; typos?: boolean };
+        assert.ok(exactWord.emails.length > 0); assert.equal(exactWord.typos, undefined);
+        const misspelled = decode(await call("search_emails", { query: "meetign", syntax: "app" })) as { emails: unknown[]; typos?: boolean };
+        assert.ok(misspelled.emails.length > 0); assert.equal(misspelled.typos, true);
+        const absent = decode(await call("search_emails", { query: "zzzzqqq", syntax: "app" })) as { emails: unknown[]; typos?: boolean };
+        assert.deepEqual(absent.emails, []); assert.equal(absent.typos, undefined);
         const invalidSearch = await call("search_emails", { query: 'subject:"broken', syntax: "app" });
         assert.equal(invalidSearch.isError, true);
         assert.deepEqual(decode(invalidSearch), { code: "MCP_INVALID_QUERY", error: "Invalid search. Check quotes, fields, and dates." });

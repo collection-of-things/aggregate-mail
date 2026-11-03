@@ -150,7 +150,9 @@ visible to prevent accidental duplicates.
 
 Start a search to find cached mail and saved local drafts across all accounts,
 including Sent, Archive and Snoozed. Use words, quoted phrases and combined
-filters. Plain unquoted words tolerate one typo.
+filters. Words match anywhere in the sender, recipients, subject or text, so
+part of a name finds it. When nothing matches exactly, plain unquoted words of 4
+or more letters tolerate one typo and the list says it shows close spellings.
 
 For example, `from:team@example.com is:unread after:2026-10-01
 -subject:newsletter` combines sender, unread state, date and exclusion. Supported
