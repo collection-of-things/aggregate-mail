@@ -170,7 +170,10 @@ export function learnedOwnerNames(
   // crafted header cannot exceed the matcher limits and hide whole texts.
   const add = (candidate: string, sent: boolean, seen: Set<string>) => {
     const name = cleanName(candidate);
-    if (!name || name.includes("@") || !/\p{L}/u.test(name) || name.length > 60 || name.split(" ").length > 4) return;
+    if (!name || name.includes("@") || !/\p{L}/u.test(name)) return;
+    // The owner's own sent name only needs to fit the matcher limits.
+    if (sent ? name.length > PRIVATE_NAME_LENGTH_MAX || name.split(" ").length > PRIVATE_NAME_WORDS_MAX
+      : name.length > 60 || name.split(" ").length > 4) return;
     // Received phrases made only of common words ("Valued Customer") are not names.
     if (!sent && name.split(/[\s,]+/u).every((part) => commonWords.has(part.toLowerCase()))) return;
     const key = name.toLowerCase();

@@ -35,7 +35,7 @@ quoted order confirmations, signatures). Postal addresses were never covered.
 - `learnedOwnerNames` collects owner display names from every cached message:
   To/Cc phrases tied to an owner address and the sender of mail sent from one.
   Received phrases need two messages (each message counts once), at most four
-  words and 60 characters, and at least one word that is not a common word
+  words and 60 characters (sent names only need to fit the matcher limits), and at least one word that is not a common word
   (`Valued Customer` is skipped), because other senders write them; sent names
   lead. The four best full names, with their parts except single Latin letters
   and, for received phrases, common words, join the app-wide dictionary. Work
@@ -68,7 +68,9 @@ quoted order confirmations, signatures). Postal addresses were never covered.
 A person whose name is their domain (`Jane Doe <jd@janedoe.com>`), or who
 writes from a role mailbox such as `support@`, stays visible; Always hide
 covers that. Non-US postal formats are not
-detected. Spelling variants of the owner's name are hidden only once learned
+detected. On work surfaces, owner aliases from uncited mail beyond the six
+most frequent, or longer than four words, are no longer collected; cited
+mail still contributes all of its names. Spelling variants of the owner's name are hidden only once learned
 or added. CLI and MCP redaction (ADR 0115) keep their existing name rules but
 gain postal-line detection through the shared matcher.
 

@@ -89,6 +89,8 @@ test("review cases: role prefixes, per-message counting, junk names and sent com
   assert.deepEqual(learned, ["Sam Example", "Sam", "Example"]);
   // The owner's own sent name keeps a part that is also a common word.
   assert.ok(learnedOwnerNames(owner, [{ sender: "Dear Smith", address: "owner@example.test" }]).includes("Dear"));
+  // A long sent name is still learned; only received phrases are limited to four words.
+  assert.ok(learnedOwnerNames(owner, [{ sender: "Maria Jose Garcia Lopez Perez", address: "owner@example.test" }]).includes("Maria Jose Garcia Lopez Perez"));
   // Work surfaces take one-message aliases but stay bounded.
   const many = Array.from({ length: 20 }, (_, index) => ({ to: `Alias${index} Person${index} Extra${index} <owner@example.test>` }));
   assert.ok(workOwnerNames(owner, many).length <= 6 * 4);
