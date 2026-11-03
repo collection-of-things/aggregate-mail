@@ -1,4 +1,4 @@
-import { AtSign, Bell, Compose, Cpu, Image as ImageIcon, Info, Keyboard, Palette, Plug, Sort } from "../ui/icons";
+import { AtSign, Bell, Compose, Cpu, EyeOff, Image as ImageIcon, Info, Keyboard, Palette, Plug, Sort } from "../ui/icons";
 
 // Settings shows one section at a time, chosen from its section rail.
 export const settingsSections = [
@@ -10,6 +10,7 @@ export const settingsSections = [
   { id: "compose", label: "Templates and signatures", description: "Reuse message text and add a sign-off to your emails.", Icon: Compose },
   { id: "notifications", label: "Notifications", description: "Choose which floating notices appear and where they show.", Icon: Bell },
   { id: "interaction", label: "Keyboard and mouse", description: "Choose how mail opens and customize your keyboard shortcuts.", Icon: Keyboard },
+  { id: "privacy", label: "Privacy", description: "Choose which names stay hidden or visible when personal information is hidden.", Icon: EyeOff },
   { id: "appearance", label: "Appearance", description: "Choose a comfortable theme, reading layout and window style.", Icon: Palette },
   { id: "branding", label: "Sender logos", description: "Fetch and cache company logos for senders.", Icon: ImageIcon },
   { id: "about", label: "About and storage", description: "Understand local storage, sync and what happens when the app closes.", Icon: Info },
@@ -19,7 +20,7 @@ export type SettingsSection = (typeof settingsSections)[number]["id"];
 export const settingsGroupNames = ["Connections", "Mail", "Preferences", "Advanced"] as const;
 export function settingsGroup(id: SettingsSection) {
   if (["sorting", "compose", "branding"].includes(id)) return "Mail";
-  if (["appearance", "notifications", "interaction"].includes(id)) return "Preferences";
+  if (["appearance", "notifications", "interaction", "privacy"].includes(id)) return "Preferences";
   if (["mcp", "about"].includes(id)) return "Advanced";
   return "Connections";
 }

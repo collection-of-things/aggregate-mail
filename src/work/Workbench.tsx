@@ -8,7 +8,7 @@ import { accountLabel } from "../mail-ui";
 import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
 import { PrivateField } from "../ui/PrivateField";
 import { useContext } from "react";
-import { collectPrivateNames } from "../privacy";
+import { applyPrivacyWords, workOwnerNames } from "../privacy";
 import { useMailSearch } from "../use-mail-search";
 import { Segmented } from "../ui/Segmented";
 import { Dialog } from "../ui/Dialog";
@@ -276,7 +276,11 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   const [editingGrant, setEditingGrant] = useState<string | null>(null);
   const privacyContext = useContext(PrivacyContext);
   const privacy = privacyContext.on;
-  const privateNames = useMemo(() => [...new Set([...(privacyContext.names || []), ...state.messages.flatMap((mail) => collectPrivateNames(state.accounts, mail))])], [privacyContext.names, state.messages, state.accounts]);
+  // Inherited names already apply the owner lists; the owner-only additions
+  // apply Never hide on their own, so they cannot drop an inherited name.
+  const privateNames = useMemo(() => [...new Set([...(privacyContext.names || []),
+    ...applyPrivacyWords(workOwnerNames(state.accounts, state.messages), { visible: [...privacyContext.visible ?? []] })])],
+  [privacyContext.names, privacyContext.visible, state.messages, state.accounts]);
   const [source] = useState(initialSource);
   useEffect(() => { if (initialSource) onSourceConsumed?.(); }, []);
   const finishAcknowledged = () => {

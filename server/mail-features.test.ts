@@ -68,6 +68,26 @@ test("local mail features persist encrypted preferences and pins without provide
     assert.equal((await fetch(`${base}/compose-preferences`)).status, 403);
     assert.deepEqual(all("compose"), [preferences]);
 
+    // Owner privacy lists are personal names: encrypted, validated and in state.
+    assert.deepEqual((await state()).privacyWords, { hidden: [], visible: [] });
+    const words = { hidden: ["  Synthetic   Nickname ", "synthetic nickname", "Second Name"], visible: ["Sample Brand"] };
+    const savedWords = await (await request("/privacy-words", "PUT", words)).json();
+    assert.deepEqual(savedWords, { hidden: ["synthetic nickname", "Second Name"], visible: ["Sample Brand"] });
+    assert.deepEqual((await state()).privacyWords, savedWords);
+    const wordInspection = new DatabaseSync(path.join(directory, "mail.sqlite"), { readOnly: true });
+    try {
+      const encrypted = wordInspection.prepare("SELECT value FROM records WHERE kind='privacyWords'").get();
+      assert.ok(encrypted);
+      assert.ok(!String(encrypted.value).toLowerCase().includes("synthetic nickname"));
+    } finally { wordInspection.close(); }
+    for (const body of [null, {}, { hidden: [] }, { hidden: [], visible: [], extra: [] }, { hidden: ["1234"], visible: [] },
+      { hidden: ["x".repeat(101)], visible: [] }, { hidden: Array.from({ length: 13 }, (_, i) => `Name ${i}`), visible: [] },
+      { hidden: ["one two three four five six seven"], visible: [] }, { hidden: ["a+b+c+d+e+f+g"], visible: [] },
+      { hidden: ["Same Name"], visible: ["same name"] }])
+      assert.equal((await request("/privacy-words", "PUT", body)).status, 400);
+    assert.equal((await request("/privacy-words", "PUT", words, desktop)).status, 403);
+    assert.deepEqual((await state()).privacyWords, savedWords);
+
     await syncMail();
     assert.equal((await state()).unreadArrivals, 0, "initial import is silent");
     const pin = (action: string, id = mail.id) => request(`/messages/${encodeURIComponent(id)}`, "PATCH", { action });

@@ -1,6 +1,6 @@
 import { Fragment, createContext, memo, useContext, useMemo, type ReactNode } from "react";
 import type { Account, RendererMail as Mail } from "../../shared/types";
-import { messagePrivateNames, segmentPrivateText, type PrivacySegment } from "../privacy";
+import { scopedMessageNames, segmentPrivateText, type PrivacySegment } from "../privacy";
 
 // Hidden tokens have no private text in the DOM until explicitly revealed.
 export const PrivacyContext = createContext<{
@@ -9,18 +9,17 @@ export const PrivacyContext = createContext<{
   toggle: (value: string) => void;
   accounts?: readonly Account[];
   names?: readonly string[];
+  // Owner-chosen names that stay visible; applied after per-message names join.
+  visible?: readonly string[];
 }>({ on: false, revealed: new Set(), toggle() {} });
+// Inherited names (owner aliases and other outer-list entries) stay private
+// inside the scope; the cited messages only add their correspondents.
+export function scopedPrivateNames(context: { accounts?: readonly Account[]; names?: readonly string[]; visible?: readonly string[] }, mail: Mail | readonly Mail[]) {
+  return scopedMessageNames(context.names ?? [], context.accounts || [], Array.isArray(mail) ? mail : [mail], context.visible);
+}
 export function MailPrivacy({ mail, children }: { mail: Mail | readonly Mail[]; children: ReactNode }) {
   const context = useContext(PrivacyContext);
-  const value = useMemo(() => {
-    // Inherited names (owner aliases and other outer-list entries) stay private
-    // inside the scope; the cited messages only add their correspondents.
-    const names = new Map<string, string>();
-    for (const name of context.names ?? []) names.set(name.toLowerCase(), name);
-    for (const message of Array.isArray(mail) ? mail : [mail])
-      for (const name of messagePrivateNames(context.accounts || [], message)) names.set(name.toLowerCase(), name);
-    return { ...context, names: [...names.values()] };
-  }, [context, mail]);
+  const value = useMemo(() => ({ ...context, names: scopedPrivateNames(context, mail) }), [context, mail]);
   return <PrivacyContext.Provider value={value}>
     {children}
   </PrivacyContext.Provider>;

@@ -7,7 +7,7 @@ import { followUpPreset, type FollowUpPreset } from "../../shared/follow-up-pres
 import { PrivateField } from "../ui/PrivateField";
 import { PrivacyContext, Redact } from "../ui/Privacy";
 import { Segmented } from "../ui/Segmented";
-import { messagePrivateNames } from "../privacy";
+import { scopedMessageNames } from "../privacy";
 import { commitmentMails } from "./commitment-privacy";
 import type { WorkspaceState } from "./useWorkspace";
 
@@ -37,17 +37,14 @@ export function QuickTrack({ mail, work, privateNames, messages, onEdit, onDone 
   // Saved text stays visible even when its commitment leaves the items list, so
   // cover every mail the shown commitments cite, including history evidence.
   const names = useMemo(() => {
-    const union = new Map<string, string>();
-    for (const name of privateNames) union.set(name.toLowerCase(), name);
-    const add = (cited: Mail | undefined) => {
-      if (cited) for (const name of messagePrivateNames(privacy.accounts || [], cited)) union.set(name.toLowerCase(), name);
-    };
+    const cites: Mail[] = [];
+    const add = (cited: Mail | undefined) => { if (cited) cites.push(cited); };
     add(mail);
     for (const item of items) for (const cited of commitmentMails(item, messages)) add(cited);
     if (target && target !== "new") for (const cited of commitmentMails(target, messages)) add(cited);
     if (resolved) for (const cited of commitmentMails(resolved, messages)) add(cited);
-    return [...union.values()];
-  }, [privateNames, privacy.accounts, mail, items, target, resolved, messages]);
+    return scopedMessageNames(privateNames, privacy.accounts || [], cites, privacy.visible);
+  }, [privateNames, privacy.accounts, privacy.visible, mail, items, target, resolved, messages]);
   const choose = (item: Commitment | "new" | null) => {
     setTarget(item);
     if (item && item !== "new") {

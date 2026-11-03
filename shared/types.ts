@@ -232,6 +232,7 @@ export type State<T = Mail> = {
   draftCount?: number;
   draftToken?: string;
   composePreferences?: ComposePreferences;
+  privacyWords?: import("./privacy").PrivacyWords;
   unreadArrivals?: number;
   mailArrivals?: import("./notifications").MailArrival[];
   accounts: Account[];

@@ -8,7 +8,7 @@ import type { CalendarEvent, CalendarEventInput } from "../../shared/calendar";
 import { mailLink, privateMailLink } from "../../shared/mail-content";
 import type { Draft, RendererMail as Mail, RendererState as State } from "../../shared/types";
 import { accountLabel } from "../mail-ui";
-import { messagePrivateNames, redactPrivateText } from "../privacy";
+import { redactPrivateText, scopedMessageNames } from "../privacy";
 import { Address, MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
 import { PrivateField } from "../ui/PrivateField";
 import { addDays, eventInput, meetingFields, moveStart, sameEventFields, type EventFields } from "./events";
@@ -87,7 +87,7 @@ export function eventWhen(event: Pick<CalendarEvent, "start" | "end" | "allDay">
 export const EventDetail = forwardRef<HTMLElement, {
   event: CalendarEvent; state: State; pending: boolean; source?: ReactNode; sessionActions?: ReactNode; api?: Api; google?: boolean; onOpenDraft?: (draft: Draft) => void; onChanged?: () => unknown; onEdit?: () => void; onDelete?: () => void; onClose: () => void; closeLabel?: string;
 }>(function EventDetail({ event, state, pending, source, sessionActions, api, google = false, onOpenDraft, onChanged, onEdit, onDelete, onClose, closeLabel = "Back to calendar" }, ref) {
-  const { on: privacy, names } = useContext(PrivacyContext);
+  const { on: privacy, names, visible } = useContext(PrivacyContext);
   const [reviewed, setReviewed] = useState<{ sourceId: string; event: CalendarEvent }>();
   const createdEvent = reviewed?.sourceId === event.id ? reviewed.event : undefined;
   useEffect(() => { if (createdEvent && ref && typeof ref !== "function") ref.current?.focus(); }, [createdEvent, ref]);
@@ -98,7 +98,7 @@ export const EventDetail = forwardRef<HTMLElement, {
   // The linked source email's names join the ambient list so a meeting URL
   // carrying that correspondent hides like the rest of its message.
   const scopedNames = sourceMail
-    ? [...new Map([...(names ?? []), ...messagePrivateNames(state.accounts, sourceMail)].map((name) => [name.toLowerCase(), name] as const)).values()]
+    ? scopedMessageNames(names ?? [], state.accounts, [sourceMail], visible)
     : names;
   const link = event.meetLink ? mailLink(event.meetLink) : null;
   const linkHidden = !!link && privacy && privateMailLink(link, (text) => redactPrivateText(text, scopedNames));

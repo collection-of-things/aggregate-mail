@@ -55,7 +55,7 @@ import { reuseMailState } from "./mail-state";
 import { MailSearchApiContext, useMailSearch } from "./use-mail-search";
 import { replySource, useMailBody } from "./mail-body";
 import { useMailNavigation, rememberBrowserUpdateLocation, type MailLocation } from "./navigation";
-import { collectPrivateNames, messagePrivateNames, redactPrivateText } from "./privacy";
+import { applyPrivacyWords, collectPrivateNames, emptyPrivacyWords, learnedOwnerNames, redactPrivateText, sameNames, workOwnerNames } from "./privacy";
 import { ContactsPage } from "./contacts/ContactsPage";
 import { SettingsPage } from "./settings/SettingsPage";
 import { PaneHeader, type Corner } from "./shell/PaneHeader";
@@ -1154,7 +1154,19 @@ export function App() {
     window.addEventListener("beforeunload", handle);
     return () => window.removeEventListener("beforeunload", handle);
   }, [compose, eventDirty]);
-  const workPrivateNames = useMemo(() => [...new Set(state.messages.flatMap((mail) => collectPrivateNames(state.accounts, mail)))], [state.accounts, state.messages]);
+  const privacyWords = state.privacyWords ?? emptyPrivacyWords;
+  // Owner names learned from every cached message, before the owner's own lists apply.
+  // Mail updates rarely change learned names; reusing equal lists keeps the
+  // privacy context, and every redacted span, from re-rendering on each update.
+  const learnedNamesRef = useRef<string[]>([]), workNamesRef = useRef<string[]>([]);
+  const learnedNames = useMemo(() => learnedNamesRef.current = sameNames(learnedNamesRef.current, learnedOwnerNames(state.accounts, state.messages)),
+    [state.accounts, state.messages]);
+  const workNames = useMemo(() => workNamesRef.current = sameNames(workNamesRef.current, workOwnerNames(state.accounts, state.messages)),
+    [state.accounts, state.messages]);
+  const ambientPrivateNames = useMemo(() => applyPrivacyWords([...collectPrivateNames(state.accounts), ...learnedNames], privacyWords),
+    [state.accounts, learnedNames, privacyWords]);
+  const workPrivateNames = useMemo(() => applyPrivacyWords([...ambientPrivateNames, ...workNames], privacyWords),
+    [ambientPrivateNames, workNames, privacyWords]);
 
   // Pick the entrance once per pane so re-renders never restart its animation.
   // Beside the reader, the list keeps its pane while mail opens and closes.
@@ -1199,8 +1211,8 @@ export function App() {
   const menuMail = contextMenu && state.messages.find((mail) => mail.id === contextMenu.mailId);
   const quickMail = quickSource ? state.messages.find((mail) => mail.id === quickSource && state.accounts.some((account) => account.id === mail.accountId)) : undefined;
   const privacyContext = useMemo(() => ({ on: privacy, revealed, toggle: toggleAddress,
-    accounts: state.accounts, names: collectPrivateNames(state.accounts) }),
-  [privacy, revealed, toggleAddress, state.accounts]);
+    accounts: state.accounts, names: ambientPrivateNames, visible: privacyWords.visible }),
+  [privacy, revealed, toggleAddress, state.accounts, ambientPrivateNames, privacyWords.visible]);
   useEffect(() => {
     if (contextMenu && !menuMail) closeContextMenu();
   }, [contextMenu, menuMail, closeContextMenu]);
@@ -1488,7 +1500,7 @@ export function App() {
                   accounts={state.accounts}
                   blocked={toolbarBlocked || (!!compose && busy)}
                   showReset={hasListControls}
-                  labelName={(name) => privacy ? redactPrivateText(name, collectPrivateNames(state.accounts, opened ? selected || {} : {})) : name}
+                  labelName={(name) => privacy ? redactPrivateText(name, [...ambientPrivateNames, ...collectPrivateNames(state.accounts, opened ? selected || {} : {})]) : name}
                   onOpen={(open) => open && compose ? leaveCompose({ type: "filters" }) : setFiltersOpen(open)}
                   onChange={(patch) => navigate({ ...patch, selectedId: null, opened: false })}
                   onFindPinned={findPinned}
@@ -1501,7 +1513,7 @@ export function App() {
             </PaneHeader>
             <div hidden={!searching || settings || nonMailView}>
               <Notice text={!settings && !nonMailView ? search.error || "" : ""} />
-              <span id="mail-search-help" className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{search.error || (search.pending ? "Searching cached mail and saved drafts…" : `${filtered.length} mail results${showSearchDrafts ? `, ${search.drafts.filter(draft => accountFilter === "all" || draft.accountId === accountFilter).length} saved drafts` : ""}. ${mailSearchScope(navigation.location, state.accounts, activeLabel, privacy, showSearchDrafts)}`)}</span>
+              <span id="mail-search-help" className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{search.error || (search.pending ? "Searching cached mail and saved drafts…" : `${filtered.length} mail results${showSearchDrafts ? `, ${search.drafts.filter(draft => accountFilter === "all" || draft.accountId === accountFilter).length} saved drafts` : ""}. ${mailSearchScope(navigation.location, state.accounts, activeLabel, privacy, showSearchDrafts, ambientPrivateNames)}`)}</span>
               {searchOptions && <div className="search-help" id="search-options">
               <ProviderSearch api={api} query={query} account={searchAccount} accountName={searchAccount ? accountLabel(searchAccount, state.accounts.indexOf(searchAccount), privacy, state.accounts) : ""} blocked={toolbarBlocked || busy} visible={!settings && !nonMailView && view !== "drafts" && !search.error && !search.pending} reload={reload} />
               <p>Use from:, to:, subject:, body:, account:, is:unread, is:pinned, before:YYYY-MM-DD or after:YYYY-MM-DD. Unquoted words allow one typo. Searches imported mail and saved drafts on this device, including Sent, Archive and Snoozed. Provider history may be incomplete. With one account selected, searching older mail asks the provider for up to 100 more matches: Gmail uses Gmail search, IMAP searches Archive (or All Mail) and Sent, and account: and is:pinned apply only on this device.</p></div>}
