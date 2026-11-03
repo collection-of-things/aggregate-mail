@@ -28,6 +28,9 @@ export function reuseMailState<T extends State>(current: T, incoming: T & Partia
     ...(incoming.composePreferences ? { composePreferences:
       JSON.stringify(current.composePreferences) === JSON.stringify(incoming.composePreferences)
         ? current.composePreferences : incoming.composePreferences } : {}),
+    ...(incoming.privacyWords ? { privacyWords:
+      JSON.stringify(current.privacyWords) === JSON.stringify(incoming.privacyWords)
+        ? current.privacyWords : incoming.privacyWords } : {}),
     accounts: reuseRecords(current.accounts, incoming.accounts, (account) => account.id),
     messages,
     labels: reuseRecords(current.labels, incoming.labels, (label) => `${label.accountId}:${label.id}`),

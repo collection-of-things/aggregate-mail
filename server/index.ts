@@ -56,7 +56,7 @@ import { companyLogo } from "./avatars.js";
 import { companySvg, isFreeMail, normalizeDomain, syncLogos } from "./logos.js";
 import { jevProviderOf, type Provider, type Mail, type StateResponse, type BootstrapResponse, type SyncFailure } from "../shared/types.js";
 import { emptyComposePreferences } from "../shared/mail-features.js";
-import { PRIVACY_WORDS_HIDDEN_MAX, PRIVACY_WORDS_VISIBLE_MAX, PRIVACY_WORD_LENGTH_MAX, emptyPrivacyWords } from "../shared/privacy.js";
+import { PRIVACY_WORDS_HIDDEN_MAX, PRIVACY_WORDS_VISIBLE_MAX, PRIVACY_WORD_LENGTH_MAX, PRIVACY_WORD_WORDS_MAX, emptyPrivacyWords } from "../shared/privacy.js";
 import { loadConfiguration, saveConfiguration } from "./config.js";
 
 loadConfiguration();
@@ -332,7 +332,8 @@ app.put("/api/compose-preferences", (req, res) => {
 // Names are personal data, so the lists live in the encrypted store.
 app.put("/api/privacy-words", (req, res) => {
   const word = z.string().transform((value) => value.trim().replace(/\s+/g, " "))
-    .pipe(z.string().min(1).max(PRIVACY_WORD_LENGTH_MAX).regex(/\p{L}/u));
+    .pipe(z.string().min(1).max(PRIVACY_WORD_LENGTH_MAX).regex(/\p{L}/u)
+      .refine((value) => value.split(" ").length <= PRIVACY_WORD_WORDS_MAX));
   const input = z.object({
     hidden: z.array(word).max(PRIVACY_WORDS_HIDDEN_MAX),
     visible: z.array(word).max(PRIVACY_WORDS_VISIBLE_MAX),

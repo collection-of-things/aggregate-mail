@@ -5,7 +5,8 @@ export type PrivacyAccount = { email: string; name?: string };
 // name matchers only, so addresses and postal lines stay hidden.
 export type PrivacyWords = { hidden: string[]; visible: string[] };
 export const emptyPrivacyWords: PrivacyWords = { hidden: [], visible: [] };
-export const PRIVACY_WORDS_HIDDEN_MAX = 20, PRIVACY_WORDS_VISIBLE_MAX = 64, PRIVACY_WORD_LENGTH_MAX = 100;
+// Hidden entries share the 64-name matcher budget with per-message names.
+export const PRIVACY_WORDS_HIDDEN_MAX = 12, PRIVACY_WORDS_VISIBLE_MAX = 64, PRIVACY_WORD_LENGTH_MAX = 100, PRIVACY_WORD_WORDS_MAX = 6;
 type RecipientHeaders = { to?: string; cc?: string };
 export type MailPrivacyInput = { sender?: string; address?: string; to?: string; cc?: string; replyTo?: string };
 export type PrivacyRange = {
@@ -121,22 +122,27 @@ export function collectMailPrivateNames(
   return privateNames(candidates);
 }
 
-// Role mailboxes send for an organization, not a person.
-const roleMailbox = /^(?:no-?reply|do-?not-?reply|donotreply|info|support|hello|team|news|newsletters?|notifications?|notify|alerts?|updates?|marketing|billing|accounts?|service|customer-?service|help|contact|mailer|orders?|receipts?|security|feedback|community|digest|members?|care)(?:[+._-].*)?$/i;
+// Automated and departmental mailboxes send for an organization. Addresses
+// people often use personally (hello@, team@, contact@) are not listed.
+const roleMailbox = /^(?:no-?reply|do-?not-?reply|donotreply|info|support|news|newsletters?|notifications?|notify|alerts?|updates?|marketing|billing|accounts?|customer-?service|mailer|orders?|receipts?|security|digest)(?:[+._-].*)?$/i;
 // A sender is a business when it writes from a role mailbox or its display
-// name matches its own non-personal domain (Kickstarter <…@kickstarter.com>).
-// Its name stays visible. A person on a matching vanity domain is a known gap.
+// name matches a whole label of its own non-personal domain
+// (Kickstarter <…@kickstarter.com>, Running Warehouse | Info <…@runningwarehouse.com>).
+// Otherwise a mailbox containing one of the name's words (sean.ford@ford.com) is a person.
+// A person whose name is their domain is a known gap; Always hide covers it.
 export function businessSender(name: string, email: string): boolean {
   const at = email.lastIndexOf("@");
   if (at < 1) return false;
   const local = email.slice(0, at).trim().toLowerCase(), domain = email.slice(at + 1).trim().toLowerCase();
   if (!domain || personalMailDomains.has(domain)) return false;
   if (roleMailbox.test(local)) return true;
-  const compactDomain = domain.replace(/[^a-z0-9]/g, "");
   const words = name.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((word) => word.length >= 3);
+  if (words.some((word) => local.includes(word))) return false;
   const compactName = words.join("");
-  return compactName.length >= 3 && compactDomain.includes(compactName) ||
-    words.some((word) => word.length >= 4 && compactDomain.includes(word));
+  if (compactName.length < 3) return false;
+  // Every label but the top-level one; the name matches a label or starts with it.
+  return domain.split(".").slice(0, -1).map((label) => label.replace(/[^a-z0-9]/g, ""))
+    .some((label) => label === compactName || label.length >= 5 && compactName.startsWith(label));
 }
 
 // One message often omits the owner's display name (bare To, quoted orders),
@@ -150,22 +156,27 @@ export function learnedOwnerNames(
   limit = LEARNED_OWNER_NAMES_MAX,
 ): string[] {
   const emails = new Set(accounts.map((account) => account.email.trim().toLowerCase()));
-  const counts = new Map<string, { name: string; count: number }>();
-  const add = (candidate: string) => {
+  const counts = new Map<string, { name: string; count: number; sent: boolean }>();
+  // Recipient display names come from other senders: bound their shape so one
+  // crafted header cannot exceed the matcher limits and hide whole texts.
+  const add = (candidate: string, sent: boolean) => {
     const name = cleanName(candidate);
-    if (!name || name.includes("@") || !/\p{L}/u.test(name)) return;
+    if (!name || name.includes("@") || !/\p{L}/u.test(name) || name.length > 60 || name.split(" ").length > 4) return;
     const entry = counts.get(name.toLowerCase());
-    if (entry) entry.count++;
-    else counts.set(name.toLowerCase(), { name, count: 1 });
+    if (entry) { entry.count++; entry.sent ||= sent; }
+    else counts.set(name.toLowerCase(), { name, count: 1, sent });
   };
   for (const mail of mails) {
-    for (const name of recipientNames(mail.to || "", emails)) add(name);
-    for (const name of recipientNames(mail.cc || "", emails)) add(name);
+    for (const name of recipientNames(mail.to || "", emails)) add(name, false);
+    for (const name of recipientNames(mail.cc || "", emails)) add(name, false);
     const owner = ownerSender(mail, emails);
-    if (owner) add(owner);
+    if (owner) add(owner, true);
   }
-  const top = [...counts.values()].sort((left, right) => right.count - left.count).slice(0, limit);
-  return privateNames(top.map((entry) => entry.name));
+  // A name on a single received message is not yet trusted as the owner's.
+  const top = [...counts.values()].filter((entry) => entry.sent || entry.count >= 2)
+    .sort((left, right) => Number(right.sent) - Number(left.sent) || right.count - left.count).slice(0, limit);
+  // Single Latin letters (middle initials) would hide that letter everywhere.
+  return privateNames(top.map((entry) => entry.name)).filter((name) => !/^[a-z]$/i.test(name));
 }
 function ownerSender(mail: MailPrivacyInput, emails: ReadonlySet<string>) {
   const sender = mail.sender || "";
@@ -173,14 +184,20 @@ function ownerSender(mail: MailPrivacyInput, emails: ReadonlySet<string>) {
   return sender.includes("<") ? recipientNames(sender)[0] || "" : sender.includes("@") ? "" : unquotedSender(sender);
 }
 
-// Owner-chosen hidden names join; visible names leave. Comparison ignores case.
+// Owner-chosen hidden names join; visible names and their single words leave,
+// so keeping a full name visible also stops its first name and surname
+// matching. Comparison ignores case.
 export function applyPrivacyWords(names: readonly string[], words?: Partial<PrivacyWords>): string[] {
   const result = new Map<string, string>();
   for (const name of [...names, ...words?.hidden ?? []]) {
     const clean = cleanName(name);
     if (clean) result.set(clean.toLowerCase(), clean);
   }
-  for (const name of words?.visible ?? []) result.delete(cleanName(name).toLowerCase());
+  for (const name of words?.visible ?? []) {
+    const clean = cleanName(name).toLowerCase();
+    result.delete(clean);
+    for (const part of clean.split(/[\s,]+/u)) result.delete(part);
+  }
   return [...result.values()];
 }
 
@@ -253,8 +270,10 @@ function decodedText(text: string) {
 // on the way" visible. Each repetition is bounded and unambiguous.
 const streetSuffixes = new Set(("street st avenue ave road rd boulevard blvd drive dr lane ln way place pl " +
   "court ct terrace ter circle cir parkway pkwy highway hwy trail trl square sq loop plaza plz crescent").split(" "));
-const streetLine = /(?<![\p{L}\p{N}_.\/#$-])\d{1,6}[A-Za-z]?(?:[ \t]+[\p{Lu}\p{N}][\p{L}\p{N}'.-]*){2,5}/gu;
-const cityLine = /(?<![\p{L}\p{N}_])(?:\p{Lu}[\p{L}'.-]*[ \t]+){0,2}\p{Lu}[\p{L}'.-]*,[ \t]*\p{Lu}{2}[ \t]+\d{5}(?:-\d{4})?(?!\p{N})/gu;
+const streetLine = /(?<![\p{L}\p{N}_.\/#$-])\d{1,6}[A-Za-z]?(?:[ \t]+[\p{Lu}\p{N}][\p{L}\p{N}'.-]{0,40}){2,5}/gu;
+// A city line cannot start inside a word or after its punctuation, and each
+// word is bounded, so a long hyphenated run cannot rescan quadratically.
+const cityLine = /(?<![\p{L}\p{N}_'.-])(?:\p{Lu}[\p{L}'.-]{0,30}[ \t]+){0,2}\p{Lu}[\p{L}'.-]{0,30},[ \t]*\p{Lu}{2}[ \t]+\d{5}(?:-\d{4})?(?!\p{N})/gu;
 function postalRanges(text: string): [number, number][] {
   const ranges: [number, number][] = [];
   for (const match of text.matchAll(streetLine)) {

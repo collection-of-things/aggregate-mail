@@ -17,8 +17,12 @@ quoted order confirmations, signatures). Postal addresses were never covered.
 ## Decision
 
 - A sender is a business, and its display name stays visible, when it writes
-  from a role mailbox (`no-reply`, `info`, `support`, `billing` and similar) or
-  its name matches its own non-personal domain. The same test applies to
+  from an automated or departmental mailbox (`no-reply`, `info`, `support`,
+  `billing`, `alerts` and similar; not `hello`, `team` or `contact`, which
+  people use personally), or when its compacted name equals a label of its own
+  non-personal domain or starts with a label of five or more characters.
+  Outside role mailboxes, a mailbox containing one of the name's words
+  (`sean.ford@ford.com`) marks a person. The same test applies to
   third-party To/Cc/Reply-To names. Names tied to an owner address are never
   treated as businesses. Personal mail domains (`personalMailDomains`) never
   count as business domains. Because business names leave the dictionary, their
@@ -27,23 +31,28 @@ quoted order confirmations, signatures). Postal addresses were never covered.
   first name and surname like an account name.
 - `learnedOwnerNames` collects owner display names from every cached message:
   To/Cc phrases tied to an owner address and the sender of mail sent from one.
-  The four most frequent full names, with their parts, join the app-wide
-  dictionary.
+  Received phrases need two messages and at most four words and 60 characters,
+  because other senders write them; sent names lead. The four best full names,
+  with their parts except single Latin letters, join the app-wide dictionary.
 - Numbered US-style street lines (`422 Southeast 17th Place`) and
   `City, ST 12345` lines are hidden as revealable address tokens. Words must
   start with a capital or digit and the street line must end in a known
-  suffix, which keeps prose and order numbers visible.
+  suffix, which keeps prose and order numbers visible. Matches cannot start
+  inside a word or after its punctuation, and words are bounded, so long
+  punctuated runs scan linearly.
 - Settings > Privacy keeps two owner-chosen lists in the encrypted store
   (`privacyWords` record, authenticated CSRF-checked `PUT /api/privacy-words`,
-  delivered in state): Always hide (up to 20 names) and Never hide (up to 64).
-  Never hide removes a name from the name matchers only; addresses and postal
-  lines stay hidden. The section lists learned names with a Keep visible
+  delivered in state): Always hide (up to 12 entries of at most six words,
+  leaving matcher room for per-message names) and Never hide (up to 64). Never
+  hide removes a name and its single words from the name matchers, including
+  work surfaces; addresses and postal lines stay hidden. The section lists learned names with a Keep visible
   action. Hidden and learned names are masked on that page while privacy is on.
 
 ## Limits
 
-A person writing from a vanity domain that matches their name, or from a role
-mailbox, stays visible; Always hide covers that. Non-US postal formats are not
+A person whose name is their domain (`Jane Doe <jd@janedoe.com>`), or who
+writes from a role mailbox such as `support@`, stays visible; Always hide
+covers that. Non-US postal formats are not
 detected. Spelling variants of the owner's name are hidden only once learned
 or added. CLI and MCP redaction (ADR 0115) keep their existing name rules but
 gain postal-line detection through the shared matcher.

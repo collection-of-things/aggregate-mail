@@ -17,6 +17,16 @@ test("business senders whose name matches their domain or a role mailbox stay vi
   assert.equal(businessSender("Support", "support@gmail.com"), false);
   assert.equal(businessSender("Nora Lane", "nora.lane@acme.example"), false);
   assert.equal(businessSender("Nora Lane", ""), false);
+  assert.equal(businessSender("Sample Brand", "updates@mail.samplebrand.example"), true);
+  assert.equal(businessSender("Interactive Brokers", "x@interactivebrokers.example"), true);
+  // People whose name words appear in a domain or mailbox stay hidden.
+  for (const [name, email] of [
+    ["John Smith", "jsmith@johnshopkins.example"], ["Sean Ford", "sean.ford@ford.example"],
+    ["Mark Taylor", "mark@marketingpros.example"], ["Jane Hall", "jhall@marshall.example"],
+    ["Chase Miller", "chase.miller@chase.example"], ["Sarah Johnson", "sarah@johnsonlaw.example"],
+    ["Will Brown", "wb@williamsgroup.example"], ["Nora Example", "p@example.org"],
+    ["Vera Bloom", "team@vendor.example"], ["Vera Bloom", "hello@verabloom-studio.example"],
+  ]) assert.equal(businessSender(name, email), false, `${name} <${email}>`);
   const names = messagePrivateNames(owner, {
     sender: "Kickstarter", address: "no-reply@kickstarter.example",
     to: "owner@example.test", cc: "Kai Rivers <kai@example.org>, Acme Support <support@acme.example>",
@@ -52,15 +62,40 @@ test("owner names are learned across cached mail, most frequent first and bounde
     { to: "Other Person <other@example.org>" },
     { to: "owner@example.test", cc: "Valued Customer <owner@example.test>" },
   ];
-  assert.deepEqual(learnedOwnerNames(owner, mails), ["Sam Example", "SE Example", "Valued Customer", "Sam", "Example", "SE", "Valued", "Customer"]);
-  assert.deepEqual(learnedOwnerNames(owner, mails, 1), ["Sam Example", "Sam", "Example"]);
+  // Sent names lead; a received name needs two messages; Valued Customer appears once.
+  assert.deepEqual(learnedOwnerNames(owner, mails), ["SE Example", "Sam Example", "SE", "Example", "Sam"]);
+  assert.deepEqual(learnedOwnerNames(owner, mails, 1), ["SE Example", "SE", "Example"]);
   assert.deepEqual(learnedOwnerNames([], mails), []);
   assert.equal(redactPrivateText("Hi Sam,", learnedOwnerNames(owner, mails)), "Hi ••••••••,");
 });
 
-test("owner lists add hidden names and remove visible ones, ignoring case", () => {
+test("crafted recipient names cannot exceed matcher limits or hide single letters", () => {
+  const long = Array.from({ length: 17 }, (_, index) => `Word${index}`).join(" ");
+  const mails = [
+    { to: `"${long}" <owner@example.test>` }, { to: `"${long}" <owner@example.test>` },
+    { sender: "Jane Q Owner", address: "owner@example.test" },
+  ];
+  const names = learnedOwnerNames(owner, mails);
+  assert.deepEqual(names, ["Jane Q Owner", "Jane", "Owner"]);
+  assert.equal(redactPrivateText("Q3 plan, option Q, from Jane", names), "Q3 plan, option Q, from ••••••••");
+});
+
+test("owner lists add hidden names and remove visible ones and their words, ignoring case", () => {
   assert.deepEqual(applyPrivacyWords(["Kickstarter", "Sam"], { hidden: ["  Nickname  One "], visible: ["KICKSTARTER"] }), ["Sam", "Nickname One"]);
   assert.deepEqual(applyPrivacyWords(["Sam"]), ["Sam"]);
+  const kept = applyPrivacyWords(["Jane Q Owner", "Jane", "Owner", "Other"], { visible: ["jane q owner"] });
+  assert.deepEqual(kept, ["Other"]);
+  assert.equal(redactPrivateText("Signed, Jane Q Owner", kept), "Signed, Jane Q Owner");
+});
+
+test("postal matching stays linear on long punctuated runs", () => {
+  for (const unit of ["A-", "A.", "A'", "1 A "]) {
+    const text = unit.repeat(40_000);
+    const started = performance.now();
+    redactPrivateText(text);
+    assert.ok(performance.now() - started < 500, `${JSON.stringify(unit)} took too long`);
+  }
+  assert.equal(redactPrivateText("St. Louis, MO 63101-1234 and Winston-Salem, NC 27101"), "•••••••• and ••••••••");
 });
 
 test("US-style postal lines are hidden while ordinary numbers and prose stay visible", () => {

@@ -7,7 +7,7 @@ import { followUpPreset, type FollowUpPreset } from "../../shared/follow-up-pres
 import { PrivateField } from "../ui/PrivateField";
 import { PrivacyContext, Redact } from "../ui/Privacy";
 import { Segmented } from "../ui/Segmented";
-import { messagePrivateNames } from "../privacy";
+import { applyPrivacyWords, messagePrivateNames } from "../privacy";
 import { commitmentMails } from "./commitment-privacy";
 import type { WorkspaceState } from "./useWorkspace";
 
@@ -46,8 +46,8 @@ export function QuickTrack({ mail, work, privateNames, messages, onEdit, onDone 
     for (const item of items) for (const cited of commitmentMails(item, messages)) add(cited);
     if (target && target !== "new") for (const cited of commitmentMails(target, messages)) add(cited);
     if (resolved) for (const cited of commitmentMails(resolved, messages)) add(cited);
-    return [...union.values()];
-  }, [privateNames, privacy.accounts, mail, items, target, resolved, messages]);
+    return applyPrivacyWords([...union.values()], { visible: [...privacy.visible ?? []] });
+  }, [privateNames, privacy.accounts, privacy.visible, mail, items, target, resolved, messages]);
   const choose = (item: Commitment | "new" | null) => {
     setTarget(item);
     if (item && item !== "new") {

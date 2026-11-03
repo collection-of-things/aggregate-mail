@@ -1494,7 +1494,7 @@ export function App() {
                   accounts={state.accounts}
                   blocked={toolbarBlocked || (!!compose && busy)}
                   showReset={hasListControls}
-                  labelName={(name) => privacy ? redactPrivateText(name, collectPrivateNames(state.accounts, opened ? selected || {} : {})) : name}
+                  labelName={(name) => privacy ? redactPrivateText(name, [...ambientPrivateNames, ...collectPrivateNames(state.accounts, opened ? selected || {} : {})]) : name}
                   onOpen={(open) => open && compose ? leaveCompose({ type: "filters" }) : setFiltersOpen(open)}
                   onChange={(patch) => navigate({ ...patch, selectedId: null, opened: false })}
                   onFindPinned={findPinned}
@@ -1507,7 +1507,7 @@ export function App() {
             </PaneHeader>
             <div hidden={!searching || settings || nonMailView}>
               <Notice text={!settings && !nonMailView ? search.error || "" : ""} />
-              <span id="mail-search-help" className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{search.error || (search.pending ? "Searching cached mail and saved drafts…" : `${filtered.length} mail results${showSearchDrafts ? `, ${search.drafts.filter(draft => accountFilter === "all" || draft.accountId === accountFilter).length} saved drafts` : ""}. ${mailSearchScope(navigation.location, state.accounts, activeLabel, privacy, showSearchDrafts)}`)}</span>
+              <span id="mail-search-help" className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{search.error || (search.pending ? "Searching cached mail and saved drafts…" : `${filtered.length} mail results${showSearchDrafts ? `, ${search.drafts.filter(draft => accountFilter === "all" || draft.accountId === accountFilter).length} saved drafts` : ""}. ${mailSearchScope(navigation.location, state.accounts, activeLabel, privacy, showSearchDrafts, ambientPrivateNames)}`)}</span>
               {searchOptions && <div className="search-help" id="search-options">
               <ProviderSearch api={api} query={query} account={searchAccount} accountName={searchAccount ? accountLabel(searchAccount, state.accounts.indexOf(searchAccount), privacy, state.accounts) : ""} blocked={toolbarBlocked || busy} visible={!settings && !nonMailView && view !== "drafts" && !search.error && !search.pending} reload={reload} />
               <p>Use from:, to:, subject:, body:, account:, is:unread, is:pinned, before:YYYY-MM-DD or after:YYYY-MM-DD. Unquoted words allow one typo. Searches imported mail and saved drafts on this device, including Sent, Archive and Snoozed. Provider history may be incomplete. With one account selected, searching older mail asks the provider for up to 100 more matches: Gmail uses Gmail search, IMAP searches Archive (or All Mail) and Sent, and account: and is:pinned apply only on this device.</p></div>}

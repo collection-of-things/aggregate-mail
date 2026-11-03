@@ -10,7 +10,7 @@ import { PrivacyContext } from "./ui/Privacy";
 
 const state = {
   accounts: [{ id: "a", email: "owner@example.test", provider: "imap" }],
-  messages: [{ id: "a:1", accountId: "a", sender: "Shop", address: "info@shop.example", to: "Sam Example <owner@example.test>" }],
+  messages: [{ id: "a:1", accountId: "a", sender: "Sam Example", address: "owner@example.test", to: "info@shop.example" }],
   labels: [], rules: [], googleConfigured: false, googleClientId: null, jevConfigured: false, jevProvider: "typesafe",
   aiConfigured: false, lastSync: null, syncing: false,
   privacyWords: { hidden: ["Private Nickname"], visible: ["Sample Brand"] },
