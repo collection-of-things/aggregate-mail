@@ -65,7 +65,7 @@ test("owner names are learned across cached mail, most frequent first and bounde
   const mails = [
     { to: "Sam Example <owner@example.test>" },
     { to: "Sam Example <owner@example.test>", sender: "Shop", address: "info@shop.example" },
-    { sender: "SE Example", address: "owner@example.test", to: "x@shop.example" },
+    { sender: "SE Example", address: "owner@example.test", to: "x@shop.example", direction: "sent" },
     { to: "Other Person <other@example.org>" },
     { to: "owner@example.test", cc: "Valued Customer <owner@example.test>" },
   ];
@@ -88,20 +88,33 @@ test("review cases: role prefixes, per-message counting, junk names and sent com
   const learned = learnedOwnerNames(owner, [...junk, { to: "Sam Example <owner@example.test>" }, { to: "Sam Example <owner@example.test>" }]);
   assert.deepEqual(learned, ["Sam Example", "Sam", "Example"]);
   // The owner's own sent name keeps a part that is also a common word.
-  assert.ok(learnedOwnerNames(owner, [{ sender: "Dear Smith", address: "owner@example.test" }]).includes("Dear"));
+  assert.ok(learnedOwnerNames(owner, [{ sender: "Dear Smith", address: "owner@example.test", direction: "sent" }]).includes("Dear"));
   // A long sent name is still learned; only received phrases are limited to four words.
-  assert.ok(learnedOwnerNames(owner, [{ sender: "Maria Jose Garcia Lopez Perez", address: "owner@example.test" }]).includes("Maria Jose Garcia Lopez Perez"));
+  assert.ok(learnedOwnerNames(owner, [{ sender: "Maria Jose Garcia Lopez Perez", address: "owner@example.test", direction: "sent" }]).includes("Maria Jose Garcia Lopez Perez"));
   // Work surfaces take one-message aliases but stay bounded.
   const many = Array.from({ length: 20 }, (_, index) => ({ to: `Alias${index} Person${index} Extra${index} <owner@example.test>` }));
   assert.ok(workOwnerNames(owner, many).length <= 6 * 4);
   assert.ok(workOwnerNames(owner, [{ to: "Nora Lane <owner@example.test>" }]).includes("Nora Lane"));
 });
 
+test("forged owner senders and plus-joined names cannot overflow the matcher", () => {
+  const sixteen = (seed: number) => Array.from({ length: 16 }, (_, index) => `W${seed}x${index}`).join(" ");
+  const forged = [1, 2, 3, 4].map((seed) => ({ sender: sixteen(seed), address: "owner@example.test", to: "owner@example.test" }));
+  assert.deepEqual(learnedOwnerNames(owner, forged), []);
+  const sent = [1, 2, 3, 4].map((seed) => ({ sender: sixteen(seed).split(" ").slice(0, 8).join(" "), address: "owner@example.test", direction: "sent" }));
+  assert.ok(learnedOwnerNames(owner, sent).length <= 24);
+  assert.ok(redactPrivateText("Plain text", learnedOwnerNames(owner, sent)) === "Plain text");
+  const plus = Array.from({ length: 17 }, (_, index) => String.fromCharCode(65 + index)).join("+");
+  const joined = [{ to: `"${plus}" <owner@example.test>` }, { to: `"${plus}" <owner@example.test>` }];
+  assert.deepEqual(learnedOwnerNames(owner, joined), []);
+  assert.deepEqual(workOwnerNames(owner, joined.slice(0, 1)), []);
+});
+
 test("crafted recipient names cannot exceed matcher limits or hide single letters", () => {
   const long = Array.from({ length: 17 }, (_, index) => `Word${index}`).join(" ");
   const mails = [
     { to: `"${long}" <owner@example.test>` }, { to: `"${long}" <owner@example.test>` },
-    { sender: "Jane Q Owner", address: "owner@example.test" },
+    { sender: "Jane Q Owner", address: "owner@example.test", direction: "sent" },
   ];
   const names = learnedOwnerNames(owner, mails);
   assert.deepEqual(names, ["Jane Q Owner", "Jane", "Owner"]);

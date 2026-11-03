@@ -33,12 +33,15 @@ quoted order confirmations, signatures). Postal addresses were never covered.
 - Mail sent from an owner address names the owner, so its sender splits into
   first name and surname like an account name.
 - `learnedOwnerNames` collects owner display names from every cached message:
-  To/Cc phrases tied to an owner address and the sender of mail sent from one.
+  To/Cc phrases tied to an owner address and the sender of mail the provider
+  filed as sent (`direction: "sent"`; a forged From does not count).
   Received phrases need two messages (each message counts once), at most four
-  words and 60 characters (sent names only need to fit the matcher limits), and at least one word that is not a common word
+  words and 60 characters (sent names allow eight words and 100 characters;
+  words count as the matcher splits them, on spaces and `+`), and at least one word that is not a common word
   (`Valued Customer` is skipped), because other senders write them; sent names
   lead. The four best full names, with their parts except single Latin letters
-  and, for received phrases, common words, join the app-wide dictionary. Work
+  and, for received phrases, common words, join the app-wide dictionary,
+  within a budget of 24 learned names including parts. Work
   surfaces use `workOwnerNames`: the same rules with one message and six names,
   which keeps them inside the matcher limit with Always hide and account names.
   The local-only `PUT /api/privacy-words` stays available during sync.

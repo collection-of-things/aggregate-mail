@@ -8,7 +8,7 @@ export const emptyPrivacyWords: PrivacyWords = { hidden: [], visible: [] };
 // Hidden entries share the 64-name matcher budget with per-message names.
 export const PRIVACY_WORDS_HIDDEN_MAX = 12, PRIVACY_WORDS_VISIBLE_MAX = 64, PRIVACY_WORD_LENGTH_MAX = 100, PRIVACY_WORD_WORDS_MAX = 6;
 type RecipientHeaders = { to?: string; cc?: string };
-export type MailPrivacyInput = { sender?: string; address?: string; to?: string; cc?: string; replyTo?: string };
+export type MailPrivacyInput = { sender?: string; address?: string; to?: string; cc?: string; replyTo?: string; direction?: string };
 export type PrivacyRange = {
   start: number;
   end: number;
@@ -157,7 +157,7 @@ const organizationSuffix = /^(?:inc|llc|ltd|corp|company|group|hq|official|news|
 // so owner names also come from every cached message that names an account
 // address: To/Cc phrases and the sender of mail sent from that address. The
 // most frequent full names win, which keeps the matcher list bounded.
-export const LEARNED_OWNER_NAMES_MAX = 4;
+export const LEARNED_OWNER_NAMES_MAX = 4, LEARNED_NAMES_BUDGET = 24;
 export function learnedOwnerNames(
   accounts: readonly PrivacyAccount[],
   mails: readonly MailPrivacyInput[],
@@ -171,9 +171,9 @@ export function learnedOwnerNames(
   const add = (candidate: string, sent: boolean, seen: Set<string>) => {
     const name = cleanName(candidate);
     if (!name || name.includes("@") || !/\p{L}/u.test(name)) return;
-    // The owner's own sent name only needs to fit the matcher limits.
-    if (sent ? name.length > PRIVATE_NAME_LENGTH_MAX || name.split(" ").length > PRIVATE_NAME_WORDS_MAX
-      : name.length > 60 || name.split(" ").length > 4) return;
+    // Words are counted the way the matcher splits them (spaces and +).
+    const words = name.split(/[\s+]+/u).filter(Boolean).length;
+    if (sent ? name.length > 100 || words > 8 : name.length > 60 || words > 4) return;
     // Received phrases made only of common words ("Valued Customer") are not names.
     if (!sent && name.split(/[\s,]+/u).every((part) => commonWords.has(part.toLowerCase()))) return;
     const key = name.toLowerCase();
@@ -188,12 +188,19 @@ export function learnedOwnerNames(
     const seen = new Set<string>();
     for (const name of recipientNames(mail.to || "", emails)) add(name, false, seen);
     for (const name of recipientNames(mail.cc || "", emails)) add(name, false, seen);
-    const owner = ownerSender(mail, emails);
+    // From can be forged, so only mail the provider filed as sent counts as the owner's.
+    const owner = mail.direction === "sent" ? ownerSender(mail, emails) : "";
     if (owner) add(owner, true, new Set());
   }
   // A name on too few received messages is not yet trusted as the owner's.
-  const top = [...counts.values()].filter((entry) => entry.sent || entry.count >= minimumMessages)
+  const ranked = [...counts.values()].filter((entry) => entry.sent || entry.count >= minimumMessages)
     .sort((left, right) => Number(right.sent) - Number(left.sent) || right.count - left.count).slice(0, limit);
+  // Learned names with their parts stay inside a fixed share of the matcher budget.
+  const top: typeof ranked = [];
+  for (const entry of ranked) {
+    if (privateNames([...top, entry].map((item) => item.name)).length > LEARNED_NAMES_BUDGET) break;
+    top.push(entry);
+  }
   // Single Latin letters (middle initials) would hide that letter everywhere,
   // and common words from received phrases would hide ordinary text. The
   // owner's own sent name keeps every part.
