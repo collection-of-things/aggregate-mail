@@ -6,6 +6,8 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+## 0.2.29 - 2026-11-03
+
 ### Fixed
 
 - Show images now loads images whose host refuses to display them on other sites, such as the Claude Duet welcome email, by retrying them once through the mail service instead of leaving grey placeholders. ([#209](https://github.com/collection-of-things/aggregate-mail/pull/209))
