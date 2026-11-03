@@ -130,9 +130,9 @@ const roleMailbox = /^(?:no-?reply|do-?not-?reply|donotreply|info|support|news|n
 // own non-personal domain (Kickstarter <…@kickstarter.com>,
 // Running Warehouse | Info <…@runningwarehouse.com>). Services relay people's
 // names from role mailboxes (Jane Smith <notifications@github.com>), so there a
-// name passes only when it matches the domain or its brand label as a whole,
-// or when removing organization and role words leaves nothing or the start
-// of the brand label (The Varo Bank Team <alerts@varomoney.com>).
+// name passes only when, with or without organization and role words, it is
+// the domain or its brand label (The Acme Billing Team <alerts@acme.com>), or
+// is made only of those words (Billing Team).
 // Otherwise a mailbox containing one of the name's words (sean.ford@ford.com) is a person.
 // A person whose name is their domain is a known gap; Always hide covers it.
 export function businessSender(name: string, email: string): boolean {
@@ -150,9 +150,9 @@ export function businessSender(name: string, email: string): boolean {
     // The whole name first, since role words can be part of it (Bank of America).
     const whole = tokens.join(""), rest = tokens.filter((word) => !roleNameWord.test(word)).join("");
     if (whole.length >= 3 && (whole === compactDomain || whole === brand)) return true;
-    // A short brand form counts only beside organization or role words, so a
-    // bare first name (Dan <support@dancecenter.com>) stays hidden.
-    return !rest || rest.length >= 3 && rest !== whole && (rest === compactDomain || !!brand?.startsWith(rest));
+    // Without organization and role words the name must be the brand itself;
+    // no prefix, so a relayed first name (Dan Support <support@dancecenter.com>) stays hidden.
+    return !rest || rest.length >= 3 && (rest === compactDomain || rest === brand);
   }
   // A name word in the mailbox marks a person, unless that word is the brand label itself.
   if (tokens.some((word) => word.length >= 3 && local.includes(word) && !labels.includes(word))) return false;

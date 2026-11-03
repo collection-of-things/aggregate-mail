@@ -11,7 +11,7 @@ const owner = [{ email: "owner@example.test", name: "Main" }];
 test("business senders whose name matches their domain or a role mailbox stay visible", () => {
   assert.equal(businessSender("Kickstarter", "no-reply@kickstarter.example"), true);
   assert.equal(businessSender("Running Warehouse | Info", "info@runningwarehouse.example"), true);
-  assert.equal(businessSender("The Varo Bank Team", "alerts@varomoney.example"), true);
+  assert.equal(businessSender("The Varo Bank Team", "alerts@varo.example"), true);
   assert.equal(businessSender("Acme Billing", "billing@acme.example"), true);
   assert.equal(businessSender("Billing Team", "billing@payments.example"), true);
   assert.equal(businessSender("Bank of America", "alerts@bankofamerica.example"), true);
@@ -24,6 +24,9 @@ test("business senders whose name matches their domain or a role mailbox stay vi
     ["Dan", "support@dancecenter.example"], ["Chris", "notifications@christies.example"],
     ["Mai", "no-reply@mail.shop.example"], ["Mark", "no-reply@marketing.acme.example"],
     ["Mark Support", "no-reply@marketing.acme.example"], ["Eve", "notifications@eventbrite.co.uk"],
+    ["Dan Support", "support@dancecenter.example"], ["Mark Support", "support@marketingpros.example"],
+    // A short brand form is not the brand label either; Never hide covers it.
+    ["The Varo Bank Team", "alerts@varomoney.example"],
   ]) assert.equal(businessSender(name, email), false, `${name} <${email}>`);
   assert.equal(businessSender("Nora Lane", "nora@gmail.com"), false);
   assert.equal(businessSender("Support", "support@gmail.com"), false);

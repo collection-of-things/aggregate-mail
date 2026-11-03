@@ -24,13 +24,12 @@ quoted order confirmations, signatures). Postal addresses were never covered.
   so on those mailboxes (`no-reply`, `info`, `support`, `billing`, `alerts` and
   similar, followed only by a `+tag` or a number, so `info.jane@` is not one;
   not `hello`, `team` or `contact`, which people use personally) the name
-  stays visible only when it matches the domain or its brand label as a whole
-  (`Bank of America <alerts@bankofamerica.com>`), or when removing
-  organization and role words (`The`, `Team`, `Bank`, `Billing`) leaves
-  nothing or the start of the brand label
-  (`The Varo Bank Team <alerts@varomoney.com>`). Mail subdomains such as
-  `marketing.` never count, and a bare short form never does, so
-  `Dan <support@dancecenter.com>` stays hidden.
+  stays visible only when, as a whole or without organization and role words
+  (`The`, `Team`, `Bank`, `Billing`), it equals the domain or its brand label
+  (`Bank of America <alerts@bankofamerica.com>`,
+  `The Acme Billing Team <alerts@acme.com>`), or consists only of those words.
+  Mail subdomains such as `marketing.` never count, and a prefix of the brand
+  never does, so `Dan Support <support@dancecenter.com>` stays hidden.
   Outside role mailboxes, a mailbox containing one of the name's words marks a
   person (`sean.ford@ford.com`), unless that word is the domain label itself
   (`spotify@news.spotify.com`). The same test applies to
@@ -81,11 +80,11 @@ quoted order confirmations, signatures). Postal addresses were never covered.
 
 ## Limits
 
-A person whose name is their domain (`Jane Doe <jd@janedoe.com>`), or whose
-name, beside a role word, starts the brand label on a role mailbox
-(`Mark Support <support@marketingpros.com>`), stays visible; Always hide
-covers that. Brand names with extra words on a role mailbox
-(`Wells Fargo Online <alerts@notify.wellsfargo.com>`) stay hidden; Never hide
+A person whose name is their domain (`Jane Doe <jd@janedoe.com>`) stays
+visible; Always hide
+covers that. Brand names with extra words or a short form on a role mailbox
+(`Wells Fargo Online <alerts@notify.wellsfargo.com>`,
+`The Varo Bank Team <alerts@varomoney.com>`) stay hidden; Never hide
 covers that. Non-US postal formats are not
 detected. On work surfaces, owner aliases from uncited mail beyond the six
 most frequent, or longer than four words, are no longer collected; cited
