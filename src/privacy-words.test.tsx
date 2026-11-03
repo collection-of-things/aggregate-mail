@@ -26,7 +26,11 @@ test("business senders whose name matches their domain or a role mailbox stay vi
     ["Chase Miller", "chase.miller@chase.example"], ["Sarah Johnson", "sarah@johnsonlaw.example"],
     ["Will Brown", "wb@williamsgroup.example"], ["Nora Example", "p@example.org"],
     ["Vera Bloom", "team@vendor.example"], ["Vera Bloom", "hello@verabloom-studio.example"],
+    ["Chase Miller", "cm@chase.example"], ["Grant Lee", "gl@grant.example"], ["Morgan Price", "mp12345@morgan.example"],
   ]) assert.equal(businessSender(name, email), false, `${name} <${email}>`);
+  for (const [name, email] of [
+    ["Spotify", "spotify@news.spotify.example"], ["Acme Inc", "x@acme.example"], ["Kickstarter", "hello@kickstarter.example"],
+  ]) assert.equal(businessSender(name, email), true, `${name} <${email}>`);
   const names = messagePrivateNames(owner, {
     sender: "Kickstarter", address: "no-reply@kickstarter.example",
     to: "owner@example.test", cc: "Kai Rivers <kai@example.org>, Acme Support <support@acme.example>",
@@ -78,6 +82,8 @@ test("crafted recipient names cannot exceed matcher limits or hide single letter
   const names = learnedOwnerNames(owner, mails);
   assert.deepEqual(names, ["Jane Q Owner", "Jane", "Owner"]);
   assert.equal(redactPrivateText("Q3 plan, option Q, from Jane", names), "Q3 plan, option Q, from ••••••••");
+  const stop = learnedOwnerNames(owner, [{ to: '"The And Of To" <owner@example.test>' }, { to: '"The And Of To" <owner@example.test>' }]);
+  assert.equal(redactPrivateText("The plan and the date", stop), "The plan and the date");
 });
 
 test("owner lists add hidden names and remove visible ones and their words, ignoring case", () => {
@@ -86,6 +92,12 @@ test("owner lists add hidden names and remove visible ones and their words, igno
   const kept = applyPrivacyWords(["Jane Q Owner", "Jane", "Owner", "Other"], { visible: ["jane q owner"] });
   assert.deepEqual(kept, ["Other"]);
   assert.equal(redactPrivateText("Signed, Jane Q Owner", kept), "Signed, Jane Q Owner");
+  // A visible business never reveals an owner's name part or an explicit hidden word.
+  const owner = applyPrivacyWords(["Morgan Lee", "Morgan", "Lee"], { visible: ["Morgan Stanley"] });
+  assert.deepEqual(owner, ["Morgan Lee", "Morgan", "Lee"]);
+  assert.equal(redactPrivateText("Hi Morgan, from Morgan Lee", owner), "Hi ••••••••, from ••••••••");
+  assert.deepEqual(applyPrivacyWords(["Morgan Stanley", "Stanley"], { hidden: ["Morgan"], visible: ["Morgan Stanley"] }), ["Morgan"]);
+  assert.deepEqual(applyPrivacyWords(["Morgan Lee", "Morgan", "Lee", "Morgan Stanley"], { visible: ["Morgan Stanley"] }), ["Morgan Lee", "Morgan", "Lee"]);
 });
 
 test("postal matching stays linear on long punctuated runs", () => {

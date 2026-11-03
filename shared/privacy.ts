@@ -136,14 +136,18 @@ export function businessSender(name: string, email: string): boolean {
   const local = email.slice(0, at).trim().toLowerCase(), domain = email.slice(at + 1).trim().toLowerCase();
   if (!domain || personalMailDomains.has(domain)) return false;
   if (roleMailbox.test(local)) return true;
+  // Every label but the top-level one.
+  const labels = domain.split(".").slice(0, -1).map((label) => label.replace(/[^a-z0-9]/g, ""));
   const words = name.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((word) => word.length >= 3);
-  if (words.some((word) => local.includes(word))) return false;
+  // A name word in the mailbox marks a person, unless that word is the brand label itself.
+  if (words.some((word) => local.includes(word) && !labels.includes(word))) return false;
   const compactName = words.join("");
   if (compactName.length < 3) return false;
-  // Every label but the top-level one; the name matches a label or starts with it.
-  return domain.split(".").slice(0, -1).map((label) => label.replace(/[^a-z0-9]/g, ""))
-    .some((label) => label === compactName || label.length >= 5 && compactName.startsWith(label));
+  // The whole name is a label, optionally followed by organization words (Acme Inc).
+  return labels.some((label) => label === compactName ||
+    label.length >= 3 && compactName.startsWith(label) && organizationSuffix.test(compactName.slice(label.length)));
 }
+const organizationSuffix = /^(?:inc|llc|ltd|co|corp|company|group|team|hq|app|official|store|shop|news|mail|bank|support|info|updates?)+$/;
 
 // One message often omits the owner's display name (bare To, quoted orders),
 // so owner names also come from every cached message that names an account
@@ -175,8 +179,9 @@ export function learnedOwnerNames(
   // A name on a single received message is not yet trusted as the owner's.
   const top = [...counts.values()].filter((entry) => entry.sent || entry.count >= 2)
     .sort((left, right) => Number(right.sent) - Number(left.sent) || right.count - left.count).slice(0, limit);
-  // Single Latin letters (middle initials) would hide that letter everywhere.
-  return privateNames(top.map((entry) => entry.name)).filter((name) => !/^[a-z]$/i.test(name));
+  // Single Latin letters (middle initials) and common words would hide
+  // ordinary text everywhere, so those parts are not learned.
+  return privateNames(top.map((entry) => entry.name)).filter((name) => !/^[a-z]$/i.test(name) && !commonWords.has(name.toLowerCase()));
 }
 function ownerSender(mail: MailPrivacyInput, emails: ReadonlySet<string>) {
   const sender = mail.sender || "";
@@ -184,20 +189,27 @@ function ownerSender(mail: MailPrivacyInput, emails: ReadonlySet<string>) {
   return sender.includes("<") ? recipientNames(sender)[0] || "" : sender.includes("@") ? "" : unquotedSender(sender);
 }
 
-// Owner-chosen hidden names join; visible names and their single words leave,
-// so keeping a full name visible also stops its first name and surname
-// matching. Comparison ignores case.
+const commonWords = new Set(("the and of to a an in on at by for from with or my your our dear " +
+  "customer member user subscriber valued team").split(" "));
+
+// Owner-chosen hidden names join; visible names leave. When a kept-visible
+// full name was in the list, its single words leave too, unless the owner
+// hid that word or another listed full name still contains it (Never hide
+// "Morgan Stanley" must not reveal the owner "Morgan Lee"). Comparison ignores case.
 export function applyPrivacyWords(names: readonly string[], words?: Partial<PrivacyWords>): string[] {
   const result = new Map<string, string>();
   for (const name of [...names, ...words?.hidden ?? []]) {
     const clean = cleanName(name);
     if (clean) result.set(clean.toLowerCase(), clean);
   }
+  const hidden = new Set((words?.hidden ?? []).map((name) => cleanName(name).toLowerCase()));
+  const parts: string[] = [];
   for (const name of words?.visible ?? []) {
     const clean = cleanName(name).toLowerCase();
-    result.delete(clean);
-    for (const part of clean.split(/[\s,]+/u)) result.delete(part);
+    if (result.delete(clean)) parts.push(...clean.split(/[\s,]+/u).filter(Boolean));
   }
+  const stillNamed = new Set([...result.keys()].filter((name) => /[\s,]/u.test(name)).flatMap((name) => name.split(/[\s,]+/u)));
+  for (const part of parts) if (!hidden.has(part) && !stillNamed.has(part)) result.delete(part);
   return [...result.values()];
 }
 
