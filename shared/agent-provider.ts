@@ -12,3 +12,18 @@ export type AgentProviderSettings = {
   hasKey: boolean;
   revision: string;
 };
+export type AgentAutomationScope = "important" | "all";
+// The user switches this per assistant. It runs only for new unread mail after
+// a later sync, never for mail already in the cache.
+export type AgentAutomationSettings = {
+  agentId: string;
+  enabled: boolean;
+  scope: AgentAutomationScope;
+  instruction: string;
+  dailyLimit: number;
+  revision: string;
+  day?: string;
+  count?: number;
+  lastRunAt?: number;
+  lastResult?: string;
+};

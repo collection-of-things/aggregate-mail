@@ -21,6 +21,7 @@ import { SessionActions, SessionDialog, WorkSessions, useWorkSessions } from "./
 import { EventDetail, EventForm } from "./EventPanel";
 import { blankEvent, eventFields, useCalendarEvents, type EventFields } from "./events";
 import { AgentProvider } from "./AgentProvider";
+import { AgentAutomation } from "./AgentAutomation";
 import type { WorkspaceState } from "./useWorkspace";
 import { deadlineDate, localDate, localTimeInput, openCommitment } from "../../shared/commitment-dates";
 import { commitmentMails } from "./commitment-privacy";
@@ -272,6 +273,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   const [grantAccounts, setGrantAccounts] = useState<string[]>([]);
   const [grantTools, setGrantTools] = useState<AgentTool[]>([]);
   const [mcpEnabled, setMcpEnabled] = useState(false);
+  const [automationReload, setAutomationReload] = useState(0);
   const [shownToken, setShownToken] = useState<string | undefined>();
   const [editingGrant, setEditingGrant] = useState<string | null>(null);
   const privacyContext = useContext(PrivacyContext);
@@ -533,7 +535,8 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
             onSave={async (input) => { if (await mutate(() => api(`/agent/grants/${encodeURIComponent(grant.id)}`, "PATCH", input))) setEditingGrant(null); }} />
           : <><details className="agent-permissions"><summary>Permissions ({grant.tools.length})</summary><ul>{grant.tools.map((tool) => <li key={tool}>{toolNames[tool]}</li>)}</ul>
           </details><button type="button" disabled={pending || agentStale} onClick={() => setEditingGrant(grant.id)}>Edit access</button></>}
-          <AgentProvider grant={grant} state={state} api={api} mcpEnabled={mcpEnabled} disabled={pending || stale} onPrepared={work.refreshFresh} />
+          <AgentAutomation grant={grant} api={api} mcpEnabled={mcpEnabled} disabled={pending || stale} reload={automationReload} />
+          <AgentProvider grant={grant} state={state} api={api} mcpEnabled={mcpEnabled} disabled={pending || stale} onPrepared={work.refreshFresh} onKeyChanged={() => setAutomationReload((value) => value + 1)} />
           <details className="agent-external work-opencode"><summary>Connect OpenCode or another agent</summary>
             <OpenCodeSetup token={grant.token} enabled={mcpEnabled} api={api} onEnabled={() => setMcpEnabled(true)} onNotice={onNotice} />
             <button type="button" onClick={() => setShownToken(shownToken === grant.id ? undefined : grant.id)}>{shownToken === grant.id ? "Hide credential" : "Reveal credential"}</button>

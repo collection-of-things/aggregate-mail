@@ -9,9 +9,11 @@ import { PrivateField } from "../ui/PrivateField";
 import { MailPrivacy, PrivacyContext, Redact } from "../ui/Privacy";
 import { accountLabel } from "../mail-ui";
 import { SourceSelect } from "./Workbench";
+import { automationDefaults, automationRoute } from "./AgentAutomation";
+import type { AgentAutomationSettings } from "../../shared/agent-provider";
 
-export function AgentProvider({ grant, state, api, mcpEnabled, disabled, onPrepared }: {
-  grant: AgentGrant; state: State; api: Api; mcpEnabled: boolean; disabled: boolean; onPrepared: () => Promise<unknown>;
+export function AgentProvider({ grant, state, api, mcpEnabled, disabled, onPrepared, onKeyChanged }: {
+  grant: AgentGrant; state: State; api: Api; mcpEnabled: boolean; disabled: boolean; onPrepared: () => Promise<unknown>; onKeyChanged?: () => void;
 }) {
   const providerLabel = useId();
   const [open, setOpen] = useState(false);
@@ -63,8 +65,17 @@ export function AgentProvider({ grant, state, api, mcpEnabled, disabled, onPrepa
     const version = epoch.current;
     try {
       const value = await api<AgentProviderSettings>(route, "PUT", { provider, ...(provider === "custom" ? { baseURL } : {}), model, ...(apiKey ? { apiKey } : {}), revision: saved?.revision ?? null });
+      // A first key turns on automatic replies once; the user's later choice is kept.
+      let automatic = false;
+      if (!saved && permitted) try {
+        if (!await api<AgentAutomationSettings | null>(automationRoute(grant))) {
+          await api(automationRoute(grant), "PUT", { ...automationDefaults, revision: null });
+          automatic = true;
+        }
+      } catch { /* The switch on the card still shows the saved state. */ }
+      onKeyChanged?.();
       if (!active.current || epoch.current !== version) return;
-      setSaved(value); setBaseURL(value.baseURL); setModel(value.model); setApiKey(""); setStatus("Key saved locally, encrypted. Connection not tested. Next, choose an email below and click Prepare draft.");
+      setSaved(value); setBaseURL(value.baseURL); setModel(value.model); setApiKey(""); setStatus(automatic ? "Key saved locally, encrypted. Automatic replies are on for new mail; switch them off on this card at any time." : "Key saved locally, encrypted. Connection not tested. Next, choose an email below and click Prepare draft.");
     } catch { if (active.current && epoch.current === version) setError("Settings were not confirmed. Your entries are still here. Check the fields or reopen Agent Reviews to reload a changed revision."); }
   });
   const remove = () => run(async () => {
@@ -72,6 +83,7 @@ export function AgentProvider({ grant, state, api, mcpEnabled, disabled, onPrepa
     try {
       await api(route, "DELETE", { revision: saved!.revision });
       if (!active.current || epoch.current !== version) return;
+      onKeyChanged?.();
       setSaved(null); setApiKey(""); setStatus("Key removed.");
     } catch { if (active.current && epoch.current === version) setError("Removal was not confirmed. Reload settings before retrying."); }
   });
@@ -120,6 +132,7 @@ export function AgentProvider({ grant, state, api, mcpEnabled, disabled, onPrepa
           <summary>Advanced: model</summary>
           <PrivateField label="Model" value={model} onChange={(value) => { changed(); setModel(value); }} maxLength={200} required />
         </details>}
+        {!saved && permitted && <p className="work-meta">Saving a key also turns on automatic replies: each new email in this assistant's accounts is sent to this provider to prepare a reply for review. Switch it off on this card at any time.</p>}
         <p className="work-meta">{saved?.hasKey ? "Key saved locally, encrypted. Connection not tested by saving. Change provider or key here; leave the key blank to keep it for the same endpoint." : "No key saved."} Changing the endpoint requires a new key.</p>
         <div className="work-controls"><button className="button" disabled={!model.trim() || !baseURL || needsKey && !apiKey}>Save key</button>
           {saved && <button type="button" onClick={() => void remove()}>Remove key</button>}</div>

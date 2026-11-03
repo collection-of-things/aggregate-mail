@@ -5,8 +5,8 @@ import { Agent } from "undici";
 import express from "express";
 import addressparser from "nodemailer/lib/addressparser/index.js";
 import { z } from "zod";
-import { agentProviders, type AgentProviderSettings } from "../shared/agent-provider.js";
-import { get, put, remove } from "./store.js";
+import { agentProviders, type AgentAutomationSettings, type AgentProviderSettings } from "../shared/agent-provider.js";
+import { all, get, put, remove } from "./store.js";
 import { assertAgent, fingerprint, propose } from "./workspace.js";
 import { contentSchema } from "./drafts.js";
 
@@ -71,7 +71,7 @@ function reply(mail: ReturnType<typeof source>) {
 const inFlight = new Set<string>();
 type Address = { address: string; family: number };
 type Resolver = (host: string, options: { all: true; verbatim: true }) => Promise<Address[]>;
-type ProviderDependencies = { resolve?: Resolver; deadline?: () => AbortSignal };
+type ProviderDependencies = { resolve?: Resolver; deadline?: () => AbortSignal; changed?: () => void };
 // Resolve once, validate every answer, and pin the connector to that set.
 async function providerAddresses(host: string, signal: AbortSignal, resolve: Resolver): Promise<Address[]> {
   const ip = isIP(host);
@@ -147,7 +147,89 @@ async function completion(config: StoredAgentProvider, mail: ReturnType<typeof s
       signal.aborted || (error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name)) ? "Provider request timed out. No proposal was created." : "Provider request failed. No proposal was created.");
   }
 }
+async function prepareProposal(id: string, sourceMailId: string, revision: string, instruction: string) {
+  const mail = source(id, sourceMailId);
+  const config = get("agentProvider", id);
+  if (!config || config.revision !== revision) return fail(409, "Save or reload the provider settings before preparing a draft.");
+  endpoint(config.baseURL); key(config.apiKey);
+  const payload = reply(mail);
+  const { accountId: _accountId, ...content } = payload;
+  if (!contentSchema.safeParse({ ...content, body: "" }).success) return fail(400, "Source reply fields exceed draft limits.");
+  if (inFlight.has(id)) return fail(409, "This agent is already preparing a draft.");
+  const evidence = fingerprint(sourceMailId);
+  const permission = JSON.stringify(grant(id));
+  const account = JSON.stringify(get("account", mail.accountId));
+  inFlight.add(id);
+  try {
+    const body = await completion(config, mail, instruction, providerDependencies);
+    const currentSource = source(id, sourceMailId);
+    if (currentSource.preview !== mail.preview || get("agentProvider", id)?.revision !== revision || JSON.stringify(grant(id)) !== permission || JSON.stringify(get("account", mail.accountId)) !== account || fingerprint(sourceMailId) !== evidence)
+      return fail(409, "Source, permission or provider changed. Prepare a fresh proposal.");
+    return propose(id, "draft", { ...payload, body }, sourceMailId);
+  } finally { inFlight.delete(id); }
+}
+const automationSchema = z.object({
+  enabled: z.boolean(), scope: z.enum(["important", "all"]),
+  instruction: z.string().trim().max(2000), dailyLimit: z.number().int().min(1).max(200),
+  revision: z.uuid().nullable(),
+}).strict();
+let providerDependencies: ProviderDependencies = {};
+// Automated senders cannot use a reply, so they are not sent to the provider.
+const automatedSender = /^(?:no-?reply|do-?not-?reply|mailer-daemon|postmaster|bounces?)(?:[+._-][^@]*)?@/i;
+const today = () => new Date().toLocaleDateString("en-CA");
+function automationStatus(agentId: string, update: (current: AgentAutomationSettings) => Partial<AgentAutomationSettings>) {
+  const current = get("agentAutomation", agentId);
+  // Status never changes the settings revision, so an open form can still save.
+  if (current) put("agentAutomation", agentId, { ...current, ...update(current) });
+}
+async function automate(mailIds: string[]) {
+  let created = 0;
+  for (const settings of all("agentAutomation")) {
+    const agentId = settings.agentId;
+    if (!settings.enabled || !get("agent", agentId)) continue;
+    let prepared = 0;
+    let result: string | undefined;
+    for (const mailId of mailIds) {
+      // Read again for each email: the user can switch it off or change it mid-run.
+      const current = get("agentAutomation", agentId);
+      const permission = get("agent", agentId);
+      const config = get("agentProvider", agentId);
+      if (!current?.enabled || !permission) break;
+      if (!config) { result = "Save a provider key to run automatically."; break; }
+      const mail = get("mail", mailId);
+      if (!mail || mail.direction === "sent" || !mail.unread || mail.archived || !permission.accountIds.includes(mail.accountId)) continue;
+      if (current.scope === "important" && mail.category !== "important") continue;
+      if (automatedSender.test((mail.replyTo || mail.address).replace(/^.*</, "").trim())) continue;
+      // Checked per email: an outside MCP agent on this grant may have proposed meanwhile.
+      if (all("proposal").some((proposal) => proposal.agentId === agentId && proposal.sourceMailId === mailId)) continue;
+      const count = current.day === today() ? current.count ?? 0 : 0;
+      if (count >= current.dailyLimit) { result = `Daily limit of ${current.dailyLimit} reached. More new mail waits until tomorrow.`; break; }
+      // A manual Prepare draft holds the grant for at most its 30-second deadline.
+      for (let waited = 0; inFlight.has(agentId) && waited < 60000; waited += 250) await new Promise((resolve) => setTimeout(resolve, 250));
+      // Every attempt counts, so a failing provider cannot receive more mail than the limit.
+      automationStatus(agentId, (latest) => ({ day: today(), count: (latest.day === today() ? latest.count ?? 0 : 0) + 1 }));
+      try {
+        await prepareProposal(agentId, mailId, config.revision, current.instruction);
+        prepared++; created++;
+      } catch (error) {
+        result = error instanceof ProviderError ? error.message : "Automatic reply preparation failed.";
+        // Key, permission, rate-limit and timeout failures repeat for every email; stop this batch.
+        if (error instanceof ProviderError && [401, 403, 429, 504].includes(error.status)) break;
+      }
+    }
+    if (prepared || result)
+      automationStatus(agentId, () => ({ lastRunAt: Date.now(), lastResult: result ?? `Prepared ${prepared} ${prepared === 1 ? "reply" : "replies"} for review.` }));
+  }
+  if (created) providerDependencies.changed?.();
+}
+let automationQueue: Promise<void> = Promise.resolve();
+// Runs after a sync reports new unread mail. Runs one batch at a time.
+export function runAgentAutomations(mailIds: string[]) {
+  automationQueue = automationQueue.then(() => automate(mailIds)).catch(() => undefined);
+  return automationQueue;
+}
 export function mountAgentProvider(app: express.Express, dependencies: ProviderDependencies = {}) {
+  providerDependencies = dependencies;
   const router = express.Router();
   router.get("/:id/provider", (req, res) => {
     grant(req.params.id);
@@ -180,26 +262,25 @@ export function mountAgentProvider(app: express.Express, dependencies: ProviderD
     const parsed = prepareSchema.safeParse(req.body);
     if (!parsed.success) return fail(400, "Choose one source and a short instruction.");
     const { sourceMailId, revision, instruction } = parsed.data;
-    const id = req.params.id;
-    const mail = source(id, sourceMailId);
-    const config = get("agentProvider", id);
-    if (!config || config.revision !== revision) return fail(409, "Save or reload the provider settings before preparing a draft.");
-    endpoint(config.baseURL); key(config.apiKey);
-    const payload = reply(mail);
-    const { accountId: _accountId, ...content } = payload;
-    if (!contentSchema.safeParse({ ...content, body: "" }).success) return fail(400, "Source reply fields exceed draft limits.");
-    if (inFlight.has(id)) return fail(409, "This agent is already preparing a draft.");
-    const evidence = fingerprint(sourceMailId);
-    const permission = JSON.stringify(grant(id));
-    const account = JSON.stringify(get("account", mail.accountId));
-    inFlight.add(id);
-    try {
-      const body = await completion(config, mail, instruction, dependencies);
-      const currentSource = source(id, sourceMailId);
-      if (currentSource.preview !== mail.preview || get("agentProvider", id)?.revision !== revision || JSON.stringify(grant(id)) !== permission || JSON.stringify(get("account", mail.accountId)) !== account || fingerprint(sourceMailId) !== evidence)
-        return fail(409, "Source, permission or provider changed. Prepare a fresh proposal.");
-      res.status(201).json(propose(id, "draft", { ...payload, body }, sourceMailId));
-    } finally { inFlight.delete(id); }
+    res.status(201).json(await prepareProposal(req.params.id, sourceMailId, revision, instruction));
+  });
+  router.get("/:id/automation", (req, res) => {
+    grant(req.params.id);
+    res.json(get("agentAutomation", req.params.id) ?? null);
+  });
+  router.put("/:id/automation", (req, res) => {
+    const permission = grant(req.params.id);
+    const parsed = automationSchema.safeParse(req.body);
+    if (!parsed.success) return fail(400, "Check the automatic reply settings.");
+    const { revision, ...input } = parsed.data;
+    const current = get("agentAutomation", req.params.id);
+    if (revision !== (current?.revision ?? null)) return fail(409, "Automatic reply settings changed. Reload before saving.");
+    if (input.enabled && !(permission.tools.includes("read_email") && permission.tools.includes("propose_draft")))
+      return fail(403, "Automatic replies need read_email and propose_draft permission.");
+    if (input.enabled && !get("agentProvider", req.params.id)) return fail(400, "Save a provider key before turning on automatic replies.");
+    const next: AgentAutomationSettings = { ...current, ...input, agentId: req.params.id, revision: randomUUID() };
+    put("agentAutomation", req.params.id, next);
+    res.json(next);
   });
   router.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     // The general API handler echoes Error.message. Never pass provider errors to it.

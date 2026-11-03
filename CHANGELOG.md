@@ -6,6 +6,10 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Added
+
+- Assistants with a provider key now prepare reply proposals for new mail by themselves. A switch on each assistant card turns this on or off, with options for Important only or all new mail, an instruction and a daily limit. Saving a key for the first time turns it on. Proposals still wait in the Review queue, and nothing is sent.
+
 ### Fixed
 
 - Search finds what you type. A short word such as a sender name no longer matches almost every email: one-typo matching made "ando" match "and" and "skip" match "ship" and "slip". Words now match exactly first; close spellings are used only when nothing matches exactly, and the list says so. CLI and MCP `--syntax app` follow the same rule. ([#212](https://github.com/collection-of-things/aggregate-mail/pull/212))

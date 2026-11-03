@@ -601,6 +601,27 @@ users are prompted to inspect existing proposals. Editing the instruction does
 not clear this hold. The provider request is never retried automatically.
 [ADR 0045](adr/0045-agent-review-byok.md) records the limits.
 
+### Automatic reply proposals
+
+GET and PUT `/api/agent/grants/:id/automation` read and save the per-assistant
+switch in the encrypted `agentAutomation` record: `enabled`, `scope`
+(`important` or `all`), `instruction`, `dailyLimit` (1 to 200) and the current
+revision (null for a first save). PUT refuses `enabled` without a saved key or
+without `read_email` and `propose_draft`. `server/index.ts` passes each
+`new-mail` event's mail IDs to `runAgentAutomations`, which reuses
+`prepareProposal` (the Prepare draft path) serially and emits `mail-changed`
+when it creates proposals. It skips sent, read, archived, out-of-scope,
+automated-sender and already-proposed mail, waits up to 60 seconds for a manual
+preparation on the same grant, counts every attempt toward the daily limit,
+stops a batch on 401, 403, 429 or 504, and records a sanitized last result
+without changing the revision. Grant PATCH turns automation off when
+`read_email` or `propose_draft` is removed. The card's status refreshes when
+Agent Reviews reloads, not live. `src/work/AgentAutomation.tsx` shows the switch, status and options
+on each assistant card. A first key save turns it on once with defaults.
+Synthetic checks: `server/agent-provider.test.ts`,
+`src/agent-automation.test.tsx`, `src/agent-provider.test.tsx`. See
+[ADR 0122](adr/0122-automatic-assistant-replies.md).
+
 Mounted `src/workbench.test.tsx` regressions hold an old workspace response
 across acknowledged and stored-but-lost preparation, then require a new read
 before releasing the hold. They also cover failed fresh reads, visible proposal
