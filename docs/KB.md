@@ -2362,7 +2362,9 @@ of Phase 3.
 ### Offer times (phase 4)
 
 In the reader actions row, the Offer times wrapper has no border, padding or
-margin. Its trigger uses the shared link style and keyboard-only focus outline;
+margin. Its trigger uses the shared link style at the same
+`calc(11px * var(--text-scale, 1))` size as the neighbouring `.message-labels`
+actions, so the labels share a baseline, and the keyboard-only focus outline;
 the outline does not contribute to row geometry. Escape returns focus to the
 trigger without changing the row spacing.
 

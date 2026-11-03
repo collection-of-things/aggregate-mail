@@ -8,7 +8,7 @@ unversioned history without treating it as a release record.
 
 ### Fixed
 
-- Align Offer times with the other reader actions, removing its surrounding borders and extra spacing while preserving the keyboard focus ring. ([#199](https://github.com/collection-of-things/aggregate-mail/issues/199))
+- Align Offer times with the other reader actions, matching their text size and removing its surrounding borders and extra spacing while preserving the keyboard focus ring. ([#199](https://github.com/collection-of-things/aggregate-mail/issues/199))
 
 ## 0.2.27 - 2026-11-02
 
