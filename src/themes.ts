@@ -73,7 +73,7 @@ function luminance(color: string): number {
   return channel(1) * 0.2126 + channel(3) * 0.7152 + channel(5) * 0.0722;
 }
 
-function contrastRatio(first: string, second: string): number {
+export function contrastRatio(first: string, second: string): number {
   const brighter = Math.max(luminance(first), luminance(second));
   const darker = Math.min(luminance(first), luminance(second));
   return (brighter + 0.05) / (darker + 0.05);
@@ -85,7 +85,7 @@ function contrastRatio(first: string, second: string): number {
 export const accentSoftMix = { dark: { fill: 0.22, ink: 0.38 }, light: { fill: 0.16, ink: 0.7 } } as const;
 
 // Reproduces color-mix(in oklab, a n%, b) over sRGB hex colors.
-function oklabHex(first: string, second: string, amount: number): string {
+export function oklabHex(first: string, second: string, amount: number): string {
   const toLinear = (value: number) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
   const fromLinear = (value: number) => (value <= 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055);
   const lab = (color: string) => {
@@ -139,18 +139,22 @@ export function applyPalette(palette: Palette, root: HTMLElement): void {
   root.style.setProperty("--avatar", palette.raised);
   root.style.setProperty("--avatar-text", palette.secondaryText);
   // A pale custom accent would render --accent-soft-ink unreadable on its fill;
-  // CSS can't choose a contrasting color, so pin a passing ink here.
+  // CSS can't choose a contrasting color, so pin a passing ink here. The same
+  // derivation feeds --code-ink, which sits on the veil instead of the fill.
   const percentages = accentSoftMix[root.dataset.scheme === "light" ? "light" : "dark"];
   const fill = oklabHex(palette.accent, palette.surface, percentages.fill);
   const ink = oklabHex(palette.accent, palette.text, percentages.ink);
   if (contrastRatio(ink, fill) >= 4.5) root.style.removeProperty("--accent-soft-ink");
   else if (contrastRatio(palette.text, fill) >= 4.5) root.style.setProperty("--accent-soft-ink", palette.text);
   else root.style.setProperty("--accent-soft-ink", contrastRatio("#ffffff", fill) >= contrastRatio("#000000", fill) ? "#ffffff" : "#000000");
+  if (contrastRatio(ink, palette.veil) >= 4.5) root.style.removeProperty("--code-ink");
+  else if (contrastRatio(palette.text, palette.veil) >= 4.5) root.style.setProperty("--code-ink", palette.text);
+  else root.style.setProperty("--code-ink", contrastRatio("#ffffff", palette.veil) >= contrastRatio("#000000", palette.veil) ? "#ffffff" : "#000000");
 }
 
 export function clearPalette(root: HTMLElement): void {
   for (const field of paletteFields) root.style.removeProperty(field.variable);
-  for (const variable of ["--text-body", "--text-4", "--line-2", "--line-3", "--hover", "--selected", "--veil-hover", "--avatar", "--avatar-text", "--accent-soft-ink"])
+  for (const variable of ["--text-body", "--text-4", "--line-2", "--line-3", "--hover", "--selected", "--veil-hover", "--avatar", "--avatar-text", "--accent-soft-ink", "--code-ink"])
     root.style.removeProperty(variable);
 }
 

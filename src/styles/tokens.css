@@ -89,6 +89,7 @@
      unreadable ink on pale custom accents. Keep both in sync. */
   --accent-soft: color-mix(in oklab, var(--accent) 22%, var(--surface));
   --accent-soft-ink: color-mix(in oklab, var(--accent) 38%, var(--text));
+  --code-ink: color-mix(in oklab, var(--accent) 38%, var(--text));
   --link: color-mix(in srgb, var(--accent) 72%, #fff);
   --reason: #fcaec2;
   --quote: color-mix(in srgb, var(--accent) 40%, var(--line-2));
@@ -148,6 +149,7 @@
   --accent-soft: color-mix(in oklab, var(--accent) 16%, var(--surface));
   /* Same pairing note as the dark block: sync with themes.ts accentSoftMix. */
   --accent-soft-ink: color-mix(in oklab, var(--accent) 70%, var(--text));
+  --code-ink: color-mix(in oklab, var(--accent) 70%, var(--text));
   --link: color-mix(in srgb, var(--accent) 88%, #000);
   --reason: #a50685;
   --danger: #c93434;

@@ -359,11 +359,14 @@
 .commands-button { gap: 10px; min-height: 32px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: var(--radius-control); font-size: calc(12px * var(--text-scale, 1)); }
 .commands-button kbd { color: var(--text-3); font-size: calc(10px * var(--text-scale, 1)); }
 .save-view-button { flex-shrink: 0; min-height: 32px; padding: 0 6px; color: var(--text-3); white-space: nowrap; font-size: calc(12px * var(--text-scale, 1)); }
-/* At narrow widths the query field drops its 220px floor and the group wraps,
-   so the field, Search options and Commands all stay reachable at 320px. */
-@media (max-width: 760px) { .commands-button kbd { display: none; } .app-toolbar { padding-left: 12px; }
+@media (max-width: 760px) { .commands-button kbd { display: none; } .app-toolbar { padding-left: 12px; } }
+/* Same condition as the auto-height toolbar in responsive.css: only then can
+   the group wrap, dropping the field's 220px floor so the field, Search
+   options and Commands all stay reachable at 320px. */
+@media (width < 760px) {
   .app-search-toolbar { flex-wrap: wrap; min-width: 0; }
-  .app-search-toolbar .search { flex: 1 1 auto; min-width: 0; } }
+  .app-search-toolbar .search { flex: 1 1 auto; min-width: 0; }
+}
 
 .app { font-size: calc(14px * var(--text-scale, 1)); }
 .app-toolbar .mail-navigation { flex: 0 0 auto; padding: 0; border: 0; gap: 2px; }

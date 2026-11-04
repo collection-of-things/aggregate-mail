@@ -255,7 +255,7 @@ article.message {
   font-family: var(--font-mono);
   font-size: 0.92em;
   background: var(--veil);
-  color: var(--accent-soft-ink);
+  color: var(--code-ink);
   border-radius: 3px;
   padding: 0 4px;
 }

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { generatePalette, type CustomTheme } from "./themes";
+import { contrastRatio, generatePalette, oklabHex, type CustomTheme } from "./themes";
 
 // Runs appearance code against a fresh DOM with a synthetic desktop bridge.
 async function withDesktop(platform: string, run: (calls: string[], dom: JSDOM) => Promise<void>) {
@@ -185,16 +185,31 @@ test("pale custom accents pin a readable selection ink and built-ins clear it", 
     applyAppearance(value, "light");
     assert.equal(root.style.getPropertyValue("--accent-soft-ink"), "#222222",
       "a pale accent cannot derive readable ink, so the palette text is pinned");
+    const paper: CustomTheme = { id: `custom:${crypto.randomUUID()}`, name: "Paper", palettes: {
+      dark: generatePalette("#0b0b0f", "#101010", "dark"),
+      light: { ...generatePalette("#ffffff", "#ffffff", "light"), accent: "#ffffff", surface: "#ffffff", text: "#000000", veil: "#111111" },
+    } };
+    applyAppearance({ ...value, theme: paper.id, customThemes: [pale, paper] }, "light");
+    assert.equal(root.style.getPropertyValue("--accent-soft-ink"), "#000000");
+    const codeInk = root.style.getPropertyValue("--code-ink") ||
+      oklabHex("#ffffff", "#000000", 0.7);
+    assert.ok(contrastRatio(codeInk, "#111111") >= 4.5,
+      `code ink ${codeInk} stays readable on the dark veil`);
     const meadow: CustomTheme = { id: `custom:${crypto.randomUUID()}`, name: "Meadow", palettes: {
       dark: generatePalette("#0c1a10", "#3ddc84", "dark"),
       light: { ...generatePalette("#e2f3e8", "#2b8a3e", "light"), accent: "#2b8a3e", surface: "#f8fcf9", text: "#1a1a1a" },
     } };
     applyAppearance({ ...value, theme: meadow.id, customThemes: [pale, meadow] }, "light");
     assert.equal(root.style.getPropertyValue("--accent-soft-ink"), "", "a passing accent keeps the derived ink");
+    const meadowInk = root.style.getPropertyValue("--code-ink") ||
+      oklabHex("#2b8a3e", "#1a1a1a", 0.7);
+    assert.ok(contrastRatio(meadowInk, meadow.palettes.light.veil) >= 4.5,
+      `code ink ${meadowInk} stays readable on the meadow veil`);
     applyAppearance({ ...value, customThemes: [pale, meadow] }, "light");
     assert.equal(root.style.getPropertyValue("--accent-soft-ink"), "#222222");
     applyAppearance({ ...defaultAppearance, mode: "light" }, "light");
     assert.equal(root.style.getPropertyValue("--accent-soft-ink"), "", "returning to a built-in clears the pinned ink");
+    assert.equal(root.style.getPropertyValue("--code-ink"), "", "returning to a built-in clears the pinned code ink");
   });
 });
 

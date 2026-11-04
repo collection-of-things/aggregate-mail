@@ -71,6 +71,7 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
     frame.contentDocument!.head.append(style);
     assert.equal(frame.contentWindow!.getComputedStyle(frame.contentDocument!.body).color, 'rgb(17, 17, 17)', 'sender body foreground wins over host defaults');
     assert.match(installed, /font: calc\(14px \* var\(--text-scale, 1\)\)/, 'default body font also follows text scaling');
+    assert.match(installed, /color:\s*var\(--code-ink\)/, 'isolated code ink follows the veil-safe token');
     assert.equal(frame.contentDocument!.querySelectorAll('img').length, 0);
     assert.equal(frame.contentDocument!.querySelector('p')?.hasAttribute('id'), false, 'absent ids cannot match a sender selector');
     assert.doesNotMatch(frame.contentDocument!.body.innerHTML, /summary/);
