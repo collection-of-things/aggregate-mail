@@ -27,7 +27,7 @@ export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, sync
   if (loadError) {
     return (
       <div className="empty empty-clear empty-error">
-        <div className="empty-mark empty-mark-muted" aria-hidden="true"><img src="/brand/mark-lumen.svg" alt="" /></div>
+        <div className="empty-mark empty-mark-muted" aria-hidden="true"><span className="empty-mark-glyph" /></div>
         <h2 className="empty-heading">{loadError}</h2>
         <button type="button" className="link" onClick={onRetry}>Retry loading mail</button>
       </div>

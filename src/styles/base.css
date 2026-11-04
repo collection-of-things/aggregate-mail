@@ -217,11 +217,19 @@ input[type="checkbox"][role="switch"]:disabled {
   font-weight: 500;
   line-height: 1.4;
 }
+/* The load error carries the danger meaning: the brand mark is masked and
+   filled with the danger ink on a pale danger tint, like .reader-empty-mark. */
 .empty-mark-muted {
-  background: var(--veil);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: var(--danger);
 }
-.empty-mark-muted img {
-  opacity: 0.6;
+.empty-mark-glyph {
+  display: block;
+  width: 30px;
+  height: 30px;
+  background: currentColor;
+  mask: url("/brand/mark-lumen.svg") center / contain no-repeat;
+  -webkit-mask: url("/brand/mark-lumen.svg") center / contain no-repeat;
 }
 /* Loading shows skeleton cards in the real row grid — same gutter, avatar,
    text x, line heights and card height as .row.card — under one date bar.
@@ -242,7 +250,7 @@ input[type="checkbox"][role="switch"]:disabled {
   height: 11px;
   margin: calc(10px * var(--text-scale, 1)) 0 calc(9px * var(--text-scale, 1)) 12px;
   border-radius: 6px;
-  background: var(--veil);
+  background: var(--skeleton);
 }
 .empty-skeleton-card {
   display: grid;
@@ -258,7 +266,7 @@ input[type="checkbox"][role="switch"]:disabled {
   display: block;
   height: 11px;
   border-radius: 6px;
-  background: var(--veil);
+  background: var(--skeleton);
 }
 .empty-skeleton-card > i:first-child {
   grid-row: 1 / 4;
@@ -272,7 +280,7 @@ input[type="checkbox"][role="switch"]:disabled {
 .empty-skeleton-card > i:nth-child(4) { width: 42%; }
 @media (prefers-reduced-motion: no-preference) {
   .empty-skeleton-card > i {
-    background: linear-gradient(90deg, var(--veil) 25%, var(--veil-hover) 50%, var(--veil) 75%);
+    background: linear-gradient(90deg, var(--skeleton) 25%, var(--skeleton-peak) 50%, var(--skeleton) 75%);
     background-size: 200% 100%;
     animation: empty-shimmer 1600ms linear infinite;
   }

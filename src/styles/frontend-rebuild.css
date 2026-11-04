@@ -126,12 +126,18 @@
    on a baseline-aligned flex item would lift its text ~3px). */
 .row.card .row-preview { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .row.card .row-preview .row-meta { display: contents; }
-/* Meta parts cap at two-fifths of the line each and truncate, so a long
-   account or status cannot consume the whole row and hide the preview. */
+/* Account and status keep their natural width, capped at two-fifths of the
+   line each so a long name still truncates; the preview text is the only part
+   that gives way when the line runs out of room. */
 .row.card .row-preview .row-account,
-.row.card .row-preview .row-status { min-width: 0; max-width: 40%; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row.card .row-preview .row-label { overflow: hidden; text-overflow: ellipsis; }
-.row.card .row-preview .row-preview-text { flex: 1 1 auto; min-width: 4ch; overflow: hidden; text-overflow: ellipsis; }
+.row.card .row-preview .row-status { flex: 0 0 auto; min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The status label is plain text here: as an inline-block with hidden
+   overflow its baseline would come from its bottom margin edge, which lifts
+   the status text and its middot off the shared baseline. Inline keeps it on
+   the strut; the status itself caps and ellipsizes, and the attention chip's
+   padding still paints on inline display. */
+.row.card .row-preview .row-label { display: inline; }
+.row.card .row-preview .row-preview-text { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* Inline account content reports the name's baseline, not the dot's box. */
 .row.card .row-preview .row-account { display: inline; }
 .row.card .row-preview .row-account .account-dot { margin-right: 6px; vertical-align: baseline; }

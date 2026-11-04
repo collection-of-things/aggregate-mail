@@ -480,7 +480,7 @@
 .rail-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
 .rail-triage .tool { height: 28px; min-width: 28px; padding: 0 8px; font-size: calc(12px * var(--text-scale, 1)); }
 .mail-row > .row { padding-left: 30px; }
-.mail-select { position: absolute; z-index: 2; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; padding: 0; border: 1px solid var(--line-3); border-radius: 4px; background: var(--surface); color: var(--text); display: grid; place-items: center; font-size: 11px; line-height: 1; }
+.mail-select { position: absolute; z-index: 2; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; padding: 0; border: 1px solid var(--control-edge); border-radius: 4px; background: var(--surface); color: var(--text); display: grid; place-items: center; font-size: 11px; line-height: 1; }
 .mail-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .mail-row.bulk-selected > .row:not(:focus-visible) { background: var(--selected); }
 @media (hover: hover) and (pointer: fine) {

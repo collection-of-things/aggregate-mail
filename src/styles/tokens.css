@@ -77,6 +77,9 @@
   --line: rgba(255, 243, 242, 0.08);
   --line-2: rgba(255, 243, 242, 0.12);
   --line-3: rgba(255, 243, 242, 0.18);
+  /* Control outlines need 3:1 against the pane; text-4 mixed toward surface
+     tracks every palette, including custom themes. */
+  --control-edge: color-mix(in srgb, var(--text-4) 70%, var(--surface));
   --text: #fff3f2;
   --text-body: #f0dfe2;
   --text-2: #c4aab5;
@@ -96,6 +99,9 @@
   --danger: #f07c7c;
   --veil: #2c1724;
   --veil-hover: #361d2c;
+  /* Skeleton bars lift one step off the pane so they read in dark themes. */
+  --skeleton: var(--veil-hover);
+  --skeleton-peak: color-mix(in srgb, var(--veil-hover) 80%, var(--text-4));
   --avatar: #2a1522;
   --avatar-text: #c4aab5;
   --lights-off: #38222f;
@@ -110,6 +116,9 @@
   --raised: #29292d;
   --veil: #2a2a2e;
   --veil-hover: #333338;
+  --control-edge: color-mix(in srgb, var(--text-4) 70%, var(--surface));
+  --skeleton: var(--veil-hover);
+  --skeleton-peak: color-mix(in srgb, var(--veil-hover) 80%, var(--text-4));
 }
 :root[data-scheme="dark"][data-theme="midnight"] {
   --bg: #050813;
@@ -117,6 +126,9 @@
   --raised: #1b1d24;
   --veil: #1b1e27;
   --veil-hover: #232733;
+  --control-edge: color-mix(in srgb, var(--text-4) 70%, var(--surface));
+  --skeleton: var(--veil-hover);
+  --skeleton-peak: color-mix(in srgb, var(--veil-hover) 80%, var(--text-4));
 }
 :root[data-scheme="dark"][data-theme="forest"] {
   --bg: #040906;
@@ -124,6 +136,9 @@
   --raised: #1b1e1c;
   --veil: #1b201d;
   --veil-hover: #232a25;
+  --control-edge: color-mix(in srgb, var(--text-4) 70%, var(--surface));
+  --skeleton: var(--veil-hover);
+  --skeleton-peak: color-mix(in srgb, var(--veil-hover) 80%, var(--text-4));
 }
 
 :root[data-scheme="light"] {
@@ -136,6 +151,9 @@
   --line: rgba(21, 5, 16, 0.08);
   --line-2: rgba(21, 5, 16, 0.13);
   --line-3: rgba(21, 5, 16, 0.22);
+  /* Same rule as the dark block; the whiter panes need a deeper share of
+     text-4 to keep the 3:1 control-edge contrast. */
+  --control-edge: color-mix(in srgb, var(--text-4) 80%, var(--surface));
   --text: #150510;
   --text-body: #2a1823;
   --text-2: #5a4350;
@@ -155,6 +173,8 @@
   --danger: #c93434;
   --veil: #ecd9db;
   --veil-hover: #e3cdd0;
+  --skeleton: var(--veil);
+  --skeleton-peak: var(--veil-hover);
   --avatar: #f3dfe1;
   --avatar-text: #6e5663;
   --avatar-0: #fbd3dd;
@@ -174,14 +194,17 @@
 :root[data-scheme="light"][data-theme="graphite"] {
   --bg: #e4e4e8;
   --surface: #fbfbfc;
+  --control-edge: color-mix(in srgb, var(--text-4) 85%, var(--surface));
 }
 :root[data-scheme="light"][data-theme="midnight"] {
   --bg: #e1e7f3;
   --surface: #fdfdff;
+  --control-edge: color-mix(in srgb, var(--text-4) 85%, var(--surface));
 }
 :root[data-scheme="light"][data-theme="forest"] {
   --bg: #dfeae3;
   --surface: #fdfefd;
+  --control-edge: color-mix(in srgb, var(--text-4) 85%, var(--surface));
 }
 
 /* One adjustable tint covers the window. Child panes stay clear so their
