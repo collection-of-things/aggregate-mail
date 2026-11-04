@@ -359,4 +359,7 @@ test("replyPreview trims signatures, valedictions and quoted history at display 
   assert.equal(replyPreview("Looks right.\n-- \nSent from my test client\n\n> quoted", "ignored"), "Looks right.");
   assert.equal(replyPreview("Thanks!", ""), "Thanks!");
   assert.equal(replyPreview("", "A note -- signature"), "A note");
+  // A reply that only quotes earlier mail keeps the stored preview.
+  assert.ok(replyPreview("On Mon, 2 Nov 2026 at 09:14, Omar <omar@example.net> wrote:\n> Here are the numbers.\n> Second line.", "Here are the numbers. Second line.").includes("Here are the numbers"));
+  assert.equal(replyPreview("On Mon, 2 Nov 2026 at 09:14, Omar <omar@example.net> wrote:\n> Here are the numbers.", ""), "");
 });

@@ -169,7 +169,8 @@ export function replyPreview(body: string, preview: string): string {
       if (rest.length <= 4 && rest.every((line) => line.length <= QUOTE_WRAP_COLUMN) &&
           kept.slice(0, i).some((line) => line.trim())) { kept.length = i; break; }
     }
-    return previewText(kept.join("\n")).slice(0, 220);
+    const result = previewText(kept.join("\n")).slice(0, 220);
+    if (result.trim()) return result;
   }
   let flat = previewText(preview);
   let cut = -1;
@@ -187,7 +188,7 @@ export function replyPreview(body: string, preview: string): string {
   if (cut >= 0) flat = flat.slice(0, cut);
   const valediction = /(?:best regards,|kind regards,|cheers,|thanks,|best,|regards,)[\s\S]{0,60}$/i.exec(flat);
   if (valediction && flat.slice(0, valediction.index).trim()) flat = flat.slice(0, valediction.index);
-  return flat.trim();
+  return flat.trim() || previewText(preview);
 }
 
 export const MAIL_NODE_LIMIT = 4_000;
