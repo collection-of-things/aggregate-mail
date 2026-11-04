@@ -198,6 +198,9 @@ async function automate(mailIds: string[]) {
     let prepared = 0;
     let result: string | undefined;
     for (const mailId of mailIds) {
+      // A manual Prepare draft holds the grant for at most its 30-second deadline.
+      // Wait before reading state, so changes made during the wait apply.
+      for (let waited = 0; inFlight.has(agentId) && waited < 60000; waited += 250) await new Promise((resolve) => setTimeout(resolve, 250));
       // Read again for each email: the user can switch it off or change it mid-run.
       const current = get("agentAutomation", agentId);
       const permission = get("agent", agentId);
@@ -212,14 +215,9 @@ async function automate(mailIds: string[]) {
       if (proposed(agentId, mailId)) continue;
       const count = current.day === today() ? current.count ?? 0 : 0;
       if (count >= current.dailyLimit) { result = `Daily limit of ${current.dailyLimit} reached. More new mail waits until tomorrow.`; break; }
-      // A manual Prepare draft holds the grant for at most its 30-second deadline.
-      for (let waited = 0; inFlight.has(agentId) && waited < 60000; waited += 250) await new Promise((resolve) => setTimeout(resolve, 250));
-      // The user may switch off, change the key or start an update during the wait.
-      const latest = get("agentAutomation", agentId);
-      if (!latest?.enabled || get("agentProvider", agentId)?.revision !== config.revision || mailIsQuiesced()) break;
       try {
         // Every provider request counts, so a failing provider cannot receive more mail than the limit.
-        const proposal = await prepareProposal(agentId, mailId, config.revision, latest.instruction, {
+        const proposal = await prepareProposal(agentId, mailId, config.revision, current.instruction, {
           attempt: () => automationStatus(agentId, (latest) => ({ day: today(), count: (latest.day === today() ? latest.count ?? 0 : 0) + 1 })),
         });
         if (proposal) { prepared++; created++; }

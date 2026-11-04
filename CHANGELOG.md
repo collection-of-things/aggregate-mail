@@ -8,7 +8,7 @@ unversioned history without treating it as a release record.
 
 ### Added
 
-- Assistants with a provider key now prepare reply proposals for new mail by themselves. A switch on each assistant card turns this on or off, with options for Important only or all new mail, an instruction and a daily limit. Saving a key for the first time turns it on. Proposals still wait in the Review queue, and nothing is sent.
+- Assistants with a provider key now prepare reply proposals for new mail by themselves. With the switch on, the subject, sender, recipient and plain text of matching new mail go to the selected provider without a click. A switch on each assistant card turns this on or off, with options for Important only or all new mail, an instruction and a daily limit. Saving a key for the first time turns it on. Proposals still wait in the Review queue, and nothing is sent. ([#213](https://github.com/collection-of-things/aggregate-mail/pull/213))
 
 ### Fixed
 
