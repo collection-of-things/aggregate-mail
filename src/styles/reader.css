@@ -364,8 +364,10 @@ article.message {
 .conversation-message:hover .conversation-select,
 .conversation-message:focus-within .conversation-select,
 .conversation-select:focus-visible { opacity: 1; pointer-events: auto; }
-/* Touch devices have no hover: keep the select link visible. */
+/* Touch devices have no hover: keep the select link visible. The row
+   reserves its footprint so it never covers the time or the snippet tail. */
 @media (hover: none) {
-  .conversation-select { opacity: 1; pointer-events: auto; }
+  .conversation-select { right: var(--reader-gutter, 32px); background: none; opacity: 1; pointer-events: auto; }
+  .conversation-toggle { padding-inline-end: calc(var(--reader-gutter, 32px) + 136px); }
 }
 .reader-scroll .conversation-message:has(> .conversation-toggle) .message { padding-top: 8px; }

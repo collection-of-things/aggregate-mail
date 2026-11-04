@@ -5,7 +5,7 @@ const defaults = `:where(body){color:var(--reader-foreground);font:calc(14px * v
 const controls = `
 body{margin:0;overflow-wrap:break-word}
 img,table{max-width:100%}img{height:auto}a{cursor:pointer}
-a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
+a{color:var(--link);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;text-decoration-color:color-mix(in srgb,var(--link) 60%,transparent)}a:hover{text-decoration-color:currentColor}
 blockquote{margin:.75em 0;padding:0 0 0 14px;border-left:2px solid var(--accent);color:var(--text-2)}
 code{font-family:var(--font-mono);font-size:.92em;background:var(--veil);color:var(--code-ink);border-radius:3px;padding:0 4px}
 pre{font-family:var(--font-mono);font-size:.92em;background:var(--veil);border-radius:var(--radius-mark-sm);padding:10px 12px;color:var(--text-body);overflow-x:auto}
