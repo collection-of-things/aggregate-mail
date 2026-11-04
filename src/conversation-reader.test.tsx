@@ -373,4 +373,8 @@ test("replyPreview trims signatures, valedictions and quoted history at display 
   const bounded = replyPreview(huge, "");
   assert.ok(bounded.startsWith("Reply line"));
   assert.ok(bounded.length <= 220);
+  // A bottom-posted reply after a long quote run is found, not the old text.
+  const bottomPosted = replyPreview("> Previous discussion\n".repeat(450) + "\nAgreed, let's proceed.", "Previous discussion Previous discussion");
+  assert.ok(bottomPosted.includes("Agreed, let's proceed."));
+  assert.ok(!bottomPosted.includes("Previous discussion"));
 });
