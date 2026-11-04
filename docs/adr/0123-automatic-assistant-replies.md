@@ -51,8 +51,10 @@ key, lost permission, rate limit, provider failure or timeout stops the batch.
 Each batch is admitted as tracked mail work when it is queued, so an
 application update's drain waits for an active provider request and its
 proposal. Once an update pauses mail, a batch stops before the next email and
-new batches are refused. Switching off, changing the key or an update during
-the wait for a manual preparation also stops the batch before the request.
+new batches are refused. Only mail the assistant would prepare waits for a
+manual preparation; state is read again after the wait, and switching off,
+changing the key or an update during the wait stops the batch before the
+request.
 A sync that reports an error emits no `new-mail` event, so its new mail is not
 prepared automatically; Prepare draft still works for it.
 

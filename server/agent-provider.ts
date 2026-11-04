@@ -191,6 +191,23 @@ function automationStatus(agentId: string, update: (current: AgentAutomationSett
   // Status never changes the settings revision, so an open form can still save.
   if (current) put("agentAutomation", agentId, { ...current, ...update(current) });
 }
+type Step = { skip: true } | { stop: string | undefined } | { current: AgentAutomationSettings; config: StoredAgentProvider };
+// One read of all state for one email: skip it, stop the batch, or prepare it.
+function step(agentId: string, mailId: string): Step {
+  const current = get("agentAutomation", agentId);
+  const permission = get("agent", agentId);
+  const config = get("agentProvider", agentId);
+  // An update pauses mail work; stop between emails so its drain finishes quickly.
+  if (!current?.enabled || !permission || mailIsQuiesced()) return { stop: undefined };
+  if (!config) return { stop: "Save a provider key to run automatically." };
+  const mail = get("mail", mailId);
+  if (!mail || mail.direction === "sent" || !mail.unread || mail.archived || !permission.accountIds.includes(mail.accountId)) return { skip: true };
+  if (current.scope === "important" && mail.category !== "important") return { skip: true };
+  if (automatedSender.test((mail.replyTo || mail.address).replace(/^.*</, "").trim()) || proposed(agentId, mailId)) return { skip: true };
+  const count = current.day === today() ? current.count ?? 0 : 0;
+  if (count >= current.dailyLimit) return { stop: `Daily limit of ${current.dailyLimit} reached. Remaining new mail is not prepared automatically; use Prepare draft for it.` };
+  return { current, config };
+}
 async function automate(mailIds: string[]) {
   let created = 0;
   for (const settings of all("agentAutomation")) {
@@ -199,26 +216,22 @@ async function automate(mailIds: string[]) {
     let prepared = 0;
     let result: string | undefined;
     for (const mailId of mailIds) {
-      // A manual Prepare draft holds the grant for at most its 30-second deadline.
-      // Wait before reading state, so changes made during the wait apply.
-      for (let waited = 0; inFlight.has(agentId) && !mailIsQuiesced() && waited < 60000; waited += 250) await new Promise((resolve) => setTimeout(resolve, 250));
-      // Read again for each email: the user can switch it off or change it mid-run.
-      const current = get("agentAutomation", agentId);
-      const permission = get("agent", agentId);
-      const config = get("agentProvider", agentId);
-      // An update pauses mail work; stop between emails so its drain finishes quickly.
-      if (!current?.enabled || !permission || mailIsQuiesced()) break;
-      if (!config) { result = "Save a provider key to run automatically."; break; }
-      const mail = get("mail", mailId);
-      if (!mail || mail.direction === "sent" || !mail.unread || mail.archived || !permission.accountIds.includes(mail.accountId)) continue;
-      if (current.scope === "important" && mail.category !== "important") continue;
-      if (automatedSender.test((mail.replyTo || mail.address).replace(/^.*</, "").trim())) continue;
-      if (proposed(agentId, mailId)) continue;
-      const count = current.day === today() ? current.count ?? 0 : 0;
-      if (count >= current.dailyLimit) { result = `Daily limit of ${current.dailyLimit} reached. Remaining new mail is not prepared automatically; use Prepare draft for it.`; break; }
+      let next = step(agentId, mailId);
+      if ("skip" in next) continue;
+      if ("stop" in next) { result = next.stop ?? result; break; }
+      if (inFlight.has(agentId)) {
+        // Only eligible mail waits for a manual Prepare draft (at most its 30-second deadline).
+        const revision = next.config.revision;
+        for (let waited = 0; inFlight.has(agentId) && !mailIsQuiesced() && waited < 60000; waited += 250) await new Promise((resolve) => setTimeout(resolve, 250));
+        // Read everything again: the user may have changed the switch, options or key meanwhile.
+        next = step(agentId, mailId);
+        if ("skip" in next) continue;
+        if ("stop" in next) { result = next.stop ?? result; break; }
+        if (next.config.revision !== revision) { result = "Provider key changed. New mail will use it from the next sync."; break; }
+      }
       try {
         // Every provider request counts, so a failing provider cannot receive more mail than the limit.
-        const proposal = await prepareProposal(agentId, mailId, config.revision, current.instruction, {
+        const proposal = await prepareProposal(agentId, mailId, next.config.revision, next.current.instruction, {
           attempt: () => automationStatus(agentId, (latest) => ({ day: today(), count: (latest.day === today() ? latest.count ?? 0 : 0) + 1 })),
         });
         if (proposal) { prepared++; created++; }
