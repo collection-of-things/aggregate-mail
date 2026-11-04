@@ -74,6 +74,12 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
     assert.match(installed, /color:\s*var\(--code-ink\)/, 'isolated code ink follows the veil-safe token');
     assert.match(installed, /a\s*\{[^}]*text-decoration[^;}]*underline/, 'isolated links keep a persistent underline');
     assert.doesNotMatch(installed, /a\s*\{[^}]*text-decoration[^;}]*none/, 'isolated links no longer wait for hover');
+    assert.match(installed, /code\s*\{[^}]*background:[^;}]*!important[^}]*color:[^;}]*!important/,
+      'sender styles cannot split code ink from its surface');
+    assert.match(installed, /pre\s*\{[^}]*background:[^;}]*!important[^}]*color:[^;}]*!important/,
+      'sender styles cannot split pre ink from its surface');
+    assert.match(installed, /pre code\s*\{[^}]*background:[^;}]*!important/,
+      'nested code stays on the pre surface');
     assert.equal(frame.contentDocument!.querySelectorAll('img').length, 0);
     assert.equal(frame.contentDocument!.querySelector('p')?.hasAttribute('id'), false, 'absent ids cannot match a sender selector');
     assert.doesNotMatch(frame.contentDocument!.body.innerHTML, /summary/);

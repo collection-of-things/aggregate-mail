@@ -101,7 +101,7 @@
   color: var(--text);
   background: transparent;
 }
-.compose-form :is(input, select):focus-visible {
+.compose-envelope :is(input, select):focus-visible {
   outline: 0;
   box-shadow: none;
 }
