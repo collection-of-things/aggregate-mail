@@ -61,6 +61,13 @@ export function OutboxNotices({ api, enabled, blocked, refreshKey = 0, scheduled
     try {
       if (action === "reschedule") {
         await api(`/outbox/${entry.id}/reschedule`, "POST", { at });
+        // If the server re-holds the entry before a poll sees it un-missed, the
+        // renewed alert and desktop notice must still fire.
+        notifiedMissed.current.delete(entry.id);
+        setDismissedMissed(current => {
+          if (!current.has(entry.id)) return current;
+          const next = new Set(current); next.delete(entry.id); return next;
+        });
         setRescheduling(null); onNotice("Schedule saved. Emc² must stay running and online.");
       } else if (action === "edit" || action === "cancel") {
         const draft = await api<Draft>(`/outbox/${entry.id}/edit`, "POST", {});
@@ -106,7 +113,7 @@ export function OutboxNotices({ api, enabled, blocked, refreshKey = 0, scheduled
     {!scheduledOnly && scheduled.length > 0 && onScheduled && <div className="toast"><div className="toast-body">
       {missedAlert ? <>
         <strong className="toast-title">Missed scheduled send</strong>
-        <p className="toast-text" role="alert">{missedScheduleNotice(missed.length)} Nothing is sent without Send now.</p>
+        <p className="toast-text" role="alert">{missedScheduleNotice(missed.length)} Missed messages stay held until you choose Send now.</p>
       </> : <p className="toast-text" role="status">{scheduled.some(entry => entry.state === "unknown" || entry.state === "failed" || entry.state === "pending" && entry.review) ? "Scheduled mail needs review. Nothing held will be sent automatically." : `${scheduled.length} scheduled messages and outcomes.`}</p>}
       <div className="toast-actions">
         <button type="button" disabled={blocked || busy} onClick={onScheduled}>Open Scheduled</button>
