@@ -30,7 +30,7 @@
   --avatar-2-ink: #efc58f;
   --avatar-3: #352430;
   --avatar-3-ink: #d7c2cb;
-  --selected-card: color-mix(in srgb, #a50685 22%, var(--surface));
+  --selected-card: color-mix(in oklab, var(--accent) 16%, var(--surface));
   --mail-group-height: 30px;
   --subhead-height: 48px;
   --chrome: color-mix(in srgb, var(--surface) 60%, var(--bg));
@@ -85,8 +85,8 @@
   --energy: #a50685;
   --photon: #fcaec2;
   --accent: #e05cbe;
-  --accent-soft: color-mix(in srgb, #a50685 28%, var(--surface));
-  --accent-soft-ink: #fcaec2;
+  --accent-soft: color-mix(in oklab, var(--accent) 22%, var(--surface));
+  --accent-soft-ink: color-mix(in oklab, var(--accent) 38%, var(--text));
   --link: color-mix(in srgb, var(--accent) 72%, #fff);
   --reason: #fcaec2;
   --quote: color-mix(in srgb, var(--accent) 40%, var(--line-2));
@@ -142,9 +142,9 @@
   --account-color-1: #6d48b8;
   --account-color-2: #b0661a;
   --account-color-3: #6b5763;
-  --selected-card: color-mix(in srgb, #fcaec2 30%, var(--surface));
-  --accent-soft: color-mix(in srgb, #fcaec2 45%, var(--surface));
-  --accent-soft-ink: #7a0563;
+  --selected-card: color-mix(in oklab, var(--accent) 11%, var(--surface));
+  --accent-soft: color-mix(in oklab, var(--accent) 16%, var(--surface));
+  --accent-soft-ink: color-mix(in oklab, var(--accent) 70%, var(--text));
   --link: color-mix(in srgb, var(--accent) 88%, #000);
   --reason: #a50685;
   --danger: #c93434;
