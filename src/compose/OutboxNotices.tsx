@@ -108,7 +108,7 @@ export function OutboxNotices({ api, enabled, blocked, refreshKey = 0, scheduled
     {!scheduledOnly && scheduled.length > 0 && onScheduled && <div className="toast"><div className="toast-body">
       {missedAlert ? <>
         <strong className="toast-title">Missed scheduled send</strong>
-        <p className="toast-text" role="alert">{missedScheduleNotice(missed.length)} Missed messages stay held until you choose Send now.</p>
+        <p className="toast-text" role="alert">{missedScheduleNotice(missed.length)} Missed messages stay held until you review them.</p>
       </> : <p className="toast-text" role="status">{scheduled.some(entry => entry.state === "unknown" || entry.state === "failed" || entry.state === "pending" && entry.review) ? "Scheduled mail needs review. Nothing held will be sent automatically." : `${scheduled.length} scheduled messages and outcomes.`}</p>}
       <div className="toast-actions">
         <button type="button" disabled={blocked || busy} onClick={onScheduled}>Open Scheduled</button>

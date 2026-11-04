@@ -57,7 +57,7 @@ test("missed schedules raise one grouped, content-free alert that persists until
   const ui = await mount(entries, false);
   try {
     const alert = () => ui.container.querySelector('[role="alert"]')?.textContent;
-    assert.equal(alert(), "2 scheduled messages were missed and not sent. Missed messages stay held until you choose Send now.");
+    assert.equal(alert(), "2 scheduled messages were missed and not sent. Missed messages stay held until you review them.");
     assert.deepEqual(ui.missed, [2], "one grouped desktop alert, not one per message");
     await ui.render(1);
     assert.deepEqual(ui.missed, [2], "repeated polls do not repeat the alert");
@@ -69,7 +69,7 @@ test("missed schedules raise one grouped, content-free alert that persists until
     assert.equal(alert(), undefined, "dismissal holds while the same messages stay missed");
     entries.push(entry("5", { scheduledFor: now - 60000, dueAt: now - 60000 }));
     await ui.render(3);
-    assert.equal(alert(), "3 scheduled messages were missed and not sent. Missed messages stay held until you choose Send now.");
+    assert.equal(alert(), "3 scheduled messages were missed and not sent. Missed messages stay held until you review them.");
     assert.deepEqual(ui.missed, [2, 3]);
     await act(async () => ui.button("Dismiss")!.click());
     const rescheduled = entries[0];
@@ -78,7 +78,7 @@ test("missed schedules raise one grouped, content-free alert that persists until
     assert.equal(alert(), undefined);
     entries[0] = { ...rescheduled, review: true, scheduledFor: now - 1000, dueAt: now - 1000 };
     await ui.render(5);
-    assert.equal(alert(), "3 scheduled messages were missed and not sent. Missed messages stay held until you choose Send now.", "a rescheduled entry that misses again alerts again");
+    assert.equal(alert(), "3 scheduled messages were missed and not sent. Missed messages stay held until you review them.", "a rescheduled entry that misses again alerts again");
     assert.deepEqual(ui.missed, [2, 3, 3]);
     entries.splice(0, entries.length, entries[2]);
     await ui.render(6);
@@ -103,7 +103,7 @@ test("the same id missing again at a new scheduled time alerts and notifies agai
     // A reschedule moves the time; the server re-holds at the new time.
     entries[0] = { ...entries[0], scheduledFor: now - 1000, dueAt: now - 1000 };
     await ui.render(2);
-    assert.equal(alert(), "1 scheduled message was missed and not sent. Missed messages stay held until you choose Send now.");
+    assert.equal(alert(), "1 scheduled message was missed and not sent. Missed messages stay held until you review them.");
     assert.deepEqual(ui.missed, [1, 1], "a new missed time notifies again");
     await act(async () => ui.button("Dismiss")!.click());
     await ui.render(3);
