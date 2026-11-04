@@ -382,4 +382,6 @@ test("replyPreview trims signatures, valedictions and quoted history at display 
   assert.ok(deepReply.includes("Agreed, let's proceed."));
   // A wrapped attribution absorbs its "On …" lead-in line.
   assert.equal(replyPreview("Sounds good.\n\nOn Mon, 2 Nov 2026 at 09:14, Omar Haddad <omar@\nexample.net> wrote:\n> old text", ""), "Sounds good.");
+  // But a real sentence starting with "On " survives when a blank line separates it.
+  assert.equal(replyPreview("On Monday we can meet.\n\nOmar Haddad <omar@example.net> wrote:\n> old text", ""), "On Monday we can meet.");
 });

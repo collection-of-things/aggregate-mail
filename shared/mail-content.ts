@@ -180,19 +180,22 @@ export function replyPreview(body: string, preview: string): string {
       return false;
     };
     const lines: string[] = [];
-    let collected = 0, pos = 0;
+    let collected = 0, pos = 0, adjacent = false;
     for (let scanned = 0; pos >= 0 && pos < body.length && scanned < PREVIEW_SCAN_LINES && collected <= PREVIEW_LINE_BUDGET; scanned++) {
       const { raw, next } = lineAt(pos);
       pos = next;
       const trimmed = raw.trim();
-      if (!trimmed || quoted(raw)) continue;
+      if (!trimmed || quoted(raw)) { adjacent = false; continue; }
       if (trimmed.length <= QUOTE_ATTRIBUTION_LIMIT && /\bwrote:$/i.test(trimmed) && nextIsQuoted(pos, scanned + 1)) {
-        // A wrapped attribution absorbs its "On …" lead-in, like the parser.
-        if (!trimmed.startsWith("On ") && lines.length && lines[lines.length - 1].trim().startsWith("On ")) lines.pop();
+        // A wrapped attribution absorbs its "On …" lead-in only when the lead-in
+        // is the line scanned right before, matching the parser's paragraph rule.
+        if (adjacent && !trimmed.startsWith("On ") && lines.length && lines[lines.length - 1].trim().startsWith("On ")) lines.pop();
+        adjacent = false;
         continue;
       }
       lines.push(raw);
       collected += raw.length;
+      adjacent = true;
     }
     const kept: string[] = [];
     for (const line of lines) {
