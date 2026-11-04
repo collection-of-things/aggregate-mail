@@ -61,13 +61,6 @@ export function OutboxNotices({ api, enabled, blocked, refreshKey = 0, scheduled
     try {
       if (action === "reschedule") {
         await api(`/outbox/${entry.id}/reschedule`, "POST", { at });
-        // If the server re-holds the entry before a poll sees it un-missed, the
-        // renewed alert and desktop notice must still fire.
-        notifiedMissed.current.delete(entry.id);
-        setDismissedMissed(current => {
-          if (!current.has(entry.id)) return current;
-          const next = new Set(current); next.delete(entry.id); return next;
-        });
         setRescheduling(null); onNotice("Schedule saved. Emc² must stay running and online.");
       } else if (action === "edit" || action === "cancel") {
         const draft = await api<Draft>(`/outbox/${entry.id}/edit`, "POST", {});
@@ -94,18 +87,20 @@ export function OutboxNotices({ api, enabled, blocked, refreshKey = 0, scheduled
     return () => window.removeEventListener("keydown", key);
   });
   const missed = entries.filter(entry => missedSchedule(entry, now));
-  const missedKey = missed.map(entry => entry.id).join(",");
+  // A missed occurrence keys on its scheduled time: a reschedule changes that
+  // time, so the same id missing again is a new occurrence and alerts again.
+  const missedKey = missed.map(entry => `${entry.id}@${entry.scheduledFor}`).join(",");
   useEffect(() => {
     // One grouped desktop alert per newly missed batch, not one per poll or message.
     // An entry that stops being missed, such as after Reschedule, can alert again.
-    const ids = missedKey ? missedKey.split(",") : [];
-    for (const id of notifiedMissed.current) if (!ids.includes(id)) notifiedMissed.current.delete(id);
-    setDismissedMissed(current => [...current].every(id => ids.includes(id)) ? current : new Set([...current].filter(id => ids.includes(id))));
-    if (scheduledOnly || !onMissed || ids.every(id => notifiedMissed.current.has(id))) return;
-    for (const id of ids) notifiedMissed.current.add(id);
-    onMissed(ids.length);
+    const keys = missedKey ? missedKey.split(",") : [];
+    for (const key of notifiedMissed.current) if (!keys.includes(key)) notifiedMissed.current.delete(key);
+    setDismissedMissed(current => [...current].every(key => keys.includes(key)) ? current : new Set([...current].filter(key => keys.includes(key))));
+    if (scheduledOnly || !onMissed || keys.every(key => notifiedMissed.current.has(key))) return;
+    for (const key of keys) notifiedMissed.current.add(key);
+    onMissed(keys.length);
   }, [missedKey, onMissed, scheduledOnly]);
-  const missedAlert = missed.some(entry => !dismissedMissed.has(entry.id));
+  const missedAlert = missed.some(entry => !dismissedMissed.has(`${entry.id}@${entry.scheduledFor}`));
   const visible = entries.filter(entry => scheduledOnly === (entry.scheduledFor !== undefined));
   const scheduled = entries.filter(entry => entry.scheduledFor !== undefined);
   if (!visible.length && !(scheduled.length && !scheduledOnly && onScheduled)) return scheduledOnly ? <p role="status">No scheduled messages.</p> : null;
@@ -117,7 +112,7 @@ export function OutboxNotices({ api, enabled, blocked, refreshKey = 0, scheduled
       </> : <p className="toast-text" role="status">{scheduled.some(entry => entry.state === "unknown" || entry.state === "failed" || entry.state === "pending" && entry.review) ? "Scheduled mail needs review. Nothing held will be sent automatically." : `${scheduled.length} scheduled messages and outcomes.`}</p>}
       <div className="toast-actions">
         <button type="button" disabled={blocked || busy} onClick={onScheduled}>Open Scheduled</button>
-        {missedAlert && <button type="button" onClick={() => setDismissedMissed(new Set(missed.map(entry => entry.id)))}>Dismiss</button>}
+        {missedAlert && <button type="button" onClick={() => setDismissedMissed(new Set(missed.map(entry => `${entry.id}@${entry.scheduledFor}`)))}>Dismiss</button>}
       </div>
     </div></div>}
     {visible.map(entry => <div className="toast" key={entry.id}>
