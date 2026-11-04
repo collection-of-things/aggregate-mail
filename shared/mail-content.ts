@@ -137,36 +137,62 @@ export function parsePlainTextQuotes(text: string): { blocks: PlainTextBlock[]; 
 // when the following line is again long enough to be wrapped.
 function reflow(lines: string[], depth: number): string {
   if (depth === 0) return lines.join("\n");
-  let result = lines[0], joinedLong = false;
+  const parts = [lines[0]];
+  let joinedLong = false;
   for (let i = 1; i < lines.length; i++) {
     const previous = lines[i - 1], next = lines[i];
     const join: boolean = !QUOTE_LIST_MARKER.test(next.trimStart()) &&
       (previous.endsWith(" ") || previous.trimEnd().length >= QUOTE_WRAP_COLUMN ||
         (joinedLong && previous.trimEnd().length < QUOTE_WRAP_COLUMN && next.length >= QUOTE_WRAP_COLUMN));
-    result = join ? `${result.trimEnd()} ${next.trimStart()}` : `${result}\n${next}`;
+    if (join) { parts[parts.length - 1] = parts[parts.length - 1].trimEnd(); parts.push(` ${next.trimStart()}`); }
+    else parts.push(`\n${next}`);
     joinedLong = join && previous.trimEnd().length >= QUOTE_WRAP_COLUMN;
   }
-  return result;
+  return parts.join("");
 }
 
 const VALEDICTION = /^(?:cheers|thanks|thank you|many thanks|best|best regards|kind regards|warm regards|regards|all the best|sincerely|take care)[,.!]*$/i;
 // The preview is cut to 220 chars, so only the first short run of text needs collecting.
 const PREVIEW_LINE_BUDGET = 2_000;
+const PREVIEW_SCAN_LINES = 20_000;
 
 // Display-time preview: reply text without signatures or trailing quoted
-// history. Stored previews and search stay unchanged.
+// history. Stored previews and search stay unchanged. The scan below is its
+// own bounded pass, independent of the display parser, so collapsed rows stay
+// cheap even on multi-megabyte bodies.
 export function replyPreview(body: string, preview: string): string {
   if (body.trim()) {
-    const lines: string[] = [];
-    let collected = 0;
-    for (const block of parsePlainTextQuotes(body).blocks) {
-      if (block.kind !== "text" || block.attribution) continue;
-      for (const line of block.text.split("\n")) {
-        lines.push(line);
-        collected += line.length;
-        if (collected > PREVIEW_LINE_BUDGET) break;
+    const quoted = (raw: string) => /^[ \t]*>/.test(raw);
+    const lineAt = (pos: number) => {
+      const nl = body.indexOf("\n", pos);
+      const raw = body.slice(pos, nl < 0 ? body.length : nl).replace(/\r$/, "");
+      return { raw, next: nl < 0 ? -1 : nl + 1 };
+    };
+    // Skips blanks to answer "is the next real line quoted", sharing the scan cap.
+    const nextIsQuoted = (from: number, spent: number) => {
+      let pos = from;
+      for (let look = spent; look < PREVIEW_SCAN_LINES && pos >= 0 && pos < body.length; look++) {
+        const { raw, next } = lineAt(pos);
+        pos = next;
+        if (!raw.trim()) continue;
+        return quoted(raw);
       }
-      if (collected > PREVIEW_LINE_BUDGET) break;
+      return false;
+    };
+    const lines: string[] = [];
+    let collected = 0, pos = 0;
+    for (let scanned = 0; pos >= 0 && pos < body.length && scanned < PREVIEW_SCAN_LINES && collected <= PREVIEW_LINE_BUDGET; scanned++) {
+      const { raw, next } = lineAt(pos);
+      pos = next;
+      const trimmed = raw.trim();
+      if (!trimmed || quoted(raw)) continue;
+      if (trimmed.length <= QUOTE_ATTRIBUTION_LIMIT && /\bwrote:$/i.test(trimmed) && nextIsQuoted(pos, scanned + 1)) {
+        // A wrapped attribution absorbs its "On …" lead-in, like the parser.
+        if (!trimmed.startsWith("On ") && lines.length && lines[lines.length - 1].trim().startsWith("On ")) lines.pop();
+        continue;
+      }
+      lines.push(raw);
+      collected += raw.length;
     }
     const kept: string[] = [];
     for (const line of lines) {

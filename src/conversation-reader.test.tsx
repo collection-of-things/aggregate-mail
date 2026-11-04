@@ -377,4 +377,9 @@ test("replyPreview trims signatures, valedictions and quoted history at display 
   const bottomPosted = replyPreview("> Previous discussion\n".repeat(450) + "\nAgreed, let's proceed.", "Previous discussion Previous discussion");
   assert.ok(bottomPosted.includes("Agreed, let's proceed."));
   assert.ok(!bottomPosted.includes("Previous discussion"));
+  // The bounded scan skips 10k quoted lines and still finds the bottom reply.
+  const deepReply = replyPreview(("> " + "a".repeat(68) + "\n").repeat(10_000) + "\nAgreed, let's proceed.", "");
+  assert.ok(deepReply.includes("Agreed, let's proceed."));
+  // A wrapped attribution absorbs its "On …" lead-in line.
+  assert.equal(replyPreview("Sounds good.\n\nOn Mon, 2 Nov 2026 at 09:14, Omar Haddad <omar@\nexample.net> wrote:\n> old text", ""), "Sounds good.");
 });

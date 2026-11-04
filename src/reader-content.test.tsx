@@ -129,6 +129,15 @@ test("parser edge cases: inline quotes, wrapped attribution, blank runs, depth c
   assert.match((listedText as { text: string }).text, /yes\n- item one\n- item two\ncontinuation/);
   assert.ok(quotedReplyBody.includes(">\n>\n>"), "fixture keeps a blank quote run");
   assert.equal(texts(parsePlainTextQuotes(quotedReplyBody).history).filter((text) => !text.trim()).length, 0);
+  // reflow stays linear: 20k wrapped lines join into one block without a newline.
+  const start = Date.now();
+  const longReflow = parsePlainTextQuotes("Reply\n\n" + ("> " + "a".repeat(70) + "\n").repeat(20_000) + "> tail");
+  console.log(`[reflow] 20k wrapped lines joined in ${Date.now() - start}ms`);
+  const longBlock = longReflow.history.at(-1);
+  assert.ok(longBlock && longBlock.kind === "quote");
+  const longText = longBlock.kind === "quote" && longBlock.blocks[0];
+  assert.ok(longText && longText.kind === "text");
+  assert.ok(!(longText as { text: string }).text.includes("\n"));
   const longRuns = parsePlainTextQuotes("Reply\n\n" + "> a\n" + ">\n".repeat(20000) + "> b");
   const longQuote = longRuns.history.at(-1);
   assert.ok(longQuote && longQuote.kind === "quote");
