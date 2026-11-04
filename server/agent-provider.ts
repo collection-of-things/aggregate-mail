@@ -98,7 +98,7 @@ export function pinnedProviderLookup(addresses: Address[]): LookupFunction {
     else callback(null, addresses[0].address, addresses[0].family);
   };
 }
-async function completion(config: StoredAgentProvider, mail: ReturnType<typeof source>, instruction: string, dependencies: ProviderDependencies) {
+async function completion(config: StoredAgentProvider, mail: ReturnType<typeof source>, instruction: string, dependencies: ProviderDependencies, attempt?: () => void) {
   // Email is context only. The provider cannot choose a recipient or execute tools.
   const context = { subject: mail.subject.slice(0, 998), from: mail.address.slice(0, 2000), to: mail.to.slice(0, 2000), body: (mail.body || mail.preview).slice(0, 24000) };
   const signal = dependencies.deadline?.() ?? AbortSignal.timeout(30000);
@@ -116,6 +116,8 @@ async function completion(config: StoredAgentProvider, mail: ReturnType<typeof s
         { role: "user", content: JSON.stringify({ instruction, email: context }) },
       ], max_tokens: 2000, stream: false }),
     };
+    // Counted only once the request can reach the provider.
+    attempt?.();
     const response = await fetch(target, init);
     if (!response.ok) {
       await response.body?.cancel();
@@ -166,8 +168,7 @@ async function prepareProposal(id: string, sourceMailId: string, revision: strin
   if (automatic && proposed(id, sourceMailId)) return null;
   inFlight.add(id);
   try {
-    automatic?.attempt();
-    const body = await completion(config, mail, instruction, providerDependencies);
+    const body = await completion(config, mail, instruction, providerDependencies, automatic?.attempt);
     const currentSource = source(id, sourceMailId);
     if (currentSource.preview !== mail.preview || get("agentProvider", id)?.revision !== revision || JSON.stringify(grant(id)) !== permission || JSON.stringify(get("account", mail.accountId)) !== account || fingerprint(sourceMailId) !== evidence)
       return fail(409, "Source, permission or provider changed. Prepare a fresh proposal.");
@@ -200,7 +201,7 @@ async function automate(mailIds: string[]) {
     for (const mailId of mailIds) {
       // A manual Prepare draft holds the grant for at most its 30-second deadline.
       // Wait before reading state, so changes made during the wait apply.
-      for (let waited = 0; inFlight.has(agentId) && waited < 60000; waited += 250) await new Promise((resolve) => setTimeout(resolve, 250));
+      for (let waited = 0; inFlight.has(agentId) && !mailIsQuiesced() && waited < 60000; waited += 250) await new Promise((resolve) => setTimeout(resolve, 250));
       // Read again for each email: the user can switch it off or change it mid-run.
       const current = get("agentAutomation", agentId);
       const permission = get("agent", agentId);
@@ -214,7 +215,7 @@ async function automate(mailIds: string[]) {
       if (automatedSender.test((mail.replyTo || mail.address).replace(/^.*</, "").trim())) continue;
       if (proposed(agentId, mailId)) continue;
       const count = current.day === today() ? current.count ?? 0 : 0;
-      if (count >= current.dailyLimit) { result = `Daily limit of ${current.dailyLimit} reached. More new mail waits until tomorrow.`; break; }
+      if (count >= current.dailyLimit) { result = `Daily limit of ${current.dailyLimit} reached. Remaining new mail is not prepared automatically; use Prepare draft for it.`; break; }
       try {
         // Every provider request counts, so a failing provider cannot receive more mail than the limit.
         const proposal = await prepareProposal(agentId, mailId, config.revision, current.instruction, {

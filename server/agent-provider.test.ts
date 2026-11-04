@@ -267,6 +267,10 @@ test("BYOK settings and reviewed drafts preserve provider, account and evidence 
       store.put("mail", "bad-address", { ...mail, id: "bad-address", messageId: "<bad-address@example.test>", replyTo: "not-an-address" });
       await runAgentAutomations(["bad-address"]);
       assert.equal(calls.length, 1); assert.equal(store.get("agentAutomation", agent.id)!.count, 1, "refusals before the provider request do not count");
+      resolveAddresses = async () => [];
+      await runAgentAutomations([incoming("dns-fail")]);
+      assert.equal(calls.length, 1); assert.equal(store.get("agentAutomation", agent.id)!.count, 1, "a failed DNS lookup does not count");
+      resolveAddresses = async () => [{ address: "8.8.8.8", family: 4 }];
       await runAgentAutomations([incoming("fail-4"), incoming("fail-5")]);
       assert.equal(calls.length, 2); assert.match(store.get("agentAutomation", agent.id)!.lastResult!, /Daily limit of 2|Provider could not/);
       await runAgentAutomations([incoming("fail-6")]);

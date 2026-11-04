@@ -46,6 +46,9 @@ export function AgentAutomation({ grant, api, disabled, reload, mcpEnabled }: { 
     }).catch(() => { if (!cancelled) setError("Automatic reply settings could not be loaded."); });
     return () => { cancelled = true; };
   }, [api, route, grant.id, permitted, disabled, reload]);
+  const unchanged = saved ? saved.scope === scope && saved.instruction === instruction.trim() && limit.trim() === String(saved.dailyLimit) : false;
+  // Kept in an effect so render stays pure; loads read it to keep unsaved edits.
+  useEffect(() => { dirty.current = Boolean(saved) && !unchanged; });
   if (!permitted) return null;
   const dailyLimit = Math.max(1, Math.min(200, Math.trunc(Number(limit)) || 1));
   // The switch keeps saved options; Save options stores the edited ones.
@@ -62,8 +65,6 @@ export function AgentAutomation({ grant, api, disabled, reload, mcpEnabled }: { 
     finally { if (active.current) setPending(false); }
   };
   const enabled = Boolean(saved?.enabled);
-  const unchanged = saved ? saved.scope === scope && saved.instruction === instruction.trim() && limit.trim() === String(saved.dailyLimit) : false;
-  dirty.current = Boolean(saved) && !unchanged;
   const count = saved?.day === new Date().toLocaleDateString("en-CA") ? saved.count ?? 0 : 0;
   return <div className="settings-form work-form agent-automation">
     {error && <Notice text={error} />}
