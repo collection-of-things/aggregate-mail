@@ -167,6 +167,7 @@ export function replyPreview(body: string, preview: string): string {
       if (!VALEDICTION.test(kept[i].trim())) continue;
       const rest = kept.slice(i + 1).filter((line) => line.trim());
       if (rest.length <= 4 && rest.every((line) => line.length <= QUOTE_WRAP_COLUMN) &&
+          rest.every((line) => !/[.?!:]$/.test(line.trim())) &&
           kept.slice(0, i).some((line) => line.trim())) { kept.length = i; break; }
     }
     const result = previewText(kept.join("\n")).slice(0, 220);
@@ -186,8 +187,10 @@ export function replyPreview(body: string, preview: string): string {
     if (at >= 0 && (cut < 0 || at < cut)) cut = marker === " -- " ? at + 1 : at;
   }
   if (cut >= 0) flat = flat.slice(0, cut);
-  const valediction = /(?:best regards,|kind regards,|cheers,|thanks,|best,|regards,)[\s\S]{0,60}$/i.exec(flat);
-  if (valediction && flat.slice(0, valediction.index).trim()) flat = flat.slice(0, valediction.index);
+  const valediction = /(?:best regards,|kind regards,|cheers,|thanks,|best,|regards,)([\s\S]{0,60})$/i.exec(flat);
+  // A valediction is a signature only when its tail is a name, not a request
+  // that ends with sentence punctuation.
+  if (valediction && !/[.?!:]\s*$/.test(valediction[1]) && flat.slice(0, valediction.index).trim()) flat = flat.slice(0, valediction.index);
   return flat.trim() || previewText(preview);
 }
 

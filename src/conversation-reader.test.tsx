@@ -362,4 +362,10 @@ test("replyPreview trims signatures, valedictions and quoted history at display 
   // A reply that only quotes earlier mail keeps the stored preview.
   assert.ok(replyPreview("On Mon, 2 Nov 2026 at 09:14, Omar <omar@example.net> wrote:\n> Here are the numbers.\n> Second line.", "Here are the numbers. Second line.").includes("Here are the numbers"));
   assert.equal(replyPreview("On Mon, 2 Nov 2026 at 09:14, Omar <omar@example.net> wrote:\n> Here are the numbers.", ""), "");
+  // A short request after a sign-off word is text, not a signature.
+  assert.ok(replyPreview("Sounds good.\nThanks,\nPlease send the revised agenda.", "").includes("Please send the revised agenda."));
+  assert.ok(replyPreview("Sounds good.\nThanks,\nCan you send the agenda?", "").includes("Can you send the agenda?"));
+  assert.equal(replyPreview("Thanks for the rundown.\n\nCheers,\nNina", ""), "Thanks for the rundown.");
+  assert.ok(replyPreview("", "Sounds good. Thanks, Please send the revised agenda.").includes("Please send the revised agenda."));
+  assert.equal(replyPreview("", "Sounds good. Cheers, Nina"), "Sounds good.");
 });
