@@ -1,8 +1,8 @@
 import { Notice } from "../ui/Toasts";
 import type { Api } from "../api";
-import { useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { imageSource, type Mail, type MailImage, type MailAttachment } from "../../shared/types";
-import { privateMailLink, needsEmbeddedContentRecovery } from "../../shared/mail-content";
+import { privateMailLink, needsEmbeddedContentRecovery, parsePlainTextQuotes, type PlainTextBlock } from "../../shared/mail-content";
 import { redactPrivateText } from "../privacy";
 import { PrivacyContext, Redact } from "../ui/Privacy";
 import { Attachments } from "./Attachments";
@@ -46,10 +46,25 @@ export function MessageBody({ text }: { text: string }) {
   parts.push(<Redact key="tail" text={text.slice(last)} />);
   return <>{parts}</>;
 }
+function PlainBlocks({ blocks }: { blocks: readonly PlainTextBlock[] }) {
+  return <>{blocks.map((block, index) => block.kind === "text"
+    ? <p key={index}><MessageBody text={block.text} /></p>
+    : <blockquote key={index}><PlainBlocks blocks={block.blocks} /></blockquote>)}</>;
+}
 export function MessageText({ text }: { text: string }) {
-  return <>{text.replace(/\r\n?/g, "\n").split(/\n(?:[ \t\u00a0]*\n)+/)
-    .filter((paragraph) => paragraph.trim())
-    .map((paragraph, index) => <p key={index}><MessageBody text={paragraph} /></p>)}</>;
+  const { blocks, history } = useMemo(() => parsePlainTextQuotes(text), [text]);
+  const [open, setOpen] = useState(false);
+  const region = useId();
+  return <>
+    <PlainBlocks blocks={blocks} />
+    {history.length > 0 && <>
+      <button type="button" className="link quoted-toggle" aria-expanded={open} aria-controls={region}
+        onClick={() => setOpen(current => !current)}>
+        {open ? "Hide quoted text" : "Show quoted text"}
+      </button>
+      <div id={region} className="quoted-history">{open && <PlainBlocks blocks={history} />}</div>
+    </>}
+  </>;
 }
 function ReaderImage({ mailId, image, index }: { mailId: string; image: MailImage; index: number }) {
   const { on, names } = useContext(PrivacyContext);

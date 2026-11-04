@@ -1751,6 +1751,8 @@ Plain-text fallback bodies stay text. Explicit HTTP and HTTPS URLs become links 
 
 The existing mailparser dependency converts HTML-only email links to text containing their destinations. No mailbox resync or storage migration is needed for URLs already in cached bodies.
 
+Plain-text `>` quotes are parsed at display time (`parsePlainTextQuotes` in shared/mail-content.ts): trailing quoted history collapses behind a per-message "Show quoted text" button while quotes followed by reply text stay inline. Nesting is clamped to eight levels, blank `>` lines never create empty blocks, wrapped lines inside quotes rejoin when the previous line is flowed or at least 60 characters, and `On … wrote:` lines become attribution blocks. Conversation row previews are trimmed at display time by `replyPreview`, which drops signatures, valedictions and quoted history. Stored bodies, stored previews, provider preview generation and search matching are unchanged.
+
 Address privacy mode masks URLs containing literal or percent-encoded email addresses and omits their anchors. Turn address privacy off to open these links. Personal-information hiding also covers known connected-recipient names and suppresses private destinations.
 
 The desktop navigation policy allows HTTP and HTTPS destinations outside the mail service origin. On the mail service origin, only the Google OAuth entry route may open externally. The renderer gets that route's single-use `launch` link from the authenticated `POST /api/oauth/google/start`; the entry route refuses requests without a pending launch, and the service keeps at most eight pending launches (two minutes) and eight pending states (ten minutes). Local API routes and other URL schemes stay blocked.

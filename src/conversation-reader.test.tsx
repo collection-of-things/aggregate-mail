@@ -11,6 +11,7 @@ import type { Api } from "./api";
 import { Reader } from "./mail/Reader";
 import { conversationMembers } from "../server/conversation-members";
 import { LOCAL_EVIDENCE_CAVEAT } from "../shared/workspace";
+import { replyPreview } from "../shared/mail-content";
 
 for (const gmail of [true, false]) test(`${gmail ? "Gmail" : "IMAP"} inline stack ordering, keyboard, consent, privacy and coverage`, async () => {
   const dom = new JSDOM('<div id="root"></div>');
@@ -320,4 +321,67 @@ test("late initial cache cannot overwrite a completed expansion", async () => {
     assert.equal(ui.container.querySelectorAll(".conversation-message").length, 2);
     assert.equal(ui.changed(), 1);
   } finally { await ui.close(); }
+});
+
+const quotedReplyBody = `Sounds good, see you Thursday.
+
+Cheers,
+Synthetic Team
+
+On Mon, Nov 2, 2026 at 9:00 AM Alex Example <alex@example.test> wrote:
+> Can we move the review to Thursday? The earlier slot conflicts with the
+> planning
+> session that runs long every week, so Thursday afternoon works better.
+>
+>
+>
+>    On Sun, Nov 1, 2026 at 8:00 PM Sam Sample <sam@example.test> wrote:
+> > First draft of the quarterly report is ready. Please send comments by
+> > Friday.
+> >
+> >
+> > > Original request from the kickoff meeting about the zebrafinch survey.`;
+
+test("collapsed conversation snippets show reply text without signatures or quoted history", async () => {
+  const older = message("a:1", { remoteId: "1", date: 1000, body: quotedReplyBody, preview: "Sounds good, see you Thursday." });
+  const ui = await fixture(async <T,>() => ({ accountId: "a", messages: [older], gaps: [] }) as T);
+  try {
+    await ui.render();
+    const snippet = ui.container.querySelector<HTMLElement>(".conversation-snippet")!;
+    assert.equal(snippet.textContent, "Sounds good, see you Thursday.");
+    assert.doesNotMatch(snippet.textContent!, /wrote:|Cheers|Synthetic Team/);
+  } finally { await ui.close(); }
+});
+
+test("replyPreview trims signatures, valedictions and quoted history at display time", () => {
+  assert.equal(replyPreview(quotedReplyBody, ""), "Sounds good, see you Thursday.");
+  assert.equal(replyPreview("", "Sounds good. Cheers, Synthetic Team On Mon, Nov 2, 2026 at 9:00 AM Alex Example <alex@example.test> wrote: > Can we move"), "Sounds good.");
+  assert.equal(replyPreview("Looks right.\n-- \nSent from my test client\n\n> quoted", "ignored"), "Looks right.");
+  assert.equal(replyPreview("Thanks!", ""), "Thanks!");
+  assert.equal(replyPreview("", "A note -- signature"), "A note");
+  // A reply that only quotes earlier mail keeps the stored preview.
+  assert.ok(replyPreview("On Mon, 2 Nov 2026 at 09:14, Omar <omar@example.net> wrote:\n> Here are the numbers.\n> Second line.", "Here are the numbers. Second line.").includes("Here are the numbers"));
+  assert.equal(replyPreview("On Mon, 2 Nov 2026 at 09:14, Omar <omar@example.net> wrote:\n> Here are the numbers.", ""), "");
+  // A short request after a sign-off word is text, not a signature.
+  assert.ok(replyPreview("Sounds good.\nThanks,\nPlease send the revised agenda.", "").includes("Please send the revised agenda."));
+  assert.ok(replyPreview("Sounds good.\nThanks,\nCan you send the agenda?", "").includes("Can you send the agenda?"));
+  assert.equal(replyPreview("Thanks for the rundown.\n\nCheers,\nNina", ""), "Thanks for the rundown.");
+  assert.ok(replyPreview("", "Sounds good. Thanks, Please send the revised agenda.").includes("Please send the revised agenda."));
+  assert.equal(replyPreview("", "Sounds good. Cheers, Nina"), "Sounds good.");
+  // A huge body never exceeds the preview or the line-join work.
+  const huge = "Reply line\n" + "x\n".repeat(300_000);
+  const bounded = replyPreview(huge, "");
+  assert.ok(bounded.startsWith("Reply line"));
+  assert.ok(bounded.length <= 220);
+  // A bottom-posted reply after a long quote run is found, not the old text.
+  const bottomPosted = replyPreview("> Previous discussion\n".repeat(450) + "\nAgreed, let's proceed.", "Previous discussion Previous discussion");
+  assert.ok(bottomPosted.includes("Agreed, let's proceed."));
+  assert.ok(!bottomPosted.includes("Previous discussion"));
+  // The bounded scan skips 10k quoted lines and still finds the bottom reply.
+  const deepReply = replyPreview(("> " + "a".repeat(68) + "\n").repeat(10_000) + "\nAgreed, let's proceed.", "");
+  assert.ok(deepReply.includes("Agreed, let's proceed."));
+  // A wrapped attribution absorbs its "On …" lead-in line.
+  assert.equal(replyPreview("Sounds good.\n\nOn Mon, 2 Nov 2026 at 09:14, Omar Haddad <omar@\nexample.net> wrote:\n> old text", ""), "Sounds good.");
+  // But a real sentence starting with "On " survives when a blank line separates it.
+  assert.equal(replyPreview("On Monday we can meet.\n\nOmar Haddad <omar@example.net> wrote:\n> old text", ""), "On Monday we can meet.");
 });

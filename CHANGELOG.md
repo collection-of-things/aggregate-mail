@@ -13,6 +13,7 @@ unversioned history without treating it as a release record.
 ### Fixed
 
 - Search finds what you type. A short word such as a sender name no longer matches almost every email: one-typo matching made "ando" match "and" and "skip" match "ship" and "slip". Words now match exactly first; close spellings are used only when nothing matches exactly, and the list says so. CLI and MCP `--syntax app` follow the same rule. ([#212](https://github.com/collection-of-things/aggregate-mail/pull/212))
+- Plain-text replies no longer show raw `>` quote lines: quoted history renders as nested blocks collapsed behind a Show quoted text button, wrapped quote lines rejoin, and collapsed conversation rows preview only the reply text without signatures or "On … wrote:" lines. ([#211](https://github.com/collection-of-things/aggregate-mail/issues/211))
 
 ## 0.2.29 - 2026-11-03
 

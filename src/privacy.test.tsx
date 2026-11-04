@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Parser } from "htmlparser2";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { JSDOM } from "jsdom";
+import { ReaderContent } from "./mail/MessageContent";
+import { PrivacyContext } from "./ui/Privacy";
+import type { Mail } from "../shared/types";
 import {
   PRIVACY_MASK, collectMailPrivateNames, collectPrivateNames, privateRanges,
   redactAddress, redactPrivateText, redactSenderName,
@@ -243,4 +249,48 @@ test("sender and address fields never leave a non-letter label or malformed loca
   assert.equal(redactAddress("  "), "  ");
   assert.equal(redactAddress("Sample Person <sample-account@example.test>", ["Sample Person"]),
     `${PRIVACY_MASK} <${PRIVACY_MASK}>`);
+});
+
+const quotedReplyBody = `Sounds good, see you Thursday.
+
+Cheers,
+Synthetic Team
+
+On Mon, Nov 2, 2026 at 9:00 AM Alex Example <alex@example.test> wrote:
+> Can we move the review to Thursday? The earlier slot conflicts with the
+> planning
+> session that runs long every week, so Thursday afternoon works better.
+>
+>
+>
+>    On Sun, Nov 1, 2026 at 8:00 PM Sam Sample <sam@example.test> wrote:
+> > First draft of the quarterly report is ready. Please send comments by
+> > Friday.
+> >
+> >
+> > > Original request from the kickoff meeting about the zebrafinch survey.`;
+
+test("expanded plain-text quote history stays redacted while personal information is hidden", async () => {
+  const dom = new JSDOM('<div id="root"></div>');
+  const originals = ["window", "document", "IS_REACT_ACT_ENVIRONMENT"].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const);
+  Object.defineProperty(globalThis, "window", { configurable: true, value: dom.window });
+  Object.defineProperty(globalThis, "document", { configurable: true, value: dom.window.document });
+  Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
+  const container = dom.window.document.getElementById("root")!;
+  const root = createRoot(container);
+  try {
+    const mail: Mail = { id: "m", accountId: "a", remoteId: "1", sender: "Alex Example", address: "alex@example.test", to: "me@example.test", subject: "Review", preview: "", body: quotedReplyBody, date: 1, unread: false, archived: false, snoozedUntil: null, relevance: 2, category: "important", reason: "", html: null, images: [], attachments: [] };
+    await act(async () => root.render(
+      <PrivacyContext.Provider value={{ on: true, revealed: new Set(), toggle() {}, names: ["Alex Example", "Sam Sample"] }}>
+        <ReaderContent mail={mail} loadImages={async () => ({ images: [] })} />
+      </PrivacyContext.Provider>));
+    const toggle = container.querySelector<HTMLButtonElement>("button.quoted-toggle")!;
+    await act(async () => toggle.click());
+    assert.ok(container.querySelector("blockquote blockquote blockquote"));
+    assert.doesNotMatch(container.innerHTML, /Alex Example|Sam Sample|alex@example\.test|sam@example\.test/);
+    assert.ok(container.querySelector("blockquote .veiled"), "veiled spans render inside quotes");
+  } finally {
+    await act(async () => root.unmount()); dom.window.close();
+    for (const [key, descriptor] of originals) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key); }
+  }
 });
