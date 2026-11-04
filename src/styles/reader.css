@@ -364,10 +364,28 @@ article.message {
 .conversation-message:hover .conversation-select,
 .conversation-message:focus-within .conversation-select,
 .conversation-select:focus-visible { opacity: 1; pointer-events: auto; }
-/* Touch devices have no hover: keep the select link visible. The row
-   reserves its footprint so it never covers the time or the snippet tail. */
+/* Touch devices have no hover: keep the select link visible. Only rows that
+   carry the button reserve its footprint (the selected row shows the pill
+   instead), so it never covers the time or the snippet tail. */
 @media (hover: none) {
   .conversation-select { right: var(--reader-gutter, 32px); background: none; opacity: 1; pointer-events: auto; }
-  .conversation-toggle { padding-inline-end: calc(var(--reader-gutter, 32px) + 136px); }
+  .conversation-message:has(> .conversation-select) > .conversation-toggle {
+    padding-inline-end: calc(var(--reader-gutter, 32px) + 136px * var(--text-scale, 1));
+  }
+  /* The snippet keeps a floor at any text scale; the sender column yields first. */
+  .conversation-toggle { grid-template-columns: 14px minmax(0, 150px) minmax(56px, 1fr) auto; }
+}
+/* Under 480px sender, snippet and date cannot share a row with Select: the
+   button takes a short right-aligned line of its own, the toggle loses its
+   clearance, and the selected pill drops out of the grid onto a padded
+   corner under the date instead of squeezing the sender. */
+@media (hover: none) and (width < 480px) {
+  .conversation-message:has(> .conversation-select) > .conversation-toggle { padding-inline-end: var(--reader-gutter, 32px); }
+  .conversation-select { position: static; width: fit-content; min-height: 32px; margin: 2px var(--reader-gutter, 32px) 8px auto; padding: 0 8px; }
+  .conversation-toggle { position: relative; }
+  .conversation-message:has(.conversation-selected) > .conversation-toggle {
+    padding-bottom: calc(26px * var(--text-scale, 1));
+  }
+  .conversation-selected { position: absolute; right: var(--reader-gutter, 32px); bottom: 6px; }
 }
 .reader-scroll .conversation-message:has(> .conversation-toggle) .message { padding-top: 8px; }
