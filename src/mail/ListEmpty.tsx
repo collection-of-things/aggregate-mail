@@ -22,16 +22,18 @@ export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, sync
   onReset: () => void;
   onSync: () => void;
 }) {
+  // A failed load or refresh outranks every empty state, including the clear
+  // inbox: the list may be empty while the failure is still the useful answer.
+  if (loadError) {
+    return (
+      <div className="empty empty-clear empty-error">
+        <div className="empty-mark empty-mark-muted" aria-hidden="true"><img src="/brand/mark-lumen.svg" alt="" /></div>
+        <h2 className="empty-heading">{loadError}</h2>
+        <button type="button" className="link" onClick={onRetry}>Retry loading mail</button>
+      </div>
+    );
+  }
   if (!loaded) {
-    if (loadError) {
-      return (
-        <div className="empty empty-clear empty-error">
-          <div className="empty-mark empty-mark-muted" aria-hidden="true"><img src="/brand/mark-lumen.svg" alt="" /></div>
-          <h2 className="empty-heading">{loadError}</h2>
-          <button type="button" className="link" onClick={onRetry}>Retry loading mail</button>
-        </div>
-      );
-    }
     return (
       <div className="empty empty-loading">
         <div className="empty-skeleton" aria-hidden="true">
