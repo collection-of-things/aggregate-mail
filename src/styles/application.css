@@ -261,10 +261,13 @@
 .main-head .head-tools { min-width: 0; }
 .view-summary { color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); margin-left: 6px; }
 .mail-view { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; }
-/* The summary/head-note bar and the select-all rail read as one block above
-   the results: no divider between, the rail keeps the single bottom hairline. */
-.mail-view-head { gap: 10px; border-bottom: 0; }
+/* The summary row carries the select-all at the rail's x position ahead of the
+   count, keeps a quiet Fetch action at the right, and holds the hairline the
+   rail used to draw. */
+.mail-view-head { gap: 4px 10px; padding-inline-start: 10px; border-bottom: 1px solid var(--line); }
 .mail-view-head .head-note { margin-left: auto; }
+.mail-view-head .head-note button { height: 28px; min-height: 28px; padding: 0 10px; background: transparent; color: var(--link); }
+.mail-view-head .head-note button:hover:not(:disabled) { background: var(--hover); }
 .mail-category-bar { display: flex; align-items: center; column-gap: 4px; height: 42px; flex-shrink: 0; border-bottom: 1px solid var(--line); padding: 0 12px 0 10px; overflow-x: auto; }
 .mail-category-bar:not(:has(.inbox-tabs)) { height: 36px; }
 .mail-category-bar .inbox-tabs { height: 100%; gap: 22px; margin: 0; }
@@ -274,6 +277,9 @@
 .mail-category-bar:has(.rail-actions [data-selection="true"]) { height: auto; min-height: 44px; padding-block: 6px; overflow: visible; }
 .mail-category-bar:has(.rail-actions [data-selection="true"]) .rail-select { align-self: flex-start; height: calc(16.675px * var(--text-scale, 1)); }
 .mail-category-bar:has(.rail-actions [data-selection="true"]) .inbox-tabs { display: none; }
+/* Views whose select-all moved into the summary head leave the rail holding an
+   empty triage mount: it collapses until a selection fills it. */
+.mail-category-bar:has(> .rail-actions:only-child):not(:has([data-selection="true"])) { display: none; }
 .mail-category-bar .inbox-tabs button { min-width: max-content; flex: none; font-size: calc(11px * var(--text-scale, 1)); }
 .mail-category-bar .tab-name { display: inline; }
 .mail-category-bar .tab-icon { display: none; }
@@ -454,7 +460,7 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
 .mail-category-bar .inbox-tabs .tab-label { display: inline; }
 /* View names live in the persistent toolbar. Secondary bars hold actions only. */
 .work-action-head { height: auto; min-height: 42px; padding-block: 6px; }
-.mail-view-head { height: auto; min-height: 32px; padding-block: 4px; }
+.mail-view-head { height: auto; min-height: 44px; padding-block: 4px; }
 .work-action-head .head-tools { flex: 1; }
 
 /* Compose shares only Search and Privacy with the toolbar; other working panes
@@ -536,7 +542,9 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
   .app.desktop[data-view="drafts"] .compose-dialog .dialog-title { top: -42px; }
   .app.desktop[data-view="drafts"] .compose-dialog .compose-from-row > .compose-from-field { padding-right: 0; }
 }
-.compose-dialog .compose-footer { min-height: 30px; padding: 1px 12px; display: flex; flex-direction: column; justify-content: center; }
+/* The footer's content column matches the scroll column's 18px inset so Send
+   sits on the envelope's left edge. */
+.compose-dialog .compose-footer { min-height: 30px; padding: 1px 18px; display: flex; flex-direction: column; justify-content: center; }
 .compose-dialog .compose-actions > button { height: 26px; }
 .compose-dialog .compose-send { height: 26px; min-width: 64px; }
 .compose-dialog .compose-actions > button { min-height: 26px; padding-block: 0; }
@@ -633,9 +641,11 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
 
 /* Keep the sender picker in the envelope, using the same themed menu as the app. */
 .compose-from-field { display: flex; align-items: center; gap: 14px; min-width: 0; min-height: 44px; color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
-.compose-from-field > span { width: calc(48px * var(--text-scale, 1)); flex-shrink: 0; }
+.compose-from-field > span { width: var(--compose-label-width); flex-shrink: 0; }
 .compose-from-field .dropdown { flex: 1; min-width: 0; }
-.compose-from-field .dropdown-trigger { height: 30px; min-height: 30px; padding: 0 8px; border-color: transparent; border-radius: 6px; background: transparent; font-size: inherit; }
+/* The From trigger's own padding used to push its value right of the other
+   fields' values; flush left keeps all field values on one x. */
+.compose-from-field .dropdown-trigger { height: 30px; min-height: 30px; padding: 0 8px 0 0; border-color: transparent; border-radius: 6px; background: transparent; font-size: inherit; }
 .compose-from-field .dropdown-trigger:hover:not(:disabled), .compose-from-field .dropdown-trigger[aria-expanded="true"] { background: var(--selected); }
 .compose-from-field .dropdown-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .compose-from-field .dropdown-menu { max-height: 240px; overflow-y: auto; border-radius: 8px; background: var(--raised); backdrop-filter: none; animation: none; }

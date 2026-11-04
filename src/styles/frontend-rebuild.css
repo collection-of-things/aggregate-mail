@@ -102,6 +102,8 @@
 :root:not([data-glass]) .mail-window-date .group { background-color: var(--rebuild-canvas); }
 .mail-row { margin-inline: 1px; }
 .row { border-radius: var(--radius-mark); }
+.row.card { border-radius: var(--radius-mark-sm); }
+.row.card:focus-visible { border-radius: var(--radius-mark-sm); }
 .row::after { display: none; }
 /* Keep the selection gutter stable when the reader hides checkboxes. Card
    slots share their content-based height with MailListWindow. */

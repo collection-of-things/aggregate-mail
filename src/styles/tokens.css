@@ -9,7 +9,7 @@
   --radius-mark-lg: 6px 22px 6px 22px;
   --radius-pane: 14px;
   --sidebar: 208px;
-  --list-width: clamp(320px, 28vw, 380px);
+  --list-width: clamp(320px, 31vw, 448px);
   --mail-row-medium: 34px;
   --mail-row-compact: 24px;
   --mail-row-card-medium: 100px;
@@ -173,8 +173,8 @@
   --danger: #c93434;
   --veil: #ecd9db;
   --veil-hover: #e3cdd0;
-  --skeleton: var(--veil);
-  --skeleton-peak: var(--veil-hover);
+  --skeleton: var(--veil-hover);
+  --skeleton-peak: color-mix(in srgb, var(--veil-hover) 80%, var(--text-4));
   --avatar: #f3dfe1;
   --avatar-text: #6e5663;
   --avatar-0: #fbd3dd;

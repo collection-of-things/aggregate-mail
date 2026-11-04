@@ -69,6 +69,7 @@
   width: 680px;
 }
 .compose-form {
+  --compose-label-width: calc(48px * var(--text-scale, 1));
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -88,7 +89,7 @@
   font-size: calc(12px * var(--text-scale, 1));
   color: var(--text-3);
 }
-.compose-envelope label > span { width: 48px; flex-shrink: 0; }
+.compose-envelope label > span { width: var(--compose-label-width); flex-shrink: 0; }
 .compose-envelope > label:last-child { border-bottom: 0; }
 .compose-envelope :is(label, .compose-to-row):focus-within { border-bottom-color: var(--accent); }
 .compose-form :is(input, select) {

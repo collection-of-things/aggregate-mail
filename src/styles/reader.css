@@ -273,6 +273,10 @@ article.message {
   padding: 0;
   color: inherit;
 }
+/* Sender tables keep the full width so their own centering holds; prose
+   blocks outside tables cap at a readable measure like the plain-text body. */
+.formatted-mail :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6, pre) { max-width: 70ch; }
+.formatted-mail table :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6, pre) { max-width: none; }
 .formatted-mail a {
   color: var(--link);
   text-decoration: underline;
@@ -343,7 +347,8 @@ article.message {
   column-gap: 10px;
   align-items: center;
   width: 100%;
-  padding: 8px var(--reader-gutter, 32px);
+  min-height: calc(30px * var(--text-scale, 1));
+  padding: calc(5px * var(--text-scale, 1)) var(--reader-gutter, 32px);
   background: transparent;
   border: 0;
   text-align: left;
@@ -362,7 +367,7 @@ article.message {
 /* The action link overlays the toggle row's right end on hover/focus, so a
    collapsed message stays one line. A surface fade covers the snippet tail. */
 .conversation-message { position: relative; }
-.conversation-select { position: absolute; top: 8px; right: calc(var(--reader-gutter, 32px) + 64px); display: flex; align-items: center; height: 18px; padding: 0 6px 0 20px; margin: 0; font-size: calc(12px * var(--text-scale, 1));
+.conversation-select { position: absolute; top: 5px; right: calc(var(--reader-gutter, 32px) + 64px); display: flex; align-items: center; height: 18px; padding: 0 6px 0 20px; margin: 0; font-size: calc(12px * var(--text-scale, 1));
   background: linear-gradient(90deg, transparent 0, var(--surface) 40%);
   opacity: 0; transition: opacity 140ms var(--ease-out); pointer-events: none; }
 .conversation-message:hover .conversation-select,
@@ -392,4 +397,7 @@ article.message {
   }
   .conversation-selected { position: absolute; right: var(--reader-gutter, 32px); bottom: 6px; }
 }
-.reader-scroll .conversation-message:has(> .conversation-toggle) .message { padding-top: 8px; }
+.reader-scroll .conversation-message:has(> .conversation-toggle) .message { padding-top: 4px; }
+/* The expanded message's sender block sits closer to its collapsed header
+   than a free-standing message does to the reader top. */
+.reader-scroll .conversation-message:has(> .conversation-toggle) .message .message-from { margin-top: 8px; }

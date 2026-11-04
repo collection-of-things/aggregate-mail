@@ -213,3 +213,7 @@ export function Calendar(props: IconProps) {
 export function CalendarPlus(props: IconProps) {
   return <Outline {...props}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18M12 14v4M10 16h4" /></Outline>;
 }
+
+export function TaskSquare(props: IconProps) {
+  return <Outline {...props}><rect x="4" y="4" width="16" height="16" rx="2.5" /><path d="m8.5 12.5 2.5 2.5L16 9.5" /></Outline>;
+}
