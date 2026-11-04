@@ -173,6 +173,32 @@ test("an unavailable storage write leaves the saved theme library and selection 
 });
 
 
+test("pale custom accents pin a readable selection ink and built-ins clear it", async () => {
+  await withDesktop("win32", async (_calls, dom) => {
+    const { applyAppearance, defaultAppearance } = await import("./appearance");
+    const root = dom.window.document.documentElement;
+    const pale: CustomTheme = { id: `custom:${crypto.randomUUID()}`, name: "Pale", palettes: {
+      dark: generatePalette("#0b0b0f", "#101010", "dark"),
+      light: { ...generatePalette("#ffffff", "#ffffff", "light"), accent: "#ffffff", surface: "#ffffff", text: "#222222" },
+    } };
+    const value = { ...defaultAppearance, theme: pale.id, customThemes: [pale], mode: "light" as const };
+    applyAppearance(value, "light");
+    assert.equal(root.style.getPropertyValue("--accent-soft-ink"), "#222222",
+      "a pale accent cannot derive readable ink, so the palette text is pinned");
+    const meadow: CustomTheme = { id: `custom:${crypto.randomUUID()}`, name: "Meadow", palettes: {
+      dark: generatePalette("#0c1a10", "#3ddc84", "dark"),
+      light: { ...generatePalette("#e2f3e8", "#2b8a3e", "light"), accent: "#2b8a3e", surface: "#f8fcf9", text: "#1a1a1a" },
+    } };
+    applyAppearance({ ...value, theme: meadow.id, customThemes: [pale, meadow] }, "light");
+    assert.equal(root.style.getPropertyValue("--accent-soft-ink"), "", "a passing accent keeps the derived ink");
+    applyAppearance({ ...value, customThemes: [pale, meadow] }, "light");
+    assert.equal(root.style.getPropertyValue("--accent-soft-ink"), "#222222");
+    applyAppearance({ ...defaultAppearance, mode: "light" }, "light");
+    assert.equal(root.style.getPropertyValue("--accent-soft-ink"), "", "returning to a built-in clears the pinned ink");
+  });
+});
+
+
 test("reader toolbar choices persist and older or invalid preferences use the compact layout", async () => {
   await withDesktop("linux", async (_calls, dom) => {
     const { readAppearance, saveAppearance, defaultAppearance } = await import("./appearance");

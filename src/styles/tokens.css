@@ -85,6 +85,8 @@
   --energy: #a50685;
   --photon: #fcaec2;
   --accent: #e05cbe;
+  /* Percentages are duplicated in src/themes.ts accentSoftMix, which guards
+     unreadable ink on pale custom accents. Keep both in sync. */
   --accent-soft: color-mix(in oklab, var(--accent) 22%, var(--surface));
   --accent-soft-ink: color-mix(in oklab, var(--accent) 38%, var(--text));
   --link: color-mix(in srgb, var(--accent) 72%, #fff);
@@ -144,6 +146,7 @@
   --account-color-3: #6b5763;
   --selected-card: color-mix(in oklab, var(--accent) 11%, var(--surface));
   --accent-soft: color-mix(in oklab, var(--accent) 16%, var(--surface));
+  /* Same pairing note as the dark block: sync with themes.ts accentSoftMix. */
   --accent-soft-ink: color-mix(in oklab, var(--accent) 70%, var(--text));
   --link: color-mix(in srgb, var(--accent) 88%, #000);
   --reason: #a50685;

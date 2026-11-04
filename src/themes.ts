@@ -73,6 +73,40 @@ function luminance(color: string): number {
   return channel(1) * 0.2126 + channel(3) * 0.7152 + channel(5) * 0.0722;
 }
 
+function contrastRatio(first: string, second: string): number {
+  const brighter = Math.max(luminance(first), luminance(second));
+  const darker = Math.min(luminance(first), luminance(second));
+  return (brighter + 0.05) / (darker + 0.05);
+}
+
+// The --accent-soft / --accent-soft-ink color-mix percentages from tokens.css,
+// duplicated here so the custom-palette guard computes the same resolved
+// colors the stylesheet produces. Keep both sides in sync.
+export const accentSoftMix = { dark: { fill: 0.22, ink: 0.38 }, light: { fill: 0.16, ink: 0.7 } } as const;
+
+// Reproduces color-mix(in oklab, a n%, b) over sRGB hex colors.
+function oklabHex(first: string, second: string, amount: number): string {
+  const toLinear = (value: number) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  const fromLinear = (value: number) => (value <= 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055);
+  const lab = (color: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => toLinear(parseInt(color.slice(i, i + 2), 16) / 255));
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+      1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+      0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s];
+  };
+  const [la, aa, ba] = lab(first);
+  const [lb, ab, bb] = lab(second);
+  const l3 = la * amount + lb * (1 - amount) + 0.3963377774 * (aa * amount + ab * (1 - amount)) + 0.2158037573 * (ba * amount + bb * (1 - amount));
+  const m3 = la * amount + lb * (1 - amount) - 0.1055613458 * (aa * amount + ab * (1 - amount)) - 0.0638541728 * (ba * amount + bb * (1 - amount));
+  const s3 = la * amount + lb * (1 - amount) - 0.0894841775 * (aa * amount + ab * (1 - amount)) - 1.291485548 * (ba * amount + bb * (1 - amount));
+  const [l, m, s] = [l3 ** 3, m3 ** 3, s3 ** 3];
+  const channel = (value: number) => Math.round(Math.max(0, Math.min(1, fromLinear(value))) * 255).toString(16).padStart(2, "0");
+  return `#${channel(+4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s)}${channel(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s)}${channel(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s)}`;
+}
+
 export function generatePalette(canvas: string, accent: string, scheme: ThemePreview["scheme"]): Palette {
   const background = themeColorSchema.parse(canvas);
   const highlight = themeColorSchema.parse(accent);
@@ -104,11 +138,19 @@ export function applyPalette(palette: Palette, root: HTMLElement): void {
   root.style.setProperty("--veil-hover", `color-mix(in srgb, ${palette.veil} 90%, ${palette.text})`);
   root.style.setProperty("--avatar", palette.raised);
   root.style.setProperty("--avatar-text", palette.secondaryText);
+  // A pale custom accent would render --accent-soft-ink unreadable on its fill;
+  // CSS can't choose a contrasting color, so pin a passing ink here.
+  const percentages = accentSoftMix[root.dataset.scheme === "light" ? "light" : "dark"];
+  const fill = oklabHex(palette.accent, palette.surface, percentages.fill);
+  const ink = oklabHex(palette.accent, palette.text, percentages.ink);
+  if (contrastRatio(ink, fill) >= 4.5) root.style.removeProperty("--accent-soft-ink");
+  else if (contrastRatio(palette.text, fill) >= 4.5) root.style.setProperty("--accent-soft-ink", palette.text);
+  else root.style.setProperty("--accent-soft-ink", contrastRatio("#ffffff", fill) >= contrastRatio("#000000", fill) ? "#ffffff" : "#000000");
 }
 
 export function clearPalette(root: HTMLElement): void {
   for (const field of paletteFields) root.style.removeProperty(field.variable);
-  for (const variable of ["--text-body", "--text-4", "--line-2", "--line-3", "--hover", "--selected", "--veil-hover", "--avatar", "--avatar-text"])
+  for (const variable of ["--text-body", "--text-4", "--line-2", "--line-3", "--hover", "--selected", "--veil-hover", "--avatar", "--avatar-text", "--accent-soft-ink"])
     root.style.removeProperty(variable);
 }
 
