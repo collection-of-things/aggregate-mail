@@ -5,6 +5,11 @@ const defaults = `:where(body){color:var(--reader-foreground);font:calc(14px * v
 const controls = `
 body{margin:0;overflow-wrap:break-word}
 img,table{max-width:100%}img{height:auto}a{cursor:pointer}
+a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
+blockquote{margin:.75em 0;padding:0 0 0 14px;border-left:2px solid var(--accent);color:var(--text-2)}
+code{font-family:var(--font-mono);font-size:.92em;background:var(--veil);color:var(--accent-soft-ink);border-radius:3px;padding:0 4px}
+pre{font-family:var(--font-mono);font-size:.92em;background:var(--veil);border-radius:var(--radius-mark-sm);padding:10px 12px;color:var(--text-body);overflow-x:auto}
+pre code{background:none;padding:0;color:inherit}
 .address{all:initial!important;display:inline-block!important;font:inherit!important;color:inherit!important;cursor:pointer!important;vertical-align:baseline!important}
 .address.veiled{width:8ch!important;height:1em!important;background:#888!important;border-radius:3px!important}
 .address:focus-visible,a:focus-visible{outline:2px solid #6b9cff!important;outline-offset:2px!important}
@@ -13,7 +18,7 @@ img,table{max-width:100%}img{height:auto}a{cursor:pointer}
 
 function inheritTheme(element: HTMLIFrameElement, body: HTMLElement) {
   const theme = element.ownerDocument.defaultView!.getComputedStyle(element);
-  for (const name of ['--text-scale', '--text', '--text-2', '--line', '--link', '--veil'])
+  for (const name of ['--text-scale', '--text', '--text-2', '--text-body', '--line', '--link', '--veil', '--accent', '--accent-soft-ink', '--font-mono', '--radius-mark-sm'])
     body.style.setProperty(name, theme.getPropertyValue(name));
   body.style.setProperty('--reader-foreground', theme.color);
 }

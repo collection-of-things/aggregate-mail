@@ -133,9 +133,13 @@ test("custom and preview colors follow the resolved scheme and clear fully when 
     assert.equal(root.style.getPropertyValue("--avatar"), "");
     assert.equal(root.style.getPropertyValue("--veil-hover"), "");
     assert.equal(root.style.getPropertyValue("--line-2"), "");
-    assert.equal(root.style.getPropertyValue("--accent"), "#6b9cff");
-    assert.equal(root.style.getPropertyValue("--primary-fill"), "var(--primary-blue)");
-    assert.equal(root.style.getPropertyValue("--primary-ink"), "#fff");
+    assert.equal(root.style.getPropertyValue("--accent"), "#e05cbe");
+    assert.equal(root.style.getPropertyValue("--primary-fill"), "#a50685");
+    assert.equal(root.style.getPropertyValue("--primary-ink"), "#fff3f2");
+    applyAppearance(defaultAppearance, "light");
+    assert.equal(root.style.getPropertyValue("--accent"), "#a50685");
+    assert.equal(root.style.getPropertyValue("--primary-fill"), "#a50685");
+    assert.equal(root.style.getPropertyValue("--primary-ink"), "#fff3f2", "Energy keeps its brand fill and ink in both schemes");
   });
 });
 
@@ -164,7 +168,7 @@ test("an unavailable storage write leaves the saved theme library and selection 
     Object.defineProperty(dom.window.Storage.prototype, "setItem", { configurable: true, value() { throw new Error("quota"); } });
     assert.equal(saveAppearance({ ...defaultAppearance, accent: "purple" }), false);
     assert.equal(dom.window.localStorage.getItem("emc2.appearance.v1"), saved);
-    assert.equal(readAppearance().accent, "blue");
+    assert.equal(readAppearance().accent, "energy");
   });
 });
 

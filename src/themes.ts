@@ -88,7 +88,7 @@ export function generatePalette(canvas: string, accent: string, scheme: ThemePre
     link: mix(highlight, text, light ? 0.12 : 0.28),
     border: mix(surface, text, light ? 0.16 : 0.12),
     danger: light ? "#c93434" : "#f07c7c",
-    reason: light ? "#a4512f" : "#e3a08b",
+    reason: light ? "#a50685" : "#fcaec2",
     veil: mix(surface, text, light ? 0.2 : 0.1),
   };
 }

@@ -3,6 +3,10 @@
    (--bg); working panes (--surface) stay close to neutral so mail reads calmly. */
 :root {
   --radius-control: 8px;
+  /* The mark's asymmetric corner shape: top-right and bottom-left rounded. */
+  --radius-mark-sm: 3px 10px 3px 10px;
+  --radius-mark: 4px 14px 4px 14px;
+  --radius-mark-lg: 6px 22px 6px 22px;
   --radius-pane: 14px;
   --sidebar: 208px;
   --list-width: clamp(320px, 28vw, 380px);
@@ -13,10 +17,20 @@
   --mail-card-base: 54px;
   --mail-card-meta: 18px;
   --mail-card-preview: 20px;
-  --account-color-0: #5487d9;
-  --account-color-1: #419b91;
-  --account-color-2: #a18ac9;
-  --account-color-3: #ba9763;
+  --account-color-0: #e05cbe;
+  --account-color-1: #a98ce6;
+  --account-color-2: #e0a25a;
+  --account-color-3: #b9a2ad;
+  /* Sender identity tints: four soft tones, hash-picked per address. */
+  --avatar-0: #4a1840;
+  --avatar-0-ink: #fcaec2;
+  --avatar-1: #33244d;
+  --avatar-1-ink: #cbb6f2;
+  --avatar-2: #3f2c17;
+  --avatar-2-ink: #efc58f;
+  --avatar-3: #352430;
+  --avatar-3-ink: #d7c2cb;
+  --selected-card: color-mix(in srgb, #a50685 22%, var(--surface));
   --mail-group-height: 30px;
   --subhead-height: 48px;
   --chrome: color-mix(in srgb, var(--surface) 60%, var(--bg));
@@ -34,52 +48,58 @@
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   /* A lightly damped spring: settles with a small overshoot, never loops. */
   --spring: linear(0, 0.06 2.4%, 0.23 5.3%, 0.48 9.3%, 0.71 13.8%, 0.87 18.6%, 0.96 23.8%, 1.005 29.7%, 1.02 36%, 1.012 45%, 1.002 60%, 1);
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+  --font-accent: "Instrument Serif", serif;
   font-family:
+    "Host Grotesk Variable",
+    "Host Grotesk",
     -apple-system,
     BlinkMacSystemFont,
     "SF Pro Text",
-    "Inter Variable",
-    Inter,
     "Segoe UI Variable Text",
     "Segoe UI",
     system-ui,
     sans-serif;
-  font-size: calc(13px * var(--text-scale, 1));
+  font-size: calc(14px * var(--text-scale, 1));
   line-height: 1.45;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
 
-  /* Dark is the default scheme. */
+  /* Dark is the default scheme, drawn on the brand's Mass palette. */
   color-scheme: dark;
-  --bg: #000;
-  --surface: #0e0e10;
-  --raised: #1c1c1f;
-  --hover: rgba(255, 255, 255, 0.04);
-  --selected: rgba(255, 255, 255, 0.07);
-  --line: rgba(255, 255, 255, 0.08);
-  --line-2: rgba(255, 255, 255, 0.12);
-  --line-3: rgba(255, 255, 255, 0.18);
-  --text: #fff;
-  --text-body: #dedede;
-  --text-2: #a0a0a6;
-  --text-3: #88888f;
-  --text-4: #82828a;
-  --accent: #6b9cff;
+  --bg: #150510;
+  --surface: #1a0914;
+  --raised: #26131f;
+  --hover: rgba(255, 243, 242, 0.04);
+  --selected: rgba(255, 243, 242, 0.07);
+  --line: rgba(255, 243, 242, 0.08);
+  --line-2: rgba(255, 243, 242, 0.12);
+  --line-3: rgba(255, 243, 242, 0.18);
+  --text: #fff3f2;
+  --text-body: #f0dfe2;
+  --text-2: #c4aab5;
+  --text-3: #a68c98;
+  --text-4: #9a8090;
+  --energy: #a50685;
+  --photon: #fcaec2;
+  --accent: #e05cbe;
+  --accent-soft: color-mix(in srgb, #a50685 28%, var(--surface));
+  --accent-soft-ink: #fcaec2;
   --link: color-mix(in srgb, var(--accent) 72%, #fff);
-  --reason: #e3a08b;
+  --reason: #fcaec2;
   --quote: color-mix(in srgb, var(--accent) 40%, var(--line-2));
   --danger: #f07c7c;
-  --veil: #1d1d1d;
-  --veil-hover: #262626;
-  --avatar: #1c1c1c;
-  --avatar-text: #a8a8a8;
-  --lights-off: #3a3a3a;
-  --backdrop: rgba(0, 0, 0, 0.5);
-  --edge: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.5);
+  --veil: #2c1724;
+  --veil-hover: #361d2c;
+  --avatar: #2a1522;
+  --avatar-text: #c4aab5;
+  --lights-off: #38222f;
+  --backdrop: rgba(10, 2, 8, 0.6);
+  --edge: inset 0 1px 0 rgba(255, 243, 242, 0.05);
+  --shadow: 0 12px 32px rgba(10, 2, 8, 0.45);
+  --shadow-dialog: 0 24px 64px rgba(10, 2, 8, 0.5);
 }
 :root[data-scheme="dark"][data-theme="graphite"] {
   --bg: #141416;
@@ -105,31 +125,46 @@
 
 :root[data-scheme="light"] {
   color-scheme: light;
-  --bg: #f2f2f4;
-  --surface: #fff;
-  --raised: #fff;
-  --hover: rgba(0, 0, 0, 0.04);
-  --selected: rgba(0, 0, 0, 0.06);
-  --line: rgba(0, 0, 0, 0.08);
-  --line-2: rgba(0, 0, 0, 0.13);
-  --line-3: rgba(0, 0, 0, 0.22);
-  --text: #1d1d1f;
-  --text-body: #2c2c2e;
-  --text-2: #48484d;
-  --text-3: #636368;
-  --text-4: #737379;
+  --bg: #f8e8e8;
+  --surface: #fff3f2;
+  --raised: #fffaf9;
+  --hover: rgba(21, 5, 16, 0.04);
+  --selected: rgba(21, 5, 16, 0.06);
+  --line: rgba(21, 5, 16, 0.08);
+  --line-2: rgba(21, 5, 16, 0.13);
+  --line-3: rgba(21, 5, 16, 0.22);
+  --text: #150510;
+  --text-body: #2a1823;
+  --text-2: #5a4350;
+  --text-3: #6e5663;
+  --text-4: #7a6170;
+  --account-color-0: #a50685;
+  --account-color-1: #6d48b8;
+  --account-color-2: #b0661a;
+  --account-color-3: #6b5763;
+  --selected-card: color-mix(in srgb, #fcaec2 30%, var(--surface));
+  --accent-soft: color-mix(in srgb, #fcaec2 45%, var(--surface));
+  --accent-soft-ink: #7a0563;
   --link: color-mix(in srgb, var(--accent) 88%, #000);
-  --reason: #a4512f;
+  --reason: #a50685;
   --danger: #c93434;
-  --veil: #d4d4d9;
-  --veil-hover: #c9c9cf;
-  --avatar: #e8e8ec;
-  --avatar-text: #636368;
-  --lights-off: #d1d1d6;
-  --backdrop: rgba(0, 0, 0, 0.22);
+  --veil: #ecd9db;
+  --veil-hover: #e3cdd0;
+  --avatar: #f3dfe1;
+  --avatar-text: #6e5663;
+  --avatar-0: #fbd3dd;
+  --avatar-0-ink: #8a0570;
+  --avatar-1: #e9dcf7;
+  --avatar-1-ink: #5a3a9a;
+  --avatar-2: #f6e2c9;
+  --avatar-2-ink: #8a5212;
+  --avatar-3: #f1dde3;
+  --avatar-3-ink: #5e4552;
+  --lights-off: #ded2d5;
+  --backdrop: rgba(21, 5, 16, 0.22);
   --edge: inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  --shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
-  --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.18);
+  --shadow: 0 12px 32px rgba(21, 5, 16, 0.12), 0 0 0 0.5px rgba(21, 5, 16, 0.04);
+  --shadow-dialog: 0 24px 64px rgba(21, 5, 16, 0.18);
 }
 :root[data-scheme="light"][data-theme="graphite"] {
   --bg: #e4e4e8;

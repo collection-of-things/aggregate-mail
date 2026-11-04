@@ -65,10 +65,14 @@ export function MailList<T extends Mail>({
   onSwipe?: (mail: T, direction: "left" | "right") => void;
 }) {
   const cardLayout = narrow || density === "comfortable";
-  const cardContent = useCallback((mail: T) => ({
-    metadata: showAccount || !!(mail.relevance === 3 && mail.reason),
-    preview: density === "comfortable" && !!previewText(mail.preview).trim(),
-  }), [showAccount, density]);
+  const cardContent = useCallback((mail: T) => {
+    const preview = density === "comfortable" && !!previewText(mail.preview).trim();
+    // Metadata keeps its own line only without a preview; otherwise it leads it.
+    return {
+      metadata: !preview && (showAccount || !!(mail.relevance === 3 && mail.reason)),
+      preview,
+    };
+  }, [showAccount, density]);
   const bulk = useContext(BulkSelectionContext);
   const privacyContext = useContext(PrivacyContext);
   const privacy = privacyContext.on;
@@ -130,10 +134,10 @@ export function MailList<T extends Mail>({
                   <strong><Redact text={m.sender} /></strong>
                   {time}
                 </span>
-                {metadata}
+                {!cardContent(m).preview && metadata}
                 <span className="row-subject"><Redact text={m.subject || "(no subject)"} /></span>
                 {cardContent(m).preview && (
-                  <span className="row-preview"><Redact text={previewText(m.preview)} /></span>
+                  <span className="row-preview">{metadata}<span className="row-preview-text"><Redact text={previewText(m.preview)} /></span></span>
                 )}
               </span>
             ) : (

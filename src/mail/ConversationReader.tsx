@@ -93,7 +93,8 @@ export function ConversationReader({ mail, gmail, api, busy, onChanged, onSelect
   // The server's generic caveat is already covered by the client's own first bullet.
   const gaps = (conversation?.gaps ?? []).filter(gap => gap !== LOCAL_EVIDENCE_CAVEAT);
   const hints = `${region}-hints`;
-  return <section className="conversation-reader" aria-label="Conversation">
+  return <section className={`conversation-reader${multiple ? " multiple" : ""}`} aria-label="Conversation">
+    {multiple && <MailPrivacy mail={mail}><p className="conversation-subject" aria-hidden="true"><Redact text={mail.subject || "(no subject)"} /></p></MailPrivacy>}
     {multiple && <p id={hints} className="visually-hidden">Enter or click expands a message. Reader toolbar and shortcuts apply to the selected message. Use Select for actions to change it; each message has its own context menu.</p>}
     {(multiple || canExpand || error) && <div className="conversation-bar">
       {multiple && <span>{ordered.length} messages in this conversation</span>}

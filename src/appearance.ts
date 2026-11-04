@@ -10,14 +10,17 @@ export const modes = [
 // Each theme has a dark and a light palette. Themes tint the window frame and
 // sidebar; the working panes stay close to neutral in both.
 export const themes = [
-  { id: "black", label: "Black", lightLabel: "White", dark: "#000", light: "#f2f2f4" },
+  { id: "black", label: "Mass", lightLabel: "Lumen", dark: "#150510", light: "#f8e8e8" },
   { id: "graphite", label: "Graphite", lightLabel: "Graphite", dark: "#1c1c1e", light: "#e4e4e8" },
   { id: "midnight", label: "Midnight", lightLabel: "Midnight", dark: "#0b1020", light: "#e1e7f3" },
   { id: "forest", label: "Forest", lightLabel: "Forest", dark: "#0b1410", light: "#dfeae3" },
 ] as const;
 
-// Light mode uses deeper accents so links and selection keep their contrast on white.
+// Light mode uses deeper accents so links and selection keep their contrast on
+// white. An accent can pin the shared primary fill (and its ink) so the brand
+// button keeps its exact color instead of the lifted scheme value.
 export const accents = [
+  { id: "energy", label: "Energy", dark: "#e05cbe", light: "#a50685", fill: "#a50685", fillInk: "#fff3f2" },
   { id: "blue", label: "Blue", dark: "#6b9cff", light: "#2563eb" },
   { id: "purple", label: "Purple", dark: "#a78bfa", light: "#7c3aed" },
   { id: "pink", label: "Pink", dark: "#f472b6", light: "#db2777" },
@@ -66,7 +69,7 @@ export type Appearance = {
   customThemes: CustomTheme[];
 };
 
-export const defaultAppearance: Appearance = { mode: "dark", theme: "black", accent: "blue", transparency: "glass", glassOpacity: 70, reading: "split", readerToolbar: "compact", customThemes: [] };
+export const defaultAppearance: Appearance = { mode: "dark", theme: "black", accent: "energy", transparency: "glass", glassOpacity: 70, reading: "split", readerToolbar: "compact", customThemes: [] };
 const storageKey = "emc2.appearance.v1";
 const glassOpacitySchema = z.number().int().min(0).max(100);
 
@@ -149,15 +152,20 @@ export function applyAppearance(value: Appearance, scheme: Scheme = resolveSchem
   root.dataset.scheme = activeScheme;
   root.dataset.theme = value.theme;
   clearPalette(root);
-  root.style.setProperty("--accent", accents.find((accent) => accent.id === value.accent)![activeScheme]);
+  const accent = accents.find((candidate) => candidate.id === value.accent)!;
+  root.style.setProperty("--accent", accent[activeScheme]);
   const palette = preview?.palette ?? value.customThemes.find((theme) => theme.id === value.theme)?.palettes[activeScheme];
   if (palette) applyPalette(palette, root);
-  root.style.setProperty("--primary-fill", !palette && value.accent === "blue" ? "var(--primary-blue)" : "var(--accent)");
-  const primary = !palette && value.accent === "blue" ? "#286cf2" : palette?.accent ?? accents.find((accent) => accent.id === value.accent)![activeScheme];
+  const pinnedFill = "fill" in accent ? accent.fill : undefined;
+  const pinnedInk = "fillInk" in accent ? accent.fillInk : undefined;
+  root.style.setProperty("--primary-fill",
+    palette ? "var(--accent)" : pinnedFill ?? (value.accent === "blue" ? "var(--primary-blue)" : "var(--accent)"));
+  const primary = palette?.accent ?? (value.accent === "blue" ? "#286cf2" : pinnedFill ?? accent[activeScheme]);
   const channels = primary.slice(1).match(/../g)!.map((value) => parseInt(value, 16) / 255)
     .map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
   const luminance = channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
-  root.style.setProperty("--primary-ink", 1.05 / (luminance + 0.05) >= 4.5 ? "#fff" : "#000");
+  root.style.setProperty("--primary-ink",
+    !palette && pinnedInk ? pinnedInk : 1.05 / (luminance + 0.05) >= 4.5 ? "#fff" : "#000");
   const glass = supportsGlass() && value.transparency !== "off";
   root.style.setProperty("--glass-opacity", `${value.glassOpacity}%`);
   // Palettes set --text-3 inline, which beats the stylesheet's glass step-up;

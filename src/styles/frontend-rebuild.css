@@ -8,7 +8,7 @@
   --rebuild-edge: 24px;
 }
 :root[data-scheme="light"][data-theme="black"] {
-  --rebuild-canvas: #fafafa;
+  --rebuild-canvas: #fdf1f0;
 }
 :root[data-scheme="light"] { --rebuild-highlight: rgba(255, 255, 255, .9); }
 :root[data-scheme="dark"] { --rebuild-rail: var(--raised); }
@@ -25,7 +25,8 @@
   z-index: 1;
 }
 .sidebar-head { gap: 8px; padding-inline: 12px; justify-content: flex-end; }
-.sidebar-head .sidebar-brand { margin-right: auto; font-size: 13px; font-weight: 600; }
+.sidebar-head > .icon:first-child { margin-left: 0; order: 2; }
+.sidebar-head .sidebar-brand { margin-right: auto; font-size: 13px; font-weight: 500; }
 .sidebar-brand { display: inline-flex; min-width: 0; }
 .sidebar-brand img { width: 94px; max-width: 100%; height: 24px; object-fit: contain; object-position: left center; }
 .sidebar-brand .brand-dark, :root[data-scheme="dark"] .sidebar-brand .brand-light { display: none; }
@@ -36,24 +37,29 @@
   .app:not(.desktop)[data-view="drafts"] .dialog-backdrop.compose-backdrop { padding-top: 42px; }
   .app:not(.desktop) .app-update-control { top: 4px; }
 }
+.sidebar-head > .icon {
+  width: 28px; height: 28px;
+  background: var(--surface); box-shadow: var(--edge); border-radius: 8px;
+}
 :is(.sidebar-head, .app-toolbar) { border-bottom: 1px solid var(--line); box-shadow: 0 2px var(--rebuild-highlight); }
 .sidebar-content { padding: 14px 12px 12px; }
 .sidebar-primary { gap: 10px; }
 .sidebar-primary > .primary-button.new-message:first-of-type {
-  height: 32px; min-height: 32px; justify-content: center;
+  height: 30px; min-height: 30px; justify-content: center;
   gap: 8px; margin-bottom: 2px; padding-inline: 12px; text-transform: capitalize;
 }
-.primary-button, .sidebar-primary > .primary-button:first-of-type { border-radius: 11px; }
 .compose-mark { width: 12px; height: 12px; border-radius: 0; background: none; object-fit: contain; }
 .drafts-mark { width: 16px; height: 16px; flex-shrink: 0; background: currentColor; mask: center / contain no-repeat; -webkit-mask: center / contain no-repeat; }
 .sidebar-group + .sidebar-group { margin-top: 18px; }
 .sidebar-heading button { padding: 0 12px 6px; font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; color: var(--text-4); }
 .sidebar-group > button { min-height: 32px; padding-inline: 12px; gap: 8px; border-radius: 8px; font-size: calc(13px * var(--text-scale, 1)); }
-.sidebar-group > button.active { color: var(--text); font-weight: 500; }
-.sidebar-group button.active > svg { color: var(--accent); }
-.sidebar-primary > button[aria-current="page"] { background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 1px 2px var(--hover); }
-.sidebar-group .sliding-wash { background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 1px 2px var(--hover); }
-.sidebar-count { min-width: 18px; padding: 1px 5px; border-radius: 6px; background: var(--hover); color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; }
+/* Selection is the accent-soft fill with its own ink, never an outline. */
+.sidebar-group > button.active { color: var(--accent-soft-ink); font-weight: 500; }
+.sidebar-group button.active > svg { color: var(--accent-soft-ink); }
+.sidebar-group button.active .sidebar-count { color: var(--accent-soft-ink); }
+.sidebar-primary > button[aria-current="page"] { background: var(--accent-soft); box-shadow: none; }
+.sidebar-group .sliding-wash { background: var(--accent-soft); box-shadow: none; }
+.sidebar-count { min-width: 18px; padding: 1px 5px; color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; }
 .sidebar-name { min-width: 0; }
 .sidebar-account-footer { flex-shrink: 0; width: var(--sidebar); padding: 10px 12px 6px; border-top: 1px solid var(--line); box-shadow: inset 0 2px var(--rebuild-highlight); }
 .sidebar-account-card { display: flex; align-items: center; width: 100%; min-height: 44px; gap: 10px; padding: 4px; border-radius: 8px; }
@@ -71,10 +77,10 @@
 .app-toolbar { padding-inline: 16px; gap: 10px; }
 .app-context { gap: 6px; margin-right: 2px; font-size: calc(13px * var(--text-scale, 1)); }
 .app-context > :is(span, svg) { display: none; }
-.app-context strong { font-weight: 600; }
-.app-search-toolbar { max-width: 300px; margin-left: 0; }
-.app-search-toolbar .search { height: 28px; border: 1px solid var(--line); border-radius: 7px; background: var(--hover); }
-.app-search-toolbar .search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
+.app-context strong { font-weight: 500; }
+.app-search-toolbar { margin-left: 0; }
+.app-search-toolbar .search { height: 28px; border: 0; border-radius: 7px; background: var(--hover); }
+.app-search-toolbar .search:focus-within { box-shadow: 0 0 0 1px var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
 .app-toolbar .mail-navigation { margin-left: auto; }
 .commands-button { font-size: calc(11px * var(--text-scale, 1)); }
 .app-toolbar .icon { width: 28px; height: 28px; }
@@ -86,8 +92,7 @@
 .mail-category-bar .inbox-tabs { gap: 24px; }
 .mail-category-bar .inbox-tabs button { font-size: calc(13px * var(--text-scale, 1)); font-weight: 500; }
 .mail-category-bar .tab-icon { display: inline-flex; }
-.tab-count { border-radius: 6px; background: var(--hover); }
-.inbox-tabs button.active .tab-count { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.tab-count { border-radius: 6px; }
 
 /* Inset rows are document previews in comfortable density, including the full
    width list. Compact retains the existing one-line geometry and shortcuts. */
@@ -96,7 +101,7 @@
 .mail-window-date .group { padding-inline: 12px; color: var(--text-4); font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; }
 :root:not([data-glass]) .mail-window-date .group { background-color: var(--rebuild-canvas); }
 .mail-row { margin-inline: 1px; }
-.row { border-radius: 10px; }
+.row { border-radius: var(--radius-mark); }
 .row::after { display: none; }
 /* Keep the selection gutter stable when the reader hides checkboxes. Card
    slots share their content-based height with MailListWindow. */
@@ -107,27 +112,51 @@
 .rail-wait { color: var(--text-2); }
 .row.card .avatar { display: inline-flex; width: 30px; height: 30px; margin: 0 12px 0 0; }
 .row.card .row-text { gap: calc(2px * var(--text-scale, 1)); }
-.row.card .row-line strong { font-size: calc(13px * var(--text-scale, 1)); font-weight: 500; color: var(--text-2); }
-.row.card.unread .row-line strong { color: var(--text); font-weight: 600; }
-.row.card .row-subject { font-size: calc(13px * var(--text-scale, 1)); font-weight: 500; }
-.row.card.unread .row-subject { font-weight: 600; }
-.row.card .row-preview { font-size: calc(12px * var(--text-scale, 1)); color: var(--text-4); }
+/* Read rows stay quiet; unread lifts sender and subject to 500, never more. */
+.row.card .row-line strong { font-size: calc(13px * var(--text-scale, 1)); font-weight: 400; color: var(--text); }
+.row.card.unread .row-line strong { font-weight: 500; }
+.row.card .row-subject { font-size: calc(13px * var(--text-scale, 1)); font-weight: 400; color: var(--text-body); }
+.row.card.unread .row-subject { font-weight: 500; color: var(--text); }
+.row.card .row-preview { font-size: calc(12px * var(--text-scale, 1)); color: var(--text-3); }
+.row.card.unread .row-preview { color: var(--text-2); }
+.row.card.unread time { color: var(--accent); }
+/* With a preview, account and status lead the preview line, each separated by
+   the same middle dot at equal spacing; the preview text is the only part
+   that ellipsizes. display:contents keeps every part on the line's baseline. */
+.row.card .row-preview { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.row.card .row-preview .row-meta { display: contents; }
+/* Meta parts never shrink; the preview text truncates first. */
+.row.card .row-preview .row-account,
+.row.card .row-preview .row-status { min-width: auto; flex-shrink: 0; }
+/* overflow:hidden pins a status baseline to the box's bottom edge and lifts
+   its text ~3px off the shared line. Long reasons ellipsize in the wide
+   Status column instead of the card meta line. */
+.row.card .row-preview .row-status { overflow: visible; }
+.row.card .row-preview .row-label { overflow: visible; }
+.row.card .row-preview .row-preview-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Inline account content reports the name's baseline, not the dot's box. */
+.row.card .row-preview .row-account { display: inline; }
+.row.card .row-preview .row-account .account-dot { margin-right: 6px; vertical-align: baseline; }
+.row.card .row-preview .row-account::after { content: "·"; margin-left: 6px; color: var(--text-4); }
+.row.card .row-preview .row-status::after { content: "·"; margin-left: 6px; color: var(--text-4); }
 .row.card .row-meta { margin: 0; gap: 8px; line-height: calc(16px * var(--text-scale, 1)); }
-.row.card .row-account { font-size: calc(10px * var(--text-scale, 1)); }
-.mail-row > .row.card .unread-dot { left: auto; right: 12px; top: auto; bottom: 12px; margin: 0; width: 5px; height: 5px; }
-.mail-row:has(.mail-select) > .row.card .unread-dot { top: auto; }
-.row.unread.card .avatar-letter { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent); }
+.row.card .row-account { font-size: calc(12px * var(--text-scale, 1)); }
+.mail-row > .row.card .unread-dot { width: 6px; height: 6px; }
+/* Unread no longer overrides the sender's avatar tint: the gutter dot and
+   weight carry the state, the tint carries the sender identity. */
+/* Selection is a soft accent fill, no bar or ring; the keyboard focus ring
+   stays a distinct outline. */
 .list .row.selected, .list:focus-within .row.selected {
-  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line), 0 1px 3px var(--hover);
+  background: var(--selected-card); box-shadow: none;
 }
-.list:focus-within .row.selected:focus-visible { outline: 1px solid var(--accent); }
-:root[data-scheme="dark"] .list .row.selected {
-  background-color: var(--raised); box-shadow: inset 0 0 0 1px var(--text-3), 0 1px 3px var(--hover);
+.list:focus-within .row.selected:focus-visible { outline: 2px solid var(--accent); }
+:root[data-scheme="dark"] .list .row.selected,
+:root[data-scheme="dark"] .list:focus-within .row.selected {
+  background-color: var(--selected-card); box-shadow: none;
 }
-:root[data-scheme="dark"] .list:focus-within .row.selected { box-shadow: inset 0 0 0 1px var(--accent), 0 1px 3px var(--hover); }
 
-.row-actions { right: 8px; padding: 3px; border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
-.row-actions button { border-radius: 6px; }
+.row-actions { right: 8px; padding: 3px; border: 1px solid var(--line); border-radius: var(--radius-mark); box-shadow: var(--shadow); }
+.row-actions button { border-radius: var(--radius-mark-sm); }
 
 /* Reader and editor are white documents beside the inset preview list. */
 .reader-pane { border-left: 1px solid var(--line); box-shadow: -2px 0 var(--rebuild-highlight); }
@@ -139,13 +168,19 @@
 .reader-head .mail-actions .reader-close-hint { width: auto; padding-inline: 6px; }
 .mail-actions .tool { min-height: 28px; border-radius: 6px; }
 .reader-scroll .message { padding: 20px 24px 32px; }
-.message h1 { font-size: calc(20px * var(--text-scale, 1)); font-weight: 600; line-height: 1.3; letter-spacing: -.01em; }
+.message h1 { font-size: calc(20px * var(--text-scale, 1)); font-weight: 500; line-height: 1.3; letter-spacing: -.02em; }
 .message .message-from { margin-top: 16px; margin-bottom: 20px; padding-bottom: 16px; }
 .message-from .avatar { width: 30px; height: 30px; }
 .from-line strong { font-size: calc(13px * var(--text-scale, 1)); }
 .from-address, .from-to, .message-from time { font-size: calc(12px * var(--text-scale, 1)); }
 .message-body { line-height: 1.6; }
 .reader-secondary-tools { margin-top: 24px; padding-top: 12px; }
+/* One footer row of quiet links, all on one baseline. */
+.reader-secondary-tools { align-items: baseline; gap: 10px 16px; }
+.reader-secondary-tools .link { font-size: calc(12.5px * var(--text-scale, 1)); color: var(--link); }
+/* Offer times is a link, not a band; its form owns the row when open. */
+.reader-secondary-tools .offer-times { border: 0; padding: 0; margin: 0; }
+.reader-secondary-tools .offer-times:has(.settings-form) { flex-basis: 100%; }
 .reader-empty { background: transparent; }
 .reader-empty .empty-title { font-size: calc(15px * var(--text-scale, 1)); }
 
@@ -154,8 +189,8 @@
 .draft-list { padding: 8px 12px 24px; }
 .draft-list-heading { padding: 8px 12px; color: var(--text-4); }
 .draft-list > ul { gap: 2px; }
-.draft-list .draft-row { min-height: 0; padding: 8px 54px 8px 12px; border: 1px solid transparent; border-radius: 10px; }
-:root:not([data-glass]) .draft-list .draft-row:hover:not(:disabled), .draft-list .draft-row:focus-visible { border-color: var(--line); background: var(--surface); box-shadow: 0 1px 3px var(--hover); }
+.draft-list .draft-row { min-height: 0; padding: 8px 54px 8px 12px; border: 1px solid transparent; border-radius: var(--radius-mark); }
+:root:not([data-glass]) .draft-list .draft-row:hover:not(:disabled), .draft-list .draft-row:focus-visible { border-color: transparent; background: var(--surface); box-shadow: 0 1px 3px var(--hover); }
 .draft-row-recipient { font-size: calc(13px * var(--text-scale, 1)); }
 .draft-row-preview, .draft-row-meta { font-size: calc(12px * var(--text-scale, 1)); }
 .compose-dialog .compose-envelope { padding-top: 0; }
@@ -173,8 +208,8 @@
 .work-group { margin-bottom: 12px; }
 .work-group h2 { margin: 0 0 4px; padding: 6px 8px; border: 0; color: var(--text-4); font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; }
 .work-group h2 span { font-size: inherit; }
-.work-group .work-row, .project-tasks .work-row { margin-block: 0; padding: 6px 8px; border-radius: 10px; border: 1px solid transparent; }
-.work-group .work-row.selected, .project-tasks .work-row.selected { background: var(--surface); border-color: var(--line); box-shadow: 0 1px 3px var(--hover); }
+.work-group .work-row, .project-tasks .work-row { margin-block: 0; padding: 6px 8px; border-radius: var(--radius-mark); border: 1px solid transparent; }
+.work-group .work-row.selected, .project-tasks .work-row.selected { background: var(--surface); border-color: transparent; box-shadow: inset 2px 0 0 var(--accent), 0 1px 3px var(--hover); }
 .today-layout > .work-main, .today-reader { padding: 12px 16px; }
 .work-select { gap: 2px; padding-block: 0; }
 .work-row { gap: 10px; }
@@ -187,8 +222,8 @@
 .work-select strong { font-size: calc(13px * var(--text-scale, 1)); font-weight: 500; }
 .work-select .work-meta, :is(.work-context, .project-context, .agent-review-context) :is(p, dl),
 .project-overview p, .project-mail-subject { font-size: calc(12px * var(--text-scale, 1)); }
-:is(.work-context, .project-context, .agent-review-context) h2 { font-size: calc(20px * var(--text-scale, 1)); font-weight: 600; }
-.work-content :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { background: var(--surface); border-color: var(--line-2); border-radius: 8px; }
+:is(.work-context, .project-context, .agent-review-context) h2 { font-size: calc(20px * var(--text-scale, 1)); font-weight: 500; }
+.work-content :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { background: var(--surface); border-radius: 8px; }
 .project-overview, .agent-provider-card { border-radius: 14px; }
 
 /* The month navigates dates; the wider event column carries the details. */
@@ -203,7 +238,7 @@ section.work-calendar[data-layout="month"], .work-layout.has-selection section.w
 .calendar-grid [aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .calendar-day-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px; width: 100%; }
 .calendar-grid [aria-current="date"] > span.calendar-day-heading { display: flex; justify-content: space-between; min-width: 0; min-height: 0; border-radius: 0; background: none; color: var(--accent); }
-.calendar-day-heading small { padding-inline: 2px; border-radius: 3px; background: var(--selected); color: var(--text-3); font-size: calc(9px * var(--text-scale, 1)); font-weight: 600; }
+.calendar-day-heading small { padding-inline: 2px; border-radius: 3px; background: var(--selected); color: var(--text-3); font-size: calc(9px * var(--text-scale, 1)); font-weight: 500; }
 .calendar-chips { margin-top: auto; }
 .calendar-chip { padding: 1px 2px; font-size: calc(10px * var(--text-scale, 1)); white-space: normal; overflow-wrap: anywhere; line-height: 1.2; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 section.work-calendar[data-layout="month"] > .calendar-day-title { margin: 10px 0 16px; font-size: calc(16px * var(--text-scale, 1)); }
@@ -224,10 +259,10 @@ section.work-calendar[data-layout="month"] > .calendar-day-title { margin: 10px 
 :root:not([data-glass]) .settings-navigation { background: var(--rebuild-canvas); }
 .settings-navigation { padding: 18px 12px; }
 .settings-navigation button { min-height: 32px; padding-inline: 12px; border-radius: 8px; }
-.settings-navigation button[aria-current="page"] { background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+.settings-navigation button[aria-current="page"] { background: var(--accent-soft); color: var(--accent-soft-ink); box-shadow: none; }
 .settings-column { padding: 16px 20px 28px; }
 .settings-section-heading { margin-bottom: 16px; }
-.settings h1 { font-size: calc(20px * var(--text-scale, 1)); font-weight: 600; letter-spacing: -.01em; }
+.settings h1 { font-size: calc(20px * var(--text-scale, 1)); font-weight: 500; letter-spacing: -.02em; }
 .settings-section-heading p { margin-top: 6px; line-height: 1.6; font-size: calc(12px * var(--text-scale, 1)); }
 .settings .settings-group { border-radius: 14px; background: var(--surface); box-shadow: var(--edge); }
 .settings .settings-row { min-height: 40px; }
@@ -248,4 +283,28 @@ section.work-calendar[data-layout="month"] > .calendar-day-title { margin: 10px 
 }
 @container (max-width: 680px) {
   .settings-column { padding: 0 0 32px; }
+}
+
+/* Brand label voice: Geist Mono small caps for section labels, date groups,
+   counts, timestamps and key hints. */
+:is(.sidebar-heading button, .settings-rail-label, .settings-section-context,
+  .mail-window-date .group, .list .group, .sidebar-count, .tab-count) {
+  font-family: var(--font-mono);
+  font-size: calc(11px * var(--text-scale, 1));
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+/* Count badges are bare mono numerals, no pill fill. */
+:is(.sidebar-count, .tab-count) { background: transparent; }
+/* A zero badge recedes to the quietest ink; a real count keeps ink. */
+:is(.sidebar-count, .tab-count)[data-zero] { color: var(--text-4); }
+.inbox-tabs button:not(.active) .tab-count:not([data-zero]) { color: var(--text-2); }
+/* Timestamps are data, not labels: mono numerals, normal case. */
+.row time {
+  font-family: var(--font-mono);
+  font-size: calc(11px * var(--text-scale, 1));
+  font-weight: 500;
+  color: var(--text-3);
 }

@@ -25,7 +25,9 @@
     "build:web": "tsc --noEmit && vite build && node scripts/build-browser.mjs"
   },
   "dependencies": {
-    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource-variable/geist-mono": "5.3.0",
+    "@fontsource-variable/host-grotesk": "5.3.0",
+    "@fontsource/instrument-serif": "5.3.0",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@napi-rs/keyring": "2.1.2",
     "@simplewebauthn/browser": "14.0.0",

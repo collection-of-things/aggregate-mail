@@ -1,33 +1,34 @@
 ---
 name: Emc²
 colors:
-  background: "#000"
-  surface: "#0e0e10"
-  raised: "#1c1c1f"
-  hover: "rgba(255,255,255,0.04)"
-  selected: "rgba(255,255,255,0.07)"
-  line: "rgba(255,255,255,0.08)"
-  control-border: "rgba(255,255,255,0.12)"
-  text: "#fff"
-  text-secondary: "#a0a0a6"
-  text-muted: "#88888f"
-  text-faint: "#82828a"
-  accent: "#6b9cff"
-  link: "#8ab0ff"
-  reason: "#e3a08b"
-  veil: "#1d1d1d"
-  veil-hover: "#262626"
+  background: "#150510"
+  surface: "#1a0914"
+  raised: "#26131f"
+  hover: "rgba(255,243,242,0.04)"
+  selected: "rgba(255,243,242,0.07)"
+  line: "rgba(255,243,242,0.08)"
+  control-border: "rgba(255,243,242,0.12)"
+  text: "#fff3f2"
+  text-secondary: "#c4aab5"
+  text-muted: "#a68c98"
+  text-faint: "#9a8090"
+  accent: "#e05cbe"
+  link: "#e989d0"
+  reason: "#fcaec2"
+  veil: "#2c1724"
+  veil-hover: "#361d2c"
 typography:
   body:
-    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Inter Variable, Inter, Segoe UI Variable Text, Segoe UI, system-ui, sans-serif"
-    fontSize: "13px"
+    fontFamily: "Host Grotesk Variable, Host Grotesk, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI Variable Text, Segoe UI, system-ui, sans-serif"
+    fontSize: "14px"
     fontWeight: 400
     lineHeight: 1.45
 rounded:
   control: "8px"
   pane: "14px"
-  menu: "12px"
-  dialog: "18px"
+  mark: "4px 14px 4px 14px"
+  menu: "4px 14px 4px 14px"
+  dialog: "6px 22px 6px 22px"
   avatar: "50%"
 ---
 
@@ -98,8 +99,9 @@ raised surface in dark mode. Its 42px footer
 places sync status at the left and Settings at the right, with a top hairline.
 
 Comfortable mail uses content-sized cards at every width. The sender and subject
-use a 54px base, visible account/status metadata adds 18px, and a nonempty
-comfortable preview adds 20px. Compact wide rows remain 24px; compact cards
+use a 54px base. A nonempty comfortable preview adds 20px and leads with the
+account and status inline when visible; without a preview, visible metadata
+keeps its own 18px line. Compact wide rows remain 24px; compact cards
 omit previews. List windowing assigns the same calculated height to the rendered
 row, including text scaling. A stable selection gutter prevents text movement
 when checkboxes are hidden. Below 1200px, both densities use cards in one reading
@@ -109,10 +111,24 @@ Background message refreshes preserve the current scroll position. Explicit
 metadata, density and text-size changes keep the selected message in view.
 Checkboxes align with the vertical center of both cards and inline rows.
 Bulk counts, sync waits and actions wrap without horizontal scrolling.
-The selected card uses a white document in light mode and a raised surface with
-a visible ring in dark mode. Sticky date headings cover the cards beneath them
+The selected card uses a soft accent fill in both modes, with the keyboard
+focus ring unchanged. Sticky date headings cover the cards beneath them
 when glass is off. Reader subjects use 20px text; the supported mail body keeps
 its existing 13px contract.
+
+Letter avatars tint by sender: a stable hash of the address picks one of four
+brand-derived tone pairs (photon, violet, amber, plum in each scheme), so the
+same person keeps the same color across the list, thread and reader. Sender
+logos are content and keep their own colors. Attention reasons ("May need...")
+render as an accent-soft pill; other statuses stay quiet text and Gmail labels
+are neutral veil chips. In mail bodies, quotes take a 2px accent rule, inline
+code uses mono on a veil chip, and pre blocks use mono on a veil surface; links
+are the Energy family and underline on hover. A multi-message conversation
+reads its subject once at the top while each expanded article keeps its own
+heading for assistive tech, and the reader footer is a single row of quiet
+links. Pinned mail marks the sender line beside the timestamp rather than the
+gutter; the compose action row holds Send, draft and scheduling on the shared
+footer track.
 
 Today rows, drafts and notifications grow with their visible content. Task
 rows use 6px vertical padding and 2px text gaps; groups use a 12px separation.

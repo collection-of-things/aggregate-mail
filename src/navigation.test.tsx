@@ -581,9 +581,9 @@ test("a full theme library keeps editing available and the theme picker supports
     const chosen = app.button("Renamed palette");
     chosen.focus();
     await act(async () => chosen.dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "Home", bubbles: true })));
-    assert.equal(app.button("Black").getAttribute("aria-checked"), "true");
-    assert.equal(app.window.document.activeElement, app.button("Black"));
-    await act(async () => app.button("Black").dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
+    assert.equal(app.button("Mass").getAttribute("aria-checked"), "true");
+    assert.equal(app.window.document.activeElement, app.button("Mass"));
+    await act(async () => app.button("Mass").dispatchEvent(new app.window.KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
     assert.equal(app.button("Palette 32").getAttribute("aria-checked"), "true");
     assert.equal(app.window.document.activeElement, app.button("Palette 32"));
     assert.equal(app.container.querySelectorAll('.theme-choices [tabindex="0"]').length, 1);

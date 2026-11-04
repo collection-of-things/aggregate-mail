@@ -275,11 +275,11 @@ test("mounted inline images report load/error and leave DOM when consent is revo
   }
 });
 
-test("links keep the sender's text decoration and underline only when the sender sets no decoration", () => {
+test("links keep the sender's text decoration and leave plain links to the sheet's hover underline", () => {
   const document = documentOf(render('<a href="https://example.com/a" style="text-decoration:none">Card</a><a href="https://example.com/b">Plain</a>'));
   const [card, plain] = document.querySelectorAll("a");
   assert.equal(card.style.textDecoration, "none");
-  assert.equal(plain.style.textDecoration, "underline");
+  assert.equal(plain.style.textDecoration, "");
 });
 
 test("loaded images sit in the sender's line instead of an inline-block box", () => {

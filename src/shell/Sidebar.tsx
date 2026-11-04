@@ -106,7 +106,7 @@ export function Sidebar({
             <button className={!settings && mail.view === "drafts" ? "active" : undefined} aria-current={!settings && mail.view === "drafts" ? "page" : undefined} aria-label={mail.draftCount === undefined ? "Drafts" : `Drafts, ${mail.draftCount} saved`} disabled={mail.blocked || mail.busy || !mail.accounts.length} onClick={mail.onDrafts}>
               <span className="drafts-mark" style={{ maskImage: `url(${draftsIcon})`, WebkitMaskImage: `url(${draftsIcon})` }} aria-hidden="true" />
               Drafts
-              {mail.draftCount !== undefined && <span className="sidebar-count">{mail.draftCount}</span>}
+              {mail.draftCount !== undefined && <span className="sidebar-count" data-zero={mail.draftCount === 0 ? "" : undefined}>{mail.draftCount}</span>}
             </button>
           </SlidingNav>
           {(["workspace", "mail"] as const).map((group) => <SlidingNav key={group} activeKey={settings ? null : mail.view} label={group === "workspace" ? "Workspace views" : "Mail views"} className="sidebar-group">
@@ -124,7 +124,7 @@ export function Sidebar({
                 >
                   <Icon color="currentColor" size={16} />
                   {viewNames[view]}
-                  {view === "actions" && mail.dueCount === undefined ? <span className="sidebar-count" aria-hidden="true">?</span> : total != null && <span className="sidebar-count">{total}</span>}
+                  {view === "actions" && mail.dueCount === undefined ? <span className="sidebar-count" aria-hidden="true">?</span> : total != null && <span className="sidebar-count" data-zero={total === 0 ? "" : undefined}>{total}</span>}
                 </button>
               );
             })}

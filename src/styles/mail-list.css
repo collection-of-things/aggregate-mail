@@ -50,6 +50,7 @@
 .account-dot[data-tone="3"] { background: var(--account-color-3); }
 .sidebar-name > .account-dot { margin-right: 6px; vertical-align: middle; }
 .row-status { min-width: 0; overflow: hidden; }
+.row-status:empty { display: none; }
 .card .row-meta {
   grid-template-columns: minmax(0, 1fr) minmax(0, auto);
   margin: 2px 0;
@@ -115,19 +116,22 @@
 .list:focus-within .row.selected {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
-/* Unread mail carries a small accent dot in the row's left gutter. */
+/* Unread mail carries a small accent dot in the row's left gutter, on the
+   sender line, beside the pin; both leave one avatar and text x. */
 .unread-dot {
   position: absolute;
   top: 50%;
-  left: 3px;
-  width: 7px;
-  height: 7px;
-  margin-top: -3.5px;
+  left: 15px;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
   border-radius: 50%;
   background: var(--accent);
 }
+/* The gutter marks scale with the sender line so they stay centered on it at
+   any text size. */
 .card .unread-dot {
-  top: 14.5px;
+  top: calc(17px * var(--text-scale, 1) - 3px);
   margin-top: 0;
 }
 /* Hairlines between rows, inset to the text; they give way around the selection and hover. */
@@ -181,8 +185,12 @@
   background: var(--avatar);
   color: var(--avatar-text);
   font-size: calc(10.5px * var(--text-scale, 1));
-  font-weight: 600;
+  font-weight: 500;
 }
+.avatar[data-tone="0"] .avatar-letter { background: var(--avatar-0); color: var(--avatar-0-ink); }
+.avatar[data-tone="1"] .avatar-letter { background: var(--avatar-1); color: var(--avatar-1-ink); }
+.avatar[data-tone="2"] .avatar-letter { background: var(--avatar-2); color: var(--avatar-2-ink); }
+.avatar[data-tone="3"] .avatar-letter { background: var(--avatar-3); color: var(--avatar-3-ink); }
 .avatar .provider-icon {
   position: absolute;
   right: -3px;
@@ -220,7 +228,7 @@
   align-self: center;
   display: inline-flex;
   flex-shrink: 0;
-  color: var(--reason);
+  color: var(--text-3);
 }
 .row.important .row-line strong {
   padding-left: 18px;
@@ -251,14 +259,25 @@
   flex: 1 1 0;
 }
 .row-label {
-  display: block;
+  display: inline-block;
+  max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  vertical-align: baseline;
   font-size: calc(12px * var(--text-scale, 1));
   color: var(--text-3);
 }
-.row-label-attention { color: var(--reason); }
+/* Attention reasons are the one loud element in the meta line. Visible
+   overflow keeps the pill's own text on the shared baseline. */
+.row-label-attention {
+  overflow: visible;
+  padding: 1px 6px;
+  border-radius: var(--radius-mark-sm);
+  background: var(--accent-soft);
+  color: var(--accent-soft-ink);
+  font-size: calc(11px * var(--text-scale, 1));
+}
 .row time {
   flex-shrink: 0;
   min-width: 30px;
@@ -293,7 +312,7 @@
   color: var(--text-4);
 }
 .row.unread .row-subject {
-  font-weight: 600;
+  font-weight: 500;
 }
 .row.unread time {
   color: var(--text);
@@ -353,7 +372,7 @@
 }
 .row.card.unread strong {
   color: var(--text);
-  font-weight: 600;
+  font-weight: 500;
 }
 .compact .row.card {
   height: calc(var(--mail-row-card-compact) * var(--text-scale, 1));
@@ -388,7 +407,7 @@
   right: 0;
   padding: 14px;
   border: 1px solid var(--line-2);
-  border-radius: 12px;
+  border-radius: var(--radius-mark);
   background: color-mix(in srgb, var(--raised) 86%, transparent);
   backdrop-filter: blur(12px) saturate(1.2);
   box-shadow: var(--edge), var(--shadow);
@@ -439,10 +458,16 @@
   overflow-wrap: anywhere;
 }
 
-.row-pin { display: inline-flex; flex-shrink: 0; color: var(--accent); }
+/* The pin lives on the sender line just left of the timestamp; the gutter
+   holds only the unread dot, so the two marks never touch. The wider left
+   margin on a pinned row's timestamp opens the pin's slot right before it. */
+.row-pin { position: absolute; right: 56px; top: 50%; margin-top: -6px; display: inline-flex; color: var(--text-3); }
+.card .row-pin { top: calc(17px * var(--text-scale, 1) - 6px); margin-top: 0; }
+.row:has(.row-pin) .row-line time { margin-left: 36px; }
+.mail-row:has(.mail-select) .unread-dot { left: 1px; }
 .search-help { margin: 0; padding: 8px 18px; color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
 .search-help[role="alert"] { color: var(--danger); }
-.search-help button { height: 22px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: var(--radius-control); color: var(--text); font-size: inherit; }
+.search-help button { height: 22px; padding: 0 2px; border: 0; border-radius: var(--radius-control); color: var(--link); font-size: inherit; }
 
 .list-pane { container-type: inline-size; }
 
@@ -458,9 +483,6 @@
 .rail-triage .tool { height: 28px; min-width: 28px; padding: 0 8px; font-size: calc(12px * var(--text-scale, 1)); }
 .mail-row > .row { padding-left: 30px; }
 .mail-select { position: absolute; z-index: 2; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; padding: 0; border: 1px solid var(--line-3); border-radius: 4px; background: var(--surface); color: var(--text); display: grid; place-items: center; font-size: 11px; line-height: 1; }
-/* With the checkbox column present, the unread dot sits left of the checkbox. */
-.mail-row:has(.mail-select) .unread-dot { left: 2px; width: 6px; height: 6px; margin-top: -3px; }
-.mail-row:has(.mail-select) > .row.card .unread-dot { top: 14.5px; margin-top: 0; }
 .mail-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .mail-row.bulk-selected > .row:not(:focus-visible) { background: var(--selected); }
 @media (hover: hover) and (pointer: fine) {

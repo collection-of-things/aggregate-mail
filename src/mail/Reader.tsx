@@ -3,7 +3,6 @@ import type { Draft, GmailLabel, RendererMail as Mail, Provider, RendererState a
 import type { Api } from "../api";
 import { customLabels } from "../mail-ui";
 import { Address, MailPrivacy, Redact } from "../ui/Privacy";
-import { Mail as MailIcon } from "../ui/icons";
 import { Avatar } from "./Avatar";
 import { ConversationReader } from "./ConversationReader";
 import { OfferTimes } from "../work/OfferTimes";
@@ -80,8 +79,10 @@ function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onM
         {hydrated && <UnsubscribeAction key={`unsubscribe:${mailBodyKey(mail)}`} mail={hydrated} api={api} busy={busy} onOpenDraft={onOpenDraft} onReviewing={onReviewingUnsubscribe} />}
         {provider === "gmail" && (
           <div className="message-labels">
-            <span>
-              <Redact text={customLabels(mail, labels).filter((label) => mail.labelIds?.includes(label.id)).map((label) => label.name).join(", ") || "No labels"} />
+            <span className="reader-labels">
+              {customLabels(mail, labels).filter((label) => mail.labelIds?.includes(label.id)).map((label) =>
+                <span className="reader-label" key={label.id}><Redact text={label.name} /></span>)}
+              {customLabels(mail, labels).every((label) => !mail.labelIds?.includes(label.id)) && <Redact text="No labels" />}
             </span>
             <button className="link" disabled={busy} onClick={onLabels}>Edit labels</button>
           </div>
@@ -114,7 +115,7 @@ export function Reader(props: Parameters<typeof SingleReader>[0]) {
 export function ReaderEmpty({ selected, openKey }: { selected: boolean; openKey: string }) {
   return (
     <div className="reader-empty">
-      <MailIcon color="currentColor" size={28} />
+      <span className="reader-empty-mark" aria-hidden="true" />
       <p className="empty-title">No email open</p>
       <p className="visually-hidden">{selected ? <>Press <kbd>{openKey}</kbd> to open the selected email.</> : "Choose an email to read it here."}</p>
     </div>

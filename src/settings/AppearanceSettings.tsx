@@ -202,7 +202,7 @@ export function AppearanceSettings({ value, scheme, onChange, onPreview = noPrev
         ...theme, id: `custom:${crypto.randomUUID()}`, name: uniqueThemeName(theme.name, value.customThemes),
       })} />, document.body)}
       {dialog?.kind === "delete" && createPortal(<Dialog title="Delete theme" onClose={close}>
-        <p className="dialog-copy">Delete this custom theme from this device? The app will use the Black or White theme.</p>
+        <p className="dialog-copy">Delete this custom theme from this device? The app will use the Mass or Lumen theme.</p>
         {error && <Notice text={error} />}
         <div className="theme-actions">
           <button type="button" className="button" onClick={close}>Cancel</button>

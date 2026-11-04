@@ -20,6 +20,13 @@ export function ProviderIcon({ provider }: { provider: Provider }) {
     </span>
   );
 }
+// A stable tint per sender so one person's mail keeps the same avatar color.
+export function avatarTone(address: string): number {
+  let hash = 0;
+  for (const ch of address.toLowerCase()) hash = (hash * 31 + (ch.codePointAt(0) ?? 0)) | 0;
+  return Math.abs(hash) % 4;
+}
+
 export const Avatar = memo(function Avatar({
   mail,
   provider,
@@ -32,7 +39,7 @@ export const Avatar = memo(function Avatar({
   const { on } = useContext(PrivacyContext);
   const initial = mail.sender.slice(0, 1).toUpperCase();
   return (
-    <span className="avatar" aria-hidden="true">
+    <span className="avatar" data-tone={avatarTone(mail.address)} aria-hidden="true">
       {!on && domain && !broken ? (
         <img
           className="avatar-logo"

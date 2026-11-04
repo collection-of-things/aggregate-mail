@@ -1605,6 +1605,7 @@ export function App() {
                     hasAccounts={state.accounts.length > 0}
                     filtered={hasListControls}
                     title={view === "sent" ? "No cached Sent mail" : view === "all" ? "No cached mail" : view === "snoozed" ? "No snoozed mail" : view === "archive" ? "No archived mail" : `Nothing in ${tabName(tab)}`}
+                    clearName={view === "inbox" ? tabName(tab) : undefined}
                     viewName={viewNames[view]}
                     syncing={syncing}
                     onConnect={() => setConnecting("choose")}
@@ -1627,7 +1628,7 @@ export function App() {
                 </PaneHeader>
                 <div ref={readerRef} className="reader-scroll" tabIndex={-1}>
                   <div key={selected && opened ? selected.id : "empty"} className="pane open">
-                    {reader || <ReaderEmpty selected={!!selected} openKey={shortcut("open")} />}
+                    {reader || (!loaded || !filtered.length ? null : <ReaderEmpty selected={!!selected} openKey={shortcut("open")} />)}
                   </div>
                 </div>
               </section>

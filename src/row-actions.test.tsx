@@ -193,7 +193,7 @@ test('card geometry follows enabled metadata, preview, density and text size', a
   assert.deepEqual(heights(), [54, 74, 72]);
   assert.equal(ui.rows()[0].querySelector('.row-preview'), null, 'empty previews reserve no line');
   await ui.render({showAccount: true});
-  assert.deepEqual(heights(), [72, 92, 72]);
+  assert.deepEqual(heights(), [72, 74, 72]);
   await ui.render({density: 'compact', narrow: true, showAccount: false});
   assert.deepEqual(heights(), [54, 54, 72]);
   ui.ref.current!.style.setProperty('--text-scale', '1.5');

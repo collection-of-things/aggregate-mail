@@ -96,8 +96,7 @@ test("dark selection is distinct and rebuild headers and footers retain shared g
     document.documentElement.dataset.scheme = "dark";
     document.head.insertAdjacentHTML("beforeend", `<style>${stylesheet()}</style>`);
     const style = (selector: string) => dom.window.getComputedStyle(document.querySelector(selector)!);
-    assert.equal(style(".row").backgroundColor, "var(--raised)");
-    assert.match(style(".row").boxShadow, /var\(--text-3\)/);
+    assert.equal(style(".row").backgroundColor, "var(--selected-card)");
     assert.equal(style(".main-head").height, "auto");
     assert.equal(style(".compose-footer").minHeight, "var(--app-footer-height)");
   } finally { dom.window.close(); }

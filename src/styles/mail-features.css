@@ -24,16 +24,15 @@
 .toast-slot { display: grid; flex-shrink: 0; grid-template-rows: 1fr; animation: toast-slot-in 200ms var(--ease-out); transition: grid-template-rows 200ms var(--ease-out); max-width: 100%; }
 .toast-slot > div { min-height: 0; }
 .toast-slot.leaving { grid-template-rows: 0fr; }
-.toast { display: flex; align-items: flex-start; gap: 8px; margin-block: 4px; padding: 8px; border: 1px solid var(--line-2); border-radius: 10px; color: var(--text); background: var(--raised); box-shadow: var(--shadow); pointer-events: auto; animation: toast-in 200ms var(--ease-out); }
+.toast { display: flex; align-items: flex-start; gap: 8px; margin-block: 4px; padding: 8px; border: 0; border-radius: var(--radius-mark); color: var(--text); background: var(--raised); box-shadow: var(--shadow); pointer-events: auto; animation: toast-in 200ms var(--ease-out); }
 .toast-slot.leaving .toast { pointer-events: none; animation: toast-out 160ms var(--ease-out) forwards; }
 .toast-body { flex: 1; min-width: 0; align-self: center; }
 .toast-success .toast-body { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 .toast-success .toast-actions { margin-top: 0; }
 .toast-text { white-space: pre-line; overflow-wrap: anywhere; color: var(--text-2); font-size: calc(12px * var(--text-scale, 1)); line-height: 1.5; }
-.toast-title { display: block; margin: 0 0 2px; color: var(--text); font-size: calc(13px * var(--text-scale, 1)); line-height: 1.5; font-weight: 600; }
+.toast-title { display: block; margin: 0 0 2px; color: var(--text); font-size: calc(13px * var(--text-scale, 1)); line-height: 1.5; font-weight: 500; }
 .toast-icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; background: color-mix(in srgb, var(--accent) 10%, var(--raised)); color: var(--link); flex-shrink: 0; }
 .toast-error .toast-icon { color: var(--danger); }
-.toast-error { border-color: var(--danger); }
 .toast-actions { display: flex; margin-top: 2px; }
 .toast-open { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 3px 0; border: 0; background: transparent; color: var(--link); font-size: calc(12px * var(--text-scale, 1)); font-weight: 500; }
 .toast-dismiss { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--text-2); }
