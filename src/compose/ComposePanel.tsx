@@ -304,12 +304,12 @@ export function ComposePanel({
             </div>
           )}
           <div className="compose-actions" ref={footerActions}>
-            <button type="button" disabled={busy || loadingFiles} onClick={onClose}>Keep draft</button>
-            <p className={`compose-save-status${progress.phase === "error" ? " save-error" : ""}`} role="status">{progress.message}</p>
-            <button type="button" disabled={busy || loadingFiles} onClick={() => setScheduleAt(scheduleAt === undefined ? followUpPreset("tomorrow", Date.now()) : undefined)}>{scheduleAt === undefined ? "Send later" : "Cancel scheduling"}</button>
             <button className="button primary-button compose-send" disabled={busy || loadingFiles || progress.phase === "error"} type="submit">
               {busy ? "Please wait" : scheduleAt === undefined ? "Send" : "Schedule send"}
             </button>
+            <button type="button" disabled={busy || loadingFiles} onClick={onClose}>Keep draft</button>
+            <p className={`compose-save-status${progress.phase === "error" ? " save-error" : ""}`} role="status">{progress.message}</p>
+            <button type="button" disabled={busy || loadingFiles} onClick={() => setScheduleAt(scheduleAt === undefined ? followUpPreset("tomorrow", Date.now()) : undefined)}>{scheduleAt === undefined ? "Send later" : "Cancel scheduling"}</button>
           </div>
 
         </div>

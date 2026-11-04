@@ -527,7 +527,6 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
    still wrap (a wrapped status can grow the track, per DESIGN). */
 .compose-dialog .compose-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .compose-dialog .compose-actions > button { white-space: nowrap; }
-.compose-dialog .compose-actions .compose-send { order: -1; }
 .compose-dialog .compose-save-status { min-width: 0; margin: 0 0 0 auto; text-align: right; }
 .compose-dialog .compose-send { min-width: 64px; }
 @media (max-width: 760px) {
