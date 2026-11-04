@@ -90,9 +90,11 @@ export function OutboxNotices({ api, enabled, blocked, refreshKey = 0, scheduled
   const missedKey = missed.map(entry => entry.id).join(",");
   useEffect(() => {
     // One grouped desktop alert per newly missed batch, not one per poll or message.
-    if (scheduledOnly || !onMissed || !missedKey) return;
-    const ids = missedKey.split(",");
-    if (ids.every(id => notifiedMissed.current.has(id))) return;
+    // An entry that stops being missed, such as after Reschedule, can alert again.
+    const ids = missedKey ? missedKey.split(",") : [];
+    for (const id of notifiedMissed.current) if (!ids.includes(id)) notifiedMissed.current.delete(id);
+    setDismissedMissed(current => [...current].every(id => ids.includes(id)) ? current : new Set([...current].filter(id => ids.includes(id))));
+    if (scheduledOnly || !onMissed || ids.every(id => notifiedMissed.current.has(id))) return;
     for (const id of ids) notifiedMissed.current.add(id);
     onMissed(ids.length);
   }, [missedKey, onMissed, scheduledOnly]);

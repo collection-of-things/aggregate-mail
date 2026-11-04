@@ -71,8 +71,17 @@ test("missed schedules raise one grouped, content-free alert that persists until
     await ui.render(3);
     assert.equal(alert(), "3 scheduled messages were missed and not sent. Nothing is sent without Send now.");
     assert.deepEqual(ui.missed, [2, 3]);
-    entries.splice(0, entries.length, entries[2]);
+    await act(async () => ui.button("Dismiss")!.click());
+    const rescheduled = entries[0];
+    entries[0] = { ...rescheduled, review: false, scheduledFor: now + hour, dueAt: now + hour };
     await ui.render(4);
+    assert.equal(alert(), undefined);
+    entries[0] = { ...rescheduled, review: true, scheduledFor: now - 1000, dueAt: now - 1000 };
+    await ui.render(5);
+    assert.equal(alert(), "3 scheduled messages were missed and not sent. Nothing is sent without Send now.", "a rescheduled entry that misses again alerts again");
+    assert.deepEqual(ui.missed, [2, 3, 3]);
+    entries.splice(0, entries.length, entries[2]);
+    await ui.render(6);
     assert.equal(alert(), undefined, "resolving every missed message clears the alert");
     assert.ok(ui.requests.every((request) => request === "GET /outbox"), "nothing is sent automatically");
   } finally { await ui.close(); }
