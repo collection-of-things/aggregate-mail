@@ -116,7 +116,7 @@ async function completion(config: StoredAgentProvider, mail: ReturnType<typeof s
         { role: "user", content: JSON.stringify({ instruction, email: context }) },
       ], max_tokens: 2000, stream: false }),
     };
-    // Counted only once the request can reach the provider.
+    // The last gate before mail leaves: it may refuse, and counts only admitted requests.
     attempt?.();
     const response = await fetch(target, init);
     if (!response.ok) {
@@ -168,7 +168,12 @@ async function prepareProposal(id: string, sourceMailId: string, revision: strin
   if (automatic && proposed(id, sourceMailId)) return null;
   inFlight.add(id);
   try {
-    const body = await completion(config, mail, instruction, providerDependencies, automatic?.attempt);
+    // DNS resolution can take time; recheck access right before the request.
+    const body = await completion(config, mail, instruction, providerDependencies, () => {
+      if (JSON.stringify(grant(id)) !== permission || get("agentProvider", id)?.revision !== revision)
+        fail(409, "Source, permission or provider changed. Prepare a fresh proposal.");
+      automatic?.attempt();
+    });
     const currentSource = source(id, sourceMailId);
     if (currentSource.preview !== mail.preview || get("agentProvider", id)?.revision !== revision || JSON.stringify(grant(id)) !== permission || JSON.stringify(get("account", mail.accountId)) !== account || fingerprint(sourceMailId) !== evidence)
       return fail(409, "Source, permission or provider changed. Prepare a fresh proposal.");
@@ -232,7 +237,13 @@ async function automate(mailIds: string[]) {
       try {
         // Every provider request counts, so a failing provider cannot receive more mail than the limit.
         const proposal = await prepareProposal(agentId, mailId, next.config.revision, next.current.instruction, {
-          attempt: () => automationStatus(agentId, (latest) => ({ day: today(), count: (latest.day === today() ? latest.count ?? 0 : 0) + 1 })),
+          attempt: () => {
+            const latest = get("agentAutomation", agentId);
+            if (!latest?.enabled) fail(409, "Automatic replies were switched off.");
+            if ((latest!.day === today() ? latest!.count ?? 0 : 0) >= latest!.dailyLimit)
+              fail(409, `Daily limit of ${latest!.dailyLimit} reached. Remaining new mail is not prepared automatically; use Prepare draft for it.`);
+            automationStatus(agentId, (current) => ({ day: today(), count: (current.day === today() ? current.count ?? 0 : 0) + 1 }));
+          },
         });
         if (proposal) { prepared++; created++; }
       } catch (error) {

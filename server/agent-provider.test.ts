@@ -361,6 +361,25 @@ test("BYOK settings and reviewed drafts preserve provider, account and evidence 
       await runAgentAutomations([incoming("during-update")]);
       assert.equal(calls.length, 1, "no batch starts while mail is paused");
       resumeMailWork();
+      // Changes made while DNS resolves are honored before any mail leaves.
+      respond = () => success();
+      for (const change of ["permission", "limit", "off"] as const) {
+        calls.length = 0;
+        let resolveDns!: () => void; let looking!: () => void;
+        const lookup = new Promise<void>((resolve) => { looking = resolve; });
+        resolveAddresses = () => { looking(); return new Promise((resolve) => { resolveDns = () => resolve([{ address: "8.8.8.8", family: 4 }]); }); };
+        const pending = change === "permission" ? prepare(route, config, { sourceMailId: incoming(`dns-${change}`) }) : runAgentAutomations([incoming(`dns-${change}`)]);
+        await lookup;
+        const latest = store.get("agentAutomation", agent.id)!;
+        if (change === "permission") store.put("agent", agent.id, { ...agent, tools: ["read_email"] });
+        if (change === "limit") store.put("agentAutomation", agent.id, { ...latest, day: new Date().toLocaleDateString("en-CA"), count: 5, dailyLimit: 5 });
+        if (change === "off") store.put("agentAutomation", agent.id, { ...latest, enabled: false });
+        resolveDns(); await pending;
+        assert.equal(calls.length, 0, `${change} during DNS resolution sends nothing`);
+        store.put("agent", agent.id, agent);
+        store.put("agentAutomation", agent.id, { ...store.get("agentAutomation", agent.id)!, enabled: true, count: 0, dailyLimit: 20 });
+      }
+      resolveAddresses = async () => [{ address: "8.8.8.8", family: 4 }];
     });
   } finally {
     globalThis.fetch = nativeFetch;

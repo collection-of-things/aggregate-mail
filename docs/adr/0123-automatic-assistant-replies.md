@@ -54,7 +54,10 @@ proposal. Once an update pauses mail, a batch stops before the next email and
 new batches are refused. Only mail the assistant would prepare waits for a
 manual preparation; state is read again after the wait, and switching off,
 changing the key or an update during the wait stops the batch before the
-request.
+request. A final gate runs right before
+each provider request, after DNS resolution: it rechecks the grant and key for
+every request, and for automatic ones the switch and the daily limit, and
+only then counts the request.
 A sync that reports an error emits no `new-mail` event, so its new mail is not
 prepared automatically; Prepare draft still works for it.
 
