@@ -121,19 +121,17 @@
 .row.card.unread .row-preview { color: var(--text-2); }
 .row.card.unread time { color: var(--accent); }
 /* With a preview, account and status lead the preview line, each separated by
-   the same middle dot at equal spacing; the preview text is the only part
-   that ellipsizes. display:contents keeps every part on the line's baseline. */
-.row.card .row-preview { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+   the same middle dot at equal spacing. display:contents keeps every part on
+   the line; center alignment lets meta parts truncate cleanly (overflow:hidden
+   on a baseline-aligned flex item would lift its text ~3px). */
+.row.card .row-preview { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .row.card .row-preview .row-meta { display: contents; }
-/* Meta parts never shrink; the preview text truncates first. */
+/* Meta parts cap at two-fifths of the line each and truncate, so a long
+   account or status cannot consume the whole row and hide the preview. */
 .row.card .row-preview .row-account,
-.row.card .row-preview .row-status { min-width: auto; flex-shrink: 0; }
-/* overflow:hidden pins a status baseline to the box's bottom edge and lifts
-   its text ~3px off the shared line. Long reasons ellipsize in the wide
-   Status column instead of the card meta line. */
-.row.card .row-preview .row-status { overflow: visible; }
-.row.card .row-preview .row-label { overflow: visible; }
-.row.card .row-preview .row-preview-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.row.card .row-preview .row-status { min-width: 0; max-width: 40%; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row.card .row-preview .row-label { overflow: hidden; text-overflow: ellipsis; }
+.row.card .row-preview .row-preview-text { flex: 1 1 auto; min-width: 4ch; overflow: hidden; text-overflow: ellipsis; }
 /* Inline account content reports the name's baseline, not the dot's box. */
 .row.card .row-preview .row-account { display: inline; }
 .row.card .row-preview .row-account .account-dot { margin-right: 6px; vertical-align: baseline; }

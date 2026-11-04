@@ -125,13 +125,13 @@ export function MailList<T extends Mail>({
             aria-current={current ? "true" : undefined}
           >
             {m.unread && <i className="unread-dot" aria-hidden="true" />}
-            {m.pinned && <span className="row-pin" aria-hidden="true"><Pin size={12} /></span>}
             <Avatar mail={m} />
             {layout === "card" ? (
               <span className="row-text">
                 <span className="row-line">
                   {relevance === 3 && <span className="row-important" aria-hidden="true"><Important size={12} /></span>}
                   <strong><Redact text={m.sender} /></strong>
+                  {m.pinned && <span className="row-pin" aria-hidden="true"><Pin size={12} /></span>}
                   {time}
                 </span>
                 {!cardContent(m).preview && metadata}
@@ -151,6 +151,7 @@ export function MailList<T extends Mail>({
                   </span>
                 </span>
                 {metadata}
+                {m.pinned && <span className="row-pin" aria-hidden="true"><Pin size={12} /></span>}
                 {time}
               </>
             )}

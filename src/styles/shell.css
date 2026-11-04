@@ -359,7 +359,10 @@
 .commands-button { gap: 10px; min-height: 32px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: var(--radius-control); font-size: calc(12px * var(--text-scale, 1)); }
 .commands-button kbd { color: var(--text-3); font-size: calc(10px * var(--text-scale, 1)); }
 .save-view-button { flex-shrink: 0; min-height: 32px; padding: 0 6px; color: var(--text-3); white-space: nowrap; font-size: calc(12px * var(--text-scale, 1)); }
-@media (max-width: 760px) { .commands-button kbd { display: none; } .app-toolbar { padding-left: 12px; } }
+/* At narrow widths the query field drops its 220px floor so the field and
+   the row's other controls all stay reachable. */
+@media (max-width: 760px) { .commands-button kbd { display: none; } .app-toolbar { padding-left: 12px; }
+  .app-search-toolbar .search { flex: 1 1 auto; min-width: 0; } }
 
 .app { font-size: calc(14px * var(--text-scale, 1)); }
 .app-toolbar .mail-navigation { flex: 0 0 auto; padding: 0; border: 0; gap: 2px; }

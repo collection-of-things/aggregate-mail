@@ -16,6 +16,10 @@ type Props = {
   onMenuKey?: (event: KeyboardEvent<HTMLElement>, mail: Mail) => void;
 };
 
+// A message whose subject repeats the conversation's once reply prefixes are
+// stripped collapses its own heading under the top-level subject line.
+const subjectKey = (value: string) => value.replace(/^(?:(?:re|fw|fwd)\s*:\s*)+/i, "").trim().toLowerCase();
+
 // Validate the fields consumed by the reader before accepting untrusted response data.
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object";
 function validMessage(value: unknown, accountId: string): value is Mail {
@@ -94,7 +98,7 @@ export function ConversationReader({ mail, gmail, api, busy, onChanged, onSelect
   const gaps = (conversation?.gaps ?? []).filter(gap => gap !== LOCAL_EVIDENCE_CAVEAT);
   const hints = `${region}-hints`;
   return <section className={`conversation-reader${multiple ? " multiple" : ""}`} aria-label="Conversation">
-    {multiple && <MailPrivacy mail={mail}><p className="conversation-subject" aria-hidden="true"><Redact text={mail.subject || "(no subject)"} /></p></MailPrivacy>}
+    {multiple && <MailPrivacy mail={mail}><p className="conversation-subject"><Redact text={mail.subject || "(no subject)"} /></p></MailPrivacy>}
     {multiple && <p id={hints} className="visually-hidden">Enter or click expands a message. Reader toolbar and shortcuts apply to the selected message. Use Select for actions to change it; each message has its own context menu.</p>}
     {(multiple || canExpand || error) && <div className="conversation-bar">
       {multiple && <span>{ordered.length} messages in this conversation</span>}
@@ -114,7 +118,8 @@ export function ConversationReader({ mail, gmail, api, busy, onChanged, onSelect
     {ordered.map((item, index) => {
       const open = expanded[item.id] ?? (item.id === mail.id);
       if (!multiple) return <MailPrivacy mail={item} key={item.id}><section className="conversation-message" data-message-id={item.id}><div key="body">{renderMessage(item)}</div></section></MailPrivacy>;
-      return <MailPrivacy mail={item} key={item.id}><section className="conversation-message" data-message-id={item.id}>
+      return <MailPrivacy mail={item} key={item.id}><section className="conversation-message" data-message-id={item.id}
+        data-same-subject={subjectKey(item.subject) === subjectKey(mail.subject) || undefined}>
         <button type="button" className="conversation-toggle" aria-expanded={open} aria-controls={`${region}-${index}`} aria-describedby={hints}
           onContextMenu={event => onMenu?.(event, item)}
           onClick={() => setExpanded(current => ({ ...current, [item.id]: !open }))}

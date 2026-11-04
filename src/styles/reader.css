@@ -99,7 +99,9 @@ article.message {
 /* The hidden hints paragraph sits between them, so the bar tightens only
    when a subject leads it. */
 .conversation-subject ~ .conversation-bar { padding-top: 6px; }
-.conversation-reader.multiple .message > h1 {
+/* A message heading collapses only when its subject repeats the top-level
+   conversation subject; a thread whose subject changed keeps its heading. */
+.conversation-reader.multiple .conversation-message[data-same-subject] .message > h1 {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   padding: 0; margin: -1px; border: 0; clip-path: inset(50%); white-space: nowrap;
 }
@@ -273,10 +275,13 @@ article.message {
 }
 .formatted-mail a {
   color: var(--link);
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--link) 60%, transparent);
 }
 .formatted-mail a:hover {
-  text-decoration: underline;
+  text-decoration-color: currentColor;
 }
 :is(.formatted-mail, .message-body) blockquote blockquote {
   margin-left: 2px;
@@ -359,4 +364,8 @@ article.message {
 .conversation-message:hover .conversation-select,
 .conversation-message:focus-within .conversation-select,
 .conversation-select:focus-visible { opacity: 1; pointer-events: auto; }
+/* Touch devices have no hover: keep the select link visible. */
+@media (hover: none) {
+  .conversation-select { opacity: 1; pointer-events: auto; }
+}
 .reader-scroll .conversation-message:has(> .conversation-toggle) .message { padding-top: 8px; }

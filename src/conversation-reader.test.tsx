@@ -385,3 +385,21 @@ test("replyPreview trims signatures, valedictions and quoted history at display 
   // But a real sentence starting with "On " survives when a blank line separates it.
   assert.equal(replyPreview("On Monday we can meet.\n\nOmar Haddad <omar@example.net> wrote:\n> old text", ""), "On Monday we can meet.");
 });
+test("a message whose subject differs from the header keeps its own heading", async () => {
+  const thread = [
+    message("a:1", { date: 1000, subject: "Re: Same subject" }),
+    message("a:3", { date: 3000, subject: "Venue update" }),
+  ];
+  const ui = await fixture(async <T,>() => conversation(thread) as T);
+  try {
+    await ui.render();
+    const subject = ui.container.querySelector<HTMLElement>(".conversation-subject")!;
+    assert.ok(subject, "the header subject stays accessible when the selected message collapses");
+    assert.equal(subject.getAttribute("aria-hidden"), null);
+    const cards = [...ui.container.querySelectorAll<HTMLElement>(".conversation-message")];
+    assert.deepEqual(cards.map(card => card.dataset.messageId), ["a:1", "a:2", "a:3"]);
+    assert.equal(cards[0].dataset.sameSubject, "true", "a Re: prefix on the same subject still folds");
+    assert.equal(cards[1].dataset.sameSubject, "true", "the header message matches itself");
+    assert.equal(cards[2].dataset.sameSubject, undefined, "a different subject keeps its heading");
+  } finally { await ui.close(); }
+});

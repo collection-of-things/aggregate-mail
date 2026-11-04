@@ -458,12 +458,10 @@
   overflow-wrap: anywhere;
 }
 
-/* The pin lives on the sender line just left of the timestamp; the gutter
-   holds only the unread dot, so the two marks never touch. The wider left
-   margin on a pinned row's timestamp opens the pin's slot right before it. */
-.row-pin { position: absolute; right: 56px; top: 50%; margin-top: -6px; display: inline-flex; color: var(--text-3); }
-.card .row-pin { top: calc(17px * var(--text-scale, 1) - 6px); margin-top: 0; }
-.row:has(.row-pin) .row-line time { margin-left: 36px; }
+/* The pin sits in flow on the sender line, just left of the timestamp; the
+   line's gap (or the timestamp's own margin on wide rows) spaces them, so a
+   wide relative timestamp can never cover the pin. */
+.row-pin { display: inline-flex; flex-shrink: 0; align-self: center; color: var(--text-3); }
 .mail-row:has(.mail-select) .unread-dot { left: 1px; }
 .search-help { margin: 0; padding: 8px 18px; color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
 .search-help[role="alert"] { color: var(--danger); }
