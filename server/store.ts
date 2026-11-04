@@ -64,6 +64,7 @@ export type Records = {
   proposal: import("../shared/workspace.js").AgentProposal;
   agent: import("../shared/workspace.js").AgentGrant;
   agentProvider: import("./agent-provider.js").StoredAgentProvider;
+  agentAutomation: import("../shared/agent-provider.js").AgentAutomationSettings;
   maintenance: { lastInventoryAt: number };
   config: Partial<Record<"GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "OPENAI_API_KEY" | "TYPESAFE_API_KEY" | "TYPESAFE_PROVIDER", string>>;
   attachment: { accountId: string; content: string };
@@ -532,7 +533,7 @@ export function compactStore(options: { cleanupOrphans?: boolean; vacuum?: boole
   let removedAttachments = 0;
   let cleanupSkipped: "unknown-record-kind" | "incomplete-mail-metadata" | "incomplete-attachment-metadata" | undefined;
   if (options.cleanupOrphans) transaction(() => {
-    const knownKinds: (keyof Records)[] = ["upload", "attachmentHold", "workspaceMailState", "savedView", "outbox", "availability", "calendarOffer", "calendarOperation", "commitment", "googleCalendar", "googleCalendarWindow", "calendarEvent", "project", "decision", "coverage", "proposal", "agent", "agentProvider", "attachment", "config", "maintenance", "compose", "privacyWords", "account", "mail", "mailSummary", "label", "rule", "meta", "mcp", "draft", "contact", "recentRecipient"];
+    const knownKinds: (keyof Records)[] = ["upload", "attachmentHold", "workspaceMailState", "savedView", "outbox", "availability", "calendarOffer", "calendarOperation", "commitment", "googleCalendar", "googleCalendarWindow", "calendarEvent", "project", "decision", "coverage", "proposal", "agent", "agentProvider", "agentAutomation", "attachment", "config", "maintenance", "compose", "privacyWords", "account", "mail", "mailSummary", "label", "rule", "meta", "mcp", "draft", "contact", "recentRecipient"];
     if (db.prepare("SELECT DISTINCT kind FROM records").all().some(row => !knownKinds.includes(String(row.kind) as keyof Records))) {
       cleanupSkipped = "unknown-record-kind";
       return;

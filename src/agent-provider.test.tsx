@@ -19,6 +19,7 @@ async function mount(initial: AgentProviderSettings | null = null) {
   let fail = "", refreshFailure: "false" | "throw" | "" = "", proposalStored = false, refreshedProposal = false, disabled = false, privacy = false, mounted = true, refreshes = 0;
   let hold: Promise<unknown> | undefined;
   const calls: { url: string; method: string; body: any }[] = [];
+  let automation: unknown = null;
   const route = "/agent/grants/synthetic-agent/provider";
   const api: Api = async <T,>(url: string, method = "GET", body?: unknown): Promise<T> => {
     calls.push({ url, method, body });
@@ -28,6 +29,10 @@ async function mount(initial: AgentProviderSettings | null = null) {
       proposalStored = true;
       if (fail === "committed-prepare") throw new Error("Synthetic lost response");
       return { id: "synthetic-proposal", status: "pending", action: "draft" } as T;
+    }
+    if (url.endsWith("/automation")) {
+      if (method === "PUT") automation = { ...(body as any), agentId: "synthetic-agent", revision: "0b7f6c1e-5e0a-4d4c-9d43-6b1e0f6c2a11" };
+      return structuredClone(automation) as T;
     }
     if (method === "PUT") {
       const input = body as any;
@@ -255,8 +260,11 @@ test("BYOK starts with provider and key, keeps preset models in closed Advanced,
       assert.equal(ui.field("Model").value, model);
       assert.equal(ui.field("Model").closest("details")!.open, false);
       await ui.fill("API key", "SYNTHETIC-PRESET-KEY"); await ui.submit();
-      assert.equal(ui.calls.at(-1)?.body.model, model);
-      assert.match(ui.container.querySelector('[role="status"]')!.textContent!, /Key saved locally, encrypted\. Connection not tested\. Next, choose an email/);
+      assert.equal(ui.calls.findLast(call => call.method === "PUT" && call.url.endsWith("/provider"))?.body.model, model);
+      const automatic = ui.calls.filter(call => call.method === "PUT" && call.url.endsWith("/automation"));
+      assert.equal(automatic.length, 1, "only the first key turns automatic replies on; later saves keep the user's choice");
+      assert.deepEqual(automatic[0].body, { enabled: true, scope: "important", instruction: "", dailyLimit: 20, revision: null });
+      assert.match(ui.container.querySelector('[role="status"]')!.textContent!, provider === "openai" ? /Automatic replies are on for new mail; switch them off/ : /Key saved locally, encrypted\. Connection not tested\. Next, choose an email/);
       assert.equal(ui.field("API key").value, "");
       assert.ok(!ui.container.innerHTML.includes("SYNTHETIC-PRESET-KEY"));
     }

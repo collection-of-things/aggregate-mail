@@ -50,11 +50,22 @@ test("Projects hides known account names while preserving exact cross-account ap
  }finally{await ui.close();}
 });
 
+test("Refresh workspace reloads each assistant's automatic reply status",async()=>{
+ const ui=await mount("assistants");try{
+  ui.grants.push({id:"status-grant",token:"synthetic-status-only",name:"Reply assistant",accountIds:["a"],tools:["read_email","propose_draft"],createdAt:1});
+  await ui.click(ui.button("Refresh workspace"));
+  const loads=()=>ui.requests.filter(request=>request.method==="GET"&&request.url==="/agent/grants/status-grant/automation").length;
+  const before=loads();assert.ok(before>=1);
+  await ui.click(ui.button("Refresh workspace"));
+  assert.ok(loads()>before,"refresh reloads the card status");
+ }finally{await ui.close();}
+});
+
 test("Agent Reviews hides known account names in allowed accounts and existing grants",async()=>{
  const ui=await mount("assistants");try{
   ui.grants.push({id:"privacy-grant",token:"synthetic-privacy-only",name:"Review assistant",accountIds:["a"],tools:["read_email","propose_draft"],createdAt:1});
   await ui.click(ui.button("Refresh workspace"));
-  const allowed=()=>[...ui.container.querySelectorAll("fieldset")].find(fieldset=>fieldset.querySelector("legend")?.textContent==="Allowed accounts")!;
+  const allowed=()=>[...ui.container.querySelectorAll("fieldset")].find(fieldset=>fieldset.querySelector(":scope > legend")?.textContent==="Allowed accounts")!;
   const summary=()=>[...ui.container.querySelectorAll("article.work-item p")].find(paragraph=>paragraph.textContent?.startsWith("Accounts: "))!;
   assert.ok(allowed().textContent?.includes("Private Reader"));
   assert.equal(summary().textContent,"Accounts: Private Reader");
@@ -198,6 +209,7 @@ async function mount(mode: "actions"|"calendar"|"projects"|"agents"|"assistants"
     else if(url==="/oauth/google/start"&&method==="POST")result={url:"#google-consent"};
     else if(url==="/agent/grants"&&method==="POST") { const input=body as Pick<AgentGrant,"name"|"accountIds"|"tools">;const grant:AgentGrant={...input,id:"created-agent",token:"synthetic-only",createdAt:1};grants.push(grant);result=grant; }
     else if(url==="/agent/grants")result=structuredClone(grants);
+    else if(url.endsWith("/automation")&&method==="GET")result=null;
     else if(url.endsWith("/provider")&&method==="GET")result=configuredProvider?{provider:"openai",baseURL:"https://api.openai.com/v1",model:"gpt-4.1-mini",hasKey:true,revision:"provider-revision"}:null;
     else if(url.endsWith("/provider/prepare")&&method==="POST"){
       await preparation;

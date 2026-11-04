@@ -435,6 +435,10 @@ export function mountWorkspace(app: express.Express) {
         return fail(404, "Assistant not found.");
       const next = { ...current, ...(input.name ? { name: input.name } : {}), ...(input.accountIds ? { accountIds: [...new Set(input.accountIds)] } : {}), ...(input.tools ? { tools: [...new Set(input.tools)] } : {}) };
       put("agent", next.id, next);
+      // Losing reply permission turns automatic replies off, so a hidden switch never stays on.
+      const automation = get("agentAutomation", next.id);
+      if (automation?.enabled && !(next.tools.includes("read_email") && next.tools.includes("propose_draft")))
+        put("agentAutomation", next.id, { ...automation, enabled: false, revision: randomUUID() });
       return next;
     });
     res.json(grant);
@@ -442,6 +446,7 @@ export function mountWorkspace(app: express.Express) {
   router.delete("/agent/grants/:id", (req, res) => {
     transaction(() => {
       remove("agentProvider", req.params.id);
+      remove("agentAutomation", req.params.id);
       remove("agent", req.params.id);
     });
     res.json({ ok: true });
