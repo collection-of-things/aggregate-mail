@@ -368,4 +368,9 @@ test("replyPreview trims signatures, valedictions and quoted history at display 
   assert.equal(replyPreview("Thanks for the rundown.\n\nCheers,\nNina", ""), "Thanks for the rundown.");
   assert.ok(replyPreview("", "Sounds good. Thanks, Please send the revised agenda.").includes("Please send the revised agenda."));
   assert.equal(replyPreview("", "Sounds good. Cheers, Nina"), "Sounds good.");
+  // A huge body never exceeds the preview or the line-join work.
+  const huge = "Reply line\n" + "x\n".repeat(300_000);
+  const bounded = replyPreview(huge, "");
+  assert.ok(bounded.startsWith("Reply line"));
+  assert.ok(bounded.length <= 220);
 });

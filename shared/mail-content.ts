@@ -150,14 +150,16 @@ function reflow(lines: string[], depth: number): string {
 }
 
 const VALEDICTION = /^(?:cheers|thanks|thank you|many thanks|best|best regards|kind regards|warm regards|regards|all the best|sincerely|take care)[,.!]*$/i;
+// Rows run this for every collapsed message, so preview work stays bounded.
+const PREVIEW_SOURCE_LIMIT = 8_000;
 
 // Display-time preview: reply text without signatures or trailing quoted
 // history. Stored previews and search stay unchanged.
 export function replyPreview(body: string, preview: string): string {
   if (body.trim()) {
     const lines: string[] = [];
-    for (const block of parsePlainTextQuotes(body).blocks)
-      if (block.kind === "text" && !block.attribution) lines.push(...block.text.split("\n"));
+    for (const block of parsePlainTextQuotes(body.slice(0, PREVIEW_SOURCE_LIMIT)).blocks)
+      if (block.kind === "text" && !block.attribution) for (const line of block.text.split("\n")) lines.push(line);
     const kept: string[] = [];
     for (const line of lines) {
       if (line === "--" || line === "-- " || line.startsWith("Sent from my ")) break;
