@@ -620,7 +620,7 @@ records a sanitized last result
 without changing the revision. Grant PATCH turns automation off when
 `read_email` or `propose_draft` is removed. The card's status refreshes on Refresh workspace and
 key changes, not live. `src/work/AgentAutomation.tsx` shows the switch, status and options
-on each assistant card. A first key save turns it on once with defaults.
+on each assistant card. A first key save turns it on once with defaults; if that fails, the key form reports it and the switch stays off.
 Synthetic checks: `server/agent-provider.test.ts`,
 `src/agent-automation.test.tsx`, `src/agent-provider.test.tsx`. See
 [ADR 0123](adr/0123-automatic-assistant-replies.md).

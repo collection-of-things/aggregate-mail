@@ -30,6 +30,7 @@ async function mount(initial: AgentProviderSettings | null = null) {
       if (fail === "committed-prepare") throw new Error("Synthetic lost response");
       return { id: "synthetic-proposal", status: "pending", action: "draft" } as T;
     }
+    if (url.endsWith("/automation") && fail === "automation") throw new Error("Synthetic automation failure");
     if (url.endsWith("/automation")) {
       if (method === "PUT") automation = { ...(body as any), agentId: "synthetic-agent", revision: "0b7f6c1e-5e0a-4d4c-9d43-6b1e0f6c2a11" };
       return structuredClone(automation) as T;
@@ -277,5 +278,17 @@ test("BYOK starts with provider and key, keeps preset models in closed Advanced,
     assert.equal(ui.field("Model").closest("details"), details, "required custom model is outside Advanced");
     assert.equal(ui.field("HTTPS base URL").closest("details"), details);
     assert.equal(ui.calls.some(call => call.url.endsWith("/prepare") || call.url === "/mcp"), false);
+  } finally { await ui.close(); }
+});
+
+test("a failed first-key activation is reported instead of a plain key save", async () => {
+  const ui = await mount();
+  try {
+    await ui.open(); ui.fail("automation");
+    await ui.fill("API key", "SYNTHETIC-ACTIVATION-KEY"); await ui.submit();
+    assert.equal(ui.calls.some((call) => call.method === "PUT" && call.url.endsWith("/provider")), true, "the key is still saved");
+    assert.match(ui.container.textContent!, /automatic replies could not be turned on\. Use the Prepare replies automatically switch/);
+    assert.equal(ui.container.textContent!.includes("Automatic replies are on"), false, "no success claim for automatic replies");
+    assert.equal(ui.field("API key").value, "", "the saved key is cleared from the field");
   } finally { await ui.close(); }
 });

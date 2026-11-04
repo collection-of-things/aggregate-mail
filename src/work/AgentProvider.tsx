@@ -67,15 +67,19 @@ export function AgentProvider({ grant, state, api, mcpEnabled, disabled, onPrepa
       const value = await api<AgentProviderSettings>(route, "PUT", { provider, ...(provider === "custom" ? { baseURL } : {}), model, ...(apiKey ? { apiKey } : {}), revision: saved?.revision ?? null });
       // A first key turns on automatic replies once; the user's later choice is kept.
       let automatic = false;
+      let automaticFailed = false;
       if (!saved && permitted) try {
         if (!await api<AgentAutomationSettings | null>(automationRoute(grant))) {
           await api(automationRoute(grant), "PUT", { ...automationDefaults, revision: null });
           automatic = true;
         }
-      } catch { /* The switch on the card still shows the saved state. */ }
+      } catch { automaticFailed = true; }
       onKeyChanged?.();
       if (!active.current || epoch.current !== version) return;
-      setSaved(value); setBaseURL(value.baseURL); setModel(value.model); setApiKey(""); setStatus(automatic ? "Key saved locally, encrypted. Automatic replies are on for new mail; switch them off on this card at any time." : "Key saved locally, encrypted. Connection not tested. Next, choose an email below and click Prepare draft.");
+      setSaved(value); setBaseURL(value.baseURL); setModel(value.model); setApiKey("");
+      // The key is saved either way; say plainly when automatic replies did not turn on.
+      if (automaticFailed) setError("Key saved locally, encrypted, but automatic replies could not be turned on. Use the Prepare replies automatically switch on this card.");
+      else setStatus(automatic ? "Key saved locally, encrypted. Automatic replies are on for new mail; switch them off on this card at any time." : "Key saved locally, encrypted. Connection not tested. Next, choose an email below and click Prepare draft.");
     } catch { if (active.current && epoch.current === version) setError("Settings were not confirmed. Your entries are still here. Check the fields or reopen Agent Reviews to reload a changed revision."); }
   });
   const remove = () => run(async () => {
