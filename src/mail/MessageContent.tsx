@@ -1,6 +1,6 @@
 import { Notice } from "../ui/Toasts";
 import type { Api } from "../api";
-import { useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { imageSource, type Mail, type MailImage, type MailAttachment } from "../../shared/types";
 import { privateMailLink, needsEmbeddedContentRecovery, parsePlainTextQuotes, type PlainTextBlock } from "../../shared/mail-content";
 import { redactPrivateText } from "../privacy";
@@ -52,7 +52,7 @@ function PlainBlocks({ blocks }: { blocks: readonly PlainTextBlock[] }) {
     : <blockquote key={index}><PlainBlocks blocks={block.blocks} /></blockquote>)}</>;
 }
 export function MessageText({ text }: { text: string }) {
-  const { blocks, history } = parsePlainTextQuotes(text);
+  const { blocks, history } = useMemo(() => parsePlainTextQuotes(text), [text]);
   const [open, setOpen] = useState(false);
   const region = useId();
   return <>
