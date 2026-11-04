@@ -99,6 +99,30 @@ test("scheduled sends retain frozen snapshots, review missed deadlines and never
       await box.dispatchDue(); assert.equal(calls, 0); assert.equal(store.get("outbox", next.entry.id)?.review, true);
       clean();
     });
+    await t.test("only overdue held schedules classify as missed; future holds and unknown outcomes do not", async () => {
+      const { missedSchedule } = await import("../shared/outbox.js");
+      const { outboxStatuses } = await import("./outbox.js");
+      const status = (id: string) => outboxStatuses().find(entry => entry.id === id)!;
+      const slept = queue(), future = queue(clock + 3600000);
+      clock = slept.entry.dueAt + 1;
+      await box.tick();
+      assert.equal(missedSchedule(status(slept.entry.id), clock), true, "sleep past the due time");
+      assert.equal(missedSchedule(status(future.entry.id), clock), false, "future hold stays distinct");
+      assert.equal(status(future.entry.id).review, true);
+      const restarted = queue(); box.recover(); clock = restarted.entry.dueAt;
+      await box.tick(); await box.dispatchDue();
+      assert.equal(missedSchedule(status(restarted.entry.id), clock), true, "restart past the due time");
+      const uncertain = queue(); deliver = async () => { throw Object.assign(new Error("Synthetic disconnect"), { code: "ECONNRESET" }); };
+      await box.submit(uncertain.entry.id);
+      assert.equal(missedSchedule(status(uncertain.entry.id), clock + 3600000), false, "unknown outcome is not missed");
+      const delivered = calls;
+      clock = future.entry.dueAt + 1; await box.dispatchDue();
+      assert.equal(missedSchedule(status(future.entry.id), clock), true, "a held future schedule becomes missed once its time passes");
+      assert.equal(calls, delivered, "missed mail is never sent automatically");
+      assert.equal(calls, 1, "only the explicit submission reached the provider");
+      deliver = async () => ({ ok: true, warning: "Some recipients were rejected. Do not resend." });
+      clean();
+    });
     await t.test("active and uncertain submissions cannot be rescheduled or retried", async () => {
       const { entry } = queue();
       let release!: () => void;

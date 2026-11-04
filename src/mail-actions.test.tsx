@@ -58,6 +58,7 @@ async function mount(preferences?: NotificationPreferences, revisionContract = f
     notifications: nativeNotifications ? {
       configure: async (value, privacy) => { configured.push({ value, privacy }); return true; },
       onOpen: (callback) => { notificationOpen = callback; return () => { notificationOpen = undefined; }; },
+      missed: () => {},
       audio: async (command) => {
         audioCommands.push(command);
         if (command === "choose" && !cancelAudio) customAudio = true;

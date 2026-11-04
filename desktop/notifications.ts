@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, renameSync } from "node:fs";
 import { open } from "node:fs/promises";
 import type { IpcMain, WebContents } from "electron";
 import { trustedWindowSender } from "./navigation.js";
-import { mailNotice, notificationDefaults, notificationPreferences, type NotificationMail, type NotificationPreferences } from "../shared/notifications.js";
+import { mailNotice, missedScheduleNotice, notificationDefaults, notificationPreferences, type NotificationMail, type NotificationPreferences } from "../shared/notifications.js";
 
 export const maxAudioBytes = 2 * 1024 * 1024;
 export function audioData(bytes: Buffer): string {
@@ -109,6 +109,18 @@ export class MailNotifications {
       notice.show();
     });
   }
+  // One grouped, content-free notice per newly missed batch; the renderer deduplicates.
+  missed(count: unknown) {
+    if (!this.value.desktop || typeof count !== "number" || !Number.isSafeInteger(count) || count < 1) return;
+    this.sound();
+    const notice = this.io.create({ title: "Emc²", body: missedScheduleNotice(count), silent: this.value.sound !== "system" });
+    if (!notice) return;
+    this.notices.add(notice);
+    notice.on("close", () => this.notices.delete(notice));
+    notice.on("failed", () => this.notices.delete(notice));
+    notice.on("click", () => this.io.show());
+    notice.show();
+  }
   async audio(command: unknown): Promise<{ custom: boolean; imported?: boolean; error?: string }> {
     if (command === "status") return { custom: !!this.custom };
     try {
@@ -145,5 +157,6 @@ export function registerNotificationIpc(ipc: IpcMain, contents: () => WebContent
   };
   ipc.handle("notification-configure", (event, value: unknown, privacy: unknown) => trusted(event) && notifications.configure(value, privacy));
   ipc.handle("notification-audio", (event, command: unknown) => trusted(event) ? notifications.audio(command) : { custom: false, error: "Unavailable." });
+  ipc.handle("notification-missed", (event, count: unknown) => { if (trusted(event)) notifications.missed(count); });
   ipc.handle("notification-ready", (event) => trusted(event) ? notifications.rendererReady() : []);
 }
