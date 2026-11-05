@@ -109,7 +109,7 @@ export class MailNotifications {
       notice.show();
     });
   }
-  // One grouped, content-free notice per newly missed batch; the renderer deduplicates.
+  /** Shows a content-free missed batch when desktop notices are enabled; the renderer deduplicates. */
   missed(count: unknown) {
     if (!this.value.desktop || typeof count !== "number" || !Number.isSafeInteger(count) || count < 1) return;
     this.sound();
@@ -150,6 +150,7 @@ export class MailNotifications {
     } catch { return { custom: !!this.custom, error: "Could not use this audio file. Choose a readable WAV, MP3 or Ogg file up to 2 MB." }; }
   }
 }
+/** Registers notification commands restricted to the trusted application window. */
 export function registerNotificationIpc(ipc: IpcMain, contents: () => WebContents | undefined, origin: string, notifications: MailNotifications) {
   const trusted = (event: Parameters<typeof trustedWindowSender>[0]) => {
     const current = contents();

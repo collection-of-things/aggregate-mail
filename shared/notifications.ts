@@ -51,7 +51,7 @@ export function mailNotice(mail: NotificationMail, value: NotificationPreference
   if (privacy) return "1 new unread email.";
   return [value.sender && mail.sender, value.subject && mail.subject, value.preview && mail.preview].filter(Boolean).join("\n") || "1 new unread email.";
 }
-// Grouped missed-schedule text never includes mail content, so it is privacy-safe.
+/** Builds grouped missed-send text without exposing mail content. */
 export function missedScheduleNotice(count: number): string {
   return count === 1 ? "1 scheduled message was missed and not sent." : `${count} scheduled messages were missed and not sent.`;
 }

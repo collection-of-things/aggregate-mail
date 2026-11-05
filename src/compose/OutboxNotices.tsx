@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Draft, OutboxStatus } from "../../shared/types";
 import type { Api } from "../api";
 
+/** Shows outbox recovery actions and groups missed occurrences by message and scheduled time. */
 export function OutboxNotices({ api, enabled, blocked, refreshKey = 0, scheduledOnly = false, onScheduled, onMissed, onEdit, onNotice, onChanged }: {
   api: Api; enabled: boolean; blocked: boolean; refreshKey?: number; scheduledOnly?: boolean; onScheduled?: () => void;
   onMissed?: (count: number) => void;

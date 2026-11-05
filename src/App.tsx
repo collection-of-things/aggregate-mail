@@ -89,6 +89,7 @@ const empty: State = {
   syncing: false,
 };
 
+/** Coordinates mail views, compose actions and desktop events for the active local session. */
 export function App() {
   const [state, setState] = useState(empty);
   const [composeDraft, setComposeDraft] = useState<ComposePreferences>();
