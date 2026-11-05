@@ -89,6 +89,7 @@ const empty: State = {
   syncing: false,
 };
 
+/** Coordinates mail views, compose actions and desktop events for the active local session. */
 export function App() {
   const [state, setState] = useState(empty);
   const [composeDraft, setComposeDraft] = useState<ComposePreferences>();
@@ -822,6 +823,7 @@ export function App() {
       .catch(() => setNotice("Could not open the notified email. Refresh the inbox and try again."));
   }, [reload, setNotice]);
   useEffect(() => window.desktop?.notifications?.onOpen(requestNotificationMail), [requestNotificationMail]);
+  const notifyMissedSchedules = useCallback((count: number) => { window.desktop?.notifications?.missed(count); }, []);
   useEffect(() => {
     if (!loaded || busy || syncing || navigationBlocked || contextMenu || palette || !notificationTargets.length) return;
     const id = notificationTargets[0];
@@ -1421,7 +1423,7 @@ export function App() {
         data-view={settings ? "settings" : view}
         style={{ "--text-scale": textScale } as React.CSSProperties}
       >
-        <ToastStack outbox={<OutboxNotices api={api} refreshKey={outboxRefresh} enabled={loaded} onScheduled={() => setScheduledOpen(true)} blocked={busy || updateInstalling || scheduledOpen || !!compose || settingsModal || workModal} onEdit={openOutboxDraft} onNotice={outboxNotice} onChanged={() => { void reload().catch(() => {}); }} />} toasts={toasts} onDismiss={dismissToast} position={notifications.position} preferences={notifications} onOpen={requestNotificationMail} onUndo={receipt => void undoLocalAction(receipt)} undoDisabled={busy || syncing || toolbarBlocked} />
+        <ToastStack outbox={<OutboxNotices api={api} refreshKey={outboxRefresh} enabled={loaded} onScheduled={() => setScheduledOpen(true)} onMissed={notifyMissedSchedules} blocked={busy || updateInstalling || scheduledOpen || !!compose || settingsModal || workModal} onEdit={openOutboxDraft} onNotice={outboxNotice} onChanged={() => { void reload().catch(() => {}); }} />} toasts={toasts} onDismiss={dismissToast} position={notifications.position} preferences={notifications} onOpen={requestNotificationMail} onUndo={receipt => void undoLocalAction(receipt)} undoDisabled={busy || syncing || toolbarBlocked} />
         {scheduledOpen && <Dialog title="Scheduled" onClose={() => setScheduledOpen(false)}>
           <p className="dialog-copy">Emc² must be running and online. Sleep, restart and missed offline schedules require review. Unknown outcomes are never retried automatically.</p>
           <OutboxNotices api={api} scheduledOnly enabled={loaded} blocked={busy || updateInstalling}

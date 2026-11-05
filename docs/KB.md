@@ -3063,6 +3063,20 @@ it. Review offers explicit Send now, Edit, Cancel schedule or Reschedule. The
 visible scheduled-mail notice calls out held or unknown outcomes. There is no
 new background service, cloud credential hosting, automatic retry or recall.
 
+`missedSchedule` in `shared/outbox.ts` classifies a held pending entry whose
+`scheduledFor` has passed as missed. Future holds, active attempts and unknown
+or failed outcomes are never missed, and the cause is not inferred. The
+persistent scheduled-mail notice then shows one grouped alert with a count and
+a Dismiss button. Dismissal lasts while the same entries stay missed; a newly
+missed entry shows the alert again, and resolving every entry clears it. The
+Scheduled list titles each such entry Missed and keeps its original local time.
+The renderer calls the desktop bridge's `missed(count)` once per newly missed
+batch, not per poll. `notification-missed` IPC accepts only the trusted window
+and shows one native notice when desktop notifications are on, following the
+sound preference. Both alerts use `missedScheduleNotice` text, which has no
+subject, address or body, so privacy mode and detail settings need no special
+case. A restarted renderer alerts once for entries that are still missed.
+
 Desktop uses Electron's online signal; the standalone service checks for a
 non-loopback network interface. These signals do not prove provider reachability.
 A failed or lost provider response retains the existing conservative unknown
@@ -3072,7 +3086,8 @@ the same pending entry twice.
 
 [ADR 0093](adr/0093-local-scheduled-send.md) records this extension. Focused
 synthetic checks are `server/scheduled-send.test.ts`, `src/scheduled-send.test.tsx`,
-`server/outbox.test.ts`, `server/outbox-http.test.ts` and `desktop/main.test.ts`.
+`src/missed-schedule.test.tsx`, `server/outbox.test.ts`, `server/outbox-http.test.ts`,
+`desktop/notifications.test.ts` and `desktop/main.test.ts`.
 Real network transitions, OS sleep, installed delivery and native acceptance
 remain separate proof.
 

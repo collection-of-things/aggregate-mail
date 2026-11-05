@@ -149,6 +149,8 @@ test("notification preload correlates ready clicks and cleans replacement, stopp
   imported = true;
   assert.deepEqual(await bridge.notifications!.audio("choose"), { custom: true, imported: true });
   bridge.notifications!.preview();
+  bridge.notifications!.missed(2);
+  assert.equal(calls.some((args) => args[0] === "notification-missed" && args[1] === 2), true);
   assert.equal(calls.some((args) => args[0] === "notification-audio" && args[1] === "choose"), true);
   for (const value of ["file:///private.wav", "https://example.com/sound", "data:text/html;base64,AAAA"]) ipcRenderer.emit("notification-sound", {}, value);
   assert.equal(audio.length, 0);

@@ -51,9 +51,14 @@ export function mailNotice(mail: NotificationMail, value: NotificationPreference
   if (privacy) return "1 new unread email.";
   return [value.sender && mail.sender, value.subject && mail.subject, value.preview && mail.preview].filter(Boolean).join("\n") || "1 new unread email.";
 }
+/** Builds grouped missed-send text without exposing mail content. */
+export function missedScheduleNotice(count: number): string {
+  return count === 1 ? "1 scheduled message was missed and not sent." : `${count} scheduled messages were missed and not sent.`;
+}
 export type NotificationBridge = {
   configure: (value: NotificationPreferences, privacy: boolean) => Promise<boolean>;
   audio: (command: "status" | "choose" | "remove" | "preview") => Promise<{ custom: boolean; imported?: boolean; error?: string }>;
   onOpen: (callback: (id: string) => void) => () => void;
   preview: () => void;
+  missed: (count: number) => void;
 };

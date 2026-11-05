@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("desktop", {
     configure: (value, privacy) => ipcRenderer.invoke("notification-configure", value, privacy),
     audio: (command) => ipcRenderer.invoke("notification-audio", command),
     preview: () => { void ipcRenderer.invoke("notification-audio", "preview"); },
+    missed: (count) => { void ipcRenderer.invoke("notification-missed", count).catch(() => {}); },
     onOpen: (callback) => {
       let active = true;
       const listener = (_event: Electron.IpcRendererEvent, id: unknown) => {

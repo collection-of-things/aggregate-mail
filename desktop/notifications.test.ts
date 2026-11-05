@@ -167,3 +167,30 @@ test('preview respects enabled delivery, detail and sound preferences', async ()
     assert.deepEqual(f.sent.filter(([channel])=>channel==='notification-open'), []);
   } finally { f.close(); }
 });
+
+test("missed scheduled sends show one generic grouped notice that follows desktop preferences", async () => {
+  const f = fixture();
+  try {
+    f.runtime.configure(details, false);
+    f.runtime.missed(3);
+    assert.equal(f.notices.length, 1);
+    assert.equal(f.notices[0].options.body, "3 scheduled messages were missed and not sent.");
+    assert.equal(f.notices[0].shown, true);
+    f.notices[0].emit("click"); assert.equal(f.shows, 1);
+    assert.deepEqual(f.sent.filter(([channel]) => channel === "notification-open"), [], "a missed notice never opens mail");
+    for (const count of [0, -1, 1.5, "2", Number.NaN]) f.runtime.missed(count);
+    assert.equal(f.notices.length, 1);
+    f.runtime.configure({ ...details, desktop: false }, false);
+    f.runtime.missed(1);
+    assert.equal(f.notices.length, 1, "desktop notifications off suppresses the native alert");
+    const handlers = new Map<string, (...args: unknown[]) => unknown>();
+    const contents = { mainFrame: {}, getURL: () => "http://127.0.0.1:32145" } as unknown as WebContents;
+    registerNotificationIpc({ handle: (channel: string, handler: (...args: unknown[]) => unknown) => handlers.set(channel, handler) } as unknown as IpcMain,
+      () => contents, "http://127.0.0.1:32145", f.runtime);
+    f.runtime.configure(details, true);
+    await handlers.get("notification-missed")!({ sender: {}, senderFrame: contents.mainFrame }, 1);
+    assert.equal(f.notices.length, 1, "untrusted senders cannot raise notices");
+    await handlers.get("notification-missed")!({ sender: contents, senderFrame: contents.mainFrame }, 1);
+    assert.equal(f.notices.at(-1)!.options.body, "1 scheduled message was missed and not sent.");
+  } finally { f.close(); }
+});
