@@ -27,6 +27,8 @@ import { JSDOM } from "jsdom";
 import { readFileSync } from "node:fs";
 import { FormattedMail } from "./mail/FormattedMail";
 import { redactPrivateText } from "./privacy";
+import { PrivacyContext, Redact } from "./ui/Privacy";
+import { applyPalette, contrastRatio } from "./themes";
 
 test("isolated reader binds document, privacy, image consent and keyboard lifetime to the current opening", async () => {
   const dom = new JSDOM('<!doctype html><main><div id="root"></div></main>', { url: 'https://app.example.test' });
@@ -84,6 +86,10 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
       'isolated prose keeps the readable measure');
     assert.match(installed, /table :is\(p,ul,ol,blockquote,h1,h2,h3,h4,h5,h6,pre\)\s*\{\s*max-width:\s*none/,
       'table content keeps the full reader width');
+    assert.match(installed, /:is\(code,pre\) :not\(img,\.address,\.formatted-mail-image-placeholder\)\s*\{[^}]*color:[^;}]*!important[^}]*background:[^;}]*!important/,
+      'code descendants keep the app ink and no sender background');
+    assert.match(installed, /:is\(code,pre\) a\[href\]\s*\{[^}]*color:[^;}]*var\(--link\)[^;}]*!important/,
+      'links inside code keep the link ink');
     assert.equal(frame.contentDocument!.querySelectorAll('img').length, 0);
     assert.equal(frame.contentDocument!.querySelector('p')?.hasAttribute('id'), false, 'absent ids cannot match a sender selector');
     assert.doesNotMatch(frame.contentDocument!.body.innerHTML, /summary/);
@@ -123,6 +129,122 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
   } finally {
     await act(async () => root.unmount());
     dom.window.removeEventListener('keydown', handler);
+    dom.window.close();
+    for (const [key, descriptor] of saved) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);
+    }
+  }
+});
+
+test("code surfaces keep the veil-safe ink under sender colors", async () => {
+  const dom = new JSDOM('<!doctype html><main><div id="root"></div></main>', { url: 'https://app.example.test' });
+  const saved = new Map<string, PropertyDescriptor | undefined>();
+  for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true })) {
+    saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+    Object.defineProperty(globalThis, key, { value, configurable: true });
+  }
+  // A white-on-dark veil palette makes --code-ink resolve to the safe ink.
+  const palette = { canvas: "#ffffff", surface: "#ffffff", raised: "#f6f4f4", text: "#000000", secondaryText: "#222222",
+    mutedText: "#444444", accent: "#a50570", link: "#0000bb", border: "#cccccc", danger: "#c93434", reason: "#888888", veil: "#111111" };
+  const resolved = dom.window.document.createElement("div");
+  applyPalette(palette, resolved);
+  const codeInk = resolved.style.getPropertyValue("--code-ink").trim() || palette.text;
+  const codeInkRgb = `rgb(${[1, 3, 5].map((offset) => parseInt(codeInk.slice(offset, offset + 2), 16)).join(", ")})`;
+  const host = dom.window.document.createElement("div");
+  host.className = "app";
+  host.style.setProperty("--veil", palette.veil);
+  host.style.setProperty("--code-ink", codeInk);
+  host.style.setProperty("--link", palette.link);
+  host.style.setProperty("--text-scale", "1");
+  dom.window.document.body.append(host);
+  const mount = dom.window.document.createElement("div");
+  host.append(mount);
+  const root = createRoot(mount);
+  const readerStyle = dom.window.document.createElement("style");
+  readerStyle.textContent = readFileSync(new URL('./styles/reader.css', import.meta.url), 'utf8');
+  dom.window.document.head.append(readerStyle);
+  const viewOf = (element: Element) => (element.ownerDocument.defaultView || dom.window).getComputedStyle(element);
+  const rgbToHex = (rgb: string) => `#${(rgb.match(/\d+/g) || []).slice(0, 3).map((v) => (+v).toString(16).padStart(2, "0")).join("")}`;
+  const resolvedColor = (element: Element, property: "color" | "backgroundColor") => {
+    const raw = viewOf(element)[property];
+    const name = /^var\((--[\w-]+)\)/.exec(raw);
+    return name ? (host.style.getPropertyValue(name[1]).trim() || raw) : raw;
+  };
+  // jsdom cannot decompose the controls' `background:` shorthand into a
+  // computed color; the declared surface is the host veil, asserted on the
+  // stylesheet text above.
+  const paintOf = (element: Element) => {
+    const shorthand = viewOf(element).background;
+    const token = shorthand.match(/#[\da-f]{3,8}\b|rgba?\([^)]*\)/i)?.[0];
+    if (token && !/^rgba?\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)$|transparent/i.test(token)) return token;
+    const computed = resolvedColor(element, "backgroundColor");
+    if (computed !== "rgba(0, 0, 0, 0)") return computed;
+    return host.style.getPropertyValue("--veil").trim() || "#111111";
+  };
+  const fgOf = (element: Element) => resolvedColor(element, "color");
+  const structures: [string, (inner: string) => string][] = [
+    ["inline code", (inner) => `<code>${inner}</code>`],
+    ["plain pre", (inner) => `<pre>${inner}</pre>`],
+    ["pre with nested code", (inner) => `<pre><code>${inner}</code></pre>`],
+  ];
+  const inner = '<span class="tint">sheet</span><span style="color:#111111">inline</span>';
+  const mount_ = async (html: string, privacy = false, showImages = false) => {
+    await act(async () => root.render(<PrivacyContext.Provider value={{ on: privacy, revealed: new Set(), toggle() {} }}><FormattedMail mailId={`msg-${html.length}-${privacy}-${showImages}`} html={html}
+      showImages={showImages} privacy={privacy} privateNames={["Morgan Example", "morgan@example.com"]}
+      attachments={[{ id: 'logo', contentId: 'logo', contentType: 'image/png', filename: 'logo.png', size: 3 }]}
+      renderText={(text, segments) => privacy ? <Redact text={text} segments={segments} /> : text}
+      redactText={(text) => privacy ? redactPrivateText(text, ["Morgan Example", "morgan@example.com"]) : text} /></PrivacyContext.Provider>));
+  };
+  try {
+    for (const [name, wrap] of structures) {
+      // Isolated path: a sender stylesheet supplies class tints, inline styles supply the rest.
+      const html = `<style>.tint{color:#111111;background-color:#ffffff}pre{color:#111111;background:#ffffff}</style>${wrap(inner)}`;
+      await mount_(html);
+      const frame = mount.querySelector("iframe")!;
+      assert.ok(frame, `${name}: sender stylesheet isolates the document`);
+      const installed = frame.contentDocument!.adoptedStyleSheets.flatMap((sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText)).join("\n");
+      const sheet = frame.contentDocument!.createElement("style");
+      sheet.textContent = installed;
+      frame.contentDocument!.head.append(sheet);
+      for (const span of frame.contentDocument!.querySelectorAll("code span, pre span")) {
+        const fg = fgOf(span), paint = paintOf(span.closest("pre, code")!);
+        const ratio = contrastRatio(fg.startsWith("#") ? fg : rgbToHex(fg), paint.startsWith("#") ? paint : rgbToHex(paint));
+        assert.ok(ratio >= 4.5, `${name}: span foreground ${fg} on ${paint} = ${ratio.toFixed(2)}:1`);
+        assert.equal(resolvedColor(span, "backgroundColor").replace(/\s/g, ""), "rgba(0,0,0,0)", `${name}: no sender bg survives under code`);
+      }
+      const codePaint = frame.contentDocument!.querySelector(wrap === structures[0][1] ? "code" : "pre")!;
+      assert.equal((paintOf(codePaint).startsWith("#") ? paintOf(codePaint) : rgbToHex(paintOf(codePaint))), "#111111",
+        `${name}: the code surface paints the dark veil`);
+      const inkCheck = fgOf(frame.contentDocument!.querySelector("code span, pre span")!);
+      assert.equal(inkCheck.startsWith("#") ? inkCheck : rgbToHex(inkCheck), codeInk, `${name}: descendants read the code ink`);
+      await act(async () => root.render(<></>));
+      // Nonisolated path: no stylesheet, sender colors are removed at render; reader.css owns code ink.
+      await mount_(wrap(inner));
+      const inline = mount.querySelector(".formatted-mail");
+      assert.ok(inline, `${name}: styleless sender mail stays in the reader document`);
+      for (const span of inline!.querySelectorAll("code span, pre span")) {
+        const fg = fgOf(span), paint = paintOf(span.closest("pre, code")!);
+        const ratio = contrastRatio(fg.startsWith("#") ? fg : rgbToHex(fg), paint.startsWith("#") ? paint : rgbToHex(paint));
+        assert.ok(ratio >= 4.5, `${name} nonisolated: span ${fg} on ${paint} = ${ratio.toFixed(2)}:1`);
+      }
+      await act(async () => root.render(<></>));
+    }
+    // Privacy inside code still hides names, and consented images still gate on showImages.
+    const privateHtml = '<style>.x{color:#333333}</style><pre><code>send to morgan@example.com for Morgan Example <img src="https://images.example.test/logo.png"></code></pre>';
+    await mount_(privateHtml, true, true);
+    let frame = mount.querySelector("iframe")!;
+    assert.doesNotMatch(frame.contentDocument!.body.innerHTML, /Morgan|morgan@/, "privacy still redacts inside code");
+    assert.ok(frame.contentDocument!.querySelector("code .address, pre .address"), "addresses still render inside code");
+    const veiled = frame.contentDocument!.querySelector("code .veiled, pre .veiled");
+    if (veiled) assert.equal(veiled.className.includes("veiled"), true, "privacy bar survives inside code");
+    assert.ok(frame.contentDocument!.querySelector("img"), "consented image renders inside pre");
+    await mount_(privateHtml, true, false);
+    frame = mount.querySelector("iframe")!;
+    assert.equal(frame.contentDocument!.querySelectorAll("img").length, 0, "unconsented image stays a placeholder");
+    assert.ok(frame.contentDocument!.querySelector(".formatted-mail-image-placeholder"), "placeholder keeps its marker inside pre");
+  } finally {
+    await act(async () => root.unmount());
+    readerStyle.remove();
     dom.window.close();
     for (const [key, descriptor] of saved) {
       if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);

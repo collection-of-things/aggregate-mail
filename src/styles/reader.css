@@ -262,7 +262,7 @@ article.message {
   background: var(--veil);
   border-radius: var(--radius-mark-sm);
   padding: 10px 12px;
-  color: var(--text-body);
+  color: var(--code-ink);
   overflow-x: auto;
 }
 .formatted-mail pre code {
