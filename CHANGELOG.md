@@ -6,7 +6,7 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
-## 0.2.30 - 2026-11-04
+## 0.2.30 - 2026-11-06
 
 ### Added
 
@@ -33,6 +33,8 @@ unversioned history without treating it as a release record.
 - Compact density now compresses the list beside the reader: cards become two 48px lines (sender and subject, with the account and status trailing the subject inline) instead of staying at comfortable height. Switching density keeps keyboard focus on a focused private-subject reveal control beside the reader, and on its message row at full width. ([#218](https://github.com/collection-of-things/aggregate-mail/pull/218))
 
 ### Fixed
+
+- Report when saving the first provider key cannot turn on automatic replies, so setup does not silently leave reply proposals disabled. ([#215](https://github.com/collection-of-things/aggregate-mail/pull/215))
 
 - Search finds what you type. A short word such as a sender name no longer matches almost every email: one-typo matching made "ando" match "and" and "skip" match "ship" and "slip". Words now match exactly first; close spellings are used only when nothing matches exactly, and the list says so. CLI and MCP `--syntax app` follow the same rule. ([#212](https://github.com/collection-of-things/aggregate-mail/pull/212))
 - Plain-text replies no longer show raw `>` quote lines: quoted history renders as nested blocks collapsed behind a Show quoted text button, wrapped quote lines rejoin, and collapsed conversation rows preview only the reply text without signatures or "On … wrote:" lines. ([#211](https://github.com/collection-of-things/aggregate-mail/issues/211))

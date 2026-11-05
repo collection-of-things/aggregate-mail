@@ -217,10 +217,10 @@ The architecture is recorded in [ADR 0079](adr/0079-standalone-android-client.md
 
 ## Source release version
 
-The source package and both lockfile version fields are 0.2.29. Dependencies and
+The source package and both lockfile version fields are 0.2.30. Dependencies and
 release workflows are unchanged. The automatic main-push lane chooses the next
-unused patch above both source and stable tags, so this source selects 0.2.30
-unless a higher stable tag exists. Manual publication of 0.2.29 requires an
+unused patch above both source and stable tags, so this source selects 0.2.31
+unless a higher stable tag exists. Manual publication of 0.2.30 requires an
 immutable matching tag at the approved source commit and separate publication
 authority. Source version metadata does not establish installer acceptance.
 
