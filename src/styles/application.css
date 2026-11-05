@@ -272,6 +272,7 @@
 .mail-view-head .head-note { margin-left: auto; }
 .mail-view-head .head-note button { height: 28px; min-height: 28px; padding: 0 10px; background: transparent; color: var(--link); }
 .mail-view-head .head-note button:hover:not(:disabled) { background: var(--hover); }
+.mail-view-head .head-note button:disabled { opacity: 1; color: var(--text-3); }
 .mail-category-bar { display: flex; align-items: center; column-gap: 4px; height: 42px; flex-shrink: 0; border-bottom: 1px solid var(--line); padding: 0 12px 0 var(--select-gutter); overflow-x: auto; }
 .mail-category-bar:not(:has(.inbox-tabs)) { height: 36px; }
 .mail-category-bar .inbox-tabs { height: 100%; gap: 22px; margin: 0; }

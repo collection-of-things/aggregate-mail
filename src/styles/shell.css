@@ -232,6 +232,10 @@
 .workspace.split .list-pane {
   flex: 0 0 var(--list-width);
 }
+/* A clear or failed list has nothing to read, so its state centres across the
+   whole workspace instead of sitting beside a second placeholder. */
+.workspace.split:has(.list-pane .empty-clear) .list-pane { flex: 1; }
+.workspace.split:has(.list-pane .empty-clear) .reader-pane { display: none; }
 .reader-pane {
   flex: 1;
   min-width: 0;
