@@ -95,7 +95,9 @@ inset highlight, so the category bar's bottom rule and the reader's left
 rule are a single 1px line like the list/reader divider.
 The branch's New Message and Drafts icons remain. The web toolbar is
 40px; desktop retains its 52px caption space for native window controls.
-The current view and search share the leading edge; history stays at the right.
+The current view and search share the leading edge, inset by the same
+`--select-gutter` that starts the rows and category rail below; history stays
+at the right.
 The view name claims a fixed slot (~84px before text scaling) with ellipsis, so
 the search field starts at the same x in every view.
 See [ADR 0111](docs/adr/0111-compact-toolbar-placement.md) for the revised placement.
@@ -189,12 +191,13 @@ and retain touch targets, safe areas, focus, reduced motion and keyboard access.
 
 Inbox tabs show the active category name; inactive tabs retain their icon and
 unread count, with full names available to assistive technology and tooltips.
-Beside the reader, the strip wraps to two 28px rows of three content-sized
-columns so every tab shows icon, name and count — three per row whether or
-not counts draw — with all counts plain muted mono, and the active tab
-carries its own 2px accent underline. The rows are 28px before text scaling and the
-select-all sits on the first row's midline; when the reader is hidden (clear
-or failed list) the strip takes the wider workspace and stays on one row.
+Beside the reader, the strip keeps one 28px-before-text-scaling row inside the
+rail's normal single-row height: every tab shows icon, name and count in plain
+muted mono, and the row may run past the list column into the space above the
+reader. When the six named tabs cannot fit the bar — a larger text scale or a
+narrow-but-still-split window — inactive categories return to icon and count,
+and the select-all stays centred on the row either way; when the reader is
+hidden (clear or failed list) the strip still holds the same single row.
 The narrow native picker retains every full category name.
 
 Appearance offers three full-width reader toolbars: One compact row combines
@@ -441,7 +444,7 @@ Transparency uses the operating system's own material behind the window. On Wind
   pending-save locks survive section changes and closing. Search shortcuts leave
   Settings for cached mail; Privacy shortcuts remain available outside editors
   and shortcut-capture fields. Nested dialogs retain keyboard ownership.
-- Inbox shows six category tabs in its list rail beside the select-all checkbox: Primary, Social, Promotions, Newsletters, Transactions and Updates, each with an outline icon and a muted unread count. The tabs fill the rail's 44px height in secondary text; the active tab reads in primary text at weight 600, and a 2px accent underline on the rail's bottom hairline marks it - exactly as wide as the tab's icon, label and count, sliding between tabs on the spring. While messages are selected the tabs hide so the bulk count and triage actions keep the rail. Search spans every tab, so the strip hides while searching. See [ADR 0024](docs/adr/0024-inbox-category-tabs.md). Beside the reader the tabs wrap to two 28px rows of about three, each showing icon, name and count in plain muted mono, with a 2px accent underline on the active tab (below a 400px column the non-active counts hide); the name stays in the accessible label and tooltip.
+- Inbox shows six category tabs in its list rail beside the select-all checkbox: Primary, Social, Promotions, Newsletters, Transactions and Updates, each with an outline icon and a muted unread count. The tabs fill the rail's 44px height in secondary text; the active tab reads in primary text at weight 600, and a 2px accent underline on the rail's bottom hairline marks it - exactly as wide as the tab's icon, label and count, sliding between tabs on the spring. While messages are selected the tabs hide so the bulk count and triage actions keep the rail. Search spans every tab, so the strip hides while searching. See [ADR 0024](docs/adr/0024-inbox-category-tabs.md). Beside the reader the tabs stay on one 28px row across the full rail, each showing icon, name and count in plain muted mono; when one row cannot fit the bar, the inactive tabs return to icon and count (below a 400px rail the non-active counts hide), and the name stays in the accessible label and tooltip.
 - Sliding lists (sidebar groups, Settings sections and the tabs) draw one hover wash that glides under the pointer on a 320ms spring and fades out when the pointer leaves, instead of a per-item hover background.
 - The mail list sits under its header and scrolls on its own. The Filters button, in the persistent toolbar, opens a 300px popover under it with labeled dropdowns for read status (Show), relevance, sort (Sort by) and Gmail label, plus Reset filters and sort. The popover stays open while choices change and closes on Escape (before Escape closes an email) or a click elsewhere. While any choice differs from its default, the button stays accent-colored with a small dot. Comfortable rows use content-sized document-preview cards at every width, before text scaling. Each card has 8px vertical padding, the small mark radius and a circular sender avatar at 30px before text scaling, its initial scaling with it. Sender and subject stay visible; enabled metadata and nonempty previews add their own space. Unread mail uses bold sender and subject text and an accent dot in the lower-right corner. The selected card uses the document surface with a hairline and shallow shadow; keyboard focus adds the accent outline. While no message is open, the keyboard cursor shows as an accent inset outline on the card rather than the fill, so it never reads as an opened row. Compact wide rows remain 24px; narrow cards omit previews. High-relevance mail retains its importance marker and sorting reason. Bulk checkboxes keep their reserved space and outline themselves with `--control-edge`, muted text mixed toward the pane to hold a 3:1 contrast in every theme; custom palettes pick the stronger of their border or muted text and fall back to palette text. Headers and rows share one `--select-gutter` so the select-all checkbox aligns in every list header. In dark themes, read cards recede to `--row-read-ink` on sender and subject and `--row-read-preview` on the preview, each at 4.5:1 or better on the row and its selected fill; read senders keep weight 400 while unread keeps full text at 500. The virtual window uses the same height tokens as the rendered rows.
 - Reading pane. Side by side (the default) keeps the list in a column (31vw, clamped to 320–448px, widening with text scale up to 560px; the clamp re-evaluates `--text-scale` on `.app`, where the preference lives) and opens mail in a reader pane beside it. The reader's header holds the email toolbar and, at its right, an `Esc` close control. While the list has mail or is loading and no message is open, the pane shows one placeholder: a 48px mark tile on the photon tint, No email open at 17px/500 and, once mail has loaded, one muted line of keyboard hints in the UI font — key names in small mono chips — including the open shortcut when an email is selected. A clear or failed list hides the reader pane so its state centres across the workspace. Rows in the column become cards: avatar, sender and time on the first line, then the subject, then a preview in comfortable density. Unread cards bold the sender and subject. Full width, and any window narrower than 1200px, opens mail in place of the list as before.

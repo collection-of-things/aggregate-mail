@@ -70,30 +70,54 @@ test("rendered mail rows keep their gutter across checkbox states after the comp
   } finally { dom.window.close(); }
 });
 
-test("Inbox categories show only the active name in both reading layouts", () => {
+test("Inbox categories show the active name full width and every name on one row beside the reader", () => {
   const dom = new JSDOM("<!doctype html>");
   try {
     dom.window.document.head.insertAdjacentHTML("beforeend", `<style>${stylesheet()}</style>`);
     for (const reading of ["full", "split"]) for (const active of inboxTabs) {
-      dom.window.document.body.innerHTML = renderToStaticMarkup(<div className="app"><div className="app-main">
-        <div className="mail-category-bar"><InboxTabs tab={active.id} unread={new Map(inboxTabs.map(({ id }) => [id, 3]))} onTab={() => {}} /></div>
-        <div className={`workspace ${reading === "split" ? "split" : ""}`} />
-      </div></div>);
+      dom.window.document.body.innerHTML = renderToStaticMarkup(<div className="app"><div className="app-main"><div className="mail-view">
+        <div className="mail-category-bar"><div className="rail-select" /><InboxTabs tab={active.id} unread={new Map(inboxTabs.map(({ id }) => [id, 3]))} onTab={() => {}} /></div>
+        <div className={`workspace${reading === "split" ? " split" : ""}`} />
+      </div></div></div>);
+      if (reading === "split") {
+        const strip = dom.window.getComputedStyle(dom.window.document.querySelector(".inbox-tabs")!);
+        assert.equal(strip.display, "flex", "the strip stays a flex row, never a grid");
+        assert.equal(strip.flexWrap, "nowrap", "categories keep one row beside the reader");
+        const bar = dom.window.getComputedStyle(dom.window.document.querySelector(".mail-category-bar")!);
+        assert.equal(bar.height, "44px", "the rail keeps its single-row height");
+        assert.equal(bar.alignItems, "center", "the select-all stays centred on the row");
+        assert.ok(["", "0", "0px"].includes(dom.window.getComputedStyle(dom.window.document.querySelector(".rail-select")!).marginTop), "the two-row midline offset is gone");
+      }
       for (const button of dom.window.document.querySelectorAll<HTMLButtonElement>(".inbox-tabs button")) {
         const label = button.querySelector(".tab-label")!;
         const style = dom.window.getComputedStyle(label);
         const selected = button.getAttribute("aria-current") === "page";
         assert.equal(button.title, label.textContent);
-        assert.equal(style.position === "absolute", !selected, `${reading}: ${button.title}`);
-        if (!selected) {
-          assert.equal(style.clipPath, "inset(50%)");
-          assert.notEqual(style.display, "none", "the category name remains accessible");
+        if (reading === "split") {
+          assert.equal(style.position, "static", `split: ${button.title} keeps its name on the row`);
+        } else {
+          assert.equal(style.position === "absolute", !selected, `full: ${button.title}`);
+          if (!selected) {
+            assert.equal(style.clipPath, "inset(50%)");
+            assert.notEqual(style.display, "none", "the category name remains accessible");
+          }
         }
         assert.ok(button.querySelector("svg"));
         assert.notEqual(dom.window.getComputedStyle(button.querySelector(".tab-count")!).display, "none");
       }
     }
   } finally { dom.window.close(); }
+});
+
+test("the split category strip never wraps or caps to the list column, and falls back to icon and count", () => {
+  const css = stylesheet();
+  assert.doesNotMatch(css, /\.inbox-tabs[^{]*\{[^}]*repeat\(3/, "the three-column grid is gone");
+  assert.doesNotMatch(css, /max-width:\s*calc\(var\(--list-width\)/, "the list-column cap is gone");
+  assert.doesNotMatch(css, /\.mail-view:has\(\.workspace\.split\)\s+\.mail-category-bar\s+\.rail-select/, "no select-all midline offset remains");
+  assert.match(css, /\.mail-view:has\(\.workspace\.split\)\s+\.inbox-tabs\s*\{[^}]*flex-wrap:\s*nowrap/, "the strip stays on one row");
+  assert.match(css, /\.mail-category-bar\s*\{[^}]*container-type:\s*inline-size[^}]*container-name:\s*category-bar/, "the bar is a named size container");
+  assert.match(css, /@container\s+category-bar\s*\(max-width:\s*60em\)\s*\{\s*\.mail-view:has\(\.workspace\.split\)\s+\.inbox-tabs\s+button:not\(\.active\)\s+\.tab-label\s*\{[^}]*clip-path:\s*inset\(50%\)/,
+    "only inactive names hide when one row cannot fit");
 });
 
 test("dark selection is distinct and rebuild headers and footers retain shared geometry", () => {
