@@ -81,6 +81,9 @@ function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onM
           loadImages={(id) => api(`/messages/${encodeURIComponent(id)}/images`, "POST")} />}
         <footer className="reader-secondary-tools">
         {hydrated && <UnsubscribeAction key={`unsubscribe:${mailBodyKey(mail)}`} mail={hydrated} api={api} busy={busy} onOpenDraft={onOpenDraft} onReviewing={onReviewingUnsubscribe} />}
+        {onReplyAll && <div className="message-labels reader-reply-all"><button type="button" className="link" disabled={busy} onClick={onReplyAll}>Reply all</button></div>}
+        {onForward && <div className="message-labels"><button type="button" className="link" disabled={busy} onClick={onForward}>Forward message</button></div>}
+        {state && onOpenDraft && <OfferTimes key={`offers:${mail.id}`} mail={mail} state={state} api={api} onOpenDraft={onOpenDraft} />}
         {provider === "gmail" && (
           <div className="message-labels">
             <span className="reader-labels">
@@ -91,9 +94,6 @@ function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onM
             <button className="link" disabled={busy} onClick={onLabels}>Edit labels</button>
           </div>
         )}
-        {onForward && <div className="message-labels"><button type="button" className="link" disabled={busy} onClick={onForward}>Forward message</button></div>}
-        {onReplyAll && <div className="message-labels reader-reply-all"><button type="button" className="link" disabled={busy} onClick={onReplyAll}>Reply all</button></div>}
-        {state && onOpenDraft && <OfferTimes key={`offers:${mail.id}`} mail={mail} state={state} api={api} onOpenDraft={onOpenDraft} />}
         </footer>
       </article>
     </MailPrivacy>

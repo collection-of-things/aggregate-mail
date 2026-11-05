@@ -222,9 +222,19 @@
   color: var(--nav-ink);
   transition: background-color 140ms var(--ease-out);
 }
-/* Sidebar symbols take the accent color, as in Finder and Mail. */
+/* Sidebar symbols take the accent color, as in Finder and Mail, and grow
+   with the text scale like the labels beside them. */
+.sidebar-group > button > svg,
+.inbox-tabs button > svg {
+  width: calc(16px * var(--text-scale, 1));
+  height: calc(16px * var(--text-scale, 1));
+}
 .sidebar-group button > svg {
   color: var(--accent);
+}
+.inbox-tabs button > svg {
+  width: calc(15px * var(--text-scale, 1));
+  height: calc(15px * var(--text-scale, 1));
 }
 /* Sliding lists draw a gliding hover wash instead of a per-row background. */
 .sidebar-group:not(.sliding-nav) button:hover:not(.active, :disabled) {

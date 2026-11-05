@@ -60,13 +60,14 @@
   color: var(--text-4);
 }
 /* Group headings sit 8px above their card in the same mono label style the
-   settings rail uses; field labels inside cards keep their own 13/500. */
+   settings rail uses — same size and tracking as .settings-rail-label; field
+   labels inside cards keep their own 13/500. */
 .settings h2 {
   margin: 20px 0 8px;
   font-family: var(--font-mono);
-  font-size: calc(10px * var(--text-scale, 1));
+  font-size: calc(11px * var(--text-scale, 1));
   font-weight: 500;
-  letter-spacing: .06em;
+  letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--text-3);
 }
