@@ -6,7 +6,7 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
-## 0.2.30 - 2026-11-04
+## 0.2.30 - 2026-11-06
 
 ### Added
 
