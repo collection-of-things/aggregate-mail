@@ -116,7 +116,9 @@ preview ink; without a preview, visible metadata
 keeps its own 18px line. Compact wide rows remain 24px; compact cards are
 two lines and 48px: the sender line, then the subject with the account and
 status trailing inline in secondary text at a 6px gap, each capped at 40% of
-the line. Compact cards omit previews and the separate metadata line. List
+the line. Compact cards omit previews and the separate metadata line. Switching
+density keeps the subject in place, so a focused reveal control inside it keeps
+focus; at full width, where rows change layout, focus moves to the message row. List
 windowing assigns the same calculated height to the rendered
 row, including text scaling. A stable selection gutter prevents text movement
 when checkboxes are hidden. Below 1200px, both densities use cards in one reading
@@ -143,7 +145,8 @@ are plain muted 12px text. List label chips keep one pill form: 22px tall,
 12px text, 6px side padding, the small mark radius and a hairline border on a
 transparent fill, with ink at 4.5:1 or better. In mail bodies, quotes take a 2px accent rule, inline
 code uses mono on a veil chip, and pre blocks use mono at 12px on a veil
-surface; links
+surface. All text inside code, including links and quotes, uses the
+veil-checked code ink; links there keep an underline. Elsewhere, links
 are the Energy family and underline on hover. A multi-message conversation
 reads its subject once at the top while each expanded article keeps its own
 heading for assistive tech; collapsed rows keep one column grid with the open

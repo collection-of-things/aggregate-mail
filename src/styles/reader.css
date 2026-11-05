@@ -287,6 +287,16 @@ article.message {
 :is(.formatted-mail, .message-body) blockquote blockquote {
   margin-left: 2px;
 }
+/* Code owns one ink for its whole subtree: --code-ink is checked against the
+   veil, while link and quote inks are not. !important beats the inline link
+   ink FormattedMail sets; sender colors never reach this path. Privacy
+   controls and image placeholders keep their own styling. */
+.formatted-mail :is(code, pre) :not(img, .address, .formatted-mail-image-placeholder) {
+  color: inherit !important;
+}
+.formatted-mail :is(code, pre) a {
+  text-decoration-color: color-mix(in srgb, currentColor 60%, transparent);
+}
 .message-body blockquote p:last-child { margin-bottom: 0; }
 .quoted-toggle { display: inline-block; margin: 0 0 0.85em; }
 .formatted-mail-image-placeholder { display: inline-block; max-width: 100%; vertical-align: middle; border-radius: 4px; background: color-mix(in srgb, var(--text) 6%, transparent); }

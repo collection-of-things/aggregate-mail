@@ -184,6 +184,9 @@
 .compact .row.card .row-subject-line { display: flex; align-items: center; gap: calc(6px * var(--text-scale, 1)); min-width: 0; white-space: nowrap; }
 .compact .row.card .row-subject-line .row-subject { flex: 1 1 0; min-width: 0; }
 .compact .row.card .row-subject-line .row-meta { display: contents; }
+/* Comfortable cards keep the subject wrapper so density switches preserve
+   focus inside it; the wrapper adds no box of its own. */
+.row.card .row-subject-slot { display: contents; }
 /* Unread no longer overrides the sender's avatar tint: the gutter dot and
    weight carry the state, the tint carries the sender identity. */
 /* Selection is a soft accent fill, no bar or ring; the keyboard focus ring

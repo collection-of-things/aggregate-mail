@@ -11,7 +11,7 @@ code{font-family:var(--font-mono);font-size:.92em;background:var(--veil)!importa
 pre{font-family:var(--font-mono);font-size:calc(12px * var(--text-scale, 1));background:var(--veil)!important;border-radius:var(--radius-mark-sm);padding:10px 12px;color:var(--code-ink)!important;overflow-x:auto}
 pre code{background:none!important;padding:0;color:inherit!important}
 :is(code,pre) :not(img,.address,.formatted-mail-image-placeholder){color:inherit!important;background:transparent!important}
-:is(code,pre) a[href]{color:var(--link)!important}
+:is(code,pre) a{text-decoration-color:color-mix(in srgb,currentColor 60%,transparent)}
 .address{all:initial!important;display:inline-block!important;font:inherit!important;color:inherit!important;cursor:pointer!important;vertical-align:baseline!important}
 .address.veiled{width:8ch!important;height:1em!important;background:#888!important;border-radius:3px!important}
 .address:focus-visible,a:focus-visible{outline:2px solid #6b9cff!important;outline-offset:2px!important}

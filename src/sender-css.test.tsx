@@ -88,8 +88,10 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
       'table content keeps the full reader width');
     assert.match(installed, /:is\(code,pre\) :not\(img,\.address,\.formatted-mail-image-placeholder\)\s*\{[^}]*color:[^;}]*!important[^}]*background:[^;}]*!important/,
       'code descendants keep the app ink and no sender background');
-    assert.match(installed, /:is\(code,pre\) a\[href\]\s*\{[^}]*color:[^;}]*var\(--link\)[^;}]*!important/,
-      'links inside code keep the link ink');
+    assert.doesNotMatch(installed, /:is\(code,pre\)[^{]*a[^{]*\{[^}]*color:\s*var\(--link\)/,
+      'links inside code inherit the veil-safe code ink, not the unchecked link ink');
+    assert.match(installed, /:is\(code,pre\) a\s*\{[^}]*text-decoration-color:[^;}]*currentColor/i,
+      'links inside code keep an underline in the code ink');
     assert.equal(frame.contentDocument!.querySelectorAll('img').length, 0);
     assert.equal(frame.contentDocument!.querySelector('p')?.hasAttribute('id'), false, 'absent ids cannot match a sender selector');
     assert.doesNotMatch(frame.contentDocument!.body.innerHTML, /summary/);
@@ -144,8 +146,10 @@ test("code surfaces keep the veil-safe ink under sender colors", async () => {
     Object.defineProperty(globalThis, key, { value, configurable: true });
   }
   // A white-on-dark veil palette makes --code-ink resolve to the safe ink.
-  const palette = { canvas: "#ffffff", surface: "#ffffff", raised: "#f6f4f4", text: "#000000", secondaryText: "#222222",
-    mutedText: "#444444", accent: "#a50570", link: "#0000bb", border: "#cccccc", danger: "#c93434", reason: "#888888", veil: "#111111" };
+  // Link and secondary text equal the veil, so any code text that keeps
+  // either ink renders at 1:1.
+  const palette = { canvas: "#ffffff", surface: "#ffffff", raised: "#f6f4f4", text: "#000000", secondaryText: "#111111",
+    mutedText: "#444444", accent: "#a50570", link: "#111111", border: "#cccccc", danger: "#c93434", reason: "#888888", veil: "#111111" };
   const resolved = dom.window.document.createElement("div");
   applyPalette(palette, resolved);
   const codeInk = resolved.style.getPropertyValue("--code-ink").trim() || palette.text;
@@ -155,6 +159,7 @@ test("code surfaces keep the veil-safe ink under sender colors", async () => {
   host.style.setProperty("--veil", palette.veil);
   host.style.setProperty("--code-ink", codeInk);
   host.style.setProperty("--link", palette.link);
+  host.style.setProperty("--text-2", palette.secondaryText);
   host.style.setProperty("--text-scale", "1");
   dom.window.document.body.append(host);
   const mount = dom.window.document.createElement("div");
@@ -229,14 +234,50 @@ test("code surfaces keep the veil-safe ink under sender colors", async () => {
       }
       await act(async () => root.render(<></>));
     }
+    // Review counterexamples: links (including nested link text) and quotes
+    // inside code take the code ink on both paths. jsdom resolves inherited
+    // color and var() for color, but not var() inside the background
+    // shorthand, so the code surface is the host's declared --veil. This is
+    // synthetic computed-style proof, not native paint.
+    const counterexamples: [string, string, string][] = [
+      ["sender-tinted link in code", '<code><a class="sample" href="https://example.test">Readable code</a></code>', "code a"],
+      ["nested link text in code", '<code><a href="https://example.test"><span>Nested link</span></a></code>', "code a span"],
+      ["nested link text in pre", '<pre><a href="https://example.test"><span>Nested link</span></a></pre>', "pre a span"],
+      ["quote in pre", '<pre><blockquote>Readable code</blockquote></pre>', "pre blockquote"],
+    ];
+    for (const [name, body, selector] of counterexamples) for (const isolated of [true, false]) {
+      const path = isolated ? "isolated" : "nonisolated";
+      await mount_(isolated ? `<style>.sample{background-color:#ffffff}</style>${body}` : body);
+      const frame = mount.querySelector("iframe");
+      assert.equal(!!frame, isolated, `${name}: ${path} path renders where expected`);
+      const doc = frame ? frame.contentDocument! : dom.window.document;
+      if (frame) {
+        const sheet = doc.createElement("style");
+        sheet.textContent = doc.adoptedStyleSheets.flatMap((s) => Array.from(s.cssRules, (rule) => rule.cssText)).join("\n");
+        doc.head.append(sheet);
+      }
+      const target = (frame ? doc : mount).querySelector(selector);
+      assert.ok(target, `${name}: ${path} renders ${selector}`);
+      const fg = fgOf(target), paint = paintOf(target.closest("pre, code")!);
+      const ratio = contrastRatio(fg.startsWith("#") ? fg : rgbToHex(fg), paint.startsWith("#") ? paint : rgbToHex(paint));
+      assert.ok(ratio >= 4.5, `${name} ${path}: ${fg} on ${paint} = ${ratio.toFixed(2)}:1`);
+      for (let node: Element | null = target; node && !node.matches("pre, code"); node = node.parentElement)
+        assert.equal(resolvedColor(node, "backgroundColor").replace(/\s/g, ""), "rgba(0,0,0,0)", `${name} ${path}: no sender background under code`);
+      await act(async () => root.render(<></>));
+    }
     // Privacy inside code still hides names, and consented images still gate on showImages.
     const privateHtml = '<style>.x{color:#333333}</style><pre><code>send to morgan@example.com for Morgan Example <img src="https://images.example.test/logo.png"></code></pre>';
     await mount_(privateHtml, true, true);
     let frame = mount.querySelector("iframe")!;
     assert.doesNotMatch(frame.contentDocument!.body.innerHTML, /Morgan|morgan@/, "privacy still redacts inside code");
     assert.ok(frame.contentDocument!.querySelector("code .address, pre .address"), "addresses still render inside code");
-    const veiled = frame.contentDocument!.querySelector("code .veiled, pre .veiled");
-    if (veiled) assert.equal(veiled.className.includes("veiled"), true, "privacy bar survives inside code");
+    const privateSheet = frame.contentDocument!.createElement("style");
+    privateSheet.textContent = frame.contentDocument!.adoptedStyleSheets.flatMap((s) => Array.from(s.cssRules, (rule) => rule.cssText)).join("\n");
+    frame.contentDocument!.head.append(privateSheet);
+    const veiled = frame.contentDocument!.querySelector("code .address.veiled, pre .address.veiled");
+    assert.ok(veiled, "privacy bar renders inside code");
+    assert.equal(veiled.textContent, "", "the privacy bar holds no private text");
+    assert.match(viewOf(veiled).background, /#888|136,\s*136,\s*136/, "the code rule leaves the privacy bar's own fill");
     assert.ok(frame.contentDocument!.querySelector("img"), "consented image renders inside pre");
     await mount_(privateHtml, true, false);
     frame = mount.querySelector("iframe")!;
