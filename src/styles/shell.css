@@ -287,17 +287,21 @@
 .reader-empty .empty-title {
   color: var(--text-2);
 }
-/* One muted mono line of keyboard hints under the title. */
+/* The hint sentence reads in the UI font; only the key names carry mono, in
+   small bordered chips. */
 .reader-empty-hint {
   margin: 0;
-  font-family: var(--font-mono);
-  font-size: calc(12px * var(--text-scale, 1));
+  font-size: calc(13px * var(--text-scale, 1));
   color: var(--text-3);
 }
 /* While the list loads, the hint reserves its line so the mark does not shift
    when it appears. */
 .reader-empty-hint-reserved { visibility: hidden; }
 .reader-empty kbd {
+  font-family: var(--font-mono);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-mark-sm);
+  padding: 0 5px;
   color: var(--text-2);
 }
 .list {

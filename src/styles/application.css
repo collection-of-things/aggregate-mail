@@ -65,8 +65,10 @@
 .settings-pane { overflow: hidden; }
 .inbox-tabs { gap: 22px; }
 .inbox-tabs button.active { color: var(--accent); }
-.tab-count { min-width: 18px; padding: 1px 5px; border-radius: 20px; background: var(--hover); text-align: center; font-size: calc(11px * var(--text-scale, 1)); }
-.inbox-tabs button.active .tab-count { color: var(--accent-soft-ink); background: var(--accent-soft); }
+.tab-count { min-width: 18px; text-align: center; font-size: calc(11px * var(--text-scale, 1)); }
+/* Every category count is plain muted mono; the active tab signals with its
+   underline, not a tinted chip. */
+.inbox-tabs button.active .tab-count { color: var(--text-4); }
 .group { padding-top: 9px; font-size: calc(11px * var(--text-scale, 1)); }
 .message h1 { font-size: calc(24px * var(--text-scale, 1)); letter-spacing: -.025em; }
 .message .message-from { margin-top: 20px; }
@@ -136,7 +138,7 @@
 .compose-form .compose-file-action input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; opacity: 0; cursor: pointer; }
 .compose-file-action:focus-within { outline: 1px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .compose-file-action[aria-disabled="true"] { opacity: .4; cursor: default; }
-.compose-toolbar .compose-attachment-limits { font-size: calc(10px * var(--text-scale, 1)); color: var(--text-4); }
+.compose-toolbar .compose-attachment-limits { font-size: calc(12px * var(--text-scale, 1)); color: var(--text-3); }
 .app[data-view="drafts"] .dialog-backdrop:has(> .compose-dialog) { padding-top: 94px; }
 .compose-dialog > div:not(.dialog-title) { min-height: 0; }
 .compose-dialog > .compose-layout { display: flex; flex: 1; flex-direction: column; min-height: 0; }
@@ -171,7 +173,7 @@
 .settings h1 { font-size: calc(22px * var(--text-scale, 1)); line-height: 1.3; letter-spacing: -.02em; }
 .settings-section-heading { margin-bottom: 28px; }
 .settings-section-heading p { white-space: normal; margin-top: 8px; }
-.settings h2, .settings-group-label h2 { font-size: calc(12px * var(--text-scale, 1)); }
+.settings-group-label h2 { font-size: calc(12px * var(--text-scale, 1)); }
 .settings .settings-row { min-height: 46px; }
 .segmented { background: var(--chrome); padding: 3px; border-color: var(--line); }
 .segmented button.active { background: var(--accent-soft); color: var(--accent-soft-ink); }

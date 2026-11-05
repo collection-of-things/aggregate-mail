@@ -126,7 +126,8 @@
   background: var(--accent);
 }
 .tab-count {
-  font-size: calc(12px * var(--text-scale, 1));
+  font-family: var(--font-mono);
+  font-size: calc(11px * var(--text-scale, 1));
   font-weight: 400;
   font-variant-numeric: tabular-nums;
   color: var(--text-4);
@@ -134,13 +135,49 @@
 .workspace.split .list-pane {
   container-type: inline-size;
 }
-.workspace.split .inbox-tabs {
-  gap: 10px;
-  padding: 0;
+/* Beside the reader the categories wrap to two rows: every tab shows icon,
+   name and count on a 28px line, and the bar grows to fit. The bar lives in
+   .mail-view, a sibling of the split workspace. */
+.mail-view:has(.workspace.split) .mail-category-bar {
+  height: auto;
+  min-height: 0;
+  padding-block: 3px;
+  overflow-x: visible;
 }
-.workspace.split .inbox-tabs button {
+/* The bar spans the full mail view, but the tabs stay inside the list
+   column's reach so six named tabs land as two rows of three. */
+.mail-view:has(.workspace.split) .inbox-tabs {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  height: auto;
   min-width: 0;
+  max-width: calc(var(--list-width) - var(--select-gutter, 44px) - 8px);
+  align-content: center;
+  gap: 0 10px;
+  padding: 0;
+  overflow-x: visible;
+}
+.mail-view:has(.workspace.split) .inbox-tabs button {
+  min-width: 0;
+  height: 28px;
   gap: 5px;
+}
+/* All names stay readable in the two-row layout. */
+.mail-view:has(.workspace.split) .inbox-tabs button .tab-label {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  white-space: normal;
+}
+/* A single sliding underline cannot follow a wrapped second row; the active
+   tab carries its own 2px accent underline instead. */
+.mail-view:has(.workspace.split) .inbox-tabs .sliding-wash {
+  display: none;
+}
+.mail-view:has(.workspace.split) .inbox-tabs button.active {
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 .inbox-tabs button:not(.active) .tab-label {
   position: absolute;

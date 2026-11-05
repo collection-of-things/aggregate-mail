@@ -66,7 +66,9 @@
 .sidebar-account-card:hover { background: var(--hover); }
 .sidebar-account-avatar { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text-3); }
 .sidebar-account-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.sidebar-account-text > :is(strong, span) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sidebar-account-text > strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* The connected-accounts line may wrap to two lines; the card grows to fit. */
+.sidebar-account-text > span { white-space: normal; overflow-wrap: anywhere; }
 .sidebar-account-text strong { font-weight: 500; font-size: calc(12px * var(--text-scale, 1)); }
 .sidebar-account-text > span { color: var(--text-4); font-size: calc(11px * var(--text-scale, 1)); }
 .sidebar-footer { padding: 0 12px; border-top: 1px solid var(--line); }
@@ -77,7 +79,8 @@
 .app-toolbar { padding-inline: 16px; gap: 10px; }
 .app-context { gap: 6px; margin-right: 2px; font-size: calc(13px * var(--text-scale, 1)); }
 .app-context > :is(span, svg) { display: none; }
-.app-context strong { font-weight: 500; }
+/* The view name claims a fixed slot so Search always starts at the same x. */
+.app-context strong { display: inline-block; width: calc(84px * var(--text-scale, 1)); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app-search-toolbar { margin-left: 0; }
 .app-search-toolbar .search { height: 28px; border: 0; border-radius: 7px; background: var(--hover); }
 .app-search-toolbar .search:focus-within { box-shadow: 0 0 0 1px var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
@@ -121,7 +124,7 @@
 .mail-window-row .row.card { height: 100%; padding: calc(8px * var(--text-scale, 1)) 12px; padding-left: 34px; align-items: center; }
 .row.card :is(.row-line, .row-subject, .row-preview) { line-height: calc(18px * var(--text-scale, 1)); }
 .rail-wait { color: var(--text-2); }
-.row.card .avatar { display: inline-flex; width: 30px; height: 30px; margin: 0 12px 0 0; }
+.row.card .avatar { display: inline-flex; width: calc(30px * var(--text-scale, 1)); height: calc(30px * var(--text-scale, 1)); margin: 0 12px 0 0; }
 .row.card .row-text { gap: calc(2px * var(--text-scale, 1)); }
 /* Read rows stay quiet; unread lifts sender and subject to 500 at full ink. */
 .row.card .row-line strong { font-size: calc(13px * var(--text-scale, 1)); font-weight: 400; color: var(--row-read-ink); }
@@ -141,19 +144,19 @@
    line each so a long name still truncates; the preview text is the only part
    that gives way when the line runs out of room. */
 .row.card .row-preview .row-account,
-.row.card .row-preview .row-status { flex: 0 0 auto; min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row.card .row-preview .row-status { flex: 0 0 auto; min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
 /* The status label is plain text here: as an inline-block with hidden
    overflow its baseline would come from its bottom margin edge, which lifts
    the status text and its middot off the shared baseline. Inline keeps it on
    the strut; the status itself caps and ellipsizes, and the attention chip's
    padding still paints on inline display. */
 .row.card .row-preview .row-label { display: inline; }
-.row.card .row-preview .row-preview-text { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* An 8px space separates the meta parts from the quieter preview text. */
+.row.card .row-preview .row-preview-text { flex: 1 1 0; min-width: 0; margin-left: 2px; overflow: hidden; text-overflow: ellipsis; }
 /* Inline account content reports the name's baseline, not the dot's box. */
 .row.card .row-preview .row-account { display: inline; }
 .row.card .row-preview .row-account .account-dot { margin-right: 6px; vertical-align: baseline; }
 .row.card .row-preview .row-account::after { content: "·"; margin-left: 6px; color: var(--text-4); }
-.row.card .row-preview .row-status::after { content: "·"; margin-left: 6px; color: var(--text-4); }
 .row.card .row-meta { margin: 0; gap: 8px; line-height: calc(16px * var(--text-scale, 1)); }
 .row.card .row-account { font-size: calc(12px * var(--text-scale, 1)); }
 .mail-row > .row.card .unread-dot { width: 6px; height: 6px; }
@@ -192,7 +195,11 @@
 .reader-secondary-tools { margin-top: 24px; padding-top: 12px; }
 /* One footer row of quiet links, all on one baseline. */
 .reader-secondary-tools { align-items: baseline; gap: 10px 16px; }
-.reader-secondary-tools .link { font-size: calc(12.5px * var(--text-scale, 1)); color: var(--link); }
+.reader-secondary-tools .link { font-size: calc(12.5px * var(--text-scale, 1)); color: var(--text-2); }
+.reader-secondary-tools .link:hover:not(:disabled),
+.reader-secondary-tools .link:focus-visible { color: var(--accent); }
+/* Reply all is the strongest footer action: weight plus accent ink. */
+.reader-secondary-tools .reader-reply-all .link { font-weight: 500; color: var(--accent); }
 /* Offer times is a link, not a band; its form owns the row when open. */
 .reader-secondary-tools .offer-times { border: 0; padding: 0; margin: 0; }
 .reader-secondary-tools .offer-times:has(.settings-form) { flex-basis: 100%; }

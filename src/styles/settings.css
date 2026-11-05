@@ -59,11 +59,23 @@
   font-weight: 400;
   color: var(--text-4);
 }
-/* Group labels sit just above their card, in quiet secondary text. */
+/* Group headings sit 8px above their card in the same mono label style the
+   settings rail uses; field labels inside cards keep their own 13/500. */
 .settings h2 {
   margin: 20px 0 8px;
+  font-family: var(--font-mono);
+  font-size: calc(10px * var(--text-scale, 1));
+  font-weight: 500;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.settings-group h2, .settings-group-label h2 {
+  font-family: inherit;
   font-size: calc(12px * var(--text-scale, 1));
   font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
   color: var(--text-2);
 }
 .settings h1 + h2,
@@ -529,9 +541,12 @@
 /* Selected choice mockups lose their outline inside the accent-soft fill. */
 .reading-layouts button.active::before { border-color: transparent; }
 .settings .theme-choices { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
-.settings .theme-choices button { padding: 8px; border: 0; border-radius: var(--radius-control); }
+/* Every theme card shares one hairline frame on a transparent fill; the
+   selected card trades the hairline for accent and takes the soft fill, at
+   the same size. */
+.settings .theme-choices button { padding: 8px; border: 1px solid var(--line); border-radius: var(--radius-control); background: transparent; }
 .settings .theme-choices button:hover:not(:disabled):not(.active) { background: var(--hover); }
-.settings .theme-choices button.active { background: var(--accent-soft); color: var(--accent-soft-ink); }
+.settings .theme-choices button.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-soft-ink); }
 .settings .theme-preview { height: 46px; }
 .settings .account-row strong { flex: 1 1 110px; }
 .settings-section-heading + section > h2:first-child,
