@@ -40,8 +40,8 @@
 .account-dot {
   display: inline-block;
   flex-shrink: 0;
-  width: 6px;
-  height: 6px;
+  width: calc(6px * var(--text-scale, 1));
+  height: calc(6px * var(--text-scale, 1));
   border-radius: 50%;
   background: var(--account-color-0);
 }
@@ -122,8 +122,8 @@
   position: absolute;
   top: 50%;
   left: 5px;
-  width: 6px;
-  height: 6px;
+  width: calc(6px * var(--text-scale, 1));
+  height: calc(6px * var(--text-scale, 1));
   margin-top: -3px;
   border-radius: 50%;
   background: var(--accent);

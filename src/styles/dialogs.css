@@ -77,7 +77,7 @@
 /* The envelope is one filled band; fields inside are separated by a hairline
    only. */
 .compose-envelope {
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-mark-sm);
   background: var(--hover);
 }
 /* Envelope rows share one 36px line; the labels take a 12px inset from the

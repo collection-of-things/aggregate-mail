@@ -88,7 +88,7 @@
 .app-search-toolbar .search > svg { width: calc(15px * var(--text-scale, 1)); height: calc(15px * var(--text-scale, 1)); }
 .app-search-toolbar .search:focus-within { box-shadow: 0 0 0 1px var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
 .app-toolbar .mail-navigation { margin-left: auto; }
-.commands-button { font-size: calc(11px * var(--text-scale, 1)); }
+.commands-button { font-size: calc(12px * var(--text-scale, 1)); }
 .app-toolbar .icon { width: 28px; height: 28px; }
 .app-toolbar .update-spacer { height: 28px; }
 :is(.mail-category-bar, .draft-account-tabs, .work-view-tabs) {
@@ -110,9 +110,13 @@
 :root:not([data-glass]) :is(.list-pane, .workspace .list) { background: var(--rebuild-canvas); }
 .workspace .list { padding-inline: 12px; }
 .mail-window-date .group { padding-inline: 12px; color: var(--text-4); font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; }
+/* The sticky date header must cover the row band fully while rows slide
+   under it — opaque canvas and a hairline bottom rule. */
+:root:not([data-glass]) .mail-window-date { background: var(--rebuild-canvas); border-bottom: 1px solid var(--line); }
 :root:not([data-glass]) .mail-window-date .group { background-color: var(--rebuild-canvas); }
 /* Under glass the sticky date captions need the same opaque canvas, or rows
    scroll visibly through the heading. */
+:root[data-glass] .mail-window-date { background: var(--rebuild-canvas); backdrop-filter: none; }
 :root[data-glass] .mail-window-date .group { background-color: var(--rebuild-canvas); backdrop-filter: none; }
 .mail-row { margin-inline: 1px; }
 .row { border-radius: var(--radius-mark); }
@@ -168,7 +172,7 @@
 .row.card .row-preview .row-account::after { content: "·"; margin-left: 6px; color: var(--text-4); }
 .row.card .row-meta { margin: 0; gap: 8px; line-height: calc(16px * var(--text-scale, 1)); }
 .row.card .row-account { font-size: calc(12px * var(--text-scale, 1)); }
-.mail-row > .row.card .unread-dot { width: 6px; height: 6px; }
+.mail-row > .row.card .unread-dot { width: calc(6px * var(--text-scale, 1)); height: calc(6px * var(--text-scale, 1)); }
 /* Unread no longer overrides the sender's avatar tint: the gutter dot and
    weight carry the state, the tint carries the sender identity. */
 /* Selection is a soft accent fill, no bar or ring; the keyboard focus ring
@@ -294,7 +298,7 @@ section.work-calendar[data-layout="month"] > .calendar-day-title { margin: 10px 
 .settings-navigation button[aria-current="page"] { background: var(--accent-soft); color: var(--accent-soft-ink); box-shadow: none; }
 .settings-column { padding: 16px 20px 28px; }
 .settings-section-heading { margin-bottom: 16px; }
-.settings h1 { font-size: calc(20px * var(--text-scale, 1)); font-weight: 500; letter-spacing: -.02em; }
+.settings h1 { font-size: calc(17px * var(--text-scale, 1)); font-weight: 500; letter-spacing: -.02em; }
 .settings-section-heading p { margin-top: 6px; line-height: 1.6; font-size: calc(12px * var(--text-scale, 1)); }
 .settings .settings-group { border-radius: 14px; background: var(--surface); box-shadow: var(--edge); }
 .settings .settings-row { min-height: 40px; }

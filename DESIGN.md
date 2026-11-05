@@ -143,12 +143,14 @@ code uses mono on a veil chip, and pre blocks use mono at 12px on a veil
 surface; links
 are the Energy family and underline on hover. A multi-message conversation
 reads its subject once at the top while each expanded article keeps its own
-heading for assistive tech; an expanded header folds into the sender block —
+heading for assistive tech; collapsed rows keep one column grid with the open
+message — the chevron rides the same gutter x, the sender name the same x by
+reserving the avatar slot, and the unread dot sits at that slot's centre —
+while an expanded header folds into the sender block itself:
 its chevron rides the left gutter on the sender line's midline as a 24px
 button, its sender, snippet and time stay only in the accessible name, and
-"Selected for actions" moves beside the sender block's date as plain muted
-text. On a collapsed row an unread dot rides the left gutter so senders share
-one x, and every card's sender line reserves the same marker slot so names
+"Selected for actions" moves beside the sender block's date as accent text.
+Every card's sender line reserves the same marker slot so names
 start at one x whether the importance marker draws or not. The reader footer is a single row
 of quiet links at one size: Reply all carries weight 500 in accent, the rest
 are secondary text that turn accent on hover or focus. Attachment actions are quiet compact buttons in the link
@@ -160,8 +162,9 @@ tokens so the bars stay visible
 against their pane in every theme (about 1.7:1 in dark). The empty, loading,
 clear-inbox and failed states share one mark tile — 48px, the mark radius, a
 flat fill and a 28px masked glyph — in a neutral photon pair, and the failed
-state takes the danger tint and ink with its sentence at a 40ch measure in body
-weight. Pinned mail marks the sender line beside the timestamp
+state takes the danger tint and ink with its sentence at a 52ch measure in body
+weight — the standard message fits one line rather than balancing into a
+mid-sentence break. Pinned mail marks the sender line beside the timestamp
 rather than the gutter; the compose action row holds Send, draft and
 scheduling on the shared footer track.
 

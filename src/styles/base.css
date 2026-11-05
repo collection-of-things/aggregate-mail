@@ -210,14 +210,20 @@ input[type="checkbox"][role="switch"]:disabled {
   color: var(--accent);
 }
 /* The load error reuses the clear layout with the danger mark; a sentence
-   reads at body weight and a 40ch measure. */
+   reads at body weight and a 52ch measure, so the standard message stays on
+   one line instead of balancing into a mid-sentence break. */
 .empty-error .empty-heading {
-  max-width: 40ch;
+  max-width: 52ch;
   font-size: calc(15px * var(--text-scale, 1));
   font-weight: 400;
   line-height: 1.4;
   text-wrap: balance;
   text-wrap-mode: balance;
+}
+/* The error block keeps the clear state's rhythm: tile, 16px, sentence,
+   12px, action. */
+.empty-error .empty-heading + .link {
+  margin-top: -4px;
 }
 /* The load error carries the danger meaning: the brand mark is masked and
    filled with the danger ink on a pale danger tint, like .reader-empty-mark. */

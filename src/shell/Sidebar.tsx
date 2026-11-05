@@ -124,7 +124,7 @@ export function Sidebar({
                 >
                   <Icon color="currentColor" size={16} />
                   {viewNames[view]}
-                  {view === "actions" && mail.dueCount === undefined ? <span className="sidebar-count" aria-hidden="true">?</span> : total != null && <span className="sidebar-count" data-zero={total === 0 ? "" : undefined}>{total}</span>}
+                  {view === "actions" && mail.dueCount === undefined ? <span className="sidebar-count" aria-hidden="true">?</span> : total != null && total > 0 && <span className="sidebar-count" data-zero={total === 0 ? "" : undefined}>{total}</span>}
                 </button>
               );
             })}

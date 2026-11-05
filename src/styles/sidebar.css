@@ -30,7 +30,7 @@
   flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 4px 12px 12px;
+  padding: 4px 12px 18px;
   animation: sidebar-swap 280ms var(--ease-out);
 }
 .sliding-nav {
@@ -160,9 +160,11 @@
 }
 /* Beside a visible reader the tabs stay inside the list column's reach and
    wrap onto a second row; when the reader is hidden (clear or failed list,
-   where the list spans the workspace) they fit on one row. */
+   where the list spans the workspace) they fit on one row. The strip starts
+   after the select-all cell, so the cap subtracts the gutter, the rail and
+   its gap from --list-width. */
 .mail-view:has(.workspace.split):not(:has(.workspace.split .empty-clear)) .inbox-tabs {
-  max-width: calc(var(--list-width) - var(--select-gutter, 44px) - 8px);
+  max-width: calc(var(--list-width) - var(--select-gutter, 44px) - 30px);
 }
 .mail-view:has(.workspace.split) .inbox-tabs {
   flex: 0 1 auto;
@@ -180,12 +182,29 @@
   gap: 5px;
 }
 /* Beside a visible reader the named tabs break three per row in content-sized
-   columns, left-aligned from the select-all gutter. */
+   columns, left-aligned from the select-all gutter; columns may shrink rather
+   than overflow the list edge, and the name truncates before the icon or the
+   count does. */
 .mail-view:has(.workspace.split):not(:has(.workspace.split .empty-clear)) .inbox-tabs {
   display: grid;
-  grid-template-columns: repeat(3, max-content);
+  grid-template-columns: repeat(3, minmax(0, max-content));
   column-gap: 18px;
   justify-content: start;
+}
+.mail-view:has(.workspace.split):not(:has(.workspace.split .empty-clear)) .inbox-tabs button {
+  justify-self: start;
+  min-width: 0;
+  max-width: 100%;
+}
+.mail-view:has(.workspace.split):not(:has(.workspace.split .empty-clear)) .inbox-tabs button .tab-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inbox-tabs button > svg,
+.inbox-tabs button .tab-count {
+  flex-shrink: 0;
 }
 /* All names stay readable in the two-row layout. */
 .mail-view:has(.workspace.split) .inbox-tabs button .tab-label {
