@@ -304,7 +304,7 @@
 .full-reading[data-reader-toolbar="compact"] .mail-actions .tool-label { display: none; }
 .full-reading[data-reader-toolbar="compact"] .mail-actions .tool-group { display: contents; }
 .full-reading .mail-actions #trash-unavailable { flex-basis: 100%; white-space: normal; overflow-wrap: anywhere; }
-.reader-head { height: 43px; padding-inline: 20px; }
+.reader-head { height: 40px; padding-inline: 20px; }
 .reader-head .mail-actions { gap: 10px; }
 .reader-scroll .message { padding: 29px var(--reader-gutter, 32px); }
 .message h1 { font-size: calc(22px * var(--text-scale, 1)); font-weight: 500; letter-spacing: -.02em; }
@@ -336,7 +336,7 @@
 .draft-row-recipient { font-size: calc(12px * var(--text-scale, 1)); font-weight: 500; color: var(--text); }
 .draft-row-content > strong { font-size: calc(12px * var(--text-scale, 1)); font-weight: 400; }
 .draft-row-meta { font-size: calc(10px * var(--text-scale, 1)); }
-.compose-dialog .compose-form :is(input, select) { font-size: calc(12px * var(--text-scale, 1)); }
+.compose-dialog .compose-form :is(input, select) { font-size: calc(13px * var(--text-scale, 1)); }
 .compose-dialog .compose-envelope label > span { font-size: calc(12px * var(--text-scale, 1)); }
 .compose-dialog .compose-toolbar { min-height: 44px; }
 .compose-dialog .compose-file-action { font-size: calc(10px * var(--text-scale, 1)); }
@@ -653,7 +653,7 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
 .compose-from-field .dropdown { flex: 1; min-width: 0; }
 /* The From trigger's own padding used to push its value right of the other
    fields' values; flush left keeps all field values on one x. */
-.compose-from-field .dropdown-trigger { height: 30px; min-height: 30px; padding: 0 8px 0 0; border-color: transparent; border-radius: 6px; background: transparent; font-size: inherit; }
+.compose-from-field .dropdown-trigger { height: 30px; min-height: 30px; padding: 0 8px 0 0; border-color: transparent; border-radius: 6px; background: transparent; font-size: calc(13px * var(--text-scale, 1)); }
 .compose-from-field .dropdown-trigger:hover:not(:disabled), .compose-from-field .dropdown-trigger[aria-expanded="true"] { background: var(--selected); }
 .compose-from-field .dropdown-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .compose-from-field .dropdown-menu { max-height: 240px; overflow-y: auto; border-radius: 8px; background: var(--raised); backdrop-filter: none; animation: none; }

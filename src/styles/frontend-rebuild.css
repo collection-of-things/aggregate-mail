@@ -189,7 +189,7 @@
 .reader-pane { border-left: 1px solid var(--line); box-shadow: -2px 0 var(--rebuild-highlight); }
 :root[data-scheme="dark"] .reader-pane { box-shadow: none; }
 :root:not([data-glass]) .reader-head { background: var(--surface); }
-.reader-head { height: 44px; padding-inline: 18px; border-bottom: 1px solid var(--line); }
+.reader-head { height: 40px; min-height: 40px; padding-inline: 18px; border-bottom: 1px solid var(--line); }
 .reader-head .mail-actions { gap: 6px; }
 .reader-head .mail-actions .tool { width: 32px; padding-inline: 0; justify-content: center; }
 .reader-head .tool-label { display: none; }

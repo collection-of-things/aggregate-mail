@@ -139,7 +139,8 @@ render as an accent-soft pill; other statuses stay quiet text and Gmail labels
 are plain muted 12px text. List label chips keep one pill form: 22px tall,
 12px text, 6px side padding, the small mark radius and a hairline border on a
 transparent fill, with ink at 4.5:1 or better. In mail bodies, quotes take a 2px accent rule, inline
-code uses mono on a veil chip, and pre blocks use mono on a veil surface; links
+code uses mono on a veil chip, and pre blocks use mono at 12px on a veil
+surface; links
 are the Energy family and underline on hover. A multi-message conversation
 reads its subject once at the top while each expanded article keeps its own
 heading for assistive tech; an expanded header folds into the sender block —
@@ -177,10 +178,10 @@ and retain touch targets, safe areas, focus, reduced motion and keyboard access.
 
 Inbox tabs show the active category name; inactive tabs retain their icon and
 unread count, with full names available to assistive technology and tooltips.
-Beside the reader, the strip wraps to two 28px rows of three tabs each so
-every tab shows icon, name and count — three per row whether or not counts
-draw — with all counts plain muted mono, and the active tab carries its
-own 2px accent underline. The rows are 28px before text scaling and the
+Beside the reader, the strip wraps to two 28px rows of three content-sized
+columns so every tab shows icon, name and count — three per row whether or
+not counts draw — with all counts plain muted mono, and the active tab
+carries its own 2px accent underline. The rows are 28px before text scaling and the
 select-all sits on the first row's midline; when the reader is hidden (clear
 or failed list) the strip takes the wider workspace and stays on one row.
 The narrow native picker retains every full category name.

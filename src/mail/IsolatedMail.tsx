@@ -8,7 +8,7 @@ img,table{max-width:100%}img{height:auto}a{cursor:pointer}
 a{color:var(--link);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;text-decoration-color:color-mix(in srgb,var(--link) 60%,transparent)}a:hover{text-decoration-color:currentColor}
 blockquote{margin:.75em 0;padding:0 0 0 14px;border-left:2px solid var(--accent);color:var(--text-2)}
 code{font-family:var(--font-mono);font-size:.92em;background:var(--veil)!important;color:var(--code-ink)!important;border-radius:3px;padding:0 4px}
-pre{font-family:var(--font-mono);font-size:.92em;background:var(--veil)!important;border-radius:var(--radius-mark-sm);padding:10px 12px;color:var(--text-body)!important;overflow-x:auto}
+pre{font-family:var(--font-mono);font-size:12px;background:var(--veil)!important;border-radius:var(--radius-mark-sm);padding:10px 12px;color:var(--text-body)!important;overflow-x:auto}
 pre code{background:none!important;padding:0;color:inherit!important}
 .address{all:initial!important;display:inline-block!important;font:inherit!important;color:inherit!important;cursor:pointer!important;vertical-align:baseline!important}
 .address.veiled{width:8ch!important;height:1em!important;background:#888!important;border-radius:3px!important}

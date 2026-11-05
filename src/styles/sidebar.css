@@ -179,11 +179,13 @@
   height: calc(28px * var(--text-scale, 1));
   gap: 5px;
 }
-/* Beside a visible reader the named tabs break three per row whether or not
-   they carry counts. */
-.mail-view:has(.workspace.split):not(:has(.workspace.split .empty-clear)) .inbox-tabs button {
-  flex: 0 0 calc((100% - 20px) / 3);
-  justify-content: center;
+/* Beside a visible reader the named tabs break three per row in content-sized
+   columns, left-aligned from the select-all gutter. */
+.mail-view:has(.workspace.split):not(:has(.workspace.split .empty-clear)) .inbox-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, max-content);
+  column-gap: 18px;
+  justify-content: start;
 }
 /* All names stay readable in the two-row layout. */
 .mail-view:has(.workspace.split) .inbox-tabs button .tab-label {
