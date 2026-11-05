@@ -85,6 +85,7 @@
 .app-context strong { display: inline-block; width: calc(84px * var(--text-scale, 1)); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app-search-toolbar { margin-left: 0; }
 .app-search-toolbar .search { height: 28px; border: 0; border-radius: 7px; background: var(--hover); }
+.app-search-toolbar .search > svg { width: calc(15px * var(--text-scale, 1)); height: calc(15px * var(--text-scale, 1)); }
 .app-search-toolbar .search:focus-within { box-shadow: 0 0 0 1px var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
 .app-toolbar .mail-navigation { margin-left: auto; }
 .commands-button { font-size: calc(11px * var(--text-scale, 1)); }

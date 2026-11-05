@@ -51,7 +51,7 @@ export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, sync
   if (hasAccounts && !searchPending && !filtered && clearName) {
     return (
       <div className="empty empty-clear">
-        <div className="empty-mark" aria-hidden="true"><img src="/brand/mark-lumen.svg" alt="" /></div>
+        <div className="empty-mark" aria-hidden="true"><span className="empty-mark-glyph" /></div>
         <h2 className="empty-heading">{clearName} is <em>clear</em></h2>
         <button className="link" disabled={syncing} onClick={onSync}>
           {syncing ? "Syncing" : "Sync now"}

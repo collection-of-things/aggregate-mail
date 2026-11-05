@@ -151,13 +151,13 @@
 .compose-scroll { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; padding: 0 24px; overflow-y: auto; }
 .compose-dialog .compose-envelope { border-top: 0; }
 .compose-dialog .compose-form :is(input, select) { padding: 14px 0; }
-.compose-dialog .compose-form textarea { flex: 1 0 180px; min-height: 180px; margin: 12px 0; padding: 12px 14px; border: 0; border-radius: var(--radius-control); resize: vertical; font-size: calc(13px * var(--text-scale, 1)); }
+.compose-dialog .compose-form textarea { flex: 1 0 180px; min-height: 180px; margin: 12px 0; padding: 12px 14px 12px 12px; border: 0; border-radius: var(--radius-control); resize: vertical; font-size: calc(13px * var(--text-scale, 1)); }
 .compose-dialog .compose-form textarea:focus-visible { box-shadow: inset 2px 0 0 0 var(--accent); }
-.compose-dialog .compose-extras { gap: 6px; padding-bottom: 12px; }
+.compose-dialog .compose-extras { gap: 6px; padding-bottom: 12px; padding-left: 12px; }
 .compose-dialog .compose-extras:empty { display: none; }
 .compose-dialog .compose-footer { position: static; flex-shrink: 0; margin: 0; padding: 10px 20px 10px 24px; }
 .compose-dialog .compose-actions { margin: 0; gap: 10px; }
-.compose-save-status { flex: 1; margin-left: auto; text-align: left; font-size: calc(11px * var(--text-scale, 1)); }
+.compose-save-status { flex: 1; margin-left: 12px; text-align: left; font-size: calc(12px * var(--text-scale, 1)); }
 .compose-save-status.save-error { color: var(--danger); }
 .compose-dialog .compose-send { min-width: 78px; height: 34px; margin-left: 0; }
 .compose-dialog .compose-format { margin-top: 6px; }
@@ -502,14 +502,17 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
 /* Draft controls share the account-tabs row instead of crowding From. */
 .compose-dialog .dialog-title { display: flex; align-items: center; gap: 12px; }
 .compose-dialog .dialog-title > .icon { order: 2; }
-.compose-dialog .dialog-title .compose-discard { display: inline-flex; align-items: center; gap: 6px; height: 28px; color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
+.compose-dialog .dialog-title .compose-discard { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding-left: 12px; border-left: 1px solid var(--line); color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
 .app[data-view="drafts"] .compose-dialog .dialog-title { top: -42px; right: 16px; height: 42px; }
 .app[data-view="drafts"]:has(.compose-dialog) .draft-account-tabs { padding-right: 150px; }
 .compose-dialog .compose-form :is(input, select) { min-height: 34px; padding-block: 6px; }
 .compose-dialog .compose-from-row > .compose-from-field { padding-right: 136px; }
 .app[data-view="drafts"] .compose-dialog .compose-from-row > .compose-from-field { padding-right: 0; }
-.compose-dialog .compose-toolbar { min-height: 32px; gap: 8px 12px; }
+.compose-dialog .compose-toolbar { min-height: 32px; gap: 8px 12px; padding-left: 12px; }
 .compose-dialog .compose-scroll { padding-inline: 18px; }
+/* The toolbar, format bar, body text and extras line up on the envelope's
+   12px label inset. */
+.compose-dialog .compose-format-tools { padding-left: 12px; }
 .compose-reply-layout > .compose-context { padding: 16px 18px; }
 .compose-dialog .compose-context-body { padding-top: 8px; line-height: 1.6; }
 .compose-dialog .compose-context h3 { margin-block: 4px; }
@@ -542,7 +545,7 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
    still wrap (a wrapped status can grow the track, per DESIGN). */
 .compose-dialog .compose-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .compose-dialog .compose-actions > button { white-space: nowrap; }
-.compose-dialog .compose-save-status { min-width: 0; margin: 0 0 0 auto; text-align: left; }
+.compose-dialog .compose-save-status { min-width: 0; margin: 0 0 0 12px; text-align: left; }
 .compose-dialog .compose-send { min-width: 64px; }
 @media (max-width: 760px) {
   .dialog.compose-with-context { width: calc(100% - var(--sidebar)); }
@@ -592,14 +595,10 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
 .work-content details.coverage > summary { height: var(--app-footer-height); min-height: var(--app-footer-height); line-height: calc(var(--app-footer-height) - 1px); }
 .compose-dialog .compose-footer { min-height: var(--app-footer-height); }
 .compose-reply-layout > .compose-context { margin-bottom: var(--app-footer-height); }
-.app:has(.compose-dialog)::after {
-  content: ""; position: absolute; left: 0; right: 0;
-  bottom: calc(var(--app-footer-height) - 1px); height: 1px;
-  background: var(--line); pointer-events: none; z-index: 11;
-}
-.app:has(.compose-dialog) .sidebar-footer { border-top-color: transparent; }
+/* The send bar keeps its divider inside the compose column (its own top
+   border); the list runs to the window bottom, and the sidebar footer keeps
+   its own hairline. */
 .app:has(.compose-dialog) .compose-footer { box-shadow: none; }
-.app:has(.compose-dialog) .app-main > :is(.mail-view, .drafts-pane, .work-pane, .settings-pane) { padding-bottom: var(--app-footer-height); }
 .app:has(.compose-dialog) .work-pane .coverage { display: none; }
 
 /* Compact saved drafts use the same column rhythm as the mail list. */

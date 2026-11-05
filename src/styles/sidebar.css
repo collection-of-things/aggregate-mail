@@ -179,6 +179,12 @@
   height: calc(28px * var(--text-scale, 1));
   gap: 5px;
 }
+/* Beside a visible reader the named tabs break three per row whether or not
+   they carry counts. */
+.mail-view:has(.workspace.split):not(:has(.workspace.split .empty-clear)) .inbox-tabs button {
+  flex: 0 0 calc((100% - 20px) / 3);
+  justify-content: center;
+}
 /* All names stay readable in the two-row layout. */
 .mail-view:has(.workspace.split) .inbox-tabs button .tab-label {
   position: static;
@@ -231,6 +237,11 @@
 }
 .sidebar-group button > svg {
   color: var(--accent);
+}
+/* Provider marks sit inside their name span; they scale the same way. */
+.sidebar-group .provider-icon {
+  width: calc(13px * var(--text-scale, 1));
+  height: calc(13px * var(--text-scale, 1));
 }
 .inbox-tabs button > svg {
   width: calc(15px * var(--text-scale, 1));

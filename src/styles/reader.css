@@ -221,7 +221,7 @@ article.message {
   flex: 1;
   overflow-wrap: anywhere;
 }
-/* Gmail labels are neutral chips; the category/status pill elsewhere is accent. */
+/* Gmail labels are plain muted text; they are labels, not actions. */
 .reader-labels {
   display: inline-flex;
   flex-wrap: wrap;
@@ -229,14 +229,7 @@ article.message {
   gap: 4px;
 }
 .reader-label {
-  display: inline-flex;
-  align-items: center;
-  min-height: calc(22px * var(--text-scale, 1));
-  padding: 0 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-mark-sm);
-  background: transparent;
-  color: var(--text-2);
+  color: var(--text-3);
   font-size: calc(12px * var(--text-scale, 1));
 }
 .message-images .message-body { margin-top: 12px; }

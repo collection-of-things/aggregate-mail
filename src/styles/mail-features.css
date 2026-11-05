@@ -55,7 +55,7 @@
 
 .outbox-notices { display: grid; gap: 8px; max-height: 55dvh; overflow-y: auto; pointer-events: auto; flex-shrink: 0; }
 
-.compose-undo-delay { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--text-3); font-size: 12px; }
+.compose-undo-delay { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--text-3); font-size: calc(13px * var(--text-scale, 1)); }
 
 .schedule-time { border: 0; padding: 8px 0; margin: 0; display: grid; gap: 8px; }
 .schedule-time p { margin: 0; color: var(--text-3); font-size: 12px; }

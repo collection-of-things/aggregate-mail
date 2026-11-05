@@ -136,9 +136,9 @@ violet, amber and plum in light), so the
 same person keeps the same color across the list, thread and reader. Sender
 logos are content and keep their own colors. Attention reasons ("May need...")
 render as an accent-soft pill; other statuses stay quiet text and Gmail labels
-are outline chips. Label chips share one pill form: 22px tall, 12px text,
-6px side padding, the small mark radius and a hairline border on a transparent
-fill, with ink at 4.5:1 or better. In mail bodies, quotes take a 2px accent rule, inline
+are plain muted 12px text. List label chips keep one pill form: 22px tall,
+12px text, 6px side padding, the small mark radius and a hairline border on a
+transparent fill, with ink at 4.5:1 or better. In mail bodies, quotes take a 2px accent rule, inline
 code uses mono on a veil chip, and pre blocks use mono on a veil surface; links
 are the Energy family and underline on hover. A multi-message conversation
 reads its subject once at the top while each expanded article keeps its own
@@ -158,8 +158,8 @@ date stub where the timestamp sits — on the `--skeleton` and `--skeleton-peak`
 tokens so the bars stay visible
 against their pane in every theme (about 1.7:1 in dark). The empty, loading,
 clear-inbox and failed states share one mark tile — 48px, the mark radius, a
-flat fill and a 28px glyph — in a neutral photon pair, and the failed state
-takes the danger tint and ink with its sentence at a 34ch measure in body
+flat fill and a 28px masked glyph — in a neutral photon pair, and the failed
+state takes the danger tint and ink with its sentence at a 40ch measure in body
 weight. Pinned mail marks the sender line beside the timestamp
 rather than the gutter; the compose action row holds Send, draft and
 scheduling on the shared footer track.
@@ -177,8 +177,9 @@ and retain touch targets, safe areas, focus, reduced motion and keyboard access.
 
 Inbox tabs show the active category name; inactive tabs retain their icon and
 unread count, with full names available to assistive technology and tooltips.
-Beside the reader, the strip wraps to two 28px rows so every tab shows icon,
-name and count, all counts plain muted mono, and the active tab carries its
+Beside the reader, the strip wraps to two 28px rows of three tabs each so
+every tab shows icon, name and count — three per row whether or not counts
+draw — with all counts plain muted mono, and the active tab carries its
 own 2px accent underline. The rows are 28px before text scaling and the
 select-all sits on the first row's midline; when the reader is hidden (clear
 or failed list) the strip takes the wider workspace and stays on one row.
@@ -479,7 +480,7 @@ Details and reminders stay available through an explicit edit action. Several
 deliverables require a choice, and closed work still needs the full editor to
 reopen. Privacy never automatically focuses a hidden text field.
 
-The composer groups From, To and optional Cc above the subject and body on a shared label column; envelope header rows are 36px with the 12px muted labels inset 12px on the value's baseline, its Delete draft and close controls fit the row at 28px, the saved status sits beside Keep draft on the left of the send bar, and the File limits and About undo notes are 12px muted disclosures that share the icon set's chevron glyph with the conversation coverage note.
+The composer groups From, To and optional Cc above the subject and body on a shared label column; envelope header rows are 36px with the 12px muted labels inset 12px on the value's baseline, its Delete draft and close controls fit the row at 28px behind a 1px divider, the attach, format, body and Undo delay rows line up on the same inset, the saved status sits beside Keep draft at 12px muted after a 20px gap, and the File limits and About undo notes are 12px muted disclosures that share the icon set's chevron glyph with the conversation coverage note. The send bar keeps its divider inside the compose column so the mail list runs the window's full height.
 Attachments and save/recovery status remain visible above a sticky action
 footer. Keep draft, Discard draft and Send retain their existing safeguards.
 

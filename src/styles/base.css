@@ -210,9 +210,9 @@ input[type="checkbox"][role="switch"]:disabled {
   color: var(--accent);
 }
 /* The load error reuses the clear layout with the danger mark; a sentence
-   reads at body weight and a 34ch measure. */
+   reads at body weight and a 40ch measure. */
 .empty-error .empty-heading {
-  max-width: 34ch;
+  max-width: 40ch;
   font-size: calc(15px * var(--text-scale, 1));
   font-weight: 400;
   line-height: 1.4;
