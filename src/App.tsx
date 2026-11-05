@@ -1629,7 +1629,7 @@ export function App() {
                 </PaneHeader>
                 <div ref={readerRef} className="reader-scroll" tabIndex={-1}>
                   <div key={selected && opened ? selected.id : "empty"} className="pane open">
-                    {reader || (!loaded || !filtered.length ? null : <ReaderEmpty selected={!!selected} openKey={shortcut("open")} />)}
+                    {reader || <ReaderEmpty selected={!!selected} openKey={shortcut("open")} />}
                   </div>
                 </div>
               </section>

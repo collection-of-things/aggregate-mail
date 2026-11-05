@@ -239,7 +239,11 @@
 .settings .window-opacity input[type="range"]::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; margin-top: -5px; border: 0; border-radius: 50%; background: var(--accent); }
 .settings .window-opacity input[type="range"]::-moz-range-track { height: 4px; border: 0; border-radius: 2px; background: var(--veil); }
 .settings .window-opacity input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--accent); }
-.window-opacity:has(input:disabled) .opacity-label { opacity: .45; }
+/* Disabled states get one muted ink instead of compounded opacity. */
+.window-opacity:has(input:disabled) .opacity-label { opacity: 1; color: var(--disabled-ink); }
+.window-opacity input[type="range"]:disabled { opacity: 1; }
+.window-opacity input[type="range"]:disabled::-webkit-slider-runnable-track { background: var(--disabled-ink); }
+.window-opacity input[type="range"]:disabled::-moz-range-track { background: var(--disabled-ink); }
 :root[data-glass] .app:has(.compose-dialog) .app-main > :is(.mail-view, .work-pane, .settings-pane, .search-help) {
   clip-path: inset(0 calc(100% - var(--list-width)) 0 0);
 }
@@ -259,16 +263,16 @@
 .main-head { height: 60px; padding-inline: 25px; }
 .main-head .pane-title { font-size: calc(18px * var(--text-scale, 1)); letter-spacing: -.025em; }
 .main-head .head-tools { min-width: 0; }
-.view-summary { color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); margin-left: 6px; }
+.view-summary { color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); margin-left: 6px; }
 .mail-view { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; }
 /* The summary row carries the select-all at the rail's x position ahead of the
    count, keeps a quiet Fetch action at the right, and holds the hairline the
    rail used to draw. */
-.mail-view-head { gap: 4px 10px; padding-inline-start: 10px; border-bottom: 1px solid var(--line); }
+.mail-view-head { gap: 4px 10px; padding-inline-start: var(--select-gutter); border-bottom: 1px solid var(--line); }
 .mail-view-head .head-note { margin-left: auto; }
 .mail-view-head .head-note button { height: 28px; min-height: 28px; padding: 0 10px; background: transparent; color: var(--link); }
 .mail-view-head .head-note button:hover:not(:disabled) { background: var(--hover); }
-.mail-category-bar { display: flex; align-items: center; column-gap: 4px; height: 42px; flex-shrink: 0; border-bottom: 1px solid var(--line); padding: 0 12px 0 10px; overflow-x: auto; }
+.mail-category-bar { display: flex; align-items: center; column-gap: 4px; height: 42px; flex-shrink: 0; border-bottom: 1px solid var(--line); padding: 0 12px 0 var(--select-gutter); overflow-x: auto; }
 .mail-category-bar:not(:has(.inbox-tabs)) { height: 36px; }
 .mail-category-bar .inbox-tabs { height: 100%; gap: 22px; margin: 0; }
 .rail-select { flex-shrink: 0; width: 16px; display: grid; place-items: center; }

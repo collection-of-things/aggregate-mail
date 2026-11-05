@@ -111,13 +111,13 @@ export function Reader(props: Parameters<typeof SingleReader>[0]) {
       state={mail.id === props.mail.id ? props.state : undefined} />} />;
 }
 
-/** The reading pane before an email is opened. */
+/** The reading pane whenever no email is open: empty, loading or idle. */
 export function ReaderEmpty({ selected, openKey }: { selected: boolean; openKey: string }) {
   return (
     <div className="reader-empty">
-      <span className="reader-empty-mark" aria-hidden="true" />
+      <span className="reader-empty-mark" aria-hidden="true"><span className="empty-mark-glyph" /></span>
       <p className="empty-title">No email open</p>
-      <p className="visually-hidden">{selected ? <>Press <kbd>{openKey}</kbd> to open the selected email.</> : "Choose an email to read it here."}</p>
+      <p className="reader-empty-hint">{selected ? <>Press <kbd>{openKey}</kbd> to open the selected email.</> : "Choose an email to read it here."}</p>
     </div>
   );
 }

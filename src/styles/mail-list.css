@@ -276,7 +276,7 @@
   border-radius: var(--radius-mark-sm);
   background: var(--accent-soft);
   color: var(--accent-soft-ink);
-  font-size: calc(11px * var(--text-scale, 1));
+  font-size: calc(12px * var(--text-scale, 1));
 }
 .row time {
   flex-shrink: 0;

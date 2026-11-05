@@ -514,7 +514,10 @@
 .settings-group-label .work-controls button { height: 26px; padding: 0 10px; }
 .settings-group-label + .work-content { padding-top: 0; }
 .settings .segmented { display: flex; flex-wrap: wrap; gap: 4px; padding: 0; border: 0; width: fit-content; max-width: 100%; }
-.settings .segmented button { min-width: 0; flex: 0 1 auto; height: auto; min-height: 30px; padding: 5px 10px; border: 0; white-space: normal; overflow-wrap: anywhere; }
+.settings .segmented button { min-width: 0; flex: 0 1 auto; height: auto; min-height: 32px; padding: 5px 10px; border: 0; font-size: calc(13px * var(--text-scale, 1)); white-space: normal; overflow-wrap: anywhere; }
+/* Disabled options keep readable muted ink instead of dimming to opacity. */
+.settings button:disabled,
+.settings [aria-disabled="true"] { opacity: 1; color: var(--disabled-ink); }
 .settings .segmented button:hover:not(:disabled):not(.active) { background: var(--hover); }
 .settings .segmented button.active { color: var(--accent-soft-ink); background: var(--accent-soft); }
 .settings-provider-choice { display: grid; gap: 6px; }
@@ -568,7 +571,7 @@
 .settings-dialog > .dialog-title > .icon { order: 2; flex-shrink: 0; }
 .settings-dialog .settings-pane { border: 0; }
 .settings-dialog .settings {
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: 232px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
 }
@@ -585,7 +588,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 20px 24px 32px;
+  padding: 20px 24px 24px;
 }
 .settings-dialog .settings-row:not(.stacked) { flex-wrap: wrap; }
 .settings-dialog .settings-row > :is(input, select) { max-width: 100%; }

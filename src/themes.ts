@@ -136,6 +136,12 @@ export function applyPalette(palette: Palette, root: HTMLElement): void {
   root.style.setProperty("--hover", `color-mix(in srgb, ${palette.text} 4%, transparent)`);
   root.style.setProperty("--selected", `color-mix(in srgb, ${palette.text} 7%, transparent)`);
   root.style.setProperty("--veil-hover", `color-mix(in srgb, ${palette.veil} 90%, ${palette.text})`);
+  // Pale palettes can leave unchecked controls edgeless: take the stronger of
+  // the palette's border and muted text against the pane, and fall back to the
+  // palette's text color when neither reaches the 3:1 control minimum.
+  const edge = contrastRatio(palette.border, palette.surface) >= contrastRatio(palette.mutedText, palette.surface)
+    ? palette.border : palette.mutedText;
+  root.style.setProperty("--control-edge", contrastRatio(edge, palette.surface) >= 3 ? edge : palette.text);
   root.style.setProperty("--avatar", palette.raised);
   root.style.setProperty("--avatar-text", palette.secondaryText);
   // A pale custom accent would render --accent-soft-ink unreadable on its fill;
@@ -154,7 +160,7 @@ export function applyPalette(palette: Palette, root: HTMLElement): void {
 
 export function clearPalette(root: HTMLElement): void {
   for (const field of paletteFields) root.style.removeProperty(field.variable);
-  for (const variable of ["--text-body", "--text-4", "--line-2", "--line-3", "--hover", "--selected", "--veil-hover", "--avatar", "--avatar-text", "--accent-soft-ink", "--code-ink"])
+  for (const variable of ["--text-body", "--text-4", "--line-2", "--line-3", "--hover", "--selected", "--veil-hover", "--control-edge", "--avatar", "--avatar-text", "--accent-soft-ink", "--code-ink"])
     root.style.removeProperty(variable);
 }
 

@@ -9,7 +9,10 @@
   --radius-mark-lg: 6px 22px 6px 22px;
   --radius-pane: 14px;
   --sidebar: 208px;
-  --list-width: clamp(320px, 31vw, 448px);
+  --list-width: clamp(320px, calc(31vw * var(--text-scale, 1)), min(560px, calc(448px * var(--text-scale, 1))));
+  /* The select-all checkbox and the row checkboxes share this left gutter so
+     every list header lines up (list padding + the row select offset). */
+  --select-gutter: 23px;
   --mail-row-medium: 34px;
   --mail-row-compact: 24px;
   --mail-row-card-medium: 100px;
@@ -102,6 +105,13 @@
   /* Skeleton bars lift one step off the pane so they read in dark themes. */
   --skeleton: var(--veil-hover);
   --skeleton-peak: color-mix(in srgb, var(--veil-hover) 80%, var(--text-4));
+  /* Read mail recedes in dark themes: sender and subject share one softened
+     ink, the preview a quieter one; unread keeps full --text. */
+  --row-read-ink: color-mix(in srgb, var(--text) 72%, var(--surface));
+  --row-read-preview: color-mix(in srgb, var(--text) 55%, var(--surface));
+  /* Disabled settings options and the inactive slider track read at ~3:1
+     without compounded opacity. */
+  --disabled-ink: color-mix(in srgb, var(--text) 35%, var(--surface));
   --avatar: #2a1522;
   --avatar-text: #c4aab5;
   --lights-off: #38222f;
@@ -175,6 +185,10 @@
   --veil-hover: #e3cdd0;
   --skeleton: var(--veil-hover);
   --skeleton-peak: color-mix(in srgb, var(--veil-hover) 80%, var(--text-4));
+  /* Light keeps the inks read rows always used. */
+  --row-read-ink: var(--text);
+  --row-read-preview: var(--text-3);
+  --disabled-ink: color-mix(in srgb, var(--text) 45%, var(--surface));
   --avatar: #f3dfe1;
   --avatar-text: #6e5663;
   --avatar-0: #fbd3dd;

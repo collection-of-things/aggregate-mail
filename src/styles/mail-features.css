@@ -32,7 +32,7 @@
 .toast-text { white-space: pre-line; overflow-wrap: anywhere; color: var(--text-2); font-size: calc(12px * var(--text-scale, 1)); line-height: 1.5; }
 .toast-title { display: block; margin: 0 0 2px; color: var(--text); font-size: calc(13px * var(--text-scale, 1)); line-height: 1.5; font-weight: 500; }
 .toast-icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; background: color-mix(in srgb, var(--accent) 10%, var(--raised)); color: var(--link); flex-shrink: 0; }
-.toast-error .toast-icon { color: var(--danger); }
+.toast-error .toast-icon { background: color-mix(in srgb, var(--danger) 12%, var(--raised)); color: var(--danger); }
 .toast-actions { display: flex; margin-top: 2px; }
 .toast-open { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 3px 0; border: 0; background: transparent; color: var(--link); font-size: calc(12px * var(--text-scale, 1)); font-weight: 500; }
 .toast-dismiss { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--text-2); }

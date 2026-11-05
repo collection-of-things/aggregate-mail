@@ -14,6 +14,7 @@ pre code{background:none!important;padding:0;color:inherit!important}
 .address.veiled{width:8ch!important;height:1em!important;background:#888!important;border-radius:3px!important}
 .address:focus-visible,a:focus-visible{outline:2px solid #6b9cff!important;outline-offset:2px!important}
 .formatted-mail-image-placeholder{display:inline-block;max-width:100%;vertical-align:middle;background:#8883}
+:is(p,ul,ol,blockquote,h1,h2,h3,h4,h5,h6,pre){max-width:70ch}table :is(p,ul,ol,blockquote,h1,h2,h3,h4,h5,h6,pre){max-width:none}
 `;
 
 function inheritTheme(element: HTMLIFrameElement, body: HTMLElement) {

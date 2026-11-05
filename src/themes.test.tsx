@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  customThemeSchema, customThemesSchema, generatePalette, maxThemeFileBytes,
-  parseThemeFile, serializeThemeFile, themeColorSchema, uniqueThemeName, type CustomTheme,
+  applyPalette, contrastRatio, customThemeSchema, customThemesSchema, generatePalette, maxThemeFileBytes,
+  parseThemeFile, serializeThemeFile, themeColorSchema, uniqueThemeName, type CustomTheme, type Palette,
 } from "./themes";
 
 const theme: CustomTheme = {
@@ -19,6 +19,22 @@ test("theme files round-trip both palettes without exporting device identity", (
   assert.equal(exported.includes(theme.id), false);
   assert.equal(themeColorSchema.parse("#AbC"), "#aabbcc");
   assert.equal(customThemeSchema.parse(theme).palettes.dark.canvas, "#1a1b26");
+});
+
+test("a pale custom palette still yields a control edge with 3:1 contrast", () => {
+  const properties = new Map<string, string>();
+  const root = {
+    dataset: { scheme: "light" },
+    style: {
+      setProperty: (name: string, value: string) => void properties.set(name, value),
+      removeProperty: (name: string) => void properties.delete(name),
+    },
+  } as unknown as HTMLElement;
+  const pale: Palette = { ...generatePalette("#eef0f8", "#3456bc", "light"), surface: "#fff3f2", border: "#efe2e5", mutedText: "#ece4e6" };
+  applyPalette(pale, root);
+  const edge = properties.get("--control-edge")!;
+  assert.ok(contrastRatio(edge, pale.surface) >= 3, `edge ${edge} reads on ${pale.surface}`);
+  assert.equal(edge, pale.text, "a border and muted text that are both too pale fall back to the palette text");
 });
 
 test("generated text remains readable when a dark palette starts from a bright background", () => {

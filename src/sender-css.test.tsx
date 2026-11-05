@@ -80,6 +80,10 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
       'sender styles cannot split pre ink from its surface');
     assert.match(installed, /pre code\s*\{[^}]*background:[^;}]*!important/,
       'nested code stays on the pre surface');
+    assert.match(installed, /:is\(p,ul,ol,blockquote,h1,h2,h3,h4,h5,h6,pre\)\s*\{\s*max-width:\s*70ch/,
+      'isolated prose keeps the readable measure');
+    assert.match(installed, /table :is\(p,ul,ol,blockquote,h1,h2,h3,h4,h5,h6,pre\)\s*\{\s*max-width:\s*none/,
+      'table content keeps the full reader width');
     assert.equal(frame.contentDocument!.querySelectorAll('img').length, 0);
     assert.equal(frame.contentDocument!.querySelector('p')?.hasAttribute('id'), false, 'absent ids cannot match a sender selector');
     assert.doesNotMatch(frame.contentDocument!.body.innerHTML, /summary/);
