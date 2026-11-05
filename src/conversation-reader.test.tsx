@@ -27,7 +27,7 @@ for (const gmail of [true, false]) test(`${gmail ? "Gmail" : "IMAP"} inline stac
   const container = dom.window.document.getElementById("root")!;
   const root = createRoot(container);
   const render = async (privacy = false) => act(async () => root.render(<PrivacyContext.Provider value={{ on: privacy, revealed: new Set(), toggle() {} }}>
-    <ConversationReader mail={base} gmail={gmail} api={api} busy={false} onMenuKey={(event, mail) => { if (event.key === "F10" && event.shiftKey) { event.preventDefault(); menuTarget = mail.id; } }} onChanged={async () => { changed++; }} onSelect={mail => { selected = mail.id; }} renderMessage={mail => <ReaderContent mail={mail} loadImages={async () => ({ images: [] })} />} />
+    <ConversationReader mail={base} gmail={gmail} api={api} busy={false} onMenuKey={(event, mail) => { if (event.key === "F10" && event.shiftKey) { event.preventDefault(); menuTarget = mail.id; } }} onChanged={async () => { changed++; }} onSelect={mail => { selected = mail.id; }} renderMessage={(mail, fromMeta) => <>{fromMeta}<ReaderContent mail={mail} loadImages={async () => ({ images: [] })} /></>} />
   </PrivacyContext.Provider>));
   const click = async (node: Element) => act(async () => (node as HTMLButtonElement).click());
   const toggles = () => [...container.querySelectorAll<HTMLButtonElement>('.conversation-toggle')];
@@ -108,7 +108,7 @@ async function fixture(api: Api) {
         if (event.key === "ContextMenu" || event.key === "F10" && event.shiftKey) {
           event.preventDefault(); event.stopPropagation(); menus.push(item.id);
         }
-      }} renderMessage={item => <ReaderContent mail={item} loadImages={async () => ({ images: [] })} />} />));
+      }} renderMessage={(item, fromMeta) => <>{fromMeta}<ReaderContent mail={item} loadImages={async () => ({ images: [] })} /></>} />));
   const buttons = () => [...container.querySelectorAll<HTMLButtonElement>("button")];
   const button = (text: string) => buttons().find(node => node.textContent?.includes(text))!;
   const click = async (node: Element) => act(async () => (node as HTMLButtonElement).click());

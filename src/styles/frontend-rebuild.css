@@ -62,9 +62,11 @@
 .sidebar-count { min-width: 18px; padding: 1px 5px; color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; }
 .sidebar-name { min-width: 0; }
 .sidebar-account-footer { flex-shrink: 0; width: var(--sidebar); padding: 10px 12px 6px; border-top: 1px solid var(--line); box-shadow: inset 0 2px var(--rebuild-highlight); }
-.sidebar-account-card { display: flex; align-items: center; width: 100%; min-height: 44px; gap: 10px; padding: 4px; border-radius: 8px; }
+/* The account card's icon aligns to the first text line so a wrapped second
+   line doesn't drop it mid-cell. */
+.sidebar-account-card { display: flex; align-items: flex-start; width: 100%; min-height: 44px; gap: 10px; padding: 4px; border-radius: 8px; }
 .sidebar-account-card:hover { background: var(--hover); }
-.sidebar-account-avatar { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text-3); }
+.sidebar-account-avatar { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; margin-top: 1px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text-3); }
 .sidebar-account-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .sidebar-account-text > strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 /* The connected-accounts line may wrap to two lines; the card grows to fit. */
@@ -91,6 +93,11 @@
 :is(.mail-category-bar, .draft-account-tabs, .work-view-tabs) {
   height: 44px; border-bottom: 1px solid var(--line); box-shadow: inset 0 -2px var(--rebuild-highlight);
 }
+/* In dark themes the highlight reads as a second, brighter rule: the
+   border alone carries the divider. */
+:root[data-scheme="dark"] :is(.mail-category-bar, .draft-account-tabs, .work-view-tabs) {
+  box-shadow: none;
+}
 .mail-category-bar { padding-inline: var(--select-gutter) 24px; column-gap: 12px; }
 .mail-category-bar .inbox-tabs { gap: 24px; }
 .mail-category-bar .inbox-tabs button { font-size: calc(13px * var(--text-scale, 1)); font-weight: 500; }
@@ -111,8 +118,9 @@
 .row.card { border-radius: var(--radius-mark-sm); }
 .row.card:focus-visible { border-radius: var(--radius-mark-sm); }
 /* While the reader is still empty, the keyboard cursor reads as an accent
-   outline; an opened row keeps the full selection fill. */
-.workspace:has(.reader-pane .reader-empty) .row.card.selected {
+   outline; an opened row keeps the full selection fill. Without a split the
+   list never shows an opened row, so the cursor outline applies there too. */
+:is(.workspace:has(.reader-pane .reader-empty), .workspace:not(.split)) .row.card.selected {
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--accent);
 }
@@ -178,6 +186,7 @@
 
 /* Reader and editor are white documents beside the inset preview list. */
 .reader-pane { border-left: 1px solid var(--line); box-shadow: -2px 0 var(--rebuild-highlight); }
+:root[data-scheme="dark"] .reader-pane { box-shadow: none; }
 :root:not([data-glass]) .reader-head { background: var(--surface); }
 .reader-head { height: 44px; padding-inline: 18px; border-bottom: 1px solid var(--line); }
 .reader-head .mail-actions { gap: 6px; }
@@ -217,7 +226,7 @@
 .draft-row-preview, .draft-row-meta { font-size: calc(12px * var(--text-scale, 1)); }
 .compose-dialog .compose-envelope { padding-top: 0; }
 .compose-dialog .compose-body { font-size: calc(14px * var(--text-scale, 1)); line-height: 1.6; }
-.compose-dialog .compose-from-row { min-height: 44px; }
+.compose-dialog .compose-from-row { box-sizing: border-box; min-height: 36px; }
 .compose-dialog .compose-file-action { font-size: calc(12px * var(--text-scale, 1)); }
 .compose-dialog .compose-footer { border-top: 1px solid var(--line); }
 .compose-save-status { font-size: calc(12px * var(--text-scale, 1)); }
@@ -295,6 +304,30 @@ section.work-calendar[data-layout="month"] > .calendar-day-title { margin: 10px 
 .dialog:not(.compose-dialog) { border-radius: 14px; box-shadow: var(--edge), var(--shadow-dialog); }
 .mail-menu, .dropdown-menu { border-radius: 14px; }
 :is(button, a, summary, input, select, textarea) { touch-action: manipulation; }
+
+/* The quiet disclosures share the icon set's chevron-right at 12px in muted
+   ink, turning down when open — the same glyph the conversation rows use. */
+:is(.conversation-notes, .compose-attachment-limits, .compose-undo-delay details) > summary {
+  list-style: none;
+}
+:is(.conversation-notes, .compose-attachment-limits, .compose-undo-delay details) > summary::-webkit-details-marker {
+  display: none;
+}
+:is(.conversation-notes, .compose-attachment-limits, .compose-undo-delay details) > summary::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 6 6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 6 6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+  transition: transform 160ms var(--ease-out);
+}
+:is(.conversation-notes[open], .compose-attachment-limits[open], .compose-undo-delay details[open]) > summary::before {
+  transform: rotate(90deg);
+}
 
 /* Desktop keeps native caption space. Phone geometry remains in responsive.css,
    loaded next; only these new account-card and inset-list pieces need adaptation. */

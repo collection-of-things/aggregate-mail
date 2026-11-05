@@ -356,10 +356,13 @@
 .card .row-text {
   gap: 1px;
 }
+/* Every card reserves the importance marker's slot, so sender names share one
+   start x whether or not the marker draws. */
 .card .row-line strong {
   flex: 1 1 auto;
   width: auto;
   max-width: none;
+  padding-left: 18px;
 }
 .card .row-label,
 .card time {

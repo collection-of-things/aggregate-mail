@@ -368,10 +368,25 @@ article.message {
 }
 .conversation-toggle:hover { background: var(--hover); }
 .conversation-toggle:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
-/* The expanded row repeats the sender block below it: sender and snippet stay
-   in the accessible name but leave the row visually to the chevron, the
-   selection note and the time. */
-.conversation-toggle[aria-expanded="true"] :is(.conversation-sender, .conversation-snippet) {
+/* The expanded message's sender block replaces the header row: the toggle
+   folds to a chevron box in the left gutter, on the sender line's midline.
+   Sender, snippet and the toggle's own time stay only in the accessible
+   name; the selection note moves into the sender block below. */
+.conversation-message > .conversation-toggle[aria-expanded="true"] {
+  position: absolute;
+  top: 7px;
+  left: calc(var(--reader-gutter, 24px) / 2 - 12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  padding: 0;
+  border-radius: var(--radius-control);
+  z-index: 1;
+}
+.conversation-toggle[aria-expanded="true"] :is(.conversation-sender, .conversation-snippet, .conversation-meta) {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   padding: 0; margin: -1px; border: 0; clip-path: inset(50%); white-space: nowrap;
 }
@@ -383,6 +398,9 @@ article.message {
 .conversation-snippet { grid-column: 3; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: calc(11.5px * var(--text-scale, 1)); }
 .conversation-meta { grid-column: 4; display: flex; align-items: center; gap: 8px; color: var(--text-3); font-size: calc(11.5px * var(--text-scale, 1)); white-space: nowrap; }
 .conversation-selected { color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
+/* In the sender block the note rides the same line as the date, just left of
+   it. */
+.message-from .conversation-selected { flex-shrink: 0; align-self: flex-start; margin-top: 2px; }
 /* The action link overlays the toggle row's right end on hover/focus, so a
    collapsed message stays one line. A surface fade covers the snippet tail. */
 .conversation-message { position: relative; }
@@ -411,11 +429,12 @@ article.message {
   .conversation-message:has(> .conversation-select) > .conversation-toggle { padding-inline-end: var(--reader-gutter, 24px); }
   .conversation-select { position: static; width: fit-content; min-height: 32px; margin: 2px var(--reader-gutter, 24px) 8px auto; padding: 0 8px; }
   .conversation-toggle { position: relative; }
-  .conversation-message:has(.conversation-selected) > .conversation-toggle {
+  .conversation-message:has(> .conversation-toggle .conversation-selected) > .conversation-toggle {
     padding-bottom: calc(26px * var(--text-scale, 1));
   }
-  .conversation-selected { position: absolute; right: var(--reader-gutter, 24px); bottom: 6px; }
+  .conversation-toggle .conversation-selected { position: absolute; right: var(--reader-gutter, 24px); bottom: 6px; }
 }
 .reader-scroll .conversation-message:has(> .conversation-toggle) .message { padding-top: 0; }
-/* The expanded message's sender block sits directly under its header row. */
-.reader-scroll .conversation-message:has(> .conversation-toggle) .message .message-from { margin-top: 4px; }
+/* The expanded message's sender block leads the article, so the folded header
+   chevron can sit on its line. */
+.reader-scroll .conversation-message:has(> .conversation-toggle) .message .message-from { margin-top: 10px; }

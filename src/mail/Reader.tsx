@@ -1,4 +1,4 @@
-import type { KeyboardEvent, MouseEvent } from "react";
+import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import type { Draft, GmailLabel, RendererMail as Mail, Provider, RendererState as State } from "../../shared/types";
 import type { Api } from "../api";
 import { customLabels } from "../mail-ui";
@@ -26,7 +26,7 @@ function readerDate(date: number) {
  * An opened email: subject, then one sender line with the recipient beneath
  * and the date at the right, Gmail labels, and the body with its image consent.
  */
-function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onMenuKey, onOpen, onChanged, onReplyAll, onForward, onOpenDraft, onUnsnooze, onChangeTime, onReviewingUnsubscribe, state }: {
+function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onMenuKey, onOpen, onChanged, onReplyAll, onForward, onOpenDraft, onUnsnooze, onChangeTime, onReviewingUnsubscribe, state, fromMeta }: {
   mail: Mail;
   state?: State;
   provider?: Provider;
@@ -44,6 +44,9 @@ function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onM
   onChangeTime?: (event: MouseEvent<HTMLElement>) => void;
   onMenu: (event: MouseEvent<HTMLElement>, mail: Mail) => void;
   onMenuKey: (event: KeyboardEvent<HTMLElement>, mail: Mail) => void;
+  /* A quiet note on the sender line, just left of the date — the conversation
+     reader places its "Selected for actions" text here. */
+  fromMeta?: ReactNode;
 }) {
   const content = useMailBody(mail, api);
   const hydrated = content.mail;
@@ -61,6 +64,7 @@ function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onM
             <p className="from-to">To <Redact text={mail.to} /></p>
             {mail.cc && <p className="from-to">Cc <Redact text={mail.cc}/></p>}
           </div>
+          {fromMeta}
           <time dateTime={new Date(mail.date).toISOString()} title={new Date(mail.date).toLocaleString()}>
             {readerDate(mail.date)}
           </time>
@@ -102,13 +106,14 @@ export function Reader(props: Parameters<typeof SingleReader>[0]) {
   return <ConversationReader key={JSON.stringify([props.mail.accountId, props.mail.id])}
     mail={props.mail} gmail={props.provider === "gmail"} api={props.api} busy={props.busy}
     onChanged={props.onChanged} onSelect={props.onOpen} onMenu={props.onMenu} onMenuKey={props.onMenuKey}
-    renderMessage={(mail) => <SingleReader {...props} mail={mail}
+    renderMessage={(mail, fromMeta) => <SingleReader {...props} mail={mail}
       provider={mail.id === props.mail.id ? props.provider : undefined}
       onReplyAll={mail.id === props.mail.id ? props.onReplyAll : undefined}
       onForward={mail.id === props.mail.id ? props.onForward : undefined}
       onUnsnooze={mail.id === props.mail.id ? props.onUnsnooze : undefined}
       onChangeTime={mail.id === props.mail.id ? props.onChangeTime : undefined}
-      state={mail.id === props.mail.id ? props.state : undefined} />} />;
+      state={mail.id === props.mail.id ? props.state : undefined}
+      fromMeta={fromMeta} />} />;
 }
 
 /** The reading pane whenever no email is open: empty, loading or idle. */

@@ -181,21 +181,21 @@ input[type="checkbox"][role="switch"]:disabled {
   padding-top: min(32dvh, 320px);
   gap: 16px;
 }
-.empty-mark {
-  width: 56px;
-  height: 56px;
+/* One mark tile: 48px, the mark radius, a flat fill and a 28px glyph. The
+   neutral variant is the photon tint and ink; danger keeps its own pair. */
+:is(.empty-mark, .reader-empty-mark) {
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
   display: grid;
   place-items: center;
   border-radius: var(--radius-mark);
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='96' height='96' filter='url(%23n)' opacity='0.3'/%3E%3C/svg%3E"),
-    linear-gradient(135deg, #150510 0%, #a50685 38%, #f15b8f 62%, #fcaec2 82%, #fff3f2 100%);
-  background-size: 96px 96px, cover;
+  background: var(--avatar-0);
+  color: var(--avatar-0-ink);
 }
-.empty-mark img {
-  width: 30px;
-  height: 30px;
+:is(.empty-mark, .reader-empty-mark) :is(img, .empty-mark-glyph) {
+  width: 28px;
+  height: 28px;
 }
 .empty-heading {
   margin: 0;
@@ -209,12 +209,12 @@ input[type="checkbox"][role="switch"]:disabled {
   font-size: calc(22px * var(--text-scale, 1));
   color: var(--accent);
 }
-/* The load error reuses the clear layout with a muted mark; a sentence reads
-   at body scale, not display size. */
+/* The load error reuses the clear layout with the danger mark; a sentence
+   reads at body weight and a 34ch measure. */
 .empty-error .empty-heading {
-  max-width: 360px;
+  max-width: 34ch;
   font-size: calc(15px * var(--text-scale, 1));
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.4;
   text-wrap: balance;
   text-wrap-mode: balance;

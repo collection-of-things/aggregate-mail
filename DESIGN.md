@@ -90,7 +90,9 @@ the same compact type, grouped forms and footer actions.
 The application uses the layout from `feat/frontend-rebuild` on the current
 renderer: a 200px source rail with Workspace above Mail, a connected-account
 footer, a compact view-and-search toolbar, etched separators and inset
-document-preview lists.
+document-preview lists. In dark themes the separators drop their lighter
+inset highlight, so the category bar's bottom rule and the reader's left
+rule are a single 1px line like the list/reader divider.
 The branch's New Message and Drafts icons remain. The web toolbar is
 40px; desktop retains its 52px caption space for native window controls.
 The current view and search share the leading edge; history stays at the right.
@@ -101,7 +103,11 @@ The sidebar shows the app name and uses theme chrome in light mode and the
 raised surface in dark mode. Its 42px footer
 places sync status at the left and Settings at the right, with a top hairline;
 the connected-accounts subtitle may wrap to a second line instead of clipping,
-and the card above the footer grows to fit.
+and the card above the footer grows to fit; the card's icon aligns to the
+first text line, and the nav scrolls above the fixed footer with at least an
+8px gap. While a mailbox view is selected, the active account scope keeps no
+fill: accent text with a 2px accent tick at the left edge, so the mailbox
+keeps the full fill.
 
 Comfortable mail uses content-sized cards at every width. The sender and subject
 use a 54px base. A nonempty comfortable preview adds 20px and leads with the
@@ -118,7 +124,9 @@ metadata, density and text-size changes keep the selected message in view.
 Checkboxes align with the vertical center of both cards and inline rows.
 Bulk counts, sync waits and actions wrap without horizontal scrolling.
 The selected card uses a soft accent fill in both modes, with the keyboard
-focus ring unchanged. Sticky date headings cover the cards beneath them
+focus ring unchanged; while no message is open (or the list sits without a
+reader at every width), the same card is the keyboard cursor — transparent
+fill with a 1px accent outline. Sticky date headings cover the cards beneath them
 when glass is off. Reader subjects use 20px text; the supported mail body keeps
 its existing 13px contract.
 
@@ -134,10 +142,13 @@ fill, with ink at 4.5:1 or better. In mail bodies, quotes take a 2px accent rule
 code uses mono on a veil chip, and pre blocks use mono on a veil surface; links
 are the Energy family and underline on hover. A multi-message conversation
 reads its subject once at the top while each expanded article keeps its own
-heading for assistive tech; an expanded header row keeps only the chevron, the
-selection note and the time, its sender and snippet staying in the accessible
-name, and an unread dot rides the row's left gutter so senders share one x.
-"Selected for actions" is plain muted text. The reader footer is a single row
+heading for assistive tech; an expanded header folds into the sender block —
+its chevron rides the left gutter on the sender line's midline as a 24px
+button, its sender, snippet and time stay only in the accessible name, and
+"Selected for actions" moves beside the sender block's date as plain muted
+text. On a collapsed row an unread dot rides the left gutter so senders share
+one x, and every card's sender line reserves the same marker slot so names
+start at one x whether the importance marker draws or not. The reader footer is a single row
 of quiet links at one size: Reply all carries weight 500 in accent, the rest
 are secondary text that turn accent on hover or focus. Attachment actions are quiet compact buttons in the link
 colour, keeping each row near 36px and ending on the reader's right inset.
@@ -145,8 +156,11 @@ While the list loads, skeleton cards draw on the real row grid — the same
 avatar and text gutters, the longest bar at the preview's reach and a short
 date stub where the timestamp sits — on the `--skeleton` and `--skeleton-peak`
 tokens so the bars stay visible
-against their pane in every theme (about 1.7:1 in dark); a failed load shows the brand mark filled with the error colour
-on a pale error tile. Pinned mail marks the sender line beside the timestamp
+against their pane in every theme (about 1.7:1 in dark). The empty, loading,
+clear-inbox and failed states share one mark tile — 48px, the mark radius, a
+flat fill and a 28px glyph — in a neutral photon pair, and the failed state
+takes the danger tint and ink with its sentence at a 34ch measure in body
+weight. Pinned mail marks the sender line beside the timestamp
 rather than the gutter; the compose action row holds Send, draft and
 scheduling on the shared footer track.
 
@@ -165,7 +179,10 @@ Inbox tabs show the active category name; inactive tabs retain their icon and
 unread count, with full names available to assistive technology and tooltips.
 Beside the reader, the strip wraps to two 28px rows so every tab shows icon,
 name and count, all counts plain muted mono, and the active tab carries its
-own 2px accent underline. The narrow native picker retains every full category name.
+own 2px accent underline. The rows are 28px before text scaling and the
+select-all sits on the first row's midline; when the reader is hidden (clear
+or failed list) the strip takes the wider workspace and stays on one row.
+The narrow native picker retains every full category name.
 
 Appearance offers three full-width reader toolbars: One compact row combines
 categories and action icons, Actions only returns categories when the reader
@@ -462,7 +479,7 @@ Details and reminders stay available through an explicit edit action. Several
 deliverables require a choice, and closed work still needs the full editor to
 reopen. Privacy never automatically focuses a hidden text field.
 
-The composer groups From, To and optional Cc above the subject and body on a shared label column; envelope header rows are 36px with the 12px muted labels inset 12px on the value's baseline, and the File limits note is 12px muted.
+The composer groups From, To and optional Cc above the subject and body on a shared label column; envelope header rows are 36px with the 12px muted labels inset 12px on the value's baseline, its Delete draft and close controls fit the row at 28px, the saved status sits beside Keep draft on the left of the send bar, and the File limits and About undo notes are 12px muted disclosures that share the icon set's chevron glyph with the conversation coverage note.
 Attachments and save/recovery status remain visible above a sticky action
 footer. Keep draft, Discard draft and Send retain their existing safeguards.
 

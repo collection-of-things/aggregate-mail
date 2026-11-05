@@ -268,21 +268,9 @@
   margin-bottom: 6px;
   opacity: 0.7;
 }
-/* The placeholder mark sits on the photon-tinted tile the other empty marks
-   use, at full strength instead of a faded glyph. */
+/* The placeholder shares the mark tile with the list's empty states. */
 .reader-empty-mark {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
   margin-bottom: 6px;
-  border-radius: var(--radius-mark);
-  background: var(--avatar-0);
-  color: var(--avatar-0-ink);
-}
-.reader-empty-mark .empty-mark-glyph {
-  width: 28px;
-  height: 28px;
 }
 .reader-empty .empty-title {
   color: var(--text-2);

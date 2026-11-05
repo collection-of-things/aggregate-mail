@@ -11,7 +11,7 @@ import { replyPreview } from "../../shared/mail-content";
 type Props = {
   mail: Mail; gmail: boolean; api: Api; busy: boolean;
   onChanged: () => Promise<unknown>; onSelect: (mail: Mail) => void;
-  renderMessage: (mail: Mail) => ReactNode;
+  renderMessage: (mail: Mail, fromMeta?: ReactNode) => ReactNode;
   onMenu?: (event: MouseEvent<HTMLElement>, mail: Mail) => void;
   onMenuKey?: (event: KeyboardEvent<HTMLElement>, mail: Mail) => void;
 };
@@ -144,12 +144,13 @@ export function ConversationReader({ mail, gmail, api, busy, onChanged, onSelect
           <span className="conversation-sender">{item.unread && <span className="conversation-unread"><span className="visually-hidden">Unread</span></span>}<Redact text={item.sender} /></span>
           {!open && <span className="conversation-snippet"><Redact text={replyPreview("body" in item ? item.body : "", item.preview)} /></span>}
           <span className="conversation-meta">
-            {item.id === mail.id && <span className="conversation-selected">Selected for actions</span>}
+            {!open && item.id === mail.id && <span className="conversation-selected">Selected for actions</span>}
             <time dateTime={new Date(item.date).toISOString()} title={new Date(item.date).toLocaleString()}>{relative(item.date)}</time>
           </span>
         </button>
         {item.id !== mail.id && <button type="button" className="link conversation-select" disabled={busy} onClick={() => onSelect(item)}>Select for actions</button>}
-        {open && <div key="body" id={`${region}-${index}`}>{renderMessage(item)}</div>}
+        {open && <div key="body" id={`${region}-${index}`}>{renderMessage(item,
+          item.id === mail.id ? <span className="conversation-selected">Selected for actions</span> : undefined)}</div>}
       </section></MailPrivacy>;
     })}
   </section>;
