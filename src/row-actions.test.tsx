@@ -137,7 +137,7 @@ test('touch and narrow lists do not reserve a persistent action strip', async ()
  for (const narrow of [false, true]) for (const density of ['comfortable', 'compact'] as const) {
   const ui = await mountRows([mail, {...mail, id: 'b:1'}], {touch: true, narrow, density});
   try {
-   const height = density === 'compact' && !narrow ? 24 : 54;
+   const height = density === 'compact' ? (narrow ? 48 : 24) : 54;
    assert.equal(document.querySelectorAll('.with-action-strip').length, 0);
    assert.equal(parseFloat(ui.rows()[1].style.top), height);
    assert.equal(parseFloat(document.querySelector<HTMLElement>('.mail-window')!.style.height), height * 2);
@@ -150,7 +150,7 @@ test('the rendered row layout and the windowing height agree in every density an
    const rows=ui.rows();
    const heights=rows.map((row,index)=>index+1<rows.length?parseFloat(ui.rows()[index+1].style.top)-parseFloat(row.style.top):0);
    const expectedClass=narrow||density==='comfortable'?'card':'inline';
-   const expectedHeight=density==='compact'&&!narrow?24:54;
+   const expectedHeight=density==='compact'?(narrow?48:24):54;
    for(const[index,row]of rows.entries()){
     const button=row.querySelector<HTMLElement>('.row')!;
     const relevance=index===0?2:index===1?3:1;
@@ -195,7 +195,7 @@ test('card geometry follows enabled metadata, preview, density and text size', a
   await ui.render({showAccount: true});
   assert.deepEqual(heights(), [72, 74, 72]);
   await ui.render({density: 'compact', narrow: true, showAccount: false});
-  assert.deepEqual(heights(), [54, 54, 72]);
+  assert.deepEqual(heights(), [48, 48, 48]);
   ui.ref.current!.style.setProperty('--text-scale', '1.5');
   await ui.render({showAccount: false});
   assert.deepEqual(heights(), [81, 111, 108]);

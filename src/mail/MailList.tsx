@@ -67,9 +67,10 @@ export function MailList<T extends Mail>({
   const cardLayout = narrow || density === "comfortable";
   const cardContent = useCallback((mail: T) => {
     const preview = density === "comfortable" && !!previewText(mail.preview).trim();
-    // Metadata keeps its own line only without a preview; otherwise it leads it.
+    // Compact cards are two lines: metadata trails the subject. Comfortable
+    // metadata keeps its own line only without a preview; otherwise it leads it.
     return {
-      metadata: !preview && (showAccount || !!(mail.relevance === 3 && mail.reason)),
+      metadata: density === "comfortable" && !preview && (showAccount || !!(mail.relevance === 3 && mail.reason)),
       preview,
     };
   }, [showAccount, density]);
@@ -134,11 +135,18 @@ export function MailList<T extends Mail>({
                   {m.pinned && <span className="row-pin" aria-hidden="true"><Pin size={12} /></span>}
                   {time}
                 </span>
-                {!cardContent(m).preview && metadata}
-                <span className="row-subject"><Redact text={m.subject || "(no subject)"} /></span>
-                {cardContent(m).preview && (
-                  <span className="row-preview">{metadata}<span className="row-preview-text"><Redact text={previewText(m.preview)} /></span></span>
-                )}
+                {density === "compact" ? (
+                  <span className="row-subject-line">
+                    <span className="row-subject"><Redact text={m.subject || "(no subject)"} /></span>
+                    {metadata}
+                  </span>
+                ) : (<>
+                  {!cardContent(m).preview && metadata}
+                  <span className="row-subject"><Redact text={m.subject || "(no subject)"} /></span>
+                  {cardContent(m).preview && (
+                    <span className="row-preview">{metadata}<span className="row-preview-text"><Redact text={previewText(m.preview)} /></span></span>
+                  )}
+                </>)}
               </span>
             ) : (
               <>

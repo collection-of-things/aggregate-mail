@@ -156,23 +156,34 @@
 /* Account and status keep their natural width, capped at two-fifths of the
    line each so a long name still truncates; the preview text is the only part
    that gives way when the line runs out of room. */
-.row.card .row-preview .row-account,
-.row.card .row-preview .row-status { flex: 0 0 auto; min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+.row.card :is(.row-preview, .row-subject-line) .row-account,
+.row.card :is(.row-preview, .row-subject-line) .row-status { flex: 0 0 auto; min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
 /* The status label is plain text here: as an inline-block with hidden
    overflow its baseline would come from its bottom margin edge, which lifts
    the status text and its middot off the shared baseline. Inline keeps it on
    the strut; the status itself caps and ellipsizes, and the attention chip's
    padding still paints on inline display. */
-.row.card .row-preview .row-label { display: inline; }
+.row.card :is(.row-preview, .row-subject-line) .row-label { display: inline; }
 /* An 8px space separates the meta parts from the quieter preview text. */
 .row.card .row-preview .row-preview-text { flex: 1 1 0; min-width: 0; margin-left: 2px; overflow: hidden; text-overflow: ellipsis; }
 /* Inline account content reports the name's baseline, not the dot's box. */
-.row.card .row-preview .row-account { display: inline; }
-.row.card .row-preview .row-account .account-dot { margin-right: 6px; vertical-align: baseline; }
-.row.card .row-preview .row-account::after { content: "·"; margin-left: 6px; color: var(--text-4); }
+.row.card :is(.row-preview, .row-subject-line) .row-account { display: inline; }
+.row.card :is(.row-preview, .row-subject-line) .row-account .account-dot { margin-right: 6px; vertical-align: baseline; }
+.row.card .row-preview .row-account::after,
+.row.card .row-subject-line .row-account:has(+ .row-status > .row-label)::after { content: "·"; margin-left: 6px; color: var(--text-4); }
 .row.card .row-meta { margin: 0; gap: 8px; line-height: calc(16px * var(--text-scale, 1)); }
 .row.card .row-account { font-size: calc(12px * var(--text-scale, 1)); }
 .mail-row > .row.card .unread-dot { width: calc(6px * var(--text-scale, 1)); height: calc(6px * var(--text-scale, 1)); }
+/* Compact cards are exactly two lines: the sender line, then the subject with
+   the account and status trailing inline in secondary ink. */
+.compact .row.card {
+  padding-top: calc(5px * var(--text-scale, 1));
+  padding-bottom: calc(5px * var(--text-scale, 1));
+}
+.compact .row.card .row-text { gap: calc(1px * var(--text-scale, 1)); }
+.compact .row.card .row-subject-line { display: flex; align-items: center; gap: calc(6px * var(--text-scale, 1)); min-width: 0; white-space: nowrap; }
+.compact .row.card .row-subject-line .row-subject { flex: 1 1 0; min-width: 0; }
+.compact .row.card .row-subject-line .row-meta { display: contents; }
 /* Unread no longer overrides the sender's avatar tint: the gutter dot and
    weight carry the state, the tint carries the sender identity. */
 /* Selection is a soft accent fill, no bar or ring; the keyboard focus ring

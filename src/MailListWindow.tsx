@@ -17,7 +17,7 @@ export function MailListWindow<T extends Mail>({ messages, selectedId, focusSele
 }) {
   const windowRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ top: 0, height: 600, offset: 0 });
-  const [sizes, setSizes] = useState({ medium: 34, compact: 24, group: 30, cardBase: 54, metadata: 18, preview: 20 });
+  const [sizes, setSizes] = useState({ medium: 34, compact: 24, group: 30, cardBase: 54, cardCompact: 48, metadata: 18, preview: 20 });
   const [measured, setMeasured] = useState(false);
   const geometry = useMemo(() => {
     let height = 0;
@@ -31,7 +31,8 @@ export function MailListWindow<T extends Mail>({ messages, selectedId, focusSele
       }
       const top = height;
       const content = narrow && cardContent?.(mail);
-      height += content ? sizes.cardBase + (content.metadata ? sizes.metadata : 0) + (content.preview ? sizes.preview : 0)
+      height += content ? density === "compact" ? sizes.cardCompact
+        : sizes.cardBase + (content.metadata ? sizes.metadata : 0) + (content.preview ? sizes.preview : 0)
         : density === "compact" ? sizes.compact : sizes.medium;
       return { top, bottom: height };
     });
@@ -56,8 +57,9 @@ export function MailListWindow<T extends Mail>({ messages, selectedId, focusSele
     const token = (name: string, fallback: number) => (parseFloat(style.getPropertyValue(`--mail-row-${narrow ? "card-" : ""}${name}`)) || fallback) * scale;
     const nextSizes = {
       medium: token("medium", narrow ? 100 : 34),
-      compact: token("compact", narrow ? 72 : 24),
+      compact: token("compact", narrow ? 48 : 24),
       cardBase: (parseFloat(style.getPropertyValue("--mail-card-base")) || 54) * scale,
+      cardCompact: (parseFloat(style.getPropertyValue("--mail-card-compact")) || 48) * scale,
       metadata: (parseFloat(style.getPropertyValue("--mail-card-meta")) || 18) * scale,
       preview: (parseFloat(style.getPropertyValue("--mail-card-preview")) || 20) * scale,
       group: (parseFloat(style.getPropertyValue("--mail-group-height")) || 30) * scale,

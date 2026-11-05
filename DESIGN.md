@@ -113,8 +113,11 @@ Comfortable mail uses content-sized cards at every width. The sender and subject
 use a 54px base. A nonempty comfortable preview adds 20px and leads with the
 account and status inline in secondary text, an 8px space ahead of the quieter
 preview ink; without a preview, visible metadata
-keeps its own 18px line. Compact wide rows remain 24px; compact cards
-omit previews. List windowing assigns the same calculated height to the rendered
+keeps its own 18px line. Compact wide rows remain 24px; compact cards are
+two lines and 48px: the sender line, then the subject with the account and
+status trailing inline in secondary text at a 6px gap, each capped at 40% of
+the line. Compact cards omit previews and the separate metadata line. List
+windowing assigns the same calculated height to the rendered
 row, including text scaling. A stable selection gutter prevents text movement
 when checkboxes are hidden. Below 1200px, both densities use cards in one reading
 column, and Inbox categories use a native picker with unread counts. Below 760px,

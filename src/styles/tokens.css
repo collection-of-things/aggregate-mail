@@ -16,7 +16,8 @@
   --mail-row-medium: 34px;
   --mail-row-compact: 24px;
   --mail-row-card-medium: 100px;
-  --mail-row-card-compact: 72px;
+  --mail-row-card-compact: 48px;
+  --mail-card-compact: 48px;
   --mail-card-base: 54px;
   --mail-card-meta: 18px;
   --mail-card-preview: 20px;

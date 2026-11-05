@@ -72,6 +72,19 @@ test("privacy-safe duplicate labels, address-only names and unavailable accounts
   assert.equal(missing.querySelector(".row-account")?.textContent, "Account unavailable");
 });
 
+test("compact split cards fold account and status into the subject line", () => {
+  const compact = render({ narrow: true, density: "compact" }).querySelector("button.row")!;
+  const line = compact.querySelector(".row-subject-line")!;
+  assert.ok(line, "compact cards draw the subject and metadata on one line");
+  assert.ok(line.querySelector(".row-subject"));
+  assert.ok(line.querySelector(".row-meta"), "metadata trails the subject inline");
+  assert.equal(compact.querySelector(".row-preview"), null, "compact cards never show a preview line");
+  assert.equal(compact.querySelector(".row-text > .row-meta"), null, "no separate metadata line in compact");
+  const comfortable = render({ narrow: true, density: "comfortable" }).querySelector("button.row")!;
+  assert.equal(comfortable.querySelector(".row-subject-line"), null, "comfortable keeps the stacked lines");
+  assert.ok(comfortable.querySelector(".row-preview"), "comfortable keeps the preview line");
+});
+
 test("uniform row sizing keeps status meaning and never invents missing labels", () => {
   const row = render().querySelector("button.row")!;
   assert.equal(row.querySelector(".row-label")?.textContent, "May need");
