@@ -27,7 +27,7 @@ for (const gmail of [true, false]) test(`${gmail ? "Gmail" : "IMAP"} inline stac
   const container = dom.window.document.getElementById("root")!;
   const root = createRoot(container);
   const render = async (privacy = false) => act(async () => root.render(<PrivacyContext.Provider value={{ on: privacy, revealed: new Set(), toggle() {} }}>
-    <ConversationReader mail={base} gmail={gmail} api={api} busy={false} onMenuKey={(event, mail) => { if (event.key === "F10" && event.shiftKey) { event.preventDefault(); menuTarget = mail.id; } }} onChanged={async () => { changed++; }} onSelect={mail => { selected = mail.id; }} renderMessage={mail => <ReaderContent mail={mail} loadImages={async () => ({ images: [] })} />} />
+    <ConversationReader mail={base} gmail={gmail} api={api} busy={false} onMenuKey={(event, mail) => { if (event.key === "F10" && event.shiftKey) { event.preventDefault(); menuTarget = mail.id; } }} onChanged={async () => { changed++; }} onSelect={mail => { selected = mail.id; }} renderMessage={(mail, fromMeta) => <>{fromMeta}<ReaderContent mail={mail} loadImages={async () => ({ images: [] })} /></>} />
   </PrivacyContext.Provider>));
   const click = async (node: Element) => act(async () => (node as HTMLButtonElement).click());
   const toggles = () => [...container.querySelectorAll<HTMLButtonElement>('.conversation-toggle')];
@@ -108,7 +108,7 @@ async function fixture(api: Api) {
         if (event.key === "ContextMenu" || event.key === "F10" && event.shiftKey) {
           event.preventDefault(); event.stopPropagation(); menus.push(item.id);
         }
-      }} renderMessage={item => <ReaderContent mail={item} loadImages={async () => ({ images: [] })} />} />));
+      }} renderMessage={(item, fromMeta) => <>{fromMeta}<ReaderContent mail={item} loadImages={async () => ({ images: [] })} /></>} />));
   const buttons = () => [...container.querySelectorAll<HTMLButtonElement>("button")];
   const button = (text: string) => buttons().find(node => node.textContent?.includes(text))!;
   const click = async (node: Element) => act(async () => (node as HTMLButtonElement).click());
@@ -384,4 +384,22 @@ test("replyPreview trims signatures, valedictions and quoted history at display 
   assert.equal(replyPreview("Sounds good.\n\nOn Mon, 2 Nov 2026 at 09:14, Omar Haddad <omar@\nexample.net> wrote:\n> old text", ""), "Sounds good.");
   // But a real sentence starting with "On " survives when a blank line separates it.
   assert.equal(replyPreview("On Monday we can meet.\n\nOmar Haddad <omar@example.net> wrote:\n> old text", ""), "On Monday we can meet.");
+});
+test("a message whose subject differs from the header keeps its own heading", async () => {
+  const thread = [
+    message("a:1", { date: 1000, subject: "Re: Same subject" }),
+    message("a:3", { date: 3000, subject: "Venue update" }),
+  ];
+  const ui = await fixture(async <T,>() => conversation(thread) as T);
+  try {
+    await ui.render();
+    const subject = ui.container.querySelector<HTMLElement>(".conversation-subject")!;
+    assert.ok(subject, "the header subject stays accessible when the selected message collapses");
+    assert.equal(subject.getAttribute("aria-hidden"), null);
+    const cards = [...ui.container.querySelectorAll<HTMLElement>(".conversation-message")];
+    assert.deepEqual(cards.map(card => card.dataset.messageId), ["a:1", "a:2", "a:3"]);
+    assert.equal(cards[0].dataset.sameSubject, "true", "a Re: prefix on the same subject still folds");
+    assert.equal(cards[1].dataset.sameSubject, "true", "the header message matches itself");
+    assert.equal(cards[2].dataset.sameSubject, undefined, "a different subject keeps its heading");
+  } finally { await ui.close(); }
 });

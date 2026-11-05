@@ -29,7 +29,8 @@ async function mount(count = 3000, pageOffset = 0) {
   }));
   let height = 480, width = 1000, offset = 0;
   const props = { messages: all, selectedId: all[0]?.id, density: "comfortable" as "comfortable" | "compact",
-    sort: "relevance" as "relevance" | "newest" | "oldest", focusSelection: true, narrow: false };
+    sort: "relevance" as "relevance" | "newest" | "oldest", focusSelection: true, narrow: false,
+    cardContent: undefined as undefined | ((mail: Mail) => { metadata: boolean; preview: boolean }) };
   const extent = () => offset + parseFloat(document.querySelector<HTMLElement>(".mail-window")?.style.height || "0");
   const positions = new WeakMap<HTMLElement, number>();
   Object.defineProperties(HTMLElement.prototype, {
@@ -60,7 +61,7 @@ async function mount(count = 3000, pageOffset = 0) {
     if (pageOffset && this.classList.contains("row")) {
       const top = pageOffset + offset + parseFloat(this.closest<HTMLElement>(".mail-window-row")!.style.top) -
         (document.querySelector<HTMLElement>(".list")?.scrollTop || 0);
-      const rowHeight = props.narrow ? (props.density === "compact" ? 72 : 100) : props.density === "compact" ? 24 : 34;
+      const rowHeight = props.narrow ? (props.density === "compact" ? 48 : 100) : props.density === "compact" ? 24 : 34;
       const scale = parseFloat(dom.window.getComputedStyle(document.querySelector(".list")!).getPropertyValue("--text-scale")) || 1;
       return { top, bottom: top + rowHeight * scale, height: rowHeight * scale } as DOMRect;
     }
@@ -273,13 +274,40 @@ test("split cards retain every message across density and pane layout changes", 
     assert.equal(seen.size, 3000);
     assert.ok(app.row(2999));
     app.props.density = "compact"; await app.render();
-    assert.ok(Math.abs(app.windowHeight() - 3000 * 72) < 0.001);
+    assert.ok(Math.abs(app.windowHeight() - 3000 * 48) < 0.001);
     await app.select(2999);
     assert.equal(app.document.activeElement, app.row(2999));
     app.props.narrow = false; await app.render();
     assert.equal(app.windowHeight(), 3000 * 24);
     await app.scroll(app.list().scrollHeight);
     assert.ok(app.row(2999), "returning to the wide list retains the tail");
+  } finally { await app.close(); }
+});
+
+test("compact split cards hold the two-line height regardless of metadata or preview content", async () => {
+  const app = await mount(20);
+  try {
+    app.props.narrow = true;
+    app.props.cardContent = () => ({ metadata: true, preview: true });
+    app.props.density = "compact"; await app.render();
+    assert.ok(Math.abs(app.windowHeight() - 20 * 48) < 0.001, "compact cards ignore metadata and preview additions");
+    app.props.cardContent = () => ({ metadata: true, preview: false });
+    await app.render();
+    assert.ok(Math.abs(app.windowHeight() - 20 * 48) < 0.001, "account and status trail the subject, not the height");
+    app.props.cardContent = () => ({ metadata: false, preview: false });
+    await app.render();
+    assert.ok(Math.abs(app.windowHeight() - 20 * 48) < 0.001, "bare compact cards keep the same height");
+    app.props.density = "comfortable";
+    app.props.cardContent = () => ({ metadata: true, preview: false });
+    await app.render();
+    assert.ok(Math.abs(app.windowHeight() - 20 * (54 + 18)) < 0.001, "comfortable keeps its metadata line");
+    app.props.cardContent = () => ({ metadata: false, preview: true });
+    await app.render();
+    assert.ok(Math.abs(app.windowHeight() - 20 * (54 + 20)) < 0.001, "comfortable keeps its preview line");
+    app.props.density = "compact"; await app.render();
+    app.list().style.setProperty("--text-scale", "1.25");
+    await app.resize(480);
+    assert.ok(Math.abs(app.windowHeight() - 20 * 60) < 0.001, "the two-line card scales with text");
   } finally { await app.close(); }
 });
 

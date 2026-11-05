@@ -1541,11 +1541,12 @@ export function App() {
           <div className={`mail-view${fullReader ? " full-reading" : ""}`} data-reader-toolbar={appearance.readerToolbar} inert={!!compose}>
               <h1 className="pane-title visually-hidden">{viewNames[view]}</h1>
               {(view === "sent" || view === "all") && <PaneHeader className="main-head mail-view-head" corner={null} maximized={maximized}>
+                {opened && !split ? null : <div className="rail-select" ref={setRailSelect} aria-hidden={opened || undefined} />}
                 <span className="view-summary">{loaded ? `${filtered.length} cached ${filtered.length === 1 ? "message" : "messages"}${query.trim() && search.typos ? " · No exact match, showing close spellings" : ""}` : "Loading cached mail"}</span>
                 {(view === "sent" || view === "all") && <div className="head-note"><button type="button" title={accountFilter === "all" ? "Select one account to fetch up to 50 Sent messages" : "Fetch up to 50 Sent messages"} disabled={busy || accountFilter === "all"} onClick={() => void perform(async () => { const coverage = await api<SentCoverage>(`/accounts/${encodeURIComponent(accountFilter)}/sent/sync`, "POST", { bound: 50 }); if (coverage.error) throw new Error("Sent import failed. Existing cached mail remains available."); }, "Sent cache refreshed.")}>Fetch Sent</button></div>}
               </PaneHeader>}
               {(!opened || showInboxCategories || combinedReaderToolbar) && <div className="mail-category-bar">
-                {!opened && <div className="rail-select" ref={setRailSelect} />}
+                {opened && !split ? null : view === "sent" || view === "all" ? null : <div className="rail-select" ref={setRailSelect} aria-hidden={opened || undefined} />}
                 {showInboxCategories &&
                   <InboxTabs tab={tab} unread={tabUnread} onTab={switchTab} compact={!splitRoom} />}
                 {!opened && <div className="rail-actions" ref={setRailActions} />}
@@ -1607,6 +1608,7 @@ export function App() {
                     hasAccounts={state.accounts.length > 0}
                     filtered={hasListControls}
                     title={view === "sent" ? "No cached Sent mail" : view === "all" ? "No cached mail" : view === "snoozed" ? "No snoozed mail" : view === "archive" ? "No archived mail" : `Nothing in ${tabName(tab)}`}
+                    clearName={view === "inbox" ? tabName(tab) : undefined}
                     viewName={viewNames[view]}
                     syncing={syncing}
                     onConnect={() => setConnecting("choose")}
@@ -1629,7 +1631,7 @@ export function App() {
                 </PaneHeader>
                 <div ref={readerRef} className="reader-scroll" tabIndex={-1}>
                   <div key={selected && opened ? selected.id : "empty"} className="pane open">
-                    {reader || <ReaderEmpty selected={!!selected} openKey={shortcut("open")} />}
+                    {reader || <ReaderEmpty selected={!!selected} openKey={shortcut("open")} loading={!loaded} />}
                   </div>
                 </div>
               </section>

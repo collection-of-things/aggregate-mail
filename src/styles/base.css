@@ -43,9 +43,10 @@ button {
   text-align: left;
   white-space: nowrap;
 }
-button:disabled {
+:disabled,
+[aria-disabled="true"] {
   cursor: default;
-  opacity: 0.4;
+  opacity: 0.45;
 }
 a {
   color: inherit;
@@ -54,7 +55,7 @@ a {
   align-items: center;
 }
 kbd {
-  font: inherit;
+  font-family: var(--font-mono);
   color: var(--text-3);
 }
 svg {
@@ -71,19 +72,18 @@ svg {
 input,
 select,
 textarea {
-  background: transparent;
-  border: 1px solid var(--line-2);
+  background: var(--hover);
+  border: 0;
   border-radius: var(--radius-control);
   padding: 8px 10px;
   font-size: calc(13px * var(--text-scale, 1));
   min-width: 0;
-  transition: border-color 160ms var(--ease-out);
 }
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: none;
-  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
 }
 input::placeholder,
 textarea::placeholder {
@@ -165,6 +165,141 @@ input[type="checkbox"][role="switch"]:disabled {
   font-size: calc(14px * var(--text-scale, 1));
   font-weight: 500;
 }
+/* Geist Mono small caps: section labels, date groups, counts, timestamps and
+   key hints share one label voice. */
+.label {
+  font-family: var(--font-mono);
+  font-size: calc(11px * var(--text-scale, 1));
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+/* The designed empty inbox: brand mark on the grain gradient, one serif word. */
+.empty-clear {
+  justify-content: flex-start;
+  padding-top: min(32dvh, 320px);
+  gap: 16px;
+}
+/* One mark tile: 48px, the mark radius, a flat fill and a 28px glyph. The
+   neutral variant is the photon tint and ink; danger keeps its own pair. */
+:is(.empty-mark, .reader-empty-mark) {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-mark);
+  background: var(--avatar-0);
+  color: var(--avatar-0-ink);
+}
+:is(.empty-mark, .reader-empty-mark) :is(img, .empty-mark-glyph) {
+  width: 28px;
+  height: 28px;
+}
+.empty-heading {
+  margin: 0;
+  font-size: calc(20px * var(--text-scale, 1));
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.empty-heading em {
+  font-family: var(--font-accent);
+  font-size: calc(22px * var(--text-scale, 1));
+  color: var(--accent);
+}
+/* The load error reuses the clear layout with the danger mark; a sentence
+   reads at body weight and a 52ch measure, so the standard message stays on
+   one line instead of balancing into a mid-sentence break. */
+.empty-error .empty-heading {
+  max-width: 52ch;
+  font-size: calc(15px * var(--text-scale, 1));
+  font-weight: 400;
+  line-height: 1.4;
+  text-wrap: balance;
+  text-wrap-mode: balance;
+}
+/* The error block keeps the clear state's rhythm: tile, 16px, sentence,
+   12px, action. */
+.empty-error .empty-heading + .link {
+  margin-top: -4px;
+}
+/* The load error carries the danger meaning: the brand mark is masked and
+   filled with the danger ink on a pale danger tint, like .reader-empty-mark. */
+.empty-mark-muted {
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: var(--danger);
+}
+.empty-mark-glyph {
+  display: block;
+  width: 30px;
+  height: 30px;
+  background: currentColor;
+  mask: url("/brand/mark-lumen.svg") center / contain no-repeat;
+  -webkit-mask: url("/brand/mark-lumen.svg") center / contain no-repeat;
+}
+/* Loading shows skeleton cards in the real row grid — same gutter, avatar,
+   text x, line heights and card height as .row.card — under one date bar.
+   The accessible "Loading" label stays for assistive tech and tests. */
+.empty-loading {
+  justify-content: flex-start;
+  padding: 0;
+}
+.empty-skeleton {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  margin-inline: 1px;
+}
+.empty-skeleton-group {
+  width: 64px;
+  height: 11px;
+  margin: calc(10px * var(--text-scale, 1)) 0 calc(9px * var(--text-scale, 1)) 12px;
+  border-radius: 6px;
+  background: var(--skeleton);
+}
+.empty-skeleton-card {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 24px;
+  grid-template-rows: repeat(3, calc(18px * var(--text-scale, 1)));
+  column-gap: 18px;
+  align-items: center;
+  align-content: start;
+  height: calc((var(--mail-card-base) + var(--mail-card-preview)) * var(--text-scale, 1));
+  padding: 8px 12px 0 34px;
+}
+.empty-skeleton-card > i {
+  display: block;
+  height: 11px;
+  border-radius: 6px;
+  background: var(--skeleton);
+}
+.empty-skeleton-card > i:first-child {
+  grid-row: 1 / 4;
+  align-self: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+.empty-skeleton-card > i:nth-child(2) { grid-row: 1; grid-column: 2; width: 85%; }
+/* The preview bar runs to where the real preview text ends, under the stub. */
+.empty-skeleton-card > i:nth-child(3) { grid-row: 2; grid-column: 2 / 4; width: 99%; }
+.empty-skeleton-card > i:nth-child(4) { grid-row: 3; grid-column: 2; width: 42%; }
+/* The date stub sits where the real timestamp ends on the first line. */
+.empty-skeleton-card > i:nth-child(5) { grid-row: 1; grid-column: 3; justify-self: end; width: 24px; }
+@media (prefers-reduced-motion: no-preference) {
+  .empty-skeleton-card > i {
+    background: linear-gradient(90deg, var(--skeleton) 25%, var(--skeleton-peak) 50%, var(--skeleton) 75%);
+    background-size: 200% 100%;
+    animation: empty-shimmer 1600ms linear infinite;
+  }
+  @keyframes empty-shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+}
 .link {
   color: var(--link);
   gap: 5px;
@@ -215,17 +350,16 @@ input[type="checkbox"][role="switch"]:disabled {
   flex-shrink: 0;
   gap: 6px;
   padding: 0 14px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-control);
-  background: var(--raised);
+  border: 0;
+  border-radius: var(--radius-mark-sm);
+  background: var(--veil);
+  color: var(--text);
   font-size: calc(13px * var(--text-scale, 1));
   font-weight: 500;
-  transition:
-    background-color 140ms var(--ease-out),
-    border-color 140ms var(--ease-out);
+  transition: background-color 140ms var(--ease-out);
 }
 .button:hover:not(:disabled) {
-  border-color: var(--line-3);
+  background: var(--veil-hover);
 }
 .button:active:not(:disabled) {
   transform: translateY(1px);

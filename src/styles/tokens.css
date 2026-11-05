@@ -3,20 +3,40 @@
    (--bg); working panes (--surface) stay close to neutral so mail reads calmly. */
 :root {
   --radius-control: 8px;
+  /* The mark's asymmetric corner shape: top-right and bottom-left rounded. */
+  --radius-mark-sm: 3px 10px 3px 10px;
+  --radius-mark: 4px 14px 4px 14px;
+  --radius-mark-lg: 6px 22px 6px 22px;
   --radius-pane: 14px;
   --sidebar: 208px;
-  --list-width: clamp(320px, 28vw, 380px);
+  --list-width: clamp(320px, calc(31vw * var(--text-scale, 1)), min(560px, calc(448px * var(--text-scale, 1))));
+  /* The select-all checkbox and the row checkboxes share this left gutter so
+     every list header lines up (list padding + the row select offset). */
+  --select-gutter: 23px;
   --mail-row-medium: 34px;
   --mail-row-compact: 24px;
   --mail-row-card-medium: 100px;
-  --mail-row-card-compact: 72px;
+  --mail-row-card-compact: 48px;
+  --mail-card-compact: 48px;
   --mail-card-base: 54px;
   --mail-card-meta: 18px;
   --mail-card-preview: 20px;
-  --account-color-0: #5487d9;
-  --account-color-1: #419b91;
-  --account-color-2: #a18ac9;
-  --account-color-3: #ba9763;
+  --account-color-0: #e05cbe;
+  --account-color-1: #a98ce6;
+  --account-color-2: #e0a25a;
+  --account-color-3: #b9a2ad;
+  /* Sender identity tints: four distinct tones, hash-picked per address. The
+     Photon fill is lifted ~8% lightness; the third step is a rose, not the
+     olive-brown that sat too close to the mauves. */
+  --avatar-0: color-mix(in oklab, #4a1840 92%, #ffffff);
+  --avatar-0-ink: #fcaec2;
+  --avatar-1: #33244d;
+  --avatar-1-ink: #cbb6f2;
+  --avatar-2: #4d1e33;
+  --avatar-2-ink: #f2a9ba;
+  --avatar-3: #352430;
+  --avatar-3-ink: #d7c2cb;
+  --selected-card: color-mix(in oklab, var(--accent) 16%, var(--surface));
   --mail-group-height: 30px;
   --subhead-height: 48px;
   --chrome: color-mix(in srgb, var(--surface) 60%, var(--bg));
@@ -34,52 +54,83 @@
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   /* A lightly damped spring: settles with a small overshoot, never loops. */
   --spring: linear(0, 0.06 2.4%, 0.23 5.3%, 0.48 9.3%, 0.71 13.8%, 0.87 18.6%, 0.96 23.8%, 1.005 29.7%, 1.02 36%, 1.012 45%, 1.002 60%, 1);
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+  --font-accent: "Instrument Serif", serif;
   font-family:
+    "Host Grotesk Variable",
+    "Host Grotesk",
     -apple-system,
     BlinkMacSystemFont,
     "SF Pro Text",
-    "Inter Variable",
-    Inter,
     "Segoe UI Variable Text",
     "Segoe UI",
     system-ui,
     sans-serif;
-  font-size: calc(13px * var(--text-scale, 1));
+  font-size: calc(14px * var(--text-scale, 1));
   line-height: 1.45;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
 
-  /* Dark is the default scheme. */
+  /* Dark is the default scheme, drawn on the brand's Mass palette. */
   color-scheme: dark;
-  --bg: #000;
-  --surface: #0e0e10;
-  --raised: #1c1c1f;
-  --hover: rgba(255, 255, 255, 0.04);
-  --selected: rgba(255, 255, 255, 0.07);
-  --line: rgba(255, 255, 255, 0.08);
-  --line-2: rgba(255, 255, 255, 0.12);
-  --line-3: rgba(255, 255, 255, 0.18);
-  --text: #fff;
-  --text-body: #dedede;
-  --text-2: #a0a0a6;
-  --text-3: #88888f;
-  --text-4: #82828a;
-  --accent: #6b9cff;
+  --bg: #150510;
+  --surface: #1a0914;
+  --raised: #26131f;
+  --hover: rgba(255, 243, 242, 0.04);
+  --selected: rgba(255, 243, 242, 0.07);
+  --line: rgba(255, 243, 242, 0.08);
+  --line-2: rgba(255, 243, 242, 0.12);
+  --line-3: rgba(255, 243, 242, 0.18);
+  /* Control outlines need 3:1 against the pane; text-4 mixed toward surface
+     tracks every palette, including custom themes. */
+  --control-edge: color-mix(in srgb, var(--text-4) 70%, var(--surface));
+  --text: #fff3f2;
+  --text-body: #f0dfe2;
+  --text-2: #c4aab5;
+  --text-3: #a68c98;
+  --text-4: #9a8090;
+  --energy: #a50685;
+  --photon: #fcaec2;
+  --accent: #e05cbe;
+  /* Percentages are duplicated in src/themes.ts accentSoftMix, which guards
+     unreadable ink on pale custom accents. Keep both in sync. */
+  --accent-soft: color-mix(in oklab, var(--accent) 22%, var(--surface));
+  --accent-soft-ink: color-mix(in oklab, var(--accent) 38%, var(--text));
+  --code-ink: color-mix(in oklab, var(--accent) 38%, var(--text));
   --link: color-mix(in srgb, var(--accent) 72%, #fff);
-  --reason: #e3a08b;
+  --reason: #fcaec2;
   --quote: color-mix(in srgb, var(--accent) 40%, var(--line-2));
   --danger: #f07c7c;
-  --veil: #1d1d1d;
-  --veil-hover: #262626;
-  --avatar: #1c1c1c;
-  --avatar-text: #a8a8a8;
-  --lights-off: #3a3a3a;
-  --backdrop: rgba(0, 0, 0, 0.5);
-  --edge: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.5);
+  --veil: #2c1724;
+  --veil-hover: #361d2c;
+  /* Skeleton bars read at ~1.7:1 against the dark pane, well above the veil
+     step they replaced. */
+  --skeleton: color-mix(in srgb, var(--veil-hover) 75%, var(--text-4));
+  --skeleton-peak: color-mix(in srgb, var(--skeleton) 80%, var(--text-4));
+  /* Read mail recedes in dark themes: sender and subject share one softened
+     ink, the preview a quieter one; unread keeps full --text. */
+  --row-read-ink: color-mix(in srgb, var(--text) 72%, var(--surface));
+  --row-read-preview: color-mix(in srgb, var(--text) 55%, var(--surface));
+  /* Disabled settings options and the inactive slider track read at ~3:1
+     without compounded opacity. */
+  --disabled-ink: color-mix(in srgb, var(--text) 35%, var(--surface));
+  /* Sidebar nav labels recede a step under the dark chrome; the selected item
+     keeps its accent ink. */
+  --nav-ink: color-mix(in srgb, var(--text) 86%, var(--surface));
+  --avatar: #2a1522;
+  --avatar-text: #c4aab5;
+  --lights-off: #38222f;
+  --backdrop: rgba(10, 2, 8, 0.6);
+  --edge: inset 0 1px 0 rgba(255, 243, 242, 0.05);
+  --shadow: 0 12px 32px rgba(10, 2, 8, 0.45);
+  --shadow-dialog: 0 24px 64px rgba(10, 2, 8, 0.5);
+}
+/* --text-scale is set inline on .app, so the list width must re-evaluate the
+   expression on that element; at :root it always reads the fallback. */
+.app {
+  --list-width: clamp(320px, calc(31vw * var(--text-scale, 1)), min(560px, calc(448px * var(--text-scale, 1))));
 }
 :root[data-scheme="dark"][data-theme="graphite"] {
   --bg: #141416;
@@ -87,6 +138,9 @@
   --raised: #29292d;
   --veil: #2a2a2e;
   --veil-hover: #333338;
+  --control-edge: color-mix(in srgb, var(--text-4) 70%, var(--surface));
+  --skeleton: color-mix(in srgb, var(--veil-hover) 80%, var(--text-4));
+  --skeleton-peak: color-mix(in srgb, var(--skeleton) 80%, var(--text-4));
 }
 :root[data-scheme="dark"][data-theme="midnight"] {
   --bg: #050813;
@@ -94,6 +148,9 @@
   --raised: #1b1d24;
   --veil: #1b1e27;
   --veil-hover: #232733;
+  --control-edge: color-mix(in srgb, var(--text-4) 70%, var(--surface));
+  --skeleton: color-mix(in srgb, var(--veil-hover) 78%, var(--text-4));
+  --skeleton-peak: color-mix(in srgb, var(--skeleton) 80%, var(--text-4));
 }
 :root[data-scheme="dark"][data-theme="forest"] {
   --bg: #040906;
@@ -101,47 +158,81 @@
   --raised: #1b1e1c;
   --veil: #1b201d;
   --veil-hover: #232a25;
+  --control-edge: color-mix(in srgb, var(--text-4) 70%, var(--surface));
+  --skeleton: color-mix(in srgb, var(--veil-hover) 78%, var(--text-4));
+  --skeleton-peak: color-mix(in srgb, var(--skeleton) 80%, var(--text-4));
 }
 
 :root[data-scheme="light"] {
   color-scheme: light;
-  --bg: #f2f2f4;
-  --surface: #fff;
-  --raised: #fff;
-  --hover: rgba(0, 0, 0, 0.04);
-  --selected: rgba(0, 0, 0, 0.06);
-  --line: rgba(0, 0, 0, 0.08);
-  --line-2: rgba(0, 0, 0, 0.13);
-  --line-3: rgba(0, 0, 0, 0.22);
-  --text: #1d1d1f;
-  --text-body: #2c2c2e;
-  --text-2: #48484d;
-  --text-3: #636368;
-  --text-4: #737379;
+  --bg: #f8e8e8;
+  --surface: #fff3f2;
+  --raised: #fffaf9;
+  --hover: rgba(21, 5, 16, 0.04);
+  --selected: rgba(21, 5, 16, 0.06);
+  --line: rgba(21, 5, 16, 0.08);
+  --line-2: rgba(21, 5, 16, 0.13);
+  --line-3: rgba(21, 5, 16, 0.22);
+  /* Same rule as the dark block; the whiter panes need a deeper share of
+     text-4 to keep the 3:1 control-edge contrast. */
+  --control-edge: color-mix(in srgb, var(--text-4) 80%, var(--surface));
+  --text: #150510;
+  --text-body: #2a1823;
+  --text-2: #5a4350;
+  --text-3: #6e5663;
+  --text-4: #7a6170;
+  --account-color-0: #a50685;
+  --account-color-1: #6d48b8;
+  --account-color-2: #b0661a;
+  --account-color-3: #6b5763;
+  --selected-card: color-mix(in oklab, var(--accent) 11%, var(--surface));
+  --accent-soft: color-mix(in oklab, var(--accent) 16%, var(--surface));
+  /* Same pairing note as the dark block: sync with themes.ts accentSoftMix. */
+  --accent-soft-ink: color-mix(in oklab, var(--accent) 70%, var(--text));
+  --code-ink: color-mix(in oklab, var(--accent) 70%, var(--text));
   --link: color-mix(in srgb, var(--accent) 88%, #000);
-  --reason: #a4512f;
+  --reason: #a50685;
   --danger: #c93434;
-  --veil: #d4d4d9;
-  --veil-hover: #c9c9cf;
-  --avatar: #e8e8ec;
-  --avatar-text: #636368;
-  --lights-off: #d1d1d6;
-  --backdrop: rgba(0, 0, 0, 0.22);
+  --veil: #ecd9db;
+  --veil-hover: #e3cdd0;
+  --skeleton: var(--veil-hover);
+  --skeleton-peak: color-mix(in srgb, var(--veil-hover) 80%, var(--text-4));
+  /* Light keeps the inks read rows always used. */
+  --row-read-ink: var(--text);
+  --row-read-preview: var(--text-3);
+  --disabled-ink: color-mix(in srgb, var(--text) 45%, var(--surface));
+  /* Light nav labels keep their current ink. */
+  --nav-ink: var(--text);
+  --avatar: #f3dfe1;
+  --avatar-text: #6e5663;
+  --avatar-0: #fbd3dd;
+  --avatar-0-ink: #8a0570;
+  --avatar-1: #e9dcf7;
+  --avatar-1-ink: #5a3a9a;
+  --avatar-2: #f6e2c9;
+  --avatar-2-ink: #8a5212;
+  --avatar-3: #f1dde3;
+  --avatar-3-ink: #5e4552;
+  --lights-off: #ded2d5;
+  --backdrop: rgba(21, 5, 16, 0.22);
   --edge: inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  --shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
-  --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.18);
+  --shadow: 0 12px 32px rgba(21, 5, 16, 0.12), 0 0 0 0.5px rgba(21, 5, 16, 0.04);
+  --shadow-dialog: 0 24px 64px rgba(21, 5, 16, 0.18);
 }
 :root[data-scheme="light"][data-theme="graphite"] {
   --bg: #e4e4e8;
   --surface: #fbfbfc;
+  --control-edge: color-mix(in srgb, var(--text-4) 85%, var(--surface));
 }
 :root[data-scheme="light"][data-theme="midnight"] {
   --bg: #e1e7f3;
   --surface: #fdfdff;
+  --control-edge: color-mix(in srgb, var(--text-4) 85%, var(--surface));
 }
 :root[data-scheme="light"][data-theme="forest"] {
   --bg: #dfeae3;
   --surface: #fdfefd;
+  --control-edge: color-mix(in srgb, var(--text-4) 85%, var(--surface));
 }
 
 /* One adjustable tint covers the window. Child panes stay clear so their

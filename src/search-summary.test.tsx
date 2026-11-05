@@ -29,3 +29,13 @@ test("pending search communicates progress instead of claiming no matches", () =
   assert.match(html, /Searching cached mail/);
   assert.doesNotMatch(html, /No matching mail|No cached mail matches/);
 });
+
+test("a failed refresh keeps the retry state ahead of the clear inbox", () => {
+  const error = renderToStaticMarkup(<ListEmpty loaded hasAccounts filtered={false} clearName="Inbox" title="Inbox" viewName="Inbox" syncing={false} loadError="The refresh could not be completed." onRetry={() => {}} onConnect={() => {}} onReset={() => {}} onSync={() => {}} />);
+  assert.match(error, /The refresh could not be completed/);
+  assert.match(error, /Retry loading mail/);
+  assert.doesNotMatch(error, /is <em>clear<\/em>/);
+  const clear = renderToStaticMarkup(<ListEmpty loaded hasAccounts filtered={false} clearName="Inbox" title="Inbox" viewName="Inbox" syncing={false} onConnect={() => {}} onReset={() => {}} onSync={() => {}} />);
+  assert.match(clear, /is <em>clear<\/em>/);
+  assert.match(clear, /Sync now/);
+});

@@ -34,7 +34,7 @@
   color: var(--text);
   background: var(--raised);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-mark);
   box-shadow: 0 8px 28px #0008;
 }
 

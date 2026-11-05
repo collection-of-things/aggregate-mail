@@ -1,5 +1,5 @@
 import { Notice, useFeedbackState } from "../ui/Toasts";
-import { useContext, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useContext, useLayoutEffect, useRef, useState } from "react";
 import { composeLink, composeMarkup, plainComposeHtml } from "../../shared/compose-content";
 import { PrivacyContext } from "../ui/Privacy";
 import type { Compose } from "./draft-session";
@@ -320,8 +320,11 @@ export function RichBody({ draft, disabled, onChange }: { draft: Compose; disabl
         setRevealed(false);
       }}>
       <div className="compose-format-tools" role="group" aria-label="Message formatting">
-        {commands.map(({ label, text, command }) => <button key={command} type="button" aria-label={label} title={label}
-          disabled={disabled || hidden} onMouseDown={event => { event.preventDefault(); remember(); }} onClick={() => format(command)}>{text}</button>)}
+        {commands.map(({ label, text, command }) => <Fragment key={command}>
+          {(command === "createLink" || command === "insertUnorderedList") && <span className="compose-format-divider" aria-hidden="true" />}
+          <button type="button" aria-label={label} title={label}
+            disabled={disabled || hidden} onMouseDown={event => { event.preventDefault(); remember(); }} onClick={() => format(command)}>{text}</button>
+        </Fragment>)}
       </div>
       {link !== null && <div className="compose-link-controls" role="group" aria-label="Insert link" data-escape-owner
         onKeyDown={event => {

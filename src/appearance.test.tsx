@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { generatePalette, type CustomTheme } from "./themes";
+import { contrastRatio, generatePalette, oklabHex, type CustomTheme } from "./themes";
 
 // Runs appearance code against a fresh DOM with a synthetic desktop bridge.
 async function withDesktop(platform: string, run: (calls: string[], dom: JSDOM) => Promise<void>) {
@@ -133,9 +133,13 @@ test("custom and preview colors follow the resolved scheme and clear fully when 
     assert.equal(root.style.getPropertyValue("--avatar"), "");
     assert.equal(root.style.getPropertyValue("--veil-hover"), "");
     assert.equal(root.style.getPropertyValue("--line-2"), "");
-    assert.equal(root.style.getPropertyValue("--accent"), "#6b9cff");
-    assert.equal(root.style.getPropertyValue("--primary-fill"), "var(--primary-blue)");
-    assert.equal(root.style.getPropertyValue("--primary-ink"), "#fff");
+    assert.equal(root.style.getPropertyValue("--accent"), "#e05cbe");
+    assert.equal(root.style.getPropertyValue("--primary-fill"), "#a50685");
+    assert.equal(root.style.getPropertyValue("--primary-ink"), "#fff3f2");
+    applyAppearance(defaultAppearance, "light");
+    assert.equal(root.style.getPropertyValue("--accent"), "#a50685");
+    assert.equal(root.style.getPropertyValue("--primary-fill"), "#a50685");
+    assert.equal(root.style.getPropertyValue("--primary-ink"), "#fff3f2", "Energy keeps its brand fill and ink in both schemes");
   });
 });
 
@@ -164,7 +168,48 @@ test("an unavailable storage write leaves the saved theme library and selection 
     Object.defineProperty(dom.window.Storage.prototype, "setItem", { configurable: true, value() { throw new Error("quota"); } });
     assert.equal(saveAppearance({ ...defaultAppearance, accent: "purple" }), false);
     assert.equal(dom.window.localStorage.getItem("emc2.appearance.v1"), saved);
-    assert.equal(readAppearance().accent, "blue");
+    assert.equal(readAppearance().accent, "energy");
+  });
+});
+
+
+test("pale custom accents pin a readable selection ink and built-ins clear it", async () => {
+  await withDesktop("win32", async (_calls, dom) => {
+    const { applyAppearance, defaultAppearance } = await import("./appearance");
+    const root = dom.window.document.documentElement;
+    const pale: CustomTheme = { id: `custom:${crypto.randomUUID()}`, name: "Pale", palettes: {
+      dark: generatePalette("#0b0b0f", "#101010", "dark"),
+      light: { ...generatePalette("#ffffff", "#ffffff", "light"), accent: "#ffffff", surface: "#ffffff", text: "#222222" },
+    } };
+    const value = { ...defaultAppearance, theme: pale.id, customThemes: [pale], mode: "light" as const };
+    applyAppearance(value, "light");
+    assert.equal(root.style.getPropertyValue("--accent-soft-ink"), "#222222",
+      "a pale accent cannot derive readable ink, so the palette text is pinned");
+    const paper: CustomTheme = { id: `custom:${crypto.randomUUID()}`, name: "Paper", palettes: {
+      dark: generatePalette("#0b0b0f", "#101010", "dark"),
+      light: { ...generatePalette("#ffffff", "#ffffff", "light"), accent: "#ffffff", surface: "#ffffff", text: "#000000", veil: "#111111" },
+    } };
+    applyAppearance({ ...value, theme: paper.id, customThemes: [pale, paper] }, "light");
+    assert.equal(root.style.getPropertyValue("--accent-soft-ink"), "#000000");
+    const codeInk = root.style.getPropertyValue("--code-ink") ||
+      oklabHex("#ffffff", "#000000", 0.7);
+    assert.ok(contrastRatio(codeInk, "#111111") >= 4.5,
+      `code ink ${codeInk} stays readable on the dark veil`);
+    const meadow: CustomTheme = { id: `custom:${crypto.randomUUID()}`, name: "Meadow", palettes: {
+      dark: generatePalette("#0c1a10", "#3ddc84", "dark"),
+      light: { ...generatePalette("#e2f3e8", "#2b8a3e", "light"), accent: "#2b8a3e", surface: "#f8fcf9", text: "#1a1a1a" },
+    } };
+    applyAppearance({ ...value, theme: meadow.id, customThemes: [pale, meadow] }, "light");
+    assert.equal(root.style.getPropertyValue("--accent-soft-ink"), "", "a passing accent keeps the derived ink");
+    const meadowInk = root.style.getPropertyValue("--code-ink") ||
+      oklabHex("#2b8a3e", "#1a1a1a", 0.7);
+    assert.ok(contrastRatio(meadowInk, meadow.palettes.light.veil) >= 4.5,
+      `code ink ${meadowInk} stays readable on the meadow veil`);
+    applyAppearance({ ...value, customThemes: [pale, meadow] }, "light");
+    assert.equal(root.style.getPropertyValue("--accent-soft-ink"), "#222222");
+    applyAppearance({ ...defaultAppearance, mode: "light" }, "light");
+    assert.equal(root.style.getPropertyValue("--accent-soft-ink"), "", "returning to a built-in clears the pinned ink");
+    assert.equal(root.style.getPropertyValue("--code-ink"), "", "returning to a built-in clears the pinned code ink");
   });
 });
 

@@ -67,7 +67,10 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
       if (/^(margin|padding|border)/.test(property)) delete style[property];
     if (!isolated) {
       delete style.color;
-      style.backgroundColor = "transparent";
+      // Code and pre drop the sender background so the shared chip/surface
+      // styling applies; everything else keeps its transparent field.
+      if (tag === "code" || tag === "pre") delete style.backgroundColor;
+      else style.backgroundColor = "transparent";
       if (style.borderColor) style.borderColor = "var(--line)";
       for (const property of ["border", "borderTop", "borderRight", "borderBottom", "borderLeft"] as const) {
         if (style[property]) style[property] = String(style[property]).replace(/^(\d+(?:\.\d+)?px (?:solid|dashed|dotted) ).+$/, "$1var(--line)");
@@ -102,8 +105,7 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
       const href = mailLink(a.href || "");
       if (href && (!privacy || (!privateMailLink(a.href, redactText) && !privateMailLink(href, redactText)))) {
         style.color = "var(--link)";
-        // Card-style links set no decoration; plain links keep an underline.
-        style.textDecoration ??= "underline";
+        // Sender-set decoration stays; plain links underline on hover via CSS.
         Object.assign(props, { href, target: "_blank", rel: "noopener noreferrer", referrerPolicy: "no-referrer" });
         if (isolated) props.onClick = (event: { preventDefault: () => void }) => {
           event.preventDefault(); window.open(href, "_blank", "noopener,noreferrer");

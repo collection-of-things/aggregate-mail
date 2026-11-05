@@ -1,33 +1,34 @@
 ---
 name: Emc²
 colors:
-  background: "#000"
-  surface: "#0e0e10"
-  raised: "#1c1c1f"
-  hover: "rgba(255,255,255,0.04)"
-  selected: "rgba(255,255,255,0.07)"
-  line: "rgba(255,255,255,0.08)"
-  control-border: "rgba(255,255,255,0.12)"
-  text: "#fff"
-  text-secondary: "#a0a0a6"
-  text-muted: "#88888f"
-  text-faint: "#82828a"
-  accent: "#6b9cff"
-  link: "#8ab0ff"
-  reason: "#e3a08b"
-  veil: "#1d1d1d"
-  veil-hover: "#262626"
+  background: "#150510"
+  surface: "#1a0914"
+  raised: "#26131f"
+  hover: "rgba(255,243,242,0.04)"
+  selected: "rgba(255,243,242,0.07)"
+  line: "rgba(255,243,242,0.08)"
+  control-border: "rgba(255,243,242,0.12)"
+  text: "#fff3f2"
+  text-secondary: "#c4aab5"
+  text-muted: "#a68c98"
+  text-faint: "#9a8090"
+  accent: "#e05cbe"
+  link: "#e989d0"
+  reason: "#fcaec2"
+  veil: "#2c1724"
+  veil-hover: "#361d2c"
 typography:
   body:
-    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Inter Variable, Inter, Segoe UI Variable Text, Segoe UI, system-ui, sans-serif"
-    fontSize: "13px"
+    fontFamily: "Host Grotesk Variable, Host Grotesk, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI Variable Text, Segoe UI, system-ui, sans-serif"
+    fontSize: "14px"
     fontWeight: 400
     lineHeight: 1.45
 rounded:
   control: "8px"
   pane: "14px"
-  menu: "12px"
-  dialog: "18px"
+  mark: "4px 14px 4px 14px"
+  menu: "4px 14px 4px 14px"
+  dialog: "6px 22px 6px 22px"
   avatar: "50%"
 ---
 
@@ -47,7 +48,8 @@ The app uses a 200px source rail, one view name in the persistent toolbar and
 separate working columns. Mail views share a rail with a 44px minimum height
 above the list: a select-all checkbox aligned with the row checkboxes, Inbox
 category tabs, and,
-while messages are selected, the bulk count and triage actions. The selected
+while messages are selected, the bulk count and triage actions. Sent and All
+cached carry the same checkbox on their summary row ahead of the count. The selected
 count and actions wrap to the available width. Sent-only selections show Pin,
 Unpin and Move to Trash. Drafts account tabs sit directly below that toolbar. Other views show secondary bars only for
 actions or cache controls. Work headings remain available to assistive
@@ -88,19 +90,36 @@ the same compact type, grouped forms and footer actions.
 The application uses the layout from `feat/frontend-rebuild` on the current
 renderer: a 200px source rail with Workspace above Mail, a connected-account
 footer, a compact view-and-search toolbar, etched separators and inset
-document-preview lists.
+document-preview lists. In dark themes the separators drop their lighter
+inset highlight, so the category bar's bottom rule and the reader's left
+rule are a single 1px line like the list/reader divider.
 The branch's New Message and Drafts icons remain. The web toolbar is
 40px; desktop retains its 52px caption space for native window controls.
 The current view and search share the leading edge; history stays at the right.
+The view name claims a fixed slot (~84px before text scaling) with ellipsis, so
+the search field starts at the same x in every view.
 See [ADR 0111](docs/adr/0111-compact-toolbar-placement.md) for the revised placement.
 The sidebar shows the app name and uses theme chrome in light mode and the
 raised surface in dark mode. Its 42px footer
-places sync status at the left and Settings at the right, with a top hairline.
+places sync status at the left and Settings at the right, with a top hairline;
+the connected-accounts subtitle may wrap to a second line instead of clipping,
+and the card above the footer grows to fit; the card's icon aligns to the
+first text line, and the nav scrolls above the fixed footer with at least an
+8px gap. While a mailbox view is selected, the active account scope keeps no
+fill: accent text with a 2px accent tick at the left edge, so the mailbox
+keeps the full fill.
 
 Comfortable mail uses content-sized cards at every width. The sender and subject
-use a 54px base, visible account/status metadata adds 18px, and a nonempty
-comfortable preview adds 20px. Compact wide rows remain 24px; compact cards
-omit previews. List windowing assigns the same calculated height to the rendered
+use a 54px base. A nonempty comfortable preview adds 20px and leads with the
+account and status inline in secondary text, an 8px space ahead of the quieter
+preview ink; without a preview, visible metadata
+keeps its own 18px line. Compact wide rows remain 24px; compact cards are
+two lines and 48px: the sender line, then the subject with the account and
+status trailing inline in secondary text at a 6px gap, each capped at 40% of
+the line. Compact cards omit previews and the separate metadata line. Switching
+density keeps the subject in place, so a focused reveal control inside it keeps
+focus; at full width, where rows change layout, focus moves to the message row. List
+windowing assigns the same calculated height to the rendered
 row, including text scaling. A stable selection gutter prevents text movement
 when checkboxes are hidden. Below 1200px, both densities use cards in one reading
 column, and Inbox categories use a native picker with unread counts. Below 760px,
@@ -109,10 +128,51 @@ Background message refreshes preserve the current scroll position. Explicit
 metadata, density and text-size changes keep the selected message in view.
 Checkboxes align with the vertical center of both cards and inline rows.
 Bulk counts, sync waits and actions wrap without horizontal scrolling.
-The selected card uses a white document in light mode and a raised surface with
-a visible ring in dark mode. Sticky date headings cover the cards beneath them
+The selected card uses a soft accent fill in both modes, with the keyboard
+focus ring unchanged; while no message is open (or the list sits without a
+reader at every width), the same card is the keyboard cursor — transparent
+fill with a 1px accent outline. Sticky date headings cover the cards beneath them
 when glass is off. Reader subjects use 20px text; the supported mail body keeps
 its existing 13px contract.
+
+Letter avatars tint by sender: a stable hash of the address picks one of four
+brand-derived tone pairs (photon, violet, rose and plum in dark; photon,
+violet, amber and plum in light), so the
+same person keeps the same color across the list, thread and reader. Sender
+logos are content and keep their own colors. Attention reasons ("May need...")
+render as an accent-soft pill; other statuses stay quiet text and Gmail labels
+are plain muted 12px text. List label chips keep one pill form: 22px tall,
+12px text, 6px side padding, the small mark radius and a hairline border on a
+transparent fill, with ink at 4.5:1 or better. In mail bodies, quotes take a 2px accent rule, inline
+code uses mono on a veil chip, and pre blocks use mono at 12px on a veil
+surface. All text inside code, including links and quotes, uses the
+veil-checked code ink; links there keep an underline. Elsewhere, links
+are the Energy family and underline on hover. A multi-message conversation
+reads its subject once at the top while each expanded article keeps its own
+heading for assistive tech; collapsed rows keep one column grid with the open
+message — the chevron rides the same gutter x, the sender name the same x by
+reserving the avatar slot, and the unread dot sits at that slot's centre —
+while an expanded header folds into the sender block itself:
+its chevron rides the left gutter on the sender line's midline as a 24px
+button, its sender, snippet and time stay only in the accessible name, and
+"Selected for actions" moves beside the sender block's date as accent text.
+Every card's sender line reserves the same marker slot so names
+start at one x whether the importance marker draws or not. The reader footer is a single row
+of quiet links at one size: Reply all carries weight 500 in accent, the rest
+are secondary text that turn accent on hover or focus. Attachment actions are quiet compact buttons in the link
+colour, keeping each row near 36px and ending on the reader's right inset.
+While the list loads, skeleton cards draw on the real row grid — the same
+avatar and text gutters, the longest bar at the preview's reach and a short
+date stub where the timestamp sits — on the `--skeleton` and `--skeleton-peak`
+tokens so the bars stay visible
+against their pane in every theme (about 1.7:1 in dark). The empty, loading,
+clear-inbox and failed states share one mark tile — 48px, the mark radius, a
+flat fill and a 28px masked glyph — in a neutral photon pair, and the failed
+state takes the danger tint and ink with its sentence at a 52ch measure in body
+weight — the standard message fits one line rather than balancing into a
+mid-sentence break. Pinned mail marks the sender line beside the timestamp
+rather than the gutter; the compose action row holds Send, draft and
+scheduling on the shared footer track.
 
 Today rows, drafts and notifications grow with their visible content. Task
 rows use 6px vertical padding and 2px text gaps; groups use a 12px separation.
@@ -127,6 +187,12 @@ and retain touch targets, safe areas, focus, reduced motion and keyboard access.
 
 Inbox tabs show the active category name; inactive tabs retain their icon and
 unread count, with full names available to assistive technology and tooltips.
+Beside the reader, the strip wraps to two 28px rows of three content-sized
+columns so every tab shows icon, name and count — three per row whether or
+not counts draw — with all counts plain muted mono, and the active tab
+carries its own 2px accent underline. The rows are 28px before text scaling and the
+select-all sits on the first row's midline; when the reader is hidden (clear
+or failed list) the strip takes the wider workspace and stays on one row.
 The narrow native picker retains every full category name.
 
 Appearance offers three full-width reader toolbars: One compact row combines
@@ -362,7 +428,7 @@ Transparency uses the operating system's own material behind the window. On Wind
 
 - A persistent toolbar, 40px on web and 52px on desktop, holds mail search and Commands above the working panes, with the Filters and privacy buttons at its right while the mail list shows; only the privacy button stays for Settings, Drafts and work views. Mail and work panes use 44px title bands below the toolbar, and secondary controls such as category tabs, cached-mail notes and work-view controls share the title line. Headers drag the window apart from their controls; double-clicking maximizes it. While the sidebar is hidden, a Show sidebar button sits first in the toolbar. Drawn window controls belong to the sidebar and toolbar, so they stay in the window corners as the reader pane changes. Windows-style controls reserve 150px at the toolbar’s right edge. macOS-style drawn controls use the configured left or right corner and existing IPC actions. The app-update control follows the pane tools in the toolbar flow, before the window controls, instead of floating over them.
 - On macOS, the native traffic lights sit at (20px, 20px). The app draws no dots of its own there. The header of the leftmost pane, the sidebar or the mail or Settings header while the sidebar is closed, reserves 84px for them. Native application, File, Edit and Window menus provide standard Command shortcuts.
-- The 200px sidebar runs the full window height. Its header holds the app name and platform window-control space. New Message and Drafts come first. Workspace views come next, then Mail views, in separate folding groups, followed by account filters and Add account. Settings and sync share a fixed footer. The current view and account use a neutral selection wash. Navigation rows are 32px with outline icons, 8px radii and muted counts. Account labels may truncate within the rail. Keyboard account hints remain in the shortcuts help. Snoozed appears when it has mail or is open.
+- The 200px sidebar runs the full window height. Its header holds the app name and platform window-control space. New Message and Drafts come first. Workspace views come next, then Mail views, in separate folding groups, followed by account filters and Add account. Settings and sync share a fixed footer. The current view and account use a neutral selection wash; while a mailbox is selected, the account pill recedes to half that strength. Navigation rows are 32px with outline icons, 8px radii and muted counts; in dark themes the labels use `--nav-ink`, one step under the full text. Account labels may truncate within the rail. Keyboard account hints remain in the shortcuts help. Snoozed appears when it has mail or is open.
 - The Show / hide sidebar shortcut (default [) or the same-named Commands entry collapses the sidebar, and the toolbar's Show sidebar button reopens it; the choice is remembered between launches. The sidebar collapses and expands by width on a spring; its content keeps a fixed width so it clips instead of reflowing. Below 760px window width the sidebar is a drawer opened from the toolbar's Show sidebar button.
 - Settings floats in a compact modal above the mounted mail or work view. The
   background sidebar and toolbar are inert. Its header keeps Back, Forward and
@@ -373,12 +439,12 @@ Transparency uses the operating system's own material behind the window. On Wind
   pending-save locks survive section changes and closing. Search shortcuts leave
   Settings for cached mail; Privacy shortcuts remain available outside editors
   and shortcut-capture fields. Nested dialogs retain keyboard ownership.
-- Inbox shows six category tabs in its list rail beside the select-all checkbox: Primary, Social, Promotions, Newsletters, Transactions and Updates, each with an outline icon and a muted unread count. The tabs fill the rail's 44px height in secondary text; the active tab reads in primary text at weight 600, and a 2px accent underline on the rail's bottom hairline marks it - exactly as wide as the tab's icon, label and count, sliding between tabs on the spring. While messages are selected the tabs hide so the bulk count and triage actions keep the rail. Search spans every tab, so the strip hides while searching. See [ADR 0024](docs/adr/0024-inbox-category-tabs.md). Beside the reader the inactive tabs show only their icon and count (only the icon below a 400px column); the name stays in the accessible label and tooltip.
+- Inbox shows six category tabs in its list rail beside the select-all checkbox: Primary, Social, Promotions, Newsletters, Transactions and Updates, each with an outline icon and a muted unread count. The tabs fill the rail's 44px height in secondary text; the active tab reads in primary text at weight 600, and a 2px accent underline on the rail's bottom hairline marks it - exactly as wide as the tab's icon, label and count, sliding between tabs on the spring. While messages are selected the tabs hide so the bulk count and triage actions keep the rail. Search spans every tab, so the strip hides while searching. See [ADR 0024](docs/adr/0024-inbox-category-tabs.md). Beside the reader the tabs wrap to two 28px rows of about three, each showing icon, name and count in plain muted mono, with a 2px accent underline on the active tab (below a 400px column the non-active counts hide); the name stays in the accessible label and tooltip.
 - Sliding lists (sidebar groups, Settings sections and the tabs) draw one hover wash that glides under the pointer on a 320ms spring and fades out when the pointer leaves, instead of a per-item hover background.
-- The mail list sits under its header and scrolls on its own. The Filters button, in the persistent toolbar, opens a 300px popover under it with labeled dropdowns for read status (Show), relevance, sort (Sort by) and Gmail label, plus Reset filters and sort. The popover stays open while choices change and closes on Escape (before Escape closes an email) or a click elsewhere. While any choice differs from its default, the button stays accent-colored with a small dot. Comfortable rows use content-sized document-preview cards at every width, before text scaling. Each card has 8px vertical padding, 10px corners and a 30px circular sender avatar. Sender and subject stay visible; enabled metadata and nonempty previews add their own space. Unread mail uses bold sender and subject text and an accent dot in the lower-right corner. The selected card uses the document surface with a hairline and shallow shadow; keyboard focus adds the accent outline. Compact wide rows remain 24px; narrow cards omit previews. High-relevance mail retains its importance marker and sorting reason. Bulk checkboxes keep their reserved space. The virtual window uses the same height tokens as the rendered rows.
-- Reading pane. Side by side (the default) keeps the list in a column (28vw, clamped to 320–380px) and opens mail in a reader pane beside it. The reader's header holds the email toolbar and, at its right, an `Esc` close control; before anything is opened the pane says No email open, with the open shortcut when an email is selected. Rows in the column become cards: avatar, sender and time on the first line, then the subject, then a preview in comfortable density. Unread cards bold the sender and subject. Full width, and any window narrower than 1200px, opens mail in place of the list as before.
-- The opened email shows its subject at 20px semibold, then one sender line: a 30px avatar, the name with its address beside it and the recipient beneath, and a short date at the right (time for today, day and time this year, full date before; the full timestamp is the tooltip). Gmail labels follow as one muted line with Edit labels. Image consent is a single quiet strip above the body: the warning text, then Show images. The subject, sender line, labels, image strip and attachments span the reader width at the existing padding, left-aligned like Gmail; a plain-text body keeps a 65ch measure, and sender-formatted mail uses the full width so its own centered tables stay centered.
-- Sticky date headers (Today, Yesterday, This week, This month, Earlier) in 11px faint text, pinned to the top of the list with no history-toolbar offset. Their padding is 8px above, 4px below and 12px horizontally, aligned with the inset row content.
+- The mail list sits under its header and scrolls on its own. The Filters button, in the persistent toolbar, opens a 300px popover under it with labeled dropdowns for read status (Show), relevance, sort (Sort by) and Gmail label, plus Reset filters and sort. The popover stays open while choices change and closes on Escape (before Escape closes an email) or a click elsewhere. While any choice differs from its default, the button stays accent-colored with a small dot. Comfortable rows use content-sized document-preview cards at every width, before text scaling. Each card has 8px vertical padding, the small mark radius and a circular sender avatar at 30px before text scaling, its initial scaling with it. Sender and subject stay visible; enabled metadata and nonempty previews add their own space. Unread mail uses bold sender and subject text and an accent dot in the lower-right corner. The selected card uses the document surface with a hairline and shallow shadow; keyboard focus adds the accent outline. While no message is open, the keyboard cursor shows as an accent inset outline on the card rather than the fill, so it never reads as an opened row. Compact wide rows remain 24px; narrow cards omit previews. High-relevance mail retains its importance marker and sorting reason. Bulk checkboxes keep their reserved space and outline themselves with `--control-edge`, muted text mixed toward the pane to hold a 3:1 contrast in every theme; custom palettes pick the stronger of their border or muted text and fall back to palette text. Headers and rows share one `--select-gutter` so the select-all checkbox aligns in every list header. In dark themes, read cards recede to `--row-read-ink` on sender and subject and `--row-read-preview` on the preview, each at 4.5:1 or better on the row and its selected fill; read senders keep weight 400 while unread keeps full text at 500. The virtual window uses the same height tokens as the rendered rows.
+- Reading pane. Side by side (the default) keeps the list in a column (31vw, clamped to 320–448px, widening with text scale up to 560px; the clamp re-evaluates `--text-scale` on `.app`, where the preference lives) and opens mail in a reader pane beside it. The reader's header holds the email toolbar and, at its right, an `Esc` close control. While the list has mail or is loading and no message is open, the pane shows one placeholder: a 48px mark tile on the photon tint, No email open at 17px/500 and, once mail has loaded, one muted line of keyboard hints in the UI font — key names in small mono chips — including the open shortcut when an email is selected. A clear or failed list hides the reader pane so its state centres across the workspace. Rows in the column become cards: avatar, sender and time on the first line, then the subject, then a preview in comfortable density. Unread cards bold the sender and subject. Full width, and any window narrower than 1200px, opens mail in place of the list as before.
+- The opened email shows its subject at 20px semibold, then one sender line: a 30px avatar, the name with its address beside it and the recipient beneath, and a short date at the right (time for today, day and time this year, full date before; the full timestamp is the tooltip). Gmail labels follow as one muted line with Edit labels. Image consent is a single quiet strip above the body: the warning text, then Show images. The subject, sender line, labels, image strip and attachments span the reader width at the existing padding, left-aligned like Gmail; a plain-text body keeps a 65ch measure, and sender-formatted mail uses the full width so its own centered tables stay centered. Inside formatted mail, prose blocks outside tables — paragraphs, lists, quotes, headings and pre blocks — cap at 70ch, including in the isolated renderer. Conversation subject, summary bar and collapsed rows share the message's 24px inset; collapsed rows are 26px tall and divide with the line color at a third of its strength, while the boundaries around the open message keep the full hairline. An unread dot sits absolutely in the row's left gutter so every collapsed sender starts at the same x.
+- Sticky date headers (Today, Yesterday, This week, This month, Earlier) in 11px faint text, pinned to the top of the list on an opaque pane canvas so scrolled cards never show through, with no history-toolbar offset. Their padding is 8px above, 4px below and 12px horizontally, aligned with the inset row content.
 - No sender panel. The window holds at most the sidebar, the mail list and the reader; sender details stay in the reader header ([ADR 0056](docs/adr/0056-remove-sender-panel.md)).
 - Gmail label filter follows account filters and applies within the current view. When all accounts are shown, label names include their account. Opened Gmail mail shows custom labels as plain text and offers Edit labels in a checkbox dialog. System labels are available for filtering but cannot be edited here.
 - No shortcut bar. Current shortcuts appear in the help dialog and can be edited in Settings, Keyboard and mouse. Conflict checks preserve editing, Escape, Tab, account-number and system shortcuts.
@@ -389,7 +455,7 @@ Transparency uses the operating system's own material behind the window. On Wind
 - Settings, Templates and signatures edits templates and account signatures. The composer offers a searchable template picker: type to filter by name and content, arrows to move, Enter or Insert template to apply and Escape to close only the picker. Inserting a template appends its text before an unchanged signature and fills an empty subject. Signature changes on account switch preserve any edited text. Preference text stays out of unfocused editor values in privacy mode; template choices use generic numbered labels.
 - Notices show four at a time with a retained queue. Settings, Notifications chooses Bottom right (default), Bottom center or Top right, and a duration of 3, 6 (default) or 10 seconds, or Until dismissed. Hover and keyboard focus pause expiry. Independent switches control new-mail counts and action confirmations; preview and reset are available. Choices stay on this device. Errors, uncertain sends and Sent-copy warnings always require dismissal. All notice text uses the existing privacy masking. Notices stack from the chosen edge with the newest nearest it, under a count line with Dismiss all and the queued count. Each notice has a labeled Dismiss button beside Open email. Arrivals open their slot so the stack slides; dismissed or expired notices fade and scale out while their slot folds shut over 200ms. The stack scrolls within the viewport at bottom and top anchors, keeping multiline text, Dismiss buttons and the count line reachable at larger text sizes. Internal padding leaves room for notice shadows.
 - Snooze confirms its local return date and time; Return to inbox, Archive and Trash confirm successful actions. Confirmations appear only after the action succeeds. If refreshing then fails, a separate warning preserves the confirmed outcome and asks for an inbox refresh.
-- Settings: a working pane like the mail list, with a Settings header. As in System Settings, controls sit in rounded groups (10px radius, a 4% text tint over the pane, a hairline border) whose 44px rows put the label left and the control right, divided by inset hairlines; 13px semibold headings sit above groups and 12px notes below them. The chosen section sits in a 760px column at its top left, under a 20px title without a number, 52px account and provider rows, plain status text, outlined buttons and small outline switches. Connection fields state what is already on disk: a ticked `Saved · <client ID>` line under the ID field, `Saved · ••••••••••••` under the secret, the Jev key and the OpenAI key, and `Not saved yet` when nothing is stored. A key is only ever shown as dots. Provider and notification-sound choices use visible segmented controls with keyboard navigation. MCP shows one line at rest and folds its endpoint, token and client configs behind a `Show options` disclosure, which opens when MCP is on and closes when it is off.
+- Settings: a working pane like the mail list, with a Settings header. As in System Settings, controls sit in rounded groups (10px radius, a 4% text tint over the pane, a hairline border) whose 44px rows put the label left and the control right, divided by inset hairlines; Geist Mono uppercase headings sit 8px above groups (the same style as the section rail labels, while field labels inside cards stay 13px semibold) and 12px notes below them. The chosen section sits in a 760px column at its top left, under a 20px title without a number, 52px account and provider rows, plain status text, outlined buttons and small outline switches. Connection fields state what is already on disk: a ticked `Saved · <client ID>` line under the ID field, `Saved · ••••••••••••` under the secret, the Jev key and the OpenAI key, and `Not saved yet` when nothing is stored. A key is only ever shown as dots. Provider and notification-sound choices use visible segmented controls with keyboard navigation; the group gets a hairline track and the buttons are 32px tall at 13px. Theme cards share one framed size with a hairline border on a transparent fill; the selected card keeps that size with a 1px accent border on the accent-soft fill. The floating Settings dialog uses the large asymmetric mark radius, and its scroll column ends with a short fade over 32px of bottom padding so clipped content reads as more below; Create theme and Import theme are 32px buttons. The Settings section rail is 232px so section names stay on one line, and disabled options and the inactive slider track use `--disabled-ink` (about 3:1 on the pane) instead of compounded opacity. MCP shows one line at rest and folds its endpoint, token and client configs behind a `Show options` disclosure, which opens when MCP is on and closes when it is off.
 - Dialogs: 18px radius, hairline border, glass fill and dimmed backdrop.
 - Account setup opens directly from the empty inbox and from Settings. Use the same provider choice and connection form in both places. Show known providers with their server settings already filled in; show host and port fields only for custom IMAP. Offer configured Google sign-in first and label the separate app-password option clearly. Keep errors in the form, preserve input on failure and disable duplicate submissions while checking the connection. Developer OAuth settings belong in an advanced disclosure.
 
@@ -424,7 +490,7 @@ Details and reminders stay available through an explicit edit action. Several
 deliverables require a choice, and closed work still needs the full editor to
 reopen. Privacy never automatically focuses a hidden text field.
 
-The composer groups From, To and optional Cc above the subject and body.
+The composer groups From, To and optional Cc above the subject and body on a shared label column; envelope header rows are 36px with the 12px muted labels inset 12px on the value's baseline, its Delete draft and close controls fit the row at 28px behind a 1px divider, the attach, format, body and Undo delay rows line up on the same inset, the saved status sits beside Keep draft at 12px muted after a 20px gap, and the File limits and About undo notes are 12px muted disclosures that share the icon set's chevron glyph with the conversation coverage note. The send bar keeps its divider inside the compose column so the mail list runs the window's full height.
 Attachments and save/recovery status remain visible above a sticky action
 footer. Keep draft, Discard draft and Send retain their existing safeguards.
 
@@ -447,7 +513,7 @@ apply to gesture navigation too.
 
 An app-update icon follows the toolbar's pane tools, right before the window controls, and opens a small panel with the current check result, download progress or a fixed recovery message. Its accessible label and tooltip include the current state. Opening the panel does not start a check, download or installation. Escape, outside pointer input and Close dismiss it. A compatible release offers Download, install and restart. The app checks once at startup; users can check again explicitly. Download starts only after the command click. Installation waits for mail work, renderer sending and draft saves, then honors the native close prompt. Keep editing cancels installation and resumes mail. No ordinary quit installs an update. Unsupported builds explain the limit without an install button, including the current macOS source-build route. Progress uses the native progress element and status text; it adds no animation. During installation, mail controls stay blocked while the update icon remains available.
 
-Selected mail uses the icon actions on its row. Opened mail has an action group in the reader header (or above the opened email in Full width). Its groups are divided by a hairline: Archive, Move to Trash and Snooze, then Reply, Read, Track and Pin. Text labels appear when space permits; narrow layouts keep the icons, accessible labels and tooltips. Snoozed mail shows Return to inbox in place of Snooze. Move to Trash opens the same confirmation as the row icon. Archive uses the existing archive operation and shortcut. The group wraps at narrow widths and uses the shared focus styles. Read requests show a pending label, coalesce duplicate actions and apply confirmed state immediately; a later refresh failure does not turn a successful read into a failed action. Selection alone still leaves unread state unchanged.
+Selected mail uses the icon actions on its row. Opened mail has an action group in the reader header (or above the opened email in Full width). Its groups are divided by a hairline: Archive, Move to Trash and Snooze, then Reply, Read and Pin, then Track work and Schedule meeting, each with a distinct glyph. Reader-toolbar icons render at 16px inside consistent 32px cells. Text labels appear when space permits; narrow layouts keep the icons, accessible labels and tooltips. Snoozed mail shows Return to inbox in place of Snooze. Move to Trash opens the same confirmation as the row icon. Archive uses the existing archive operation and shortcut. The group wraps at narrow widths and uses the shared focus styles. Read requests show a pending label, coalesce duplicate actions and apply confirmed state immediately; a later refresh failure does not turn a successful read into a failed action. Selection alone still leaves unread state unchanged.
 
 Each mail row exposes flat Read, Pin, Reply, Archive, Snooze and Trash icon buttons only while a fine pointer hovers over that row. Selection and keyboard focus do not keep the strip visible. Narrow and touch layouts reserve no action strip. The row context menu, its keyboard invocation and the reader toolbar retain the existing operations. Snoozed mail replaces Snooze with Return to inbox. Controls remain flat and use the current theme. See [ADR 0067](docs/adr/0067-hover-only-mail-row-actions.md).
 
@@ -588,8 +654,8 @@ notification and retain a results disclosure.
 
 Read the existing account-scoped conversation as a chronological stack. Only the
 opened message starts expanded; each collapsed row shows sender, snippet and a
-short date, with an accent dot for unread and a muted pill marking Selected for
-actions. Enter or click toggles a message. Up/Down and Home/End move between
+short date, with an accent dot for unread in the left gutter and muted text
+marking Selected for actions. Enter or click toggles a message. Up/Down and Home/End move between
 message rows; Left/Right collapse or expand. Modified keys retain their existing
 shortcuts and native text-selection behavior.
 

@@ -123,7 +123,7 @@ export function DraftList({ accounts, api, accountFilter, query, refreshKey, act
         <button type="button" key={id} aria-pressed={accountFilter === id} disabled={!active || opening}
           onClick={() => onAccount(id)}>
           <span className="draft-account-label">{label}</span>
-          {(searching ? !pending && !search.error : loaded && !unavailable) && <span className="tab-count">{id === "all" ? available.length : available.filter((draft) => draft.accountId === id).length}</span>}
+          {(searching ? !pending && !search.error : loaded && !unavailable) && <span className="tab-count" data-zero={(id === "all" ? available.length : available.filter((draft) => draft.accountId === id).length) === 0 ? "" : undefined}>{id === "all" ? available.length : available.filter((draft) => draft.accountId === id).length}</span>}
         </button>
       ))}
     </nav>}

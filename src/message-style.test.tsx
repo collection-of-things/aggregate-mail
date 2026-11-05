@@ -28,6 +28,13 @@ test("opaque sticky date captions cover the rows scrolling beneath them", () => 
   } finally { dom.window.close(); }
 });
 
+test("the list width re-evaluates the text scale where the preference lives", () => {
+  // --text-scale is written inline on .app, so --list-width must be declared
+  // there; the :root expression would always resolve with the fallback.
+  const rules = stylesheet();
+  assert.match(rules, /\.app\s*\{[^}]*--list-width:\s*clamp\(320px,\s*calc\(31vw \* var\(--text-scale/);
+});
+
 test("rendered mail rows keep their gutter across checkbox states after the complete stylesheet cascade", () => {
   const mail: Mail = { id: "a:1", accountId: "a", remoteId: "1", sender: "Team", address: "sender@example.com",
     to: "reader@example.com", subject: "Work", preview: "Preview", body: "", date: 1, unread: true,
@@ -96,8 +103,7 @@ test("dark selection is distinct and rebuild headers and footers retain shared g
     document.documentElement.dataset.scheme = "dark";
     document.head.insertAdjacentHTML("beforeend", `<style>${stylesheet()}</style>`);
     const style = (selector: string) => dom.window.getComputedStyle(document.querySelector(selector)!);
-    assert.equal(style(".row").backgroundColor, "var(--raised)");
-    assert.match(style(".row").boxShadow, /var\(--text-3\)/);
+    assert.equal(style(".row").backgroundColor, "var(--selected-card)");
     assert.equal(style(".main-head").height, "auto");
     assert.equal(style(".compose-footer").minHeight, "var(--app-footer-height)");
   } finally { dom.window.close(); }

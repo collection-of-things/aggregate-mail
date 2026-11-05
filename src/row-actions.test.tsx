@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MailList } from './mail/MailList';
+import { PrivacyContext } from './ui/Privacy';
 import type { Mail } from '../shared/types';
 const mail: Mail = { id:'a:1',accountId:'a',remoteId:'1',sender:'Team',address:'sender@example.com',to:'reader@example.com',subject:'Work',preview:'',body:'',date:1,unread:true,category:'important',relevance:2,reason:'',archived:false,snoozedUntil:null };
 test('hover exposes row actions and removes the overlapping timestamp', () => {
@@ -24,7 +25,7 @@ import { act, createRef } from 'react';
 import { JSDOM } from 'jsdom';
 
 async function mountRows(messages: Mail[] = [mail, {...mail, id:'b:1', relevance:3 as const}, {...mail, id:'c:1', relevance:1 as const}],
-  options: {density?: 'comfortable'|'compact'; narrow?: boolean; selected?: string; touch?: boolean} = {}) {
+  options: {density?: 'comfortable'|'compact'; narrow?: boolean; selected?: string; touch?: boolean; privacy?: boolean} = {}) {
  const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'http://localhost/' });
  if (options.touch) Object.defineProperty(dom.window, 'matchMedia', {value: (query: string) => ({matches: query === '(hover: none)', addEventListener() {}, removeEventListener() {}})});
  const { HTMLElement } = dom.window;
@@ -36,12 +37,12 @@ async function mountRows(messages: Mail[] = [mail, {...mail, id:'b:1', relevance
  HTMLElement.prototype.scrollTo=function(options?:ScrollToOptions|number){if(typeof options==='object')this.scrollTop=options.top||0;};
  const {createRoot}=await import('react-dom/client');const root=createRoot(document.getElementById('root')!);const ref=createRef<HTMLDivElement>();
  const events:{kind:string;id:string}[]=[];
- const render=async(props:Partial<Parameters<typeof MailList>[0]>={})=>act(async()=>root.render(<div className={`list ${options.density||'comfortable'}`} ref={ref}>
+ const render=async(props:Partial<Parameters<typeof MailList>[0]>={})=>act(async()=>root.render(<PrivacyContext.Provider value={{on:!!options.privacy,revealed:new Set(),toggle(){}}}><div className={`list ${props.density||options.density||'comfortable'}`} ref={ref}>
    <MailList messages={messages} selectedId={options.selected} density={options.density||'comfortable'} narrow={!!options.narrow}
      sort="relevance" opening="double" accounts={[]} listRef={ref} focusSelection={false}
      onOpen={()=>events.push({kind:'open',id:''})} onSelect={(id)=>events.push({kind:'select',id})}
      onMenu={(_event,target)=>events.push({kind:'menu',id:target.id})} onMenuKey={(_event,target)=>events.push({kind:'menukey',id:target.id})}
-     {...props}/></div>));
+     {...props}/></div></PrivacyContext.Provider>));
  await render();
  const rows=()=>[...document.querySelectorAll<HTMLElement>('.mail-window-row')].sort((a,b)=>parseFloat(a.style.top)-parseFloat(b.style.top));
  return {dom,ref,events,rows,render,async close(){await act(async()=>root.unmount());dom.window.close();for(const[key,descriptor]of previous){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else Reflect.deleteProperty(globalThis,key);}}};
@@ -137,7 +138,7 @@ test('touch and narrow lists do not reserve a persistent action strip', async ()
  for (const narrow of [false, true]) for (const density of ['comfortable', 'compact'] as const) {
   const ui = await mountRows([mail, {...mail, id: 'b:1'}], {touch: true, narrow, density});
   try {
-   const height = density === 'compact' && !narrow ? 24 : 54;
+   const height = density === 'compact' ? (narrow ? 48 : 24) : 54;
    assert.equal(document.querySelectorAll('.with-action-strip').length, 0);
    assert.equal(parseFloat(ui.rows()[1].style.top), height);
    assert.equal(parseFloat(document.querySelector<HTMLElement>('.mail-window')!.style.height), height * 2);
@@ -150,7 +151,7 @@ test('the rendered row layout and the windowing height agree in every density an
    const rows=ui.rows();
    const heights=rows.map((row,index)=>index+1<rows.length?parseFloat(ui.rows()[index+1].style.top)-parseFloat(row.style.top):0);
    const expectedClass=narrow||density==='comfortable'?'card':'inline';
-   const expectedHeight=density==='compact'&&!narrow?24:54;
+   const expectedHeight=density==='compact'?(narrow?48:24):54;
    for(const[index,row]of rows.entries()){
     const button=row.querySelector<HTMLElement>('.row')!;
     const relevance=index===0?2:index===1?3:1;
@@ -193,12 +194,33 @@ test('card geometry follows enabled metadata, preview, density and text size', a
   assert.deepEqual(heights(), [54, 74, 72]);
   assert.equal(ui.rows()[0].querySelector('.row-preview'), null, 'empty previews reserve no line');
   await ui.render({showAccount: true});
-  assert.deepEqual(heights(), [72, 92, 72]);
+  assert.deepEqual(heights(), [72, 74, 72]);
   await ui.render({density: 'compact', narrow: true, showAccount: false});
-  assert.deepEqual(heights(), [54, 54, 72]);
+  assert.deepEqual(heights(), [48, 48, 48]);
   ui.ref.current!.style.setProperty('--text-scale', '1.5');
   await ui.render({showAccount: false});
   assert.deepEqual(heights(), [81, 111, 108]);
   assert.deepEqual(ui.rows().map(row => parseFloat(row.style.top)), [0, 81, 192]);
  } finally { await ui.close(); }
+});
+
+test('changing density keeps focus inside the message whose private subject control was focused',async()=>{
+ const messages=[{...mail,id:'a:1',subject:'Invoice for morgan@example.test'},{...mail,id:'b:1',subject:'Other'}];
+ for(const narrow of [true,false]){
+   const list=await mountRows(messages,{narrow,privacy:true});
+   try{
+     const owner=()=>document.getElementById('mail-a:1')!;
+     const reveal=owner().querySelector<HTMLElement>('.row-subject .address');
+     assert.ok(reveal,'the private subject address renders as a reveal control');
+     reveal.focus();
+     assert.equal(document.activeElement,reveal);
+     for(const density of ['compact','comfortable'] as const){
+       await list.render({density});
+       const active=document.activeElement;
+       assert.notEqual(active,document.body,`${narrow?'split':'full-width'} ${density}: focus does not fall to the body`);
+       assert.ok(owner().contains(active),`${narrow?'split':'full-width'} ${density}: focus stays within the owning message`);
+       if(narrow)assert.ok(active?.matches('.row-subject .address'),`split ${density}: the reveal control itself keeps focus`);
+     }
+   }finally{await list.close();}
+ }
 });

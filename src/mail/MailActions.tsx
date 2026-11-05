@@ -1,6 +1,6 @@
 import type { ComponentType, MouseEvent } from "react";
 import type { RendererMail as Mail } from "../../shared/types";
-import { Archive, Calendar, CalendarPlus, Check, ChevronDown, ChevronUp, Clock, Close, Inbox, Pin, Reply, Trash } from "../ui/icons";
+import { Archive, CalendarPlus, Check, ChevronDown, ChevronUp, Clock, Close, Inbox, Mail as MailUnread, Pin, Reply, TaskSquare, Trash } from "../ui/icons";
 
 type Icon = ComponentType<{ color?: string; size?: number }>;
 
@@ -17,7 +17,9 @@ function Tool({ label, text = label, title, Icon, disabled, busy, onClick }: {
   return (
     <button type="button" className="tool" aria-label={label} title={title ?? label}
       disabled={disabled} aria-busy={busy} onClick={onClick}>
-      <Icon color="currentColor" size={16} />
+      {/* The glyphs are drawn on a 24-unit grid, so size 20 renders the
+          strokes at about 16px inside the 32px cells. */}
+      <Icon color="currentColor" size={20} />
       <span className="tool-label">{text}</span>
     </button>
   );
@@ -77,12 +79,14 @@ export function MailActions({
       <div className="tool-group">
         <Tool label="Reply" title={`Reply (${shortcut("reply")})`} Icon={Reply} disabled={busy} onClick={onReply} />
         <Tool label={readLabel} text="Read" title={`${readLabel} (${shortcut("read")})`} Icon={Check} disabled={mail.direction === "sent" || !mail.unread || reading} busy={reading} onClick={onRead} />
-        {onUnread && <Tool label="Mark as unread" text="Unread" Icon={Check} disabled={busy || syncing || mail.direction === "sent" || mail.unread || reading} onClick={onUnread} />}
-        {onTrack && <Tool label="Track work" text="Track" Icon={Calendar} disabled={busy} onClick={onTrack} />}
-        {onSchedule && <Tool label="Schedule meeting" text="Meeting" Icon={CalendarPlus} disabled={busy} onClick={onSchedule} />}
+        {onUnread && <Tool label="Mark as unread" text="Unread" Icon={MailUnread} disabled={busy || syncing || mail.direction === "sent" || mail.unread || reading} onClick={onUnread} />}
         {onPin && <Tool label={mail.pinned ? "Unpin email" : "Pin email"} text={mail.pinned ? "Unpin" : "Pin"} title={`${mail.pinned ? "Unpin email" : "Pin email for reference"} (local to this app, ${shortcut("pin")})`} Icon={Pin}
           disabled={busy} onClick={onPin} />}
       </div>
+      {(onTrack || onSchedule) && <div className="tool-group">
+        {onTrack && <Tool label="Track work" text="Track" Icon={TaskSquare} disabled={busy} onClick={onTrack} />}
+        {onSchedule && <Tool label="Schedule meeting" text="Meeting" Icon={CalendarPlus} disabled={busy} onClick={onSchedule} />}
+      </div>}
       <span role="status">{reading ? "Read update pending." : busy ? "Updating email…" : ""}</span>
       {trashUnavailable && <span id="trash-unavailable">{trashUnavailable}</span>}
       {opened && <div className="tool-group reader-navigation" role="group" aria-label="Reader navigation">
@@ -91,7 +95,7 @@ export function MailActions({
       </div>}
       {opened && (
         <button type="button" className="tool reader-close-hint" aria-label="Close email" title="Close email (Esc)" onClick={onClose}>
-          <kbd>Esc</kbd><Close color="currentColor" size={14} />
+          <kbd>Esc</kbd><Close color="currentColor" size={16} />
         </button>
       )}
     </div>

@@ -24,10 +24,11 @@ test("composer discloses empty Cc, keeps recovered recipients visible and preser
   const cc = () => document.querySelector<HTMLInputElement>('input[aria-label="Cc"]');
   try {
     await render(draft);
-    const schedule = document.querySelector('.compose-actions .compose-save-status')?.nextElementSibling;
+    const actions = document.querySelector(".compose-actions");
+    const schedule = actions?.querySelector('.compose-save-status')?.nextElementSibling;
     assert.equal(schedule?.textContent, "Send later");
     assert.equal(schedule?.getAttribute("type"), "button");
-    assert.equal(schedule?.nextElementSibling?.getAttribute("type"), "submit");
+    assert.equal(actions?.firstElementChild?.getAttribute("type"), "submit", "Send leads the action row so tab order matches the visual order");
     assert.equal(cc(), null);
     const disclose = document.querySelector<HTMLButtonElement>('[aria-label="Add Cc recipients"]')!;
     assert.equal(disclose.type, "button");

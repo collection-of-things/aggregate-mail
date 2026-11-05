@@ -1,4 +1,4 @@
-import { useCallback, useContext, type KeyboardEvent, type MouseEvent, type RefObject, type ReactNode } from "react";
+import { useCallback, useContext, useLayoutEffect, useRef, type KeyboardEvent, type MouseEvent, type RefObject, type ReactNode } from "react";
 import type { Account, RendererMail as Mail } from "../../shared/types";
 import { previewText } from "../../shared/mail-content";
 import type { InteractionPreferences } from "../interaction";
@@ -65,13 +65,29 @@ export function MailList<T extends Mail>({
   onSwipe?: (mail: T, direction: "left" | "right") => void;
 }) {
   const cardLayout = narrow || density === "comfortable";
-  const cardContent = useCallback((mail: T) => ({
-    metadata: showAccount || !!(mail.relevance === 3 && mail.reason),
-    preview: density === "comfortable" && !!previewText(mail.preview).trim(),
-  }), [showAccount, density]);
+  const cardContent = useCallback((mail: T) => {
+    const preview = density === "comfortable" && !!previewText(mail.preview).trim();
+    // Compact cards are two lines: metadata trails the subject. Comfortable
+    // metadata keeps its own line only without a preview; otherwise it leads it.
+    return {
+      metadata: density === "comfortable" && !preview && (showAccount || !!(mail.relevance === 3 && mail.reason)),
+      preview,
+    };
+  }, [showAccount, density]);
   const bulk = useContext(BulkSelectionContext);
   const privacyContext = useContext(PrivacyContext);
   const privacy = privacyContext.on;
+  // Full-width density changes swap inline rows for cards, which removes any
+  // focused control inside the message. Focus then moves to that message row.
+  const focused = useRef<{ id: string; element: Element }>(undefined);
+  useLayoutEffect(() => {
+    const last = focused.current;
+    if (!last || last.element.isConnected) return;
+    focused.current = undefined;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    document.getElementById(`mail-${last.id}`)?.focus({ preventScroll: true });
+  }, [density, cardLayout]);
   return <>
     {showAccount && !cardLayout && <div className="mail-list-columns" aria-hidden="true"><span>Account</span><span>Status</span></div>}
     <MailListWindow messages={messages} selectedId={selectedId} focusSelection={focusSelection}
@@ -119,21 +135,27 @@ export function MailList<T extends Mail>({
             aria-haspopup="menu"
             aria-label={accessibleLabel}
             aria-current={current ? "true" : undefined}
+            onFocus={(event) => { focused.current = { id: m.id, element: event.target }; }}
           >
             {m.unread && <i className="unread-dot" aria-hidden="true" />}
-            {m.pinned && <span className="row-pin" aria-hidden="true"><Pin size={12} /></span>}
             <Avatar mail={m} />
             {layout === "card" ? (
               <span className="row-text">
                 <span className="row-line">
                   {relevance === 3 && <span className="row-important" aria-hidden="true"><Important size={12} /></span>}
                   <strong><Redact text={m.sender} /></strong>
+                  {m.pinned && <span className="row-pin" aria-hidden="true"><Pin size={12} /></span>}
                   {time}
                 </span>
-                {metadata}
-                <span className="row-subject"><Redact text={m.subject || "(no subject)"} /></span>
-                {cardContent(m).preview && (
-                  <span className="row-preview"><Redact text={previewText(m.preview)} /></span>
+                {/* The subject keeps one position across densities so a
+                    focused reveal control inside it survives the switch. */}
+                {density === "comfortable" && !cardContent(m).preview && metadata}
+                <span className={density === "compact" ? "row-subject-line" : "row-subject-slot"}>
+                  <span className="row-subject"><Redact text={m.subject || "(no subject)"} /></span>
+                  {density === "compact" && metadata}
+                </span>
+                {density === "comfortable" && cardContent(m).preview && (
+                  <span className="row-preview">{metadata}<span className="row-preview-text"><Redact text={previewText(m.preview)} /></span></span>
                 )}
               </span>
             ) : (
@@ -147,6 +169,7 @@ export function MailList<T extends Mail>({
                   </span>
                 </span>
                 {metadata}
+                {m.pinned && <span className="row-pin" aria-hidden="true"><Pin size={12} /></span>}
                 {time}
               </>
             )}

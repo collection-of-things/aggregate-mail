@@ -30,7 +30,7 @@
   flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 4px 12px 12px;
+  padding: 4px 12px 18px;
   animation: sidebar-swap 280ms var(--ease-out);
 }
 .sliding-nav {
@@ -50,6 +50,19 @@
     transform 440ms var(--spring),
     width 440ms var(--spring),
     height 440ms var(--spring);
+}
+/* While a mailbox is selected, the account scope reads as accent text with a
+   2px accent tick and no fill, so the mailbox keeps the full fill. */
+.sidebar-group:has(.active) + .sidebar-group:has(.account-dot) .sliding-wash {
+  display: none;
+}
+.sidebar-group:has(.active) + .sidebar-group:has(.account-dot) button.active {
+  color: var(--accent);
+  font-weight: 500;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.sidebar-group:has(.active) + .sidebar-group:has(.account-dot) button.active > svg {
+  color: var(--accent);
 }
 /* The hover wash glides between items under the pointer and fades when it leaves. */
 .sliding-hover {
@@ -106,7 +119,7 @@
 }
 .inbox-tabs button.active {
   color: var(--text);
-  font-weight: 600;
+  font-weight: 500;
 }
 /* The selection marker is the underline itself: it sits on the header's
    bottom hairline and is exactly as wide as the tab's content. */
@@ -121,7 +134,8 @@
   background: var(--accent);
 }
 .tab-count {
-  font-size: calc(12px * var(--text-scale, 1));
+  font-family: var(--font-mono);
+  font-size: calc(11px * var(--text-scale, 1));
   font-weight: 400;
   font-variant-numeric: tabular-nums;
   color: var(--text-4);
@@ -129,13 +143,85 @@
 .workspace.split .list-pane {
   container-type: inline-size;
 }
-.workspace.split .inbox-tabs {
-  gap: 10px;
-  padding: 0;
+/* Beside the reader the categories wrap to two rows: every tab shows icon,
+   name and count on a 28px line, and the bar grows to fit. The bar lives in
+   .mail-view, a sibling of the split workspace. */
+.mail-view:has(.workspace.split) .mail-category-bar {
+  height: auto;
+  min-height: 0;
+  align-items: flex-start;
+  padding-block: 3px;
+  overflow-x: visible;
 }
-.workspace.split .inbox-tabs button {
+/* The select-all sits on the first tab row's midline, not the grown bar's
+   centre. */
+.mail-view:has(.workspace.split) .mail-category-bar .rail-select {
+  margin-top: calc(6px * var(--text-scale, 1));
+}
+/* Beside a visible reader the tabs stay inside the list column's reach and
+   wrap onto a second row; when the reader is hidden (clear or failed list,
+   where the list spans the workspace) they fit on one row. The strip starts
+   after the select-all cell, so the cap subtracts the gutter, the rail and
+   its gap from --list-width. */
+.mail-view:has(.workspace.split):not(:has(.workspace.split .empty-clear)) .inbox-tabs {
+  max-width: calc(var(--list-width) - var(--select-gutter, 44px) - 30px);
+}
+.mail-view:has(.workspace.split) .inbox-tabs {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  height: auto;
   min-width: 0;
+  align-content: center;
+  gap: 0 10px;
+  padding: 0;
+  overflow-x: visible;
+}
+.mail-view:has(.workspace.split) .inbox-tabs button {
+  min-width: 0;
+  height: calc(28px * var(--text-scale, 1));
   gap: 5px;
+}
+/* Beside a visible reader the named tabs break three per row in content-sized
+   columns, left-aligned from the select-all gutter; columns may shrink rather
+   than overflow the list edge, and the name truncates before the icon or the
+   count does. */
+.mail-view:has(.workspace.split):not(:has(.workspace.split .empty-clear)) .inbox-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, max-content));
+  column-gap: 18px;
+  justify-content: start;
+}
+.mail-view:has(.workspace.split):not(:has(.workspace.split .empty-clear)) .inbox-tabs button {
+  justify-self: start;
+  min-width: 0;
+  max-width: 100%;
+}
+.mail-view:has(.workspace.split):not(:has(.workspace.split .empty-clear)) .inbox-tabs button .tab-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inbox-tabs button > svg,
+.inbox-tabs button .tab-count {
+  flex-shrink: 0;
+}
+/* All names stay readable in the two-row layout. */
+.mail-view:has(.workspace.split) .inbox-tabs button .tab-label {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  white-space: normal;
+}
+/* A single sliding underline cannot follow a wrapped second row; the active
+   tab carries its own 2px accent underline instead. */
+.mail-view:has(.workspace.split) .inbox-tabs .sliding-wash {
+  display: none;
+}
+.mail-view:has(.workspace.split) .inbox-tabs button.active {
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 .inbox-tabs button:not(.active) .tab-label {
   position: absolute;
@@ -160,12 +246,27 @@
   padding: 0 10px;
   border-radius: var(--radius-control);
   font-size: calc(13px * var(--text-scale, 1));
-  color: var(--text);
+  color: var(--nav-ink);
   transition: background-color 140ms var(--ease-out);
 }
-/* Sidebar symbols take the accent color, as in Finder and Mail. */
+/* Sidebar symbols take the accent color, as in Finder and Mail, and grow
+   with the text scale like the labels beside them. */
+.sidebar-group > button > svg,
+.inbox-tabs button > svg {
+  width: calc(16px * var(--text-scale, 1));
+  height: calc(16px * var(--text-scale, 1));
+}
 .sidebar-group button > svg {
   color: var(--accent);
+}
+/* Provider marks sit inside their name span; they scale the same way. */
+.sidebar-group .provider-icon {
+  width: calc(13px * var(--text-scale, 1));
+  height: calc(13px * var(--text-scale, 1));
+}
+.inbox-tabs button > svg {
+  width: calc(15px * var(--text-scale, 1));
+  height: calc(15px * var(--text-scale, 1));
 }
 /* Sliding lists draw a gliding hover wash instead of a per-row background. */
 .sidebar-group:not(.sliding-nav) button:hover:not(.active, :disabled) {
@@ -189,7 +290,7 @@
 .sidebar-heading button {
   padding: 0 10px 6px;
   font-size: calc(11px * var(--text-scale, 1));
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-3);
   letter-spacing: .06em;
   text-transform: uppercase;
@@ -234,7 +335,9 @@
 .sidebar-footer .sync { min-width: 0; margin-left: auto; padding: 6px 4px; white-space: nowrap; }
 .sidebar-settings { order: -1; width: 32px; height: 32px; flex-shrink: 0; justify-content: center; padding: 0; border-radius: var(--radius-control); }
 .sidebar-settings svg { color: var(--accent); }
-.sidebar-settings:hover, .sidebar-settings[aria-current="page"] { background: var(--selected); }
+.sidebar-settings:hover { background: var(--hover); }
+.sidebar-settings[aria-current="page"] { background: var(--accent-soft); color: var(--accent-soft-ink); }
+.sidebar-settings[aria-current="page"] svg { color: var(--accent-soft-ink); }
 .sync {
   font-size: calc(12px * var(--text-scale, 1));
   color: var(--text-4);
@@ -243,12 +346,12 @@
   color: var(--text-2);
 }
 
-.sidebar-brand { display: flex; align-items: baseline; gap: 8px; padding: 4px 10px 14px; font-size: calc(19px * var(--text-scale, 1)); font-weight: 650; letter-spacing: -.03em; }
+.sidebar-brand { display: flex; align-items: baseline; gap: 8px; padding: 4px 10px 14px; font-size: calc(19px * var(--text-scale, 1)); font-weight: 500; letter-spacing: -.03em; }
 .sidebar-brand span { color: var(--text-3); font-size: calc(10px * var(--text-scale, 1)); font-weight: 500; letter-spacing: .06em; }
-.sidebar-primary > button:first-of-type { background: var(--accent); color: var(--surface); font-weight: 600; margin-bottom: 6px; }
+.sidebar-primary > button:first-of-type { background: var(--accent); color: var(--surface); font-weight: 500; margin-bottom: 6px; }
 .sidebar-primary > button:first-of-type > svg { color: inherit; }
 .sidebar-primary > button:first-of-type:hover { filter: brightness(1.08); }
-.sidebar-group button[aria-current="page"], .sidebar-group button[aria-pressed="true"] { color: var(--link); font-weight: 550; }
+.sidebar-group button[aria-current="page"], .sidebar-group button[aria-pressed="true"] { color: var(--link); font-weight: 500; }
 .sidebar-footer { border-top: 1px solid var(--line); }
 .sidebar-settings { color: var(--text-2); }
 .sidebar-count { padding: 1px 5px; min-width: 19px; text-align: center; border-radius: 5px; background: var(--hover); }

@@ -41,7 +41,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: calc(17px * var(--text-scale, 1));
-  font-weight: 600;
+  font-weight: 500;
 }
 .pane-head > .icon:first-child {
   margin-left: -8px;
@@ -174,48 +174,36 @@
 .traffic.right {
   flex-direction: row-reverse;
 }
-/* Provider marks: Gmail, iCloud, Fastmail, Yahoo, custom IMAP. */
+/* Provider marks render monochrome in the chrome: Gmail, iCloud, Fastmail,
+   Yahoo, custom IMAP. Sender logos on avatars are content and stay colored. */
 .provider-icon {
   width: 13px;
   height: 13px;
   border-radius: 3px;
   font-size: calc(9px * var(--text-scale, 1));
   line-height: 1;
-  color: var(--text);
-  background: #555;
+  color: var(--text-3);
+  background: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 .provider-icon b {
-  font-weight: 800;
+  font-weight: 500;
   letter-spacing: -0.04em;
 }
 .provider-icon svg {
   width: 68%;
   height: 68%;
 }
-.provider-icon.gmail,
-.provider-icon.imap {
-  background: transparent;
+.provider-icon svg path {
+  fill: currentColor;
 }
 .provider-icon.gmail svg,
 .provider-icon.imap svg {
   width: 100%;
   height: 100%;
-}
-.provider-icon:is(.icloud, .fastmail, .yahoo) {
-  color: #fff;
-}
-.provider-icon.icloud {
-  background: #3e9cf5;
-}
-.provider-icon.fastmail {
-  background: #3b6fc4;
-}
-.provider-icon.yahoo {
-  background: #7024de;
 }
 
 /* The sidebar and working panes sit flush, divided by hairlines. */
@@ -244,6 +232,10 @@
 .workspace.split .list-pane {
   flex: 0 0 var(--list-width);
 }
+/* A clear or failed list has nothing to read, so its state centres across the
+   whole workspace instead of sitting beside a second placeholder. */
+.workspace.split:has(.list-pane .empty-clear) .list-pane { flex: 1; }
+.workspace.split:has(.list-pane .empty-clear) .reader-pane { display: none; }
 .reader-pane {
   flex: 1;
   min-width: 0;
@@ -253,7 +245,7 @@
   background: var(--surface);
 }
 .reader-scroll {
-  --reader-gutter: 32px;
+  --reader-gutter: 24px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -276,10 +268,28 @@
   margin-bottom: 6px;
   opacity: 0.7;
 }
+/* The placeholder shares the mark tile with the list's empty states. */
+.reader-empty-mark {
+  margin-bottom: 6px;
+}
 .reader-empty .empty-title {
   color: var(--text-2);
 }
+/* The hint sentence reads in the UI font; only the key names carry mono, in
+   small bordered chips. */
+.reader-empty-hint {
+  margin: 0;
+  font-size: calc(13px * var(--text-scale, 1));
+  color: var(--text-3);
+}
+/* While the list loads, the hint reserves its line so the mark does not shift
+   when it appears. */
+.reader-empty-hint-reserved { visibility: hidden; }
 .reader-empty kbd {
+  font-family: var(--font-mono);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-mark-sm);
+  padding: 0 5px;
   color: var(--text-2);
 }
 .list {
@@ -349,27 +359,46 @@
 
 .app-main { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
 .app-toolbar { border-left: 1px solid var(--line); background: var(--surface); }
-.app-search-toolbar { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
-.app-search-toolbar .search { flex: 1; min-width: 0; max-width: 640px; background: var(--hover); animation: none; }
+/* The group keeps its content minimum (the default auto): the 220px field
+   plus Commands and its hint never push onto the pane tools beside it. */
+.app-search-toolbar { display: flex; align-items: center; gap: 10px; flex: 1; }
+.app-search-toolbar .search { flex: 1; min-width: 220px; max-width: 480px; background: var(--hover); animation: none; }
+/* The toolbar yields its shortcut hints before it squeezes the query field. */
+.app-toolbar { container-type: inline-size; }
+@container (max-width: 900px) { .commands-button kbd, .app-search-toolbar .search kbd { display: none; } }
 .app-search-toolbar .search input { min-width: 0; background: transparent; }
 .app-search-toolbar .search kbd { font-size: calc(11px * var(--text-scale, 1)); color: var(--text-3); }
 .commands-button { gap: 10px; min-height: 32px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: var(--radius-control); font-size: calc(12px * var(--text-scale, 1)); }
-.commands-button kbd { color: var(--text-3); font-size: calc(10px * var(--text-scale, 1)); }
+.commands-button kbd { color: var(--text-3); font-size: calc(11px * var(--text-scale, 1)); }
 .save-view-button { flex-shrink: 0; min-height: 32px; padding: 0 6px; color: var(--text-3); white-space: nowrap; font-size: calc(12px * var(--text-scale, 1)); }
 @media (max-width: 760px) { .commands-button kbd { display: none; } .app-toolbar { padding-left: 12px; } }
+/* Same condition as the auto-height toolbar in responsive.css: only then can
+   the group wrap, dropping the field's 220px floor so the field, Search
+   options and Commands all stay reachable at 320px. */
+@media (width < 760px) {
+  .app-search-toolbar { flex-wrap: wrap; min-width: 0; }
+  .app-search-toolbar .search { flex: 1 1 auto; min-width: 0; }
+}
 
-.app { font-size: calc(13px * var(--text-scale, 1)); }
+.app { font-size: calc(14px * var(--text-scale, 1)); }
 .app-toolbar .mail-navigation { flex: 0 0 auto; padding: 0; border: 0; gap: 2px; }
 .app-toolbar .mail-navigation button { width: 28px; height: 30px; padding: 0; justify-content: center; }
+/* Inside other headers the nav keeps its arrows but not its bar border. */
+.main-head .mail-navigation,
+.dialog-title .mail-navigation { border-bottom: 0; }
+.dialog-title .mail-navigation { min-height: 0; padding: 0; gap: 2px; }
 /* Every pane header under the top bar shares one height so its bottom
    hairline runs continuously across list and reader panes. */
 .main-head, .reader-head { height: var(--subhead-height); min-height: var(--subhead-height); }
+/* Nothing open: the reader keeps no empty header band or hairline. */
+.reader-head:empty { display: none; }
 /* Secondary controls share the title line: category tabs, cached-mail notes
    and each work view's controls. */
 .main-head .inbox-tabs { flex: 1; min-width: 0; align-self: stretch; margin-left: 12px; }
 .head-tools { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; margin-left: 12px; overflow: hidden; }
 .head-note { flex: 1; min-width: 0; margin-left: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
-.head-note button { flex-shrink: 0; height: 26px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: var(--radius-control); color: var(--text); font-size: inherit; }
+.head-note button { flex-shrink: 0; height: 26px; padding: 0 8px; border: 0; border-radius: var(--radius-mark-sm); background: var(--veil); color: var(--text); font-size: inherit; }
+.head-note button:hover:not(:disabled) { background: var(--veil-hover); }
 .head-note small { min-width: 0; overflow: hidden; text-overflow: ellipsis; flex-shrink: 10; }
 .drafts-pane { display: flex; flex: 1; flex-direction: column; min-height: 0; background: var(--surface); }
 .draft-list { overflow: auto; min-height: 0; }
@@ -379,7 +408,7 @@
 .draft-row:hover { background: var(--hover); }
 .draft-row-account { display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; white-space: normal; color: var(--accent); }
 .draft-row-content, .draft-row-meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.draft-row-content > strong { font-weight: 600; }
+.draft-row-content > strong { font-weight: 500; }
 .draft-row-content > :is(strong, span) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .draft-row-addresses, .draft-row-preview, .draft-row-meta { color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
 .draft-row-meta { text-align: right; }
