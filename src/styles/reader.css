@@ -312,12 +312,12 @@ article.message {
 /* The Attachments heading is a section label, not content. */
 .reader-attachments h2 { margin: 0 0 6px; font-family: var(--font-mono); font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
 .reader-attachments ul { list-style: none; margin: 0; padding: 0; }
-.reader-attachments li { border-bottom: 1px solid var(--line); padding: 6px 0; }
+.reader-attachments li { border-bottom: 1px solid var(--line); padding: 3.5px 0; }
 .attachment-row, .attachment-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .attachment-row { justify-content: space-between; }
 /* Attachment actions are quiet link-coloured buttons, not filled controls;
-   the row stays ~40px instead of wrapping a 38px button. */
-.attachment-row .button { height: auto; min-height: 28px; padding: 0 10px; background: transparent; color: var(--link); }
+   the row stays ~36px and the link's right edge lands on the reader inset. */
+.attachment-row .button { height: auto; min-height: 28px; padding: 0 0 0 10px; background: transparent; color: var(--link); }
 .attachment-row .button:hover:not(:disabled) { background: var(--hover); }
 .attachment-name { min-width: 0; overflow-wrap: anywhere; }
 .attachment-size { color: var(--text-3); }
@@ -355,8 +355,8 @@ article.message {
   column-gap: 10px;
   align-items: center;
   width: 100%;
-  min-height: calc(30px * var(--text-scale, 1));
-  padding: calc(5px * var(--text-scale, 1)) var(--reader-gutter, 24px);
+  min-height: calc(26px * var(--text-scale, 1));
+  padding: calc(3px * var(--text-scale, 1)) var(--reader-gutter, 24px);
   background: transparent;
   border: 0;
   text-align: left;

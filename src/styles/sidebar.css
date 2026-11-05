@@ -51,6 +51,11 @@
     width 440ms var(--spring),
     height 440ms var(--spring);
 }
+/* While a mailbox is selected, the account scope pill recedes to half
+   strength so the mailbox keeps the full fill. */
+.sidebar-group:has(.active) + .sidebar-group:has(.account-dot) .sliding-wash {
+  background: color-mix(in srgb, var(--accent-soft) 50%, transparent);
+}
 /* The hover wash glides between items under the pointer and fades when it leaves. */
 .sliding-hover {
   position: absolute;
@@ -160,7 +165,7 @@
   padding: 0 10px;
   border-radius: var(--radius-control);
   font-size: calc(13px * var(--text-scale, 1));
-  color: var(--text);
+  color: var(--nav-ink);
   transition: background-color 140ms var(--ease-out);
 }
 /* Sidebar symbols take the accent color, as in Finder and Mail. */

@@ -40,7 +40,7 @@ export function ListEmpty({ loaded, hasAccounts, filtered, title, viewName, sync
           <div className="empty-skeleton-group" />
           {skeletonRows.map((row) => (
             <div className="empty-skeleton-card" key={row}>
-              <i /><i /><i /><i />
+              <i /><i /><i /><i /><i />
             </div>
           ))}
         </div>

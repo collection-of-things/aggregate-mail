@@ -294,6 +294,9 @@
   font-size: calc(12px * var(--text-scale, 1));
   color: var(--text-3);
 }
+/* While the list loads, the hint reserves its line so the mark does not shift
+   when it appears. */
+.reader-empty-hint-reserved { visibility: hidden; }
 .reader-empty kbd {
   color: var(--text-2);
 }

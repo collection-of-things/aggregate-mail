@@ -100,10 +100,19 @@
 .workspace .list { padding-inline: 12px; }
 .mail-window-date .group { padding-inline: 12px; color: var(--text-4); font-size: calc(11px * var(--text-scale, 1)); font-weight: 500; }
 :root:not([data-glass]) .mail-window-date .group { background-color: var(--rebuild-canvas); }
+/* Under glass the sticky date captions need the same opaque canvas, or rows
+   scroll visibly through the heading. */
+:root[data-glass] .mail-window-date .group { background-color: var(--rebuild-canvas); backdrop-filter: none; }
 .mail-row { margin-inline: 1px; }
 .row { border-radius: var(--radius-mark); }
 .row.card { border-radius: var(--radius-mark-sm); }
 .row.card:focus-visible { border-radius: var(--radius-mark-sm); }
+/* While the reader is still empty, the keyboard cursor reads as an accent
+   outline; an opened row keeps the full selection fill. */
+.workspace:has(.reader-pane .reader-empty) .row.card.selected {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
 .row::after { display: none; }
 /* Keep the selection gutter stable when the reader hides checkboxes. Card
    slots share their content-based height with MailListWindow. */

@@ -17,7 +17,9 @@ function Tool({ label, text = label, title, Icon, disabled, busy, onClick }: {
   return (
     <button type="button" className="tool" aria-label={label} title={title ?? label}
       disabled={disabled} aria-busy={busy} onClick={onClick}>
-      <Icon color="currentColor" size={16} />
+      {/* The glyphs are drawn on a 24-unit grid, so size 20 renders the
+          strokes at about 16px inside the 32px cells. */}
+      <Icon color="currentColor" size={20} />
       <span className="tool-label">{text}</span>
     </button>
   );

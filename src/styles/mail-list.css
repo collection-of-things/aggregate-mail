@@ -121,7 +121,7 @@
 .unread-dot {
   position: absolute;
   top: 50%;
-  left: 15px;
+  left: 1px;
   width: 6px;
   height: 6px;
   margin-top: -3px;
@@ -462,7 +462,6 @@
    line's gap (or the timestamp's own margin on wide rows) spaces them, so a
    wide relative timestamp can never cover the pin. */
 .row-pin { display: inline-flex; flex-shrink: 0; align-self: center; color: var(--text-3); }
-.mail-row:has(.mail-select) .unread-dot { left: 1px; }
 .search-help { margin: 0; padding: 8px 18px; color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
 .search-help[role="alert"] { color: var(--danger); }
 .search-help button { height: 22px; padding: 0 2px; border: 0; border-radius: var(--radius-control); color: var(--link); font-size: inherit; }

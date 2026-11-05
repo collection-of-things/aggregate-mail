@@ -513,8 +513,9 @@
 .settings-group-label .work-toolbar { flex-shrink: 0; padding: 0; }
 .settings-group-label .work-controls button { height: 26px; padding: 0 10px; }
 .settings-group-label + .work-content { padding-top: 0; }
-.settings .segmented { display: flex; flex-wrap: wrap; gap: 4px; padding: 0; border: 0; width: fit-content; max-width: 100%; }
+.settings .segmented { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px; border: 1px solid var(--line); width: fit-content; max-width: 100%; }
 .settings .segmented button { min-width: 0; flex: 0 1 auto; height: auto; min-height: 32px; padding: 5px 10px; border: 0; font-size: calc(13px * var(--text-scale, 1)); white-space: normal; overflow-wrap: anywhere; }
+.settings .theme-library-actions .button { height: 32px; }
 /* Disabled options keep readable muted ink instead of dimming to opacity. */
 .settings button:disabled,
 .settings [aria-disabled="true"] { opacity: 1; color: var(--disabled-ink); }
@@ -559,6 +560,7 @@
   max-height: calc(100dvh - 48px);
   padding: 0;
   overflow: hidden;
+  border-radius: var(--radius-mark-lg);
 }
 .settings-dialog > .dialog-title {
   flex-shrink: 0;
@@ -588,7 +590,9 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 20px 24px 24px;
+  padding: 20px 24px 32px;
+  /* The last 16px fade into the surface so cut-off content reads as more below. */
+  mask-image: linear-gradient(180deg, #000 calc(100% - 16px), transparent);
 }
 .settings-dialog .settings-row:not(.stacked) { flex-wrap: wrap; }
 .settings-dialog .settings-row > :is(input, select) { max-width: 100%; }
@@ -597,5 +601,5 @@
 @container (max-width: 680px) {
   .settings-dialog .settings { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .settings-dialog .settings-navigation { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 28dvh; padding: 10px; border-right: 0; border-bottom: 1px solid var(--line); }
-  .settings-dialog .settings-column { padding: 16px 14px 24px; }
+  .settings-dialog .settings-column { padding: 16px 14px 32px; }
 }

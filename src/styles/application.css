@@ -237,6 +237,8 @@
 .settings .window-opacity input[type="range"] { width: 100%; height: 24px; padding: 0; accent-color: var(--accent); appearance: none; background: transparent; }
 .settings .window-opacity input[type="range"]::-webkit-slider-runnable-track { height: 4px; border: 0; border-radius: 2px; background: var(--veil); }
 .settings .window-opacity input[type="range"]::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; margin-top: -5px; border: 0; border-radius: 50%; background: var(--accent); }
+.settings .window-opacity input[type="range"]:disabled::-webkit-slider-thumb { background: var(--disabled-ink); }
+.settings .window-opacity input[type="range"]:disabled::-moz-range-thumb { background: var(--disabled-ink); }
 .settings .window-opacity input[type="range"]::-moz-range-track { height: 4px; border: 0; border-radius: 2px; background: var(--veil); }
 .settings .window-opacity input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--accent); }
 /* Disabled states get one muted ink instead of compounded opacity. */
@@ -333,7 +335,7 @@
 .draft-row-content > strong { font-size: calc(12px * var(--text-scale, 1)); font-weight: 400; }
 .draft-row-meta { font-size: calc(10px * var(--text-scale, 1)); }
 .compose-dialog .compose-form :is(input, select) { font-size: calc(12px * var(--text-scale, 1)); }
-.compose-dialog .compose-envelope label > span { font-size: calc(11px * var(--text-scale, 1)); }
+.compose-dialog .compose-envelope label > span { font-size: calc(12px * var(--text-scale, 1)); }
 .compose-dialog .compose-toolbar { min-height: 44px; }
 .compose-dialog .compose-file-action { font-size: calc(10px * var(--text-scale, 1)); }
 .compose-dialog .compose-body { font-size: calc(13px * var(--text-scale, 1)); line-height: 1.85; }
@@ -645,7 +647,7 @@ section.work-calendar[data-layout="month"] > .calendar-backlog { grid-column: 2;
 .compose-link-controls button { min-height: 30px; padding-inline: 8px; font-size: calc(12px * var(--text-scale, 1)); }
 
 /* Keep the sender picker in the envelope, using the same themed menu as the app. */
-.compose-from-field { display: flex; align-items: center; gap: 14px; min-width: 0; min-height: 44px; color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
+.compose-from-field { display: flex; align-items: center; gap: 14px; min-width: 0; min-height: 36px; color: var(--text-3); font-size: calc(12px * var(--text-scale, 1)); }
 .compose-from-field > span { width: var(--compose-label-width); flex-shrink: 0; }
 .compose-from-field .dropdown { flex: 1; min-width: 0; }
 /* The From trigger's own padding used to push its value right of the other

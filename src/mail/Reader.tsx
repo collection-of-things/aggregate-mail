@@ -117,7 +117,7 @@ export function ReaderEmpty({ selected, openKey, loading = false }: { selected: 
     <div className="reader-empty">
       <span className="reader-empty-mark" aria-hidden="true"><span className="empty-mark-glyph" /></span>
       <p className="empty-title">No email open</p>
-      <p className={loading ? "visually-hidden" : "reader-empty-hint"}>{selected ? <>Press <kbd>{openKey}</kbd> to open the selected email.</> : "Choose an email to read it here."}</p>
+      <p className={loading ? "reader-empty-hint reader-empty-hint-reserved" : "reader-empty-hint"}>{selected ? <>Press <kbd>{openKey}</kbd> to open the selected email.</> : "Choose an email to read it here."}</p>
     </div>
   );
 }

@@ -112,6 +112,9 @@
   /* Disabled settings options and the inactive slider track read at ~3:1
      without compounded opacity. */
   --disabled-ink: color-mix(in srgb, var(--text) 35%, var(--surface));
+  /* Sidebar nav labels recede a step under the dark chrome; the selected item
+     keeps its accent ink. */
+  --nav-ink: color-mix(in srgb, var(--text) 86%, var(--surface));
   --avatar: #2a1522;
   --avatar-text: #c4aab5;
   --lights-off: #38222f;
@@ -119,6 +122,11 @@
   --edge: inset 0 1px 0 rgba(255, 243, 242, 0.05);
   --shadow: 0 12px 32px rgba(10, 2, 8, 0.45);
   --shadow-dialog: 0 24px 64px rgba(10, 2, 8, 0.5);
+}
+/* --text-scale is set inline on .app, so the list width must re-evaluate the
+   expression on that element; at :root it always reads the fallback. */
+.app {
+  --list-width: clamp(320px, calc(31vw * var(--text-scale, 1)), min(560px, calc(448px * var(--text-scale, 1))));
 }
 :root[data-scheme="dark"][data-theme="graphite"] {
   --bg: #141416;
@@ -189,6 +197,8 @@
   --row-read-ink: var(--text);
   --row-read-preview: var(--text-3);
   --disabled-ink: color-mix(in srgb, var(--text) 45%, var(--surface));
+  /* Light nav labels keep their current ink. */
+  --nav-ink: var(--text);
   --avatar: #f3dfe1;
   --avatar-text: #6e5663;
   --avatar-0: #fbd3dd;
