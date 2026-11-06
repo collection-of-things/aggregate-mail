@@ -9,7 +9,7 @@ import { build } from "esbuild";
 import { MacSourceUpdate, bundleDigest, explicitUpdateProfile, runBounded, sourceApi, sourceCandidate, sourceEnvironment,
   sourceRepository, stampSourceVersion, validateDestination, verifyBundle, workspaceLimit, type MacSourceCandidate, type Run } from "./mac-source-update.js";
 
-const candidate: MacSourceCandidate = { kind: "mac-source", repository: "collection-of-things/aggregate-mail", version: "0.1.12", tag: "v0.1.12", commit: "a".repeat(40), arch: "x64" };
+const candidate: MacSourceCandidate = { kind: "mac-source", repository: "collection-of-things/emc2", version: "0.1.12", tag: "v0.1.12", commit: "a".repeat(40), arch: "x64" };
 const release = { draft: false, prerelease: false, tag_name: candidate.tag };
 const ref = { ref: `refs/tags/${candidate.tag}`, object: { type: "commit", sha: candidate.commit } };
 const pkg = () => ({ name: "emc2", version: "0.1.10", scripts: { "package:mac:dir": "npm run build && electron-builder --mac --dir --publish never" },

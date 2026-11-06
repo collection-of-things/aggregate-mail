@@ -126,7 +126,7 @@
     "publish": {
       "provider": "github",
       "owner": "collection-of-things",
-      "repo": "aggregate-mail"
+      "repo": "emc2"
     }
   },
   "bin": {

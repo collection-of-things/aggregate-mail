@@ -16,10 +16,11 @@ export { isHigherStableVersion } from "../shared/updates.js";
 import { MacInstallerFailure, MacInstallerUpdate, macInstallerCandidate, macReleaseApi, type MacInstallerInstallation, type MacInstallerCandidate } from "./mac-installer-update.js";
 import { trustedWindowSender } from "./navigation.js";
 
-// Releases move to collection-of-things. Check it first; until it publishes a
-// newer stable release, the original repository still serves updates. Each
-// release must link only to its own repository's downloads.
-const releaseSources = (["collection-of-things/aggregate-mail", "screen-devs/aggregate-mail"] as const).map((repository) => ({
+// Releases publish from the canonical collection-of-things/emc2 repository;
+// the legacy screen-devs/aggregate-mail repository still serves updates when
+// the canonical one has no usable newer release. Check the canonical one
+// first. Each release must link only to its own repository's downloads.
+const releaseSources = (["collection-of-things/emc2", "screen-devs/aggregate-mail"] as const).map((repository) => ({
   repository,
   latest: `https://api.github.com/repos/${repository}/releases/latest`,
   root: `https://github.com/${repository}/releases/download/`,
@@ -383,7 +384,7 @@ export class Updates {
         const release = releaseAssets(JSON.parse(await read(source.latest, 2 * 1024 * 1024)), this.deps.target, [source.root]);
         if (release) candidate = validateCandidate(release, await read(release.manifest.browser_download_url, 65536));
       } catch (error) {
-        // A missing or unusable release in the new repository falls back to the original one.
+        // A missing or unusable release in the canonical repository falls back to the legacy one.
         if (index === releaseSources.length - 1) throw error;
       }
       if (candidate) break;

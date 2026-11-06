@@ -9,7 +9,7 @@ task. Report vulnerabilities privately via
 ## Coordinate before starting
 
 1. The canonical GitHub repository is
-   [collection-of-things/aggregate-mail](https://github.com/collection-of-things/aggregate-mail).
+   [collection-of-things/emc2](https://github.com/collection-of-things/emc2).
    Confirm metadata and remotes before writing; a fork's `origin` may differ.
    [git.cafe](https://git.cafe/collection-of-devs/aggregate-mail) has separate
    issue and PR identifiers. Resolve linked equivalents by URL and scope,

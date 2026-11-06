@@ -10,7 +10,7 @@ import { bundleDigest, type Run } from "./mac-source-update.js";
 
 const bytes = Buffer.from("synthetic disk image, never mounted");
 const sha256 = createHash("sha256").update(bytes).digest("hex");
-const root = "https://github.com/collection-of-things/aggregate-mail/releases/download/v0.2.8/";
+const root = "https://github.com/collection-of-things/emc2/releases/download/v0.2.8/";
 const asset = (name: string, size = bytes.length) => ({ name, size, browser_download_url: root + name });
 const name = "Emc2-0.2.8-mac-arm64.dmg";
 const release = () => ({ draft: false, prerelease: false, tag_name: "v0.2.8", assets: [asset(name), asset("Emc2-0.2.8-mac-x64.dmg"), asset("SHA256SUMS.txt", 528)] });
@@ -35,7 +35,7 @@ test("candidate preflight rejects malformed, foreign, missing and ambiguous rele
     { ...release(), assets: [asset(name)] },
     { ...release(), assets: [...release().assets, asset(name)] },
     { ...release(), assets: [...release().assets, asset("Other-0.2.8-mac-arm64.dmg")] },
-    { ...release(), assets: release().assets.map(item => ({ ...item, browser_download_url: item.browser_download_url.replace("collection-of-things", "screen-devs") })) },
+    { ...release(), assets: release().assets.map(item => ({ ...item, browser_download_url: item.browser_download_url.replace("collection-of-things/emc2", "screen-devs/aggregate-mail") })) },
     { ...release(), assets: [asset(name, 1024 ** 3 + 1), asset("SHA256SUMS.txt")] },
     { ...release(), assets: [asset(name), asset("SHA256SUMS.txt", 65537)] }]) {
     await assert.rejects(macInstallerCandidate(value, target, async () => sums));

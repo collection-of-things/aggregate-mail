@@ -7,7 +7,7 @@ are below.
 
 ## Install
 
-[Releases](https://github.com/collection-of-things/aggregate-mail/releases/latest)
+[Releases](https://github.com/collection-of-things/emc2/releases/latest)
 contains the desktop downloads. Choose the installer for your system.
 
 | System | Download |
@@ -20,7 +20,7 @@ contains the desktop downloads. Choose the installer for your system.
 ### Windows
 
 Download the newest published Windows setup installer from
-[Releases](https://github.com/collection-of-things/aggregate-mail/releases), named
+[Releases](https://github.com/collection-of-things/emc2/releases), named
 `Emc2-<version>-win-x64.exe` in new releases. It installs for the current user and
 creates Start menu and desktop shortcuts. Launch Emc² and connect accounts in
 Settings.
@@ -72,8 +72,8 @@ xcode-select --install
 Clone the source with Git, install the locked dependencies and build the app:
 
 ```sh
-git clone https://github.com/collection-of-things/aggregate-mail.git
-cd aggregate-mail
+git clone https://github.com/collection-of-things/emc2.git
+cd emc2
 npm ci
 npm run package:mac:dir
 ```

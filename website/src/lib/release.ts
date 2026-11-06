@@ -4,7 +4,7 @@ import type { OsKey } from "./os";
 // build time and again in the browser so a newer release replaces the
 // baked-in links. Every consumer falls back to the releases page when the
 // read fails. Kept free of runtime imports so node --test can import it.
-const latestUrl = "https://api.github.com/repos/collection-of-things/aggregate-mail/releases/latest";
+const latestUrl = "https://api.github.com/repos/collection-of-things/emc2/releases/latest";
 
 export type Installer = "windows" | "mac-arm64" | "mac-x64" | "linux";
 

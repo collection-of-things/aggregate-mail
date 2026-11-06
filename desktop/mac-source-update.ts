@@ -10,7 +10,7 @@ import { isHigherStableVersion, versionParts } from "../shared/updates.js";
 const { access, chmod, lstat, mkdir, mkdtemp, open, readFile, readdir, readlink, realpath, rm, statfs, writeFile } =
   process.versions.electron ? (createRequire(process.execPath)("original-fs") as typeof import("node:fs")).promises : fs;
 
-export const sourceRepositories = ["collection-of-things/aggregate-mail", "screen-devs/aggregate-mail"] as const;
+export const sourceRepositories = ["collection-of-things/emc2", "screen-devs/aggregate-mail"] as const;
 type SourceRepository = typeof sourceRepositories[number];
 export const sourceRepository = `https://github.com/${sourceRepositories[0]}.git`;
 export const sourceApi = `https://api.github.com/repos/${sourceRepositories[0]}`;

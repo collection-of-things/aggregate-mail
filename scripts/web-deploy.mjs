@@ -7,8 +7,8 @@ import { randomBytes } from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 
-const repository = "https://github.com/collection-of-things/aggregate-mail.git";
-const api = "https://api.github.com/repos/collection-of-things/aggregate-mail/releases/latest";
+const repository = "https://github.com/collection-of-things/emc2.git";
+const api = "https://api.github.com/repos/collection-of-things/emc2/releases/latest";
 const sha = /^[a-f0-9]{40}$/;
 const stable = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const json = async file => JSON.parse(await readFile(file, "utf8"));

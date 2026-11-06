@@ -1,4 +1,4 @@
-export const GITHUB_REPO = "https://github.com/collection-of-things/aggregate-mail";
+export const GITHUB_REPO = "https://github.com/collection-of-things/emc2";
 export const CAFE_REPO = "https://git.cafe/collection-of-devs/aggregate-mail";
 export const RELEASES = `${GITHUB_REPO}/releases/latest`;
 
@@ -11,4 +11,4 @@ export const DESCRIPTION =
 export const ogImageUrl = (site: URL | undefined) =>
   site
     ? new URL("/og.jpg", site).href
-    : "https://raw.githubusercontent.com/collection-of-things/aggregate-mail/main/website/public/og.jpg";
+    : "https://raw.githubusercontent.com/collection-of-things/emc2/main/website/public/og.jpg";

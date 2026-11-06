@@ -6,8 +6,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Follow [CONTRIBUTING.md](https://github.com/collection-of-things/aggregate-mail/blob/main/CONTRIBUTING.md) for ownership and scope.
-        Report vulnerabilities through [SECURITY.md](https://github.com/collection-of-things/aggregate-mail/blob/main/SECURITY.md).
+        Follow [CONTRIBUTING.md](https://github.com/collection-of-things/emc2/blob/main/CONTRIBUTING.md) for ownership and scope.
+        Report vulnerabilities through [SECURITY.md](https://github.com/collection-of-things/emc2/blob/main/SECURITY.md).
         Write Unknown for details you cannot establish.
   - type: textarea
     id: task

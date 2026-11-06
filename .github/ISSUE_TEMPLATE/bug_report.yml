@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Remove mail content, addresses, account names, credentials and local paths.
-        Report vulnerabilities through [SECURITY.md](https://github.com/collection-of-things/aggregate-mail/blob/main/SECURITY.md).
+        Report vulnerabilities through [SECURITY.md](https://github.com/collection-of-things/emc2/blob/main/SECURITY.md).
         Write Unknown for details you cannot establish.
   - type: textarea
     id: what-happened
