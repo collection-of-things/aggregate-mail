@@ -856,6 +856,8 @@ Synthetic tests cover file validation, library limits, persistence/restart, reso
 
 Formatted mail removes sub-6px and unitless-zero font sizes, line heights, heights and max-heights from text-bearing elements so compressed preview text remains readable without collapsing its wrapper. Image styles retain small max-height caps, including in blocked, unsupported, private-source and failed-image placeholders. Inline image status adds no prose to the sender layout. Synthetic parser and renderer tests cover these cases. Installed rendering and remote image delivery are not verified here.
 
+When sender HTML is parsed, a run of three or more invisible padding units — a zero-width space or joiner, grapheme joiner, word joiner, byte-order mark or soft hyphen plus any spacing — collapses to one space, so hidden preheader padding can no longer form a tall empty band. In the isolated document, text whose computed color falls below 3:1 contrast against its composited background is re-inked to whichever of a fixed dark or light reads stronger, while `.address` and image-placeholder elements are never marked; see [ADR 0125](adr/0125-readable-hidden-sender-text.md). Single padding characters and ZWJ are preserved for script shaping and emoji sequences.
+
 With transparency enabled, `src/styles/tokens.css` puts one shared `--pane-glass` tint on `.app`, covering the full window. Its persisted `glassOpacity` is 0 to 100 percent, defaulting to 70 in both schemes. See [ADR 0068](adr/0068-window-opacity.md). The toolbar, mail list, reader, Settings, work and Drafts panes stay transparent to avoid stacking tints. Sticky date headings, the agent review tabs and Today mail actions use a 60% surface tint with 12px blur; scrolling panes themselves gain no CSS blur. Secondary text brightens for built-in and custom themes; text opacity and opaque privacy masks remain intact. The `data-glass` gate keeps Off and unsupported platforms opaque. This shared layer replaces the separate pane tints recorded in [ADR 0035](adr/0035-frosted-working-panes.md). Native appearance, contrast over desktop content and movement smoothness still need target-platform verification.
 
 Windows offers Off, Subtle (Mica) and Glass (Acrylic); macOS offers Off and Glass using native vibrancy. Glass is the default and may cost more while the window moves. Open menus/notices use 12px CSS blur and dialogs 16px. `src/mail-state.ts` reuses unchanged snapshot records; stable privacy contexts and memoized text/avatars reduce selection and refresh work. Changed content, recipient/privacy data, images and record order remain observable. Desktop cache-change IPC drives visible windows, with catch-up on show/restore; hidden windows avoid cache-notification redraws. The desktop's duplicate renderer sync and progress-poll timers are disabled. See [ADR 0023](adr/0023-mail-freshness-and-render-cost.md) for the matched synthetic benchmark and native limits. Run `npx tsx scripts/benchmark-mail-ui.tsx` to repeat the 1,800-message React/DOM benchmark without saved accounts or browser automation.
@@ -3579,7 +3581,16 @@ Plain-text bodies retain the 65ch line limit. The mounted sender-style test
 checks both host width rules after portal creation; native geometry remains
 separate acceptance.
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:aeafae0e98fb003de3553d39211dd7234a51bb91b453cc9a5f7e035312ff6333 -->
+
 Isolated sender styles use the host foreground as a low-priority default.
+Readable ink composites translucent host backgrounds from the frame through its
+ancestors until an opaque surface is reached, or over the white document canvas
+when none is opaque.
+
+<!-- /coderabbit-ai-generated:v1 -->
 Sender font sizes and the body default follow `--text-scale`, including changes
 on `.app` while mail stays open; unhandled Enter
 on plain content reaches host shortcuts, while interactive controls keep activation.

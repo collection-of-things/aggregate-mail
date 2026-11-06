@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { applyReadableInk, composite, parseColor, type Rgba } from "./readable-ink";
 
 const defaults = `:where(body){color:var(--reader-foreground);font:calc(14px * var(--text-scale, 1))/1.5 system-ui,sans-serif}`;
 const controls = `
@@ -17,6 +18,7 @@ pre code{background:none!important;padding:0;color:inherit!important}
 .address:focus-visible,a:focus-visible{outline:2px solid #6b9cff!important;outline-offset:2px!important}
 .formatted-mail-image-placeholder{display:inline-block;max-width:100%;vertical-align:middle;background:#8883}
 :is(p,ul,ol,blockquote,h1,h2,h3,h4,h5,h6,pre){max-width:70ch}table :is(p,ul,ol,blockquote,h1,h2,h3,h4,h5,h6,pre){max-width:none}
+[data-ink=dark]{color:#1f1f1f!important}[data-ink=light]{color:#f5f5f5!important}
 `;
 
 function inheritTheme(element: HTMLIFrameElement, body: HTMLElement) {
@@ -24,6 +26,20 @@ function inheritTheme(element: HTMLIFrameElement, body: HTMLElement) {
   for (const name of ['--text-scale', '--text', '--text-2', '--text-body', '--line', '--link', '--veil', '--accent', '--code-ink', '--font-mono', '--radius-mark-sm'])
     body.style.setProperty(name, theme.getPropertyValue(name));
   body.style.setProperty('--reader-foreground', theme.color);
+}
+
+const WHITE: Rgba = [255, 255, 255, 1];
+// Composite host backgrounds through the nearest opaque ancestor, falling
+// back to the white document canvas when every ancestor is translucent.
+function readerSurface(element: HTMLIFrameElement): Rgba {
+  const view = element.ownerDocument.defaultView!;
+  let surface: Rgba = [0, 0, 0, 0];
+  for (let current: Element | null = element; current; current = current.parentElement) {
+    const color = parseColor(view.getComputedStyle(current).backgroundColor);
+    if (color) surface = composite(surface, color);
+    if (surface[3] >= 1) return surface;
+  }
+  return composite(surface, WHITE);
 }
 
 // The parent owns this blank document. No sender HTML, scripts, forms, popups
@@ -54,7 +70,13 @@ export function IsolatedMail({ css, children, fallback }: { css: string; childre
   useEffect(() => {
     const element = frame.current, doc = target?.ownerDocument;
     if (!element || !doc) return;
-    const resize = () => { element.style.height = `${Math.max(48, Math.min(100000, doc.documentElement.scrollHeight) || 48)}px`; };
+    // Sender colors can change with theme and media queries, so low-contrast
+    // text is re-inked on every resize, not only on the first render.
+    const ink = () => applyReadableInk(target!, readerSurface(element));
+    const resize = () => {
+      element.style.height = `${Math.max(48, Math.min(100000, doc.documentElement.scrollHeight) || 48)}px`;
+      ink();
+    };
     const keydown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || ['Tab', ' '].includes(event.key)) return;
       if (event.key === 'Enter' && (event.target as Element | null)?.closest?.('a,button,input,textarea,select,[role=button],[contenteditable],[tabindex]')) return;
@@ -66,7 +88,7 @@ export function IsolatedMail({ css, children, fallback }: { css: string; childre
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : undefined;
     observer?.observe(target!); resize();
     const Observer = (element.ownerDocument.defaultView as Window & typeof globalThis).MutationObserver;
-    const themeObserver = new Observer(() => inheritTheme(element, target!));
+    const themeObserver = new Observer(() => { inheritTheme(element, target!); ink(); });
     // React can replace this subscription before queued mutations arrive.
     // Every subscription starts from the current inherited snapshot.
     inheritTheme(element, target!);

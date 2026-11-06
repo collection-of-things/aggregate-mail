@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { boundedMailHtml, MAIL_HTML_LIMIT, MAIL_NODE_LIMIT, MAIL_DEPTH_LIMIT,
-  needsEmbeddedContentRecovery, parseMailContent, mailStyle, mailLink, privateMailLink, type MailContentNode } from "../shared/mail-content.js";
+  collapseInvisiblePadding, needsEmbeddedContentRecovery, parseMailContent, mailStyle, mailLink, privateMailLink, type MailContentNode } from "../shared/mail-content.js";
 
 test("bounded source preserves exact decoded HTML and treats absent or oversized HTML as null", () => {
   const html = "  <p>Original &amp; source</p>\r\n";
@@ -65,6 +65,34 @@ test("inline style grammar accepts !important declarations, which newsletters us
 test("newsletter-depth tables parse instead of falling back to plain text", () => {
   // Real job-alert digests nest about 50 levels of tables and links.
   assert.notEqual(parseMailContent("<table><tr><td>".repeat(20) + "text"), null);
+});
+
+test("preheader padding runs collapse to one space after entity decoding", () => {
+  const textOf = (html: string) => {
+    const nodes = parseMailContent(html);
+    const text = (items: MailContentNode[]): string => items.map((node) => typeof node === "string" ? node : text(node.children)).join("");
+    return nodes && text(nodes);
+  };
+  assert.equal(textOf("<div>Hi&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;there</div>"), "Hi there");
+  assert.equal(textOf("<p>Digest&#847;&zwnj;&nbsp;&#847;&#32;&#xFEFF;&nbsp;&#173;&zwnj;&nbsp;body</p>"), "Digest body");
+  assert.equal(collapseInvisiblePadding("a\u200B\u00A0\u200B\u00A0\u200B\u00A0b"), "a b");
+  assert.equal(collapseInvisiblePadding("a\u200B b\u200B c"), "a\u200B b\u200B c");
+});
+
+test("single invisible characters and sub-threshold padding runs are preserved", () => {
+  const textOf = (html: string) => {
+    const nodes = parseMailContent(html);
+    const text = (items: MailContentNode[]): string => items.map((node) => typeof node === "string" ? node : text(node.children)).join("");
+    return nodes && text(nodes);
+  };
+  // ZWNJ shapes Persian script; a single one inside a word stays.
+  assert.equal(textOf("<p>می‌خواهم</p>"), "می‌خواهم");
+  // ZWJ is never matched, so emoji family sequences keep their joins.
+  assert.equal(textOf("<p>👨‍👩‍👧</p>"), "👨‍👩‍👧");
+  // A single soft hyphen is a hyphenation hint, not padding.
+  assert.equal(textOf("<p>hy­phen</p>"), "hy­phen");
+  // Two padding units are below the three-unit threshold.
+  assert.equal(textOf("<p>a&zwnj;&nbsp;&zwnj;&nbsp;b</p>"), "a‌ ‌ b");
 });
 
 test("zero dimensions are dropped so hidden preview text reads as one line, not one letter per line", () => {

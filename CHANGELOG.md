@@ -4,9 +4,17 @@ Entries describe user-visible changes. Published versions are newest first.
 [Legacy development notes](docs/changelog-legacy.md) preserve the earlier
 unversioned history without treating it as a release record.
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:10a62c2f2d2afe77c5bf0f5fc94b37678824483358a7fec6cf871a95dbeb33d9 -->
+
 ## Unreleased
 
 ### Fixed
+
+- Formatted mail now accounts for translucent reader backgrounds when choosing readable text colors, including dark themes. ([#223](https://github.com/collection-of-things/aggregate-mail/issues/223))
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 <!-- coderabbit-ai-generated:v1 -->
 
@@ -18,6 +26,7 @@ unversioned history without treating it as a release record.
 
 - With mail open beside the list, Inbox categories stay on one row across the full rail instead of stacking into two rows inside the list column, so the reader keeps its space and the toolbar's view title lines up with the rows below it. When the named tabs cannot fit — a larger text scale or a narrow side-by-side window — inactive categories return to icon and count instead of wrapping, clipping or scrolling. ([#221](https://github.com/collection-of-things/aggregate-mail/issues/221))
 - Mail list cards stop reserving a wide empty gutter and stop parking markers in it: the unread accent dot now badges the sender avatar's lower-right corner with a ring that follows the row's hover and selected fills, the account color dot sits centered before the account name on the metadata line, the selection gutter shrinks to the checkbox column plus a consistent gap, and narrow list columns beside the reader take the compact 24px avatar so sender names keep their room. ([#222](https://github.com/collection-of-things/aggregate-mail/issues/222))
+- Newsletters no longer open with an empty band: the invisible padding senders pack after preview text collapses to one space, hidden preview text now shows as a single readable line, and any sender text written in its own background's color is re-inked to a readable dark or light. ([#223](https://github.com/collection-of-things/aggregate-mail/issues/223))
 
 ## 0.2.30 - 2026-11-06
 
