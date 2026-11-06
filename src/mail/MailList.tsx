@@ -137,8 +137,8 @@ export function MailList<T extends Mail>({
             aria-current={current ? "true" : undefined}
             onFocus={(event) => { focused.current = { id: m.id, element: event.target }; }}
           >
-            {m.unread && <i className="unread-dot" aria-hidden="true" />}
-            <Avatar mail={m} />
+            {!cardLayout && m.unread && <i className="unread-dot" aria-hidden="true" />}
+            <Avatar mail={m} unread={cardLayout && m.unread} />
             {layout === "card" ? (
               <span className="row-text">
                 <span className="row-line">

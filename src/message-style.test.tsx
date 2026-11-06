@@ -57,15 +57,66 @@ test("rendered mail rows keep their gutter across checkbox states after the comp
         const checkbox = dom.window.document.querySelector(".mail-select");
         assert.ok(row, context);
         assert.equal(checkbox?.getAttribute("aria-checked"), state === "absent" ? undefined : String(state === "checked"), context);
-        assert.equal(dom.window.getComputedStyle(row).paddingLeft, "34px", context);
+        // The gutter is the checkbox column (4px offset + scaled 16px box + 8px
+        // gap) declared once as --row-gutter on the list.
+        assert.equal(dom.window.getComputedStyle(row).paddingLeft, "var(--row-gutter, 28px)", context);
+        assert.equal(dom.window.getComputedStyle(dom.window.document.querySelector(".list")!)
+          .getPropertyValue("--row-gutter"), "calc(4px + 16px*var(--text-scale,1) + 8px)", context);
         if (checkbox) {
           const style = dom.window.getComputedStyle(checkbox);
           assert.equal(style.position, "absolute", context);
-          assert.equal(style.left, "10px", context);
+          assert.equal(style.left, "4px", context);
           assert.equal(style.top, "50%", context);
           assert.equal(style.transform, "translateY(-50%)", context);
         }
       }
+    }
+    // Every list header shares the one selection gutter with the row checkboxes.
+    assert.equal(dom.window.getComputedStyle(dom.window.document.documentElement)
+      .getPropertyValue("--select-gutter"), "17px");
+  } finally { dom.window.close(); }
+});
+
+test("card unread dots badge the avatar corner and the account dot stays inline on the meta line", () => {
+  const accounts = [
+    { id: "a", email: "one@example.test", provider: "imap" as const },
+    { id: "b", email: "two@example.test", provider: "gmail" as const },
+  ];
+  const mail: Mail = { id: "a:1", accountId: "a", remoteId: "1", sender: "Team", address: "sender@example.com",
+    to: "reader@example.com", subject: "Work", preview: "Preview", body: "", date: 1, unread: true,
+    category: "important", relevance: 2, reason: "", archived: false, snoozedUntil: null };
+  const dom = new JSDOM("<!doctype html>");
+  try {
+    dom.window.document.head.insertAdjacentHTML("beforeend", `<style>${stylesheet()}</style>`);
+    const rules = stylesheet();
+    // The badge hangs off the avatar's lower-right corner, ringed by the row
+    // surface through --unread-ring in every hover, bulk and selected state.
+    assert.match(rules, /\.avatar \.unread-dot \{[^}]*right:\s*-2px[^}]*bottom:\s*-2px[^}]*box-shadow:\s*0 0 0 2px var\(--unread-ring/s);
+    assert.match(rules, /\.mail-row:hover \.row\.card:not\(\.selected\) \{ --unread-ring: color-mix/);
+    assert.match(rules, /\.mail-row\.bulk-selected > \.row\.card:not\(:focus-visible\) \{ --unread-ring: color-mix/);
+    assert.match(rules, /\.list \.row\.card\.selected[^}]*--unread-ring:\s*var\(--selected-card\)/);
+    // Headers keep sharing the one selection gutter with the row checkboxes.
+    assert.match(rules, /\.mail-view-head[^}]*padding-inline-start:\s*var\(--select-gutter\)/);
+    assert.match(rules, /\.mail-category-bar[^}]*var\(--select-gutter\)/);
+    // A narrow list column reuses the compact avatar so sender text keeps room.
+    assert.match(rules, /@container \(max-width: 400px\) \{\s*\.list \.row\.card \.avatar \{[^}]*width:\s*24px/s);
+    for (const [density, narrow, isCard] of [["compact", false, false], ["compact", true, true], ["comfortable", false, true]] as const) {
+      const context = `${density}, narrow=${narrow}`;
+      dom.window.document.body.innerHTML = renderToStaticMarkup(<div className={`list ${density}`}>
+        <MailList messages={[mail]} selectedId={undefined} density={density} narrow={narrow} sort="newest"
+          opening="double" accounts={accounts} listRef={{ current: null }} focusSelection={false}
+          onOpen={() => {}} onSelect={() => {}} onMenu={() => {}} onMenuKey={() => {}} />
+      </div>);
+      const row = dom.window.document.querySelector(".mail-window-row > .mail-row > .row")!;
+      assert.ok(row, context);
+      const dots = [...row.querySelectorAll(".unread-dot")];
+      assert.equal(dots.length, 1, context);
+      assert.equal(dots[0].parentElement?.classList.contains("avatar"), isCard, context);
+      assert.equal(dots[0].getAttribute("aria-hidden"), "true", context);
+      const accountDot = row.querySelector(".row-account .account-dot");
+      assert.ok(accountDot, context);
+      assert.equal(accountDot!.nextElementSibling?.textContent, "one@example.test", context);
+      if (isCard) assert.equal(dom.window.getComputedStyle(accountDot!).verticalAlign, "middle", context);
     }
   } finally { dom.window.close(); }
 });

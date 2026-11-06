@@ -17,6 +17,7 @@ unversioned history without treating it as a release record.
 <!-- /coderabbit-ai-generated:v1 -->
 
 - With mail open beside the list, Inbox categories stay on one row across the full rail instead of stacking into two rows inside the list column, so the reader keeps its space and the toolbar's view title lines up with the rows below it. When the named tabs cannot fit — a larger text scale or a narrow side-by-side window — inactive categories return to icon and count instead of wrapping, clipping or scrolling. ([#221](https://github.com/collection-of-things/aggregate-mail/issues/221))
+- Mail list cards stop reserving a wide empty gutter and stop parking markers in it: the unread accent dot now badges the sender avatar's lower-right corner with a ring that follows the row's hover and selected fills, the account color dot sits centered before the account name on the metadata line, the selection gutter shrinks to the checkbox column plus a consistent gap, and narrow list columns beside the reader take the compact 24px avatar so sender names keep their room. ([#222](https://github.com/collection-of-things/aggregate-mail/issues/222))
 
 ## 0.2.30 - 2026-11-06
 

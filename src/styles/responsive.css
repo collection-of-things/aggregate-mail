@@ -47,6 +47,15 @@
   .theme-color input[type="color"] { width: 44px; height: 44px; }
 }
 
+/* A narrow list column — the split pane beside the reader — takes the same
+   compact avatar as a narrow window so the sender name keeps priority over
+   chrome. 400px sits in the lower half of the --list-width clamp, where the
+   card's fixed gutter, avatar block and timestamp would otherwise squeeze the
+   sender line. */
+@container (max-width: 400px) {
+  .list .row.card .avatar { width: 24px; height: 24px; margin: 0 8px 0 0; }
+}
+
 /* Keep phone overrides after desktop application styles. */
 .settings-mobile-navigation { display: none; }
 @media (width < 760px) {
