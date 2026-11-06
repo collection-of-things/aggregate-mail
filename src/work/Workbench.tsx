@@ -313,9 +313,9 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
   }, [api, mode, work.refresh, calendar.refresh]);
   useEffect(() => { if ((mode === "agents" || mode === "assistants")) void load(); }, [load, mode]);
   useEffect(() => { setShownToken(undefined); }, [privacy]);
-  const mutate = async (task: () => Promise<unknown>) => {
+  const mutate = async (task: () => Promise<unknown>, singleRequest = false) => {
     if (acknowledged.current || (mode === "agents" || mode === "assistants") && agentStale) return false;
-    const ok = await work.mutate(async () => { await task(); acknowledged.current = true; });
+    const ok = await work.mutate(async () => { await task(); acknowledged.current = true; }, singleRequest);
     if (ok) { finishAcknowledged(); if ((mode === "agents" || mode === "assistants")) await load(); }
     return ok;
   };
@@ -536,7 +536,7 @@ export function Workbench({ mode, state, api, work, accountFilter, initialSource
             ].filter(Boolean).join(" · ")}</p>
           </div>
           {editingGrant === grant.id ? <GrantEditor grant={grant} state={state} privacy={privacy} pending={pending || agentStale} onCancel={() => setEditingGrant(null)}
-            onSave={async (input) => { if (await mutate(() => api(`/agent/grants/${encodeURIComponent(grant.id)}`, "PATCH", input))) setEditingGrant(null); }} />
+            onSave={async (input) => { if (await mutate(() => api(`/agent/grants/${encodeURIComponent(grant.id)}`, "PATCH", input), true)) setEditingGrant(null); }} />
           : <><details className="agent-permissions"><summary>Permissions ({grant.tools.length})</summary><ul>{grant.tools.map((tool) => <li key={tool}>{toolNames[tool]}</li>)}</ul>
           </details><button type="button" disabled={pending || agentStale} onClick={() => setEditingGrant(grant.id)}>Edit access</button></>}
           <AgentAutomation grant={grant} api={api} mcpEnabled={mcpEnabled} disabled={pending || stale} reload={(automationReload[grant.id] ?? 0) + automationRefresh} />
