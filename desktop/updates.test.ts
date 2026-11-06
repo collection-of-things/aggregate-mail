@@ -16,6 +16,8 @@ const target = { platform: "win32", arch: "x64", version: "0.1.6", packaged: tru
 const bytes = Buffer.from("synthetic updater installer, never executable");
 const digest = createHash("sha512").update(bytes).digest("base64");
 const root = "https://github.com/screen-devs/aggregate-mail/releases/download/v0.1.7/";
+// The pre-rename canonical slug, kept only to prove it is rejected.
+const preRenameSlug = ["collection-of-things", "aggregate-mail"].join("/");
 const asset = (name: string, size = bytes.length) => ({ name, size, browser_download_url: root + encodeURIComponent(name) });
 const name = "Emc2-0.1.7-win-x64.exe";
 const release = () => ({ draft: false, prerelease: false, tag_name: "v0.1.7", assets: [asset(name), asset("latest.yml", 300)] });
@@ -52,16 +54,19 @@ test("release preflight rejects foreign URLs, CI filenames, missing metadata and
   ]) assert.throws(() => releaseAssets(invalid, target));
 });
 
-test("releases from the transferred repository qualify, but one release cannot mix owners", () => {
-  const moved = (asset: { browser_download_url: string }) => ({ ...asset, browser_download_url: asset.browser_download_url.replace("/screen-devs/", "/collection-of-things/") });
+test("releases from the renamed canonical repository qualify, but one release cannot mix owners", () => {
+  const moved = (asset: { browser_download_url: string }) => ({ ...asset, browser_download_url: asset.browser_download_url.replace("screen-devs/aggregate-mail", "collection-of-things/emc2") });
+  const stale = (asset: { browser_download_url: string }) => ({ ...asset, browser_download_url: asset.browser_download_url.replace("screen-devs/aggregate-mail", preRenameSlug) });
   const other = (asset: { browser_download_url: string }) => ({ ...asset, browser_download_url: asset.browser_download_url.replace("/screen-devs/", "/someone-else/") });
   const transferred = { ...release(), assets: release().assets.map(moved) };
   assert.equal(releaseAssets(transferred, target)!.asset.browser_download_url,
-    "https://github.com/collection-of-things/aggregate-mail/releases/download/v0.1.7/" + name);
+    "https://github.com/collection-of-things/emc2/releases/download/v0.1.7/" + name);
   assert.ok(validateCandidate(releaseAssets(transferred, target)!, manifest()));
   assert.throws(() => releaseAssets({ ...release(), assets: [moved(asset(name)), asset("latest.yml", 300)] }, target));
   assert.throws(() => releaseAssets({ ...release(), assets: [asset(name), moved(asset("latest.yml", 300))] }, target));
   assert.throws(() => releaseAssets({ ...release(), assets: release().assets.map(other) }, target));
+  // Assets still served under the pre-rename slug match no current source.
+  assert.throws(() => releaseAssets({ ...release(), assets: release().assets.map(stale) }, target));
 });
 
 test("release filenames survive GitHub upload and match builder architecture names", () => {
@@ -608,8 +613,8 @@ function fixture(overrides: Partial<ConstructorParameters<typeof Updates>[0]> = 
   const updates = new Updates({ target, publish: (state) => states.push(state),
     read: async (url) => {
       calls.push("read");
-      // The new repository has no release yet, so the check falls back to the original one.
-      if (url === "https://api.github.com/repos/collection-of-things/aggregate-mail/releases/latest") throw new Error("Not Found");
+      // The canonical repository has no release yet, so the check falls back to the original one.
+      if (url === "https://api.github.com/repos/collection-of-things/emc2/releases/latest") throw new Error("Not Found");
       assert.ok(url === "https://api.github.com/repos/screen-devs/aggregate-mail/releases/latest" || url === root + "latest.yml");
       return url.includes("api.github.com") ? JSON.stringify(release()) : manifest();
     },
@@ -626,17 +631,28 @@ function fixture(overrides: Partial<ConstructorParameters<typeof Updates>[0]> = 
 type UpdaterCancellation = NonNullable<Awaited<ReturnType<NonNullable<ConstructorParameters<typeof Updates>[0]["cancellation"]>>>>;
 
 test("checks prefer the collection-of-things repository and fall back to the original one", async () => {
-  const newApi = "https://api.github.com/repos/collection-of-things/aggregate-mail/releases/latest";
+  const newApi = "https://api.github.com/repos/collection-of-things/emc2/releases/latest";
   const oldApi = "https://api.github.com/repos/screen-devs/aggregate-mail/releases/latest";
-  const moved = { ...release(), assets: release().assets.map((item) => ({ ...item, browser_download_url: item.browser_download_url.replace("/screen-devs/", "/collection-of-things/") })) };
+  const moved = { ...release(), assets: release().assets.map((item) => ({ ...item, browser_download_url: item.browser_download_url.replace("screen-devs/aggregate-mail", "collection-of-things/emc2") })) };
   const urls: string[] = [];
   const fromNew = fixture({ read: async (url: string) => { urls.push(url); return url.includes("api.github.com") ? JSON.stringify(moved) : manifest(); } });
   assert.equal((await fromNew.updates.command("check")).phase, "available");
-  assert.deepEqual(urls, [newApi, "https://github.com/collection-of-things/aggregate-mail/releases/download/v0.1.7/latest.yml"]);
+  assert.deepEqual(urls, [newApi, "https://github.com/collection-of-things/emc2/releases/download/v0.1.7/latest.yml"]);
   urls.length = 0;
-  // A release in the new repository that links to the old one is not used; the original repository still serves it.
+  // A release in the canonical repository that links to the legacy one is not used; the original repository still serves it.
   const crossLinked = fixture({ read: async (url: string) => { urls.push(url); return url.includes("api.github.com") ? JSON.stringify(release()) : manifest(); } });
   assert.equal((await crossLinked.updates.command("check")).phase, "available");
+  assert.deepEqual(urls, [newApi, oldApi, root + "latest.yml"]);
+  urls.length = 0;
+  // Assets still under the pre-rename slug are rejected the same way.
+  const staleSlug = { ...release(), assets: release().assets.map((item) => ({ ...item,
+    browser_download_url: item.browser_download_url.replace("screen-devs/aggregate-mail", preRenameSlug) })) };
+  const stale = fixture({ read: async (url: string) => {
+    urls.push(url);
+    if (url === newApi) return JSON.stringify(staleSlug);
+    return url.includes("api.github.com") ? JSON.stringify(release()) : manifest();
+  } });
+  assert.equal((await stale.updates.command("check")).phase, "available");
   assert.deepEqual(urls, [newApi, oldApi, root + "latest.yml"]);
   const offline = fixture({ read: async () => { throw new Error("offline"); } });
   assert.equal((await offline.updates.command("check")).phase, "error");
@@ -651,11 +667,11 @@ for (const [failure, raw] of [
   ["invalid SHA512", manifest({ files: [{ url: name, size: bytes.length, sha512: "invalid" }] })],
 ] as const) {
   test(`preferred manifest ${failure} falls back to a fully validated original-source candidate`, async () => {
-    const newApi = "https://api.github.com/repos/collection-of-things/aggregate-mail/releases/latest";
+    const newApi = "https://api.github.com/repos/collection-of-things/emc2/releases/latest";
     const oldApi = "https://api.github.com/repos/screen-devs/aggregate-mail/releases/latest";
-    const newManifest = root.replace("/screen-devs/", "/collection-of-things/") + "latest.yml";
+    const newManifest = root.replace("screen-devs/aggregate-mail", "collection-of-things/emc2") + "latest.yml";
     const moved = { ...release(), assets: release().assets.map((item) => ({ ...item,
-      browser_download_url: item.browser_download_url.replace("/screen-devs/", "/collection-of-things/") })) };
+      browser_download_url: item.browser_download_url.replace("screen-devs/aggregate-mail", "collection-of-things/emc2") })) };
     const urls: string[] = [], selected: ReturnType<typeof candidate>[] = [];
     const f = fixture({
       read: async (url) => {
@@ -692,7 +708,7 @@ for (const [failure, raw, phase, reason] of [
         urls.push(url);
         if (url.includes("api.github.com")) return JSON.stringify({ ...release(), assets: release().assets.map((item) => ({
           ...item, browser_download_url: url.includes("/collection-of-things/")
-            ? item.browser_download_url.replace("/screen-devs/", "/collection-of-things/") : item.browser_download_url,
+            ? item.browser_download_url.replace("screen-devs/aggregate-mail", "collection-of-things/emc2") : item.browser_download_url,
         })) });
         if (raw === null) throw new Error("Synthetic manifest read failure");
         return raw;
@@ -702,8 +718,8 @@ for (const [failure, raw, phase, reason] of [
     const state = { phase, version: undefined, reason };
     assert.deepEqual(await f.updates.command("check"), state);
     assert.deepEqual(urls, [
-      "https://api.github.com/repos/collection-of-things/aggregate-mail/releases/latest",
-      root.replace("/screen-devs/", "/collection-of-things/") + "latest.yml",
+      "https://api.github.com/repos/collection-of-things/emc2/releases/latest",
+      root.replace("screen-devs/aggregate-mail", "collection-of-things/emc2") + "latest.yml",
       "https://api.github.com/repos/screen-devs/aggregate-mail/releases/latest", root + "latest.yml",
     ]);
     assert.deepEqual(f.states, [{ phase: "checking" }, state]);
@@ -795,7 +811,7 @@ test("download size overruns cancel once and never expose a ready installer", as
 
 const macRelease = () => ({ ...release(), assets: [asset("Emc2-0.1.7-mac-x64.dmg"), asset("SHA256SUMS.txt")] });
 const macRead = async (url: string) => url.endsWith("/releases/latest") ? JSON.stringify({ ...macRelease(),
-  assets: macRelease().assets.map(item => ({ ...item, browser_download_url: item.browser_download_url.replace("screen-devs", "collection-of-things") })) }) :
+  assets: macRelease().assets.map(item => ({ ...item, browser_download_url: item.browser_download_url.replace("screen-devs/aggregate-mail", "collection-of-things/emc2") })) }) :
   `${"a".repeat(64)}  Emc2-0.1.7-mac-x64.dmg\n`;
 
 test("macOS binary download finishes before mail drain and preserves cancellation and restoration", async () => {

@@ -4,7 +4,7 @@ import { installerFor, parseRelease } from "../website/src/lib/release.ts";
 
 const asset = (name, extra = {}) => ({
   name,
-  browser_download_url: `https://github.com/collection-of-things/aggregate-mail/releases/download/v0.2.17/${name}`,
+  browser_download_url: `https://github.com/collection-of-things/emc2/releases/download/v0.2.17/${name}`,
   size: 100,
   digest: `sha256:${"a".repeat(64)}`,
   ...extra,
@@ -37,7 +37,7 @@ test("parseRelease maps the four installers and validates assets", () => {
   assert.equal(win.sha256, "a".repeat(64));
   assert.match(win.url, /^https:\/\/github\.com\//);
   // The non-GitHub mirror of the same name was skipped, not kept.
-  assert.equal(win.url, "https://github.com/collection-of-things/aggregate-mail/releases/download/v0.2.17/Emc2-0.2.17-win-x64.exe");
+  assert.equal(win.url, "https://github.com/collection-of-things/emc2/releases/download/v0.2.17/Emc2-0.2.17-win-x64.exe");
 
   const arm = release.assets["mac-arm64"];
   assert.ok(arm);

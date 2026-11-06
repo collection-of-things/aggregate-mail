@@ -8,7 +8,7 @@ import { bundleDigest, canonicalDirectory, runBounded, validateDestination, type
 
 import { binaryEnvironment, binaryRuntimeDigest, binaryWorkspacePrefix, revealBinaryRecovery, verifyBinaryBundle, type BinaryReplacement } from "./mac-binary-replacement.js";
 
-const repository = "collection-of-things/aggregate-mail";
+const repository = "collection-of-things/emc2";
 export const macReleaseApi = `https://api.github.com/repos/${repository}/releases/latest`;
 type Asset = { name: string; size: number; browser_download_url: string };
 export type MacInstallerCandidate = { version: string; arch: "x64" | "arm64"; asset: Asset; sha256: string };

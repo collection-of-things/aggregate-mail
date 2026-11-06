@@ -6,9 +6,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        Check [PRODUCT.md](https://github.com/collection-of-things/aggregate-mail/blob/main/PRODUCT.md) for project scope.
+        Check [PRODUCT.md](https://github.com/collection-of-things/emc2/blob/main/PRODUCT.md) for project scope.
         Remove private mail and credentials. Report vulnerabilities through
-        [SECURITY.md](https://github.com/collection-of-things/aggregate-mail/blob/main/SECURITY.md).
+        [SECURITY.md](https://github.com/collection-of-things/emc2/blob/main/SECURITY.md).
         Write Unknown for details you cannot establish.
   - type: textarea
     id: problem

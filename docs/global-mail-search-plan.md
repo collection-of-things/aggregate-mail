@@ -4,7 +4,7 @@
 
 Use the persistent search field to find cached mail and saved local drafts across all connected accounts, including Sent, Archive and Snoozed. Keep account and label controls understandable and private. Extend the existing typo matcher without duplicating it or adding dependencies.
 
-Task: [#42](https://github.com/collection-of-things/aggregate-mail/issues/42). Base: `fix/app-responsiveness-compose` at `41fff270d35cca4f04cb30c8899eac84823493f9`. One delivery owner: @pekth. Parent PR #38 remains independently owned.
+Task: [#42](https://github.com/collection-of-things/emc2/issues/42). Base: `fix/app-responsiveness-compose` at `41fff270d35cca4f04cb30c8899eac84823493f9`. One delivery owner: @pekth. Parent PR #38 remains independently owned.
 
 ## Approach
 

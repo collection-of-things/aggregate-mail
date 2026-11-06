@@ -2,7 +2,7 @@ import { githubDownloads } from "./downloads";
 
 // Star count read in the browser from the public GitHub API, with the same
 // ten-minute cache and hidden-on-failure behaviour as the download total.
-const GITHUB_REPO = "collection-of-things/aggregate-mail";
+const GITHUB_REPO = "collection-of-things/emc2";
 const cacheMs = 10 * 60 * 1000;
 
 let cached: { at: number; value: number | null } = { at: 0, value: null };

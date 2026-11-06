@@ -1,6 +1,6 @@
 # Stable-release web updates
 
-The Linux updater implements [issue #109](https://github.com/collection-of-things/aggregate-mail/issues/109).
+The Linux updater implements [issue #109](https://github.com/collection-of-things/emc2/issues/109).
 It installs published stable releases from the canonical repository. Branch
 merges and tags without a published release do not deploy. Live activation,
 source merge and publication remain held until the deployment owner clears them.

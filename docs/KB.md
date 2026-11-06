@@ -217,10 +217,10 @@ The architecture is recorded in [ADR 0079](adr/0079-standalone-android-client.md
 
 ## Source release version
 
-The source package and both lockfile version fields are 0.2.30. Dependencies and
+The source package and both lockfile version fields are 0.2.31. Dependencies and
 release workflows are unchanged. The automatic main-push lane chooses the next
-unused patch above both source and stable tags, so this source selects 0.2.31
-unless a higher stable tag exists. Manual publication of 0.2.30 requires an
+unused patch above both source and stable tags, so this source selects 0.2.32
+unless a higher stable tag exists. Manual publication of 0.2.31 requires an
 immutable matching tag at the approved source commit and separate publication
 authority. Source version metadata does not establish installer acceptance.
 
@@ -473,7 +473,7 @@ Message-IDs in headers and thread gaps, and coverage errors via `shared/privacy.
 while preserving account IDs, thread IDs, timestamps, attachment metadata and
 control-character JSON escaping. Additive version 1 capability
 `redaction: ["accounts", "mail"]` is verified before invoking the target tool.
-See [ADR 0115](adr/0115-cli-mcp-privacy-redaction.md) and [#193](https://github.com/collection-of-things/aggregate-mail/issues/193).
+See [ADR 0115](adr/0115-cli-mcp-privacy-redaction.md) and [#193](https://github.com/collection-of-things/emc2/issues/193).
 Run `node --test scripts/emc2.test.mjs` for the isolated synthetic CLI checks.
 
 
@@ -812,7 +812,12 @@ problem, result, before/after evidence and merge risk visible, with verification
 ownership and review in collapsed blocks. PR stacks list every layer and merge
 from the bottom up with explicit parent/dependency records and updated verification
 and independent review. The canonical GitHub target is
-`collection-of-things/aggregate-mail`; git.cafe equivalents use separate IDs.
+`collection-of-things/emc2`; git.cafe equivalents use separate IDs. The
+repository was renamed from `aggregate-mail` to `emc2` under the same
+organisation for the 0.2.31 release
+([ADR 0126](adr/0126-rename-repository-to-emc2.md)); installs at 0.2.30 or
+older validate update asset URLs against the old download root, reject every
+newer release after the rename and install 0.2.31 manually.
 Completion requires verified merged acceptance, closure reasons and reciprocal
 fixing-PR/issue links on both hosts, with state readback rather than assumed sync.
 Before push/file and merge, fetch/rebase the latest target. Verification receipts
@@ -1083,7 +1088,7 @@ repository once with the same source, version, architecture, size and SHA512 che
 If both sources fail, the final source's failure keeps the existing error or
 unavailable state; no updater is created.
 
-`desktop/updates.ts` checks the latest stable release once at normal startup and on explicit request. Releases publish from `collection-of-things/aggregate-mail` from v0.2.2. The check reads that repository first and falls back to `screen-devs/aggregate-mail` when it has no usable newer release, and every release must link only to its own repository's downloads. Development builds and Linux processes outside an AppImage show an unsupported state without requesting a release. Compatible Windows NSIS and Linux AppImage candidates require a strictly higher stable version, the running process architecture, one unambiguous installer, matching manifest version and size, and a canonical SHA512 digest. CI-suffixed asset names under a stable tag are rejected. Metadata reads and downloads have size and time bounds.
+`desktop/updates.ts` checks the latest stable release once at normal startup and on explicit request. Releases publish from `collection-of-things/emc2`; publishing moved to the collection-of-things organisation at v0.2.2 under the `aggregate-mail` name, and the repository was renamed to `emc2` for v0.2.31. The check reads that repository first and falls back to `screen-devs/aggregate-mail` when it has no usable newer release, and every release must link only to its own repository's downloads. Development builds and Linux processes outside an AppImage show an unsupported state without requesting a release. Compatible Windows NSIS and Linux AppImage candidates require a strictly higher stable version, the running process architecture, one unambiguous installer, matching manifest version and size, and a canonical SHA512 digest. CI-suffixed asset names under a stable tag are rejected. Metadata reads and downloads have size and time bounds.
 
 `electron-updater` is pinned to 6.8.11. Its provider uses the validated candidate; the renderer cannot supply a URL, path or executable arguments. IPC accepts only the current window's main frame at the application origin. Automatic download, install on ordinary quit, prereleases, downgrades, web installers and differential downloads are disabled. Packaged updater configuration supplies the library cache location and any configured Windows publisher check. The app preserves that signature check; SHA512 verification establishes file integrity against the selected release metadata, not an independent publisher identity.
 
@@ -2925,7 +2930,7 @@ selected message. Search and Privacy remain global. Search returns summaries
 without attachment bytes. Superseded responses and
 stale draft openings must not replace the current search or compose session.
 
-Verification is tracked in [task #42](https://github.com/collection-of-things/aggregate-mail/issues/42).
+Verification is tracked in [task #42](https://github.com/collection-of-things/emc2/issues/42).
 Synthetic results, native interaction, installed-app acceptance and provider
 coverage are separate evidence.
 

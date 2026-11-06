@@ -13,7 +13,7 @@ desktop email client. Read, search and reply across accounts without switching
 between mail apps. The installed app includes its runtime, so you do not need
 a browser, terminal or separate Node installation.
 
-[Download Emc²](https://github.com/collection-of-things/aggregate-mail/releases/latest)
+[Download Emc²](https://github.com/collection-of-things/emc2/releases/latest)
 · [Visit the website](https://emclient2.vercel.app)
 · [Read the changelog](CHANGELOG.md)
 · [Contribute](CONTRIBUTING.md)
@@ -29,7 +29,7 @@ a browser, terminal or separate Node installation.
 
 ## Get started
 
-1. [Download the latest release](https://github.com/collection-of-things/aggregate-mail/releases/latest)
+1. [Download the latest release](https://github.com/collection-of-things/emc2/releases/latest)
    for your system and [install it](docs/install.md#install).
 2. Open Emc² and [connect an account](docs/accounts.md#connect-an-account). The connection
    dialog guides you through Google sign-in or an app password.
@@ -52,7 +52,7 @@ composer delivers it. See [local storage](docs/storage-and-backups.md#local-stor
 
 ## Install
 
-Download the [latest release](https://github.com/collection-of-things/aggregate-mail/releases/latest)
+Download the [latest release](https://github.com/collection-of-things/emc2/releases/latest)
 for your system. The installed app includes its runtime.
 
 | System | Download | Open it |
@@ -113,7 +113,7 @@ The [development guide](docs/development.md) covers source commands,
 packaging and verification. See [releases](CONTRIBUTING.md#ci-and-releases)
 for publishing rules and [the changelog](CHANGELOG.md) for changes.
 
-Report problems through [Issues](https://github.com/collection-of-things/aggregate-mail/issues).
+Report problems through [Issues](https://github.com/collection-of-things/emc2/issues).
 Use [the security policy](SECURITY.md) for vulnerabilities.
 
 ## License
