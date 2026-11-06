@@ -79,3 +79,24 @@ test("applyReadableInk marks low-contrast elements and skips protected classes",
     assert.equal(document.getElementById("hidden")!.getAttribute("data-ink"), null);
   } finally { dom.window.close(); }
 });
+
+test("deep nesting reads each element's background at most once per pass", () => {
+  const depth = 50;
+  const dom = new JSDOM(`<!doctype html><body>${"<div>".repeat(depth)}leaf text${"</div>".repeat(depth)}</body>`);
+  try {
+    const { document } = dom.window;
+    const real = dom.window.getComputedStyle.bind(dom.window);
+    const reads = new Map<Element, number>();
+    dom.window.getComputedStyle = ((element: Element) =>
+      new Proxy(real(element), {
+        get(target, property) {
+          if (property === "backgroundColor") reads.set(element, (reads.get(element) ?? 0) + 1);
+          return (target as unknown as Record<PropertyKey, unknown>)[property];
+        },
+      })) as typeof dom.window.getComputedStyle;
+    applyReadableInk(document.body, WHITE);
+    // The layer list is memoized, so no element's background is sampled twice.
+    const over = [...reads.entries()].filter(([, count]) => count > 1);
+    assert.deepEqual(over.map(([element]) => element.tagName), [], "elements sampled more than once");
+  } finally { dom.window.close(); }
+});

@@ -68,20 +68,26 @@ const PROTECTED = ".address,.formatted-mail-image-placeholder";
 export function applyReadableInk(body: HTMLElement, surface: Rgba) {
   const view = body.ownerDocument.defaultView!;
   for (const element of body.querySelectorAll("[data-ink]")) element.removeAttribute("data-ink");
+  // Shared ancestors are read once per call: each element's layer list is the
+  // parent's list below its own background, so deep chains cost one computed
+  // style per element instead of one per descendant.
+  const layerCache = new Map<Element, Rgba[]>();
+  const layersOf = (element: Element): Rgba[] => {
+    const cached = layerCache.get(element);
+    if (cached) return cached;
+    const layer = parseColor(view.getComputedStyle(element).backgroundColor);
+    const above = element.parentElement && !(layer && layer[3] >= 1) ? layersOf(element.parentElement) : [];
+    const layers = layer && layer[3] > 0 ? [layer, ...above] : above;
+    layerCache.set(element, layers);
+    return layers;
+  };
   const candidates: { element: HTMLElement; color: Rgba; layers: Rgba[] }[] = [];
   for (const element of body.querySelectorAll<HTMLElement>("*")) {
     if (element.closest(PROTECTED)) continue;
     if (![...element.childNodes].some((node) => node.nodeType === node.TEXT_NODE && DIRECT_TEXT.test(node.nodeValue || ""))) continue;
     const color = parseColor(view.getComputedStyle(element).color);
     if (!color) continue;
-    const layers: Rgba[] = [];
-    for (let current: Element | null = element; current; current = current.parentElement) {
-      const layer = parseColor(view.getComputedStyle(current).backgroundColor);
-      if (!layer || layer[3] <= 0) continue;
-      layers.push(layer);
-      if (layer[3] >= 1) break;
-    }
-    candidates.push({ element, color, layers });
+    candidates.push({ element, color, layers: layersOf(element) });
   }
   for (const { element, color, layers } of candidates) {
     const ink = readableInk(color, layers, surface);
