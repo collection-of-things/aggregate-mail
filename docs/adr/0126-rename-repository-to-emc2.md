@@ -7,8 +7,8 @@ Status: Owner-approved; pending maintainer review.
 
 The product was renamed to Emc² ([ADR 0006](0006-rename-to-emc2-and-data-migration.md));
 the GitHub repository `collection-of-things/aggregate-mail` is renamed to
-`collection-of-things/emc2` in GitHub Settings to match, before the 0.2.31
-release merges.
+`collection-of-things/emc2` in GitHub Settings to match, when the 0.2.31
+release merges, before its release workflow publishes.
 
 ## Decision
 
@@ -22,9 +22,12 @@ the npm package name and the git.cafe repository are unchanged.
 
 ## Consequences
 
-GitHub redirects the old web, API and git URLs, but release asset URLs are not
-redirected: installs at 0.2.30 or older pin
-`collection-of-things/aggregate-mail/releases/download/` and reject assets now
-served under `/emc2/`, so those users install 0.2.31 manually from the releases
-page once. Contributors with an existing clone should run
+GitHub redirects the old web, API and git URLs. Installed builds at 0.2.30 or
+older validate that every update asset URL starts with
+`https://github.com/collection-of-things/aggregate-mail/releases/download/`
+(`releaseAssets` in `desktop/updates.ts`, the installer check in
+`desktop/mac-installer-update.ts`). After the rename the API, reached through
+GitHub's redirect, lists assets under `/emc2/`, so those builds reject every
+newer release and their users install 0.2.31 manually from the releases page
+once. Contributors with an existing clone should run
 `git remote set-url origin https://github.com/collection-of-things/emc2.git`.

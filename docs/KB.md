@@ -816,7 +816,8 @@ and independent review. The canonical GitHub target is
 repository was renamed from `aggregate-mail` to `emc2` under the same
 organisation for the 0.2.31 release
 ([ADR 0126](adr/0126-rename-repository-to-emc2.md)); installs at 0.2.30 or
-older keep the old download root and install 0.2.31 manually.
+older validate update asset URLs against the old download root, reject every
+newer release after the rename and install 0.2.31 manually.
 Completion requires verified merged acceptance, closure reasons and reciprocal
 fixing-PR/issue links on both hosts, with state readback rather than assumed sync.
 Before push/file and merge, fetch/rebase the latest target. Verification receipts
