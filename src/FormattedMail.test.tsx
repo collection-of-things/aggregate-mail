@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { JSDOM } from "jsdom";
 import { FormattedMail } from "./mail/FormattedMail";
+import { IsolatedMail } from "./mail/IsolatedMail";
 import { MAIL_HTML_LIMIT, MAIL_NODE_LIMIT, MAIL_DEPTH_LIMIT } from "../shared/mail-content";
 import { redactPrivateText } from "./privacy";
 import { PrivacyContext, Redact } from "./ui/Privacy";
@@ -481,6 +482,48 @@ test("an image the browser refuses is retried once through the mail service", as
     await act(async () => root.unmount());
     dom.window.close();
     globalThis.fetch = oldFetch; URL.createObjectURL = oldCreate; URL.revokeObjectURL = oldRevoke;
+    if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow); else Reflect.deleteProperty(globalThis, "window");
+    if (oldDocument) Object.defineProperty(globalThis, "document", oldDocument); else Reflect.deleteProperty(globalThis, "document");
+    delete actGlobal.IS_REACT_ACT_ENVIRONMENT;
+  }
+});
+
+
+test("isolated mail selects ink over translucent host layers and canvas fallbacks", async () => {
+  const dom = new JSDOM("<!doctype html><div id='root'></div>");
+  const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const oldDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+  Object.defineProperty(globalThis, "window", { configurable: true, value: dom.window });
+  Object.defineProperty(globalThis, "document", { configurable: true, value: dom.window.document });
+  const actGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  actGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+  const container = dom.window.document.getElementById("root")!;
+  const root = createRoot(container);
+  try {
+    for (const [app, body, canvas, ink] of [
+      ["rgba(0,0,0,.9)", "white", "", "light"],
+      ["rgba(255,255,255,.9)", "black", "", "dark"],
+      ["rgba(0,0,0,.9)", "", "", "light"],
+      ["rgba(0,0,0,.5)", "rgba(0,0,0,.8)", "", "light"],
+      ["", "rgba(0,0,0,.9)", "", "light"],
+      ["", "", "black", "light"],
+      ["white", "black", "", "dark"],
+      ["", "", "", "dark"],
+    ]) {
+      dom.window.document.body.style.backgroundColor = body;
+      dom.window.document.documentElement.style.backgroundColor = canvas;
+      await act(async () => root.render(
+        <div className="app" style={{ backgroundColor: app }}>
+          <IsolatedMail css="" fallback={null}><p style={{ color: "transparent" }}>Preview</p></IsolatedMail>
+        </div>,
+      ));
+      const frame = container.querySelector<HTMLIFrameElement>("iframe")!;
+      assert.equal(frame.contentDocument!.querySelector("p")!.getAttribute("data-ink"), ink,
+        `app=${app}, body=${body}, canvas=${canvas}`);
+    }
+  } finally {
+    await act(async () => root.unmount());
+    dom.window.close();
     if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow); else Reflect.deleteProperty(globalThis, "window");
     if (oldDocument) Object.defineProperty(globalThis, "document", oldDocument); else Reflect.deleteProperty(globalThis, "document");
     delete actGlobal.IS_REACT_ACT_ENVIRONMENT;

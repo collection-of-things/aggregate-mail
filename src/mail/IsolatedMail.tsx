@@ -29,16 +29,17 @@ function inheritTheme(element: HTMLIFrameElement, body: HTMLElement) {
 }
 
 const WHITE: Rgba = [255, 255, 255, 1];
-// The backdrop behind sender backgrounds: the nearest opaque ancestor surface,
-// else the parent body's background over the white document canvas.
+// Composite host backgrounds through the nearest opaque ancestor, falling
+// back to the white document canvas when every ancestor is translucent.
 function readerSurface(element: HTMLIFrameElement): Rgba {
   const view = element.ownerDocument.defaultView!;
+  let surface: Rgba = [0, 0, 0, 0];
   for (let current: Element | null = element; current; current = current.parentElement) {
     const color = parseColor(view.getComputedStyle(current).backgroundColor);
-    if (color && color[3] >= 1) return color;
+    if (color) surface = composite(surface, color);
+    if (surface[3] >= 1) return surface;
   }
-  const body = parseColor(view.getComputedStyle(element.ownerDocument.body).backgroundColor);
-  return body ? composite(body, WHITE) : WHITE;
+  return composite(surface, WHITE);
 }
 
 // The parent owns this blank document. No sender HTML, scripts, forms, popups

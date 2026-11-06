@@ -4,9 +4,17 @@ Entries describe user-visible changes. Published versions are newest first.
 [Legacy development notes](docs/changelog-legacy.md) preserve the earlier
 unversioned history without treating it as a release record.
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:10a62c2f2d2afe77c5bf0f5fc94b37678824483358a7fec6cf871a95dbeb33d9 -->
+
 ## Unreleased
 
 ### Fixed
+
+- Formatted mail now accounts for translucent reader backgrounds when choosing readable text colors, including dark themes. ([#223](https://github.com/collection-of-things/aggregate-mail/issues/223))
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 <!-- coderabbit-ai-generated:v1 -->
 

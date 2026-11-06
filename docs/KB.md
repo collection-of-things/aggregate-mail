@@ -3581,7 +3581,16 @@ Plain-text bodies retain the 65ch line limit. The mounted sender-style test
 checks both host width rules after portal creation; native geometry remains
 separate acceptance.
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:aeafae0e98fb003de3553d39211dd7234a51bb91b453cc9a5f7e035312ff6333 -->
+
 Isolated sender styles use the host foreground as a low-priority default.
+Readable ink composites translucent host backgrounds from the frame through its
+ancestors until an opaque surface is reached, or over the white document canvas
+when none is opaque.
+
+<!-- /coderabbit-ai-generated:v1 -->
 Sender font sizes and the body default follow `--text-scale`, including changes
 on `.app` while mail stays open; unhandled Enter
 on plain content reaches host shortcuts, while interactive controls keep activation.
