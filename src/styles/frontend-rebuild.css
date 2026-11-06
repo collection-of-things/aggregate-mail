@@ -78,7 +78,7 @@
 .sidebar-footer .sync { margin-left: 0; margin-right: auto; padding-inline: 0; font-size: calc(11px * var(--text-scale, 1)); }
 
 /* View name and search share the leading edge; history stays at the right. */
-.app-toolbar { padding-inline: 16px; gap: 10px; }
+.app-toolbar { padding-inline: var(--select-gutter) 16px; gap: 10px; }
 .app-context { gap: 6px; margin-right: 2px; font-size: calc(13px * var(--text-scale, 1)); }
 .app-context > :is(span, svg) { display: none; }
 /* The view name claims a fixed slot so Search always starts at the same x. */
@@ -99,7 +99,9 @@
 :root[data-scheme="dark"] :is(.mail-category-bar, .draft-account-tabs, .work-view-tabs) {
   box-shadow: none;
 }
-.mail-category-bar { padding-inline: var(--select-gutter) 24px; column-gap: 12px; }
+/* The bar is a size container so the category strip can trade inactive names
+   for icon and count when one row cannot fit. */
+.mail-category-bar { padding-inline: var(--select-gutter) 24px; column-gap: 12px; container-type: inline-size; container-name: category-bar; }
 .mail-category-bar .inbox-tabs { gap: 24px; }
 .mail-category-bar .inbox-tabs button { font-size: calc(13px * var(--text-scale, 1)); font-weight: 500; }
 .mail-category-bar .tab-icon { display: inline-flex; }

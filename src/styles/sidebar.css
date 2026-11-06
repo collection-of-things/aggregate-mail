@@ -143,85 +143,47 @@
 .workspace.split .list-pane {
   container-type: inline-size;
 }
-/* Beside the reader the categories wrap to two rows: every tab shows icon,
-   name and count on a 28px line, and the bar grows to fit. The bar lives in
-   .mail-view, a sibling of the split workspace. */
-.mail-view:has(.workspace.split) .mail-category-bar {
-  height: auto;
-  min-height: 0;
-  align-items: flex-start;
-  padding-block: 3px;
-  overflow-x: visible;
-}
-/* The select-all sits on the first tab row's midline, not the grown bar's
-   centre. */
-.mail-view:has(.workspace.split) .mail-category-bar .rail-select {
-  margin-top: calc(6px * var(--text-scale, 1));
-}
-/* Beside a visible reader the tabs stay inside the list column's reach and
-   wrap onto a second row; when the reader is hidden (clear or failed list,
-   where the list spans the workspace) they fit on one row. The strip starts
-   after the select-all cell, so the cap subtracts the gutter, the rail and
-   its gap from --list-width. */
-.mail-view:has(.workspace.split):not(:has(.workspace.split .empty-clear)) .inbox-tabs {
-  max-width: calc(var(--list-width) - var(--select-gutter, 44px) - 30px);
-}
+/* Beside the reader the categories stay on one 28px-before-text-scale row:
+   the strip keeps the rail's single-row height and may run past the list
+   column into the space above the reader. The bar lives in .mail-view, a
+   sibling of the split workspace. */
 .mail-view:has(.workspace.split) .inbox-tabs {
   flex: 0 1 auto;
-  flex-wrap: wrap;
-  height: auto;
+  flex-wrap: nowrap;
   min-width: 0;
-  align-content: center;
-  gap: 0 10px;
-  padding: 0;
-  overflow-x: visible;
+  align-items: center;
 }
 .mail-view:has(.workspace.split) .inbox-tabs button {
-  min-width: 0;
   height: calc(28px * var(--text-scale, 1));
   gap: 5px;
-}
-/* Beside a visible reader the named tabs break three per row in content-sized
-   columns, left-aligned from the select-all gutter; columns may shrink rather
-   than overflow the list edge, and the name truncates before the icon or the
-   count does. */
-.mail-view:has(.workspace.split):not(:has(.workspace.split .empty-clear)) .inbox-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, max-content));
-  column-gap: 18px;
-  justify-content: start;
-}
-.mail-view:has(.workspace.split):not(:has(.workspace.split .empty-clear)) .inbox-tabs button {
-  justify-self: start;
-  min-width: 0;
-  max-width: 100%;
-}
-.mail-view:has(.workspace.split):not(:has(.workspace.split .empty-clear)) .inbox-tabs button .tab-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .inbox-tabs button > svg,
 .inbox-tabs button .tab-count {
   flex-shrink: 0;
 }
-/* All names stay readable in the two-row layout. */
+/* Every name stays readable while the one row fits. */
 .mail-view:has(.workspace.split) .inbox-tabs button .tab-label {
   position: static;
   width: auto;
   height: auto;
   overflow: visible;
   clip-path: none;
-  white-space: normal;
+  white-space: nowrap;
 }
-/* A single sliding underline cannot follow a wrapped second row; the active
-   tab carries its own 2px accent underline instead. */
-.mail-view:has(.workspace.split) .inbox-tabs .sliding-wash {
-  display: none;
-}
-.mail-view:has(.workspace.split) .inbox-tabs button.active {
-  box-shadow: inset 0 -2px 0 var(--accent);
+/* When the six named tabs cannot fit the bar — a larger text scale or a
+   narrow-but-still-split window — inactive categories return to icon and
+   count; the name stays on the title and for assistive technology. The em
+   threshold grows with the rail's text-scaled font size: 60em covers the
+   six tabs with names, counts and 24px gaps at the default scale. */
+@container category-bar (max-width: 60em) {
+  .mail-view:has(.workspace.split) .inbox-tabs button:not(.active) .tab-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 .inbox-tabs button:not(.active) .tab-label {
   position: absolute;
