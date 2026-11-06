@@ -194,11 +194,22 @@ function FormattedImage({ mailId, src, alt, style, ...presentation }: { mailId?:
   // vertical-align and float apply as they would in a mail client.
   return <span className="formatted-mail-image" style={{ display: "contents" }}>
     <img {...presentation} src={remote.src} alt={alt} referrerPolicy="no-referrer" decoding="async" loading="lazy"
-      // With a width, auto height keeps the shape when max-width narrows it;
-      // icons sized only by height keep that height.
-      style={{ ...style, maxWidth: "100%", height: style.width || !style.height ? "auto" : style.height }}
+      // The sender's declared shape wins: a px width and height become an
+      // aspect ratio so spacers and dividers keep their proportions when
+      // max-width narrows them, a declared height alone stays fixed, and
+      // unsized images keep their natural shape.
+      style={{ ...style, maxWidth: "100%", ...imageShape(style) }}
       onError={remote.onError} />
   </span>;
+}
+
+const pxLength = (value: unknown) =>
+  typeof value === "string" ? /^(\d+(?:\.\d+)?)px$/.exec(value)?.[1] : undefined;
+function imageShape(style: CSSProperties): CSSProperties {
+  const width = pxLength(style.width), height = pxLength(style.height);
+  if (width && height) return { height: "auto", aspectRatio: `${width} / ${height}` };
+  if (style.height !== undefined) return { height: style.height };
+  return { height: "auto" };
 }
 
 // HTML's align attribute as browsers apply it: a centered table gets auto
