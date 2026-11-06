@@ -256,7 +256,7 @@
 }
 /* Sticky surfaces get a stronger tint plus a blur so scrolled text does not
    show through illegibly. */
-:root[data-glass] :is(.group, .agent-navigation, .today-mail > .mail-actions) {
+:root[data-glass] :is(.group, .agent-navigation, .today-mail > .mail-actions, .sidebar-heading) {
   background: color-mix(in srgb, var(--surface) 60%, transparent);
   backdrop-filter: blur(12px);
 }

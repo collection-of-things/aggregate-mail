@@ -24,9 +24,11 @@
 @media (width < 760px) {
   .frame { position: relative; }
   .sidebar { position: absolute; inset: 0 auto 0 0; z-index: 6; width: min(288px, calc(100vw - 56px)); background: var(--surface); }
+  .sidebar-heading { background: var(--surface); }
   .sidebar.closed { width: 0; visibility: hidden; pointer-events: none; }
   .sidebar-head, .sidebar-content { width: 100%; }
   .sidebar button { min-height: 44px; }
+  .sidebar-group button.account-warning { width: 44px; min-width: 44px; }
   .mobile-sidebar-backdrop { position: absolute; inset: 0; z-index: 5; border: 0; border-radius: 0; background: var(--backdrop); animation: fade-in 200ms var(--ease-out); }
   .app-toolbar { flex-wrap: wrap; height: auto; min-height: 52px; padding: 4px 12px; gap: 6px; }
   .app-toolbar .app-context { flex: 1; }

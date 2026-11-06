@@ -7,3 +7,8 @@ export function accountStatus(account: Account) {
     account.syncWarning ? "Mail result retained; connection cleanup failed." : "",
   ].filter(Boolean).join(" ");
 }
+
+// Accounts whose connection needs attention drive the sidebar footer's summary.
+export function accountsNeedingAttention(accounts: Account[]) {
+  return accounts.filter((account) => account.error || account.syncFailure).length;
+}

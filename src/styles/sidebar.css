@@ -285,6 +285,17 @@
 .sidebar-group + .sidebar-group {
   margin-top: 18px;
 }
+/* Section headings pin beneath the fixed head while their group scrolls
+   beneath them, like the mail list's sticky date groups; the scrollport's top
+   edge sits flush under the head, so a scrolled heading would otherwise clip
+   there. The opaque rail cover keeps scrolled rows from showing through. */
+.sidebar-heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  flex-shrink: 0;
+  background: var(--rebuild-rail);
+}
 /* Section headings: small bold secondary text that folds its section. */
 .sidebar-group h2,
 .sidebar-heading button {
@@ -332,7 +343,8 @@
   display: none;
 }
 .sidebar-footer { display: flex; flex-shrink: 0; align-items: center; gap: 8px; width: var(--sidebar); padding: 8px 12px; }
-.sidebar-footer .sync { min-width: 0; margin-left: auto; padding: 6px 4px; white-space: nowrap; }
+.sidebar-footer .sync { min-width: 0; margin-left: auto; padding: 6px 4px; gap: 5px; white-space: nowrap; }
+.sidebar-footer .sync > span { display: inline-flex; align-items: center; gap: 5px; }
 .sidebar-settings { order: -1; width: 32px; height: 32px; flex-shrink: 0; justify-content: center; padding: 0; border-radius: var(--radius-control); }
 .sidebar-settings svg { color: var(--accent); }
 .sidebar-settings:hover { background: var(--hover); }
@@ -356,6 +368,33 @@
 .sidebar-settings { color: var(--text-2); }
 .sidebar-count { padding: 1px 5px; min-width: 19px; text-align: center; border-radius: 5px; background: var(--hover); }
 
-.sidebar-group button.account-warning { height: auto; padding-block: 6px; align-items: flex-start; text-align: left; }
-.account-warning span { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
-.account-warning .error-dot { flex-shrink: 0; margin-top: 6px; }
+/* The accounts group lays each account and its status on one row: children
+   span both columns, an account followed by a status keeps column 1 and the
+   status takes column 2. The sliding wash/hover stay absolutely positioned
+   across the whole row. */
+.sidebar-accounts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.sidebar-accounts > * {
+  grid-column: 1 / -1;
+}
+.sidebar-accounts > button:has(+ .account-warning) {
+  grid-column: 1;
+}
+.sidebar-accounts > .account-warning {
+  grid-column: 2;
+}
+/* The status marker is an icon-only button on its account's row; the full
+   status text lives in its tooltip and accessible name. */
+.sidebar-group button.account-warning {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  justify-content: center;
+  align-self: center;
+}
+.account-warning .error-dot { flex-shrink: 0; }
+.account-warning[data-state="busy"] .error-dot { background: var(--text-4); }
