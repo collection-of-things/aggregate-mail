@@ -366,7 +366,35 @@ test("images sized only by height keep that height instead of their natural size
   assert.equal(icon.style.height, "25px");
   assert.equal(logo.style.width, "120px");
   assert.equal(logo.style.height, "auto"); // Width wins so a narrowed image keeps its shape.
+  assert.equal(logo.style.getPropertyValue("aspect-ratio"), "120 / 40");
   assert.equal(logo.style.maxHeight, "2px");
+});
+
+test("loaded images keep the sender's declared proportions instead of their natural size", () => {
+  const document = documentOf(render(
+    '<img src="https://images.example.com/spacer.png" width="600" height="1">' +
+    '<img src="https://images.example.com/pixel.png" width="100%" height="1">' +
+    '<img src="https://images.example.com/hero.png" width="600">' +
+    '<img src="https://images.example.com/icon.png" height="25">', false, true));
+  const [spacer, pixel, hero, icon] = document.querySelectorAll("img");
+  // A px width and height pin the declared aspect ratio; a natural square
+  // can no longer stretch a spacer into a giant empty box.
+  assert.equal(spacer.style.height, "auto");
+  assert.equal(spacer.style.getPropertyValue("aspect-ratio"), "600 / 1");
+  // A non-px width leaves the declared height in place.
+  assert.equal(pixel.style.height, "1px");
+  assert.equal(pixel.style.getPropertyValue("aspect-ratio"), "");
+  // Width alone keeps natural proportions.
+  assert.equal(hero.style.height, "auto");
+  assert.equal(hero.style.getPropertyValue("aspect-ratio"), "");
+  // Height alone is unchanged.
+  assert.equal(icon.style.height, "25px");
+  assert.equal(icon.style.getPropertyValue("aspect-ratio"), "");
+  // Blocked placeholders already carry the declared size, before consent.
+  const blocked = documentOf(render('<img src="https://images.example.com/spacer.png" width="600" height="1">'));
+  const box = blocked.querySelector<HTMLElement>(".formatted-mail-image-placeholder")!;
+  assert.equal(box.style.width, "600px");
+  assert.equal(box.style.height, "1px");
 });
 
 test("blocked images keep their size as an empty box and carry the reason as a label", () => {
