@@ -197,13 +197,15 @@ export function Sidebar({
                 ? `${attentionCount === 1 ? "1 account needs" : `${attentionCount} accounts need`} attention. Last synced ${mail.lastSync ? relative(mail.lastSync) : "never"}. Sync mail`
                 : "Sync mail"}
             >
-              {mail.syncing
-                ? "Syncing"
-                : attentionCount
-                  ? <><i className="error-dot" aria-hidden="true" />{attentionCount === 1 ? "Needs attention" : `${attentionCount} need attention`}</>
-                  : mail.lastSync
-                    ? `Synced ${relative(mail.lastSync)}`
-                    : "Not synced"}
+              <span aria-live="polite" aria-atomic="true">
+                {mail.syncing
+                  ? "Syncing"
+                  : attentionCount
+                    ? <><i className="error-dot" aria-hidden="true" />{attentionCount === 1 ? "Needs attention" : `${attentionCount} need attention`}</>
+                    : mail.lastSync
+                      ? `Synced ${relative(mail.lastSync)}`
+                      : "Not synced"}
+              </span>
             </button>
             <button className="sidebar-settings" aria-label={settings ? "Close settings" : "Settings"} aria-current={settings ? "page" : undefined} title={`Settings (${mail.shortcut("settings")})`}
               onClick={settings ? sections.onClose : mail.onSettings}>

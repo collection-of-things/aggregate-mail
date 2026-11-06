@@ -8,7 +8,13 @@ unversioned history without treating it as a release record.
 
 ### Fixed
 
-- The sidebar's Workspace heading could clip beneath the brand header when the navigation scrolled; section headings now pin under it like the mail list's date groups. Account sync status no longer wraps onto its own row between accounts — a compact marker sits on the account's row with the full status in its tooltip. The footer sync status now reports "Needs attention" (or a count) while an account connection needs it instead of showing only the last sync time. ([#225](https://github.com/collection-of-things/aggregate-mail/issues/225))
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:4b7469c3f8b60f3dfe3e5396aa98d6ec88fb17e764b7e74b3d0529899fc3b17d -->
+
+- Sidebar section headings now pin beneath the brand header, and account status markers stay on their account rows with full status in their tooltips. The footer reports connections needing attention and announces status updates politely. In the phone drawer, account status buttons have wider touch targets. ([#225](https://github.com/collection-of-things/aggregate-mail/issues/225))
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 ## 0.2.30 - 2026-11-06
 

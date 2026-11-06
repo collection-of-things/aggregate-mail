@@ -3077,6 +3077,9 @@ test("the sidebar footer summarizes accounts needing attention and recovers", as
     state.accounts[1].error = "connection refused";
   });
   try {
+    const status = sync().querySelector<HTMLElement>('[aria-live="polite"]')!;
+    assert.ok(status, "the status has a persistent polite live region");
+    assert.equal(status.getAttribute("aria-atomic"), "true");
     assert.equal(sync().textContent, "Needs attention");
     assert.ok(sync().querySelector(".error-dot"), "the summary leads with the attention dot");
     assert.equal(sync().title, "1 account needs attention. Last synced never. Sync mail");
@@ -3095,6 +3098,12 @@ test("the sidebar footer summarizes accounts needing attention and recovers", as
     await app.refresh();
     assert.equal(sync().textContent, "Synced now");
     app.state.accounts[1].error = "connection refused";
+    await app.refresh();
+    assert.equal(sync().querySelector('[aria-live="polite"]'), status, "the live region remains mounted across updates");
+    assert.equal(status.textContent, "Needs attention", "a background failure updates the live region");
+    const syncRequests = app.requests.filter(url => url === "/api/sync").length;
+    await app.click(sync());
+    assert.equal(app.requests.filter(url => url === "/api/sync").length, syncRequests + 1, "the status button still starts sync");
     app.state.syncing = true;
     await app.refresh();
     assert.equal(sync().textContent, "Syncing", "syncing keeps its label over attention");
@@ -3104,6 +3113,7 @@ test("the sidebar footer summarizes accounts needing attention and recovers", as
 
 test("section headings pin under the sidebar head and account status sits on the account row", () => {
   const rules = readFileSync(new URL("./styles/sidebar.css", import.meta.url), "utf8");
+  const responsive = readFileSync(new URL("./styles/responsive.css", import.meta.url), "utf8");
   const tokens = readFileSync(new URL("./styles/tokens.css", import.meta.url), "utf8");
   assert.match(rules, /\.sidebar-heading\s*\{[^}]*position:\s*sticky[^}]*top:\s*0[^}]*z-index/s,
     "headings pin beneath the head instead of clipping at the scroll edge");
@@ -3117,6 +3127,10 @@ test("section headings pin under the sidebar head and account status sits on the
     "the status marker takes column 2 on the same row");
   assert.match(rules, /\.account-warning\[data-state="busy"\]\s*\.error-dot[^}]*background:\s*var\(--text-4\)/s,
     "busy markers use quiet ink");
+  assert.match(rules, /\.sidebar-group button\.account-warning\s*\{[^}]*width:\s*24px;[^}]*min-width:\s*24px/s,
+    "desktop markers keep their compact width");
+  assert.match(responsive, /@media\s*\(width\s*<\s*760px\)\s*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\.sidebar-group button\.account-warning\s*\{[^}]*width:\s*44px;[^}]*min-width:\s*44px/s,
+    "the drawer gives the marker a wider touch target");
   assert.match(tokens, /:is\([^)]*\.sidebar-heading[^)]*\)\s*\{[^}]*backdrop-filter:\s*blur/s,
     "pinned headings keep the glass tint and blur like other sticky surfaces");
 });

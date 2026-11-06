@@ -3221,9 +3221,18 @@ See [ADR 0091](adr/0091-local-mail-undo.md).
 
 ## Accessible account warnings
 
-Sidebar account warnings are separate keyboard-reachable buttons. Their names
-include the privacy-safe account label and fixed status text. Activation opens
-Settings, Accounts and focuses the affected account row without retrying.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:905754ceacd380845acb344fa05827017396523b690e2c3d86c6e0df5db6fe32 -->
+
+Sidebar account warnings are separate keyboard-reachable buttons with privacy-safe
+account labels and fixed status text. Activation opens Settings, Accounts and
+focuses the affected account row without retrying. Their width is 24px on desktop
+and 44px in the drawer below 760px. The footer sync button announces status changes
+through a polite live region and retains its sync action.
+
+<!-- /coderabbit-ai-generated:v1 -->
+
 Settings names queued/running sync, connection failure and cleanup warning states
 without rendering raw provider errors or failure codes in text or tooltips.
 Connected means a connection exists, not that all provider history is cached.
