@@ -268,7 +268,7 @@ input[type="checkbox"][role="switch"]:disabled {
   align-items: center;
   align-content: start;
   height: calc((var(--mail-card-base) + var(--mail-card-preview)) * var(--text-scale, 1));
-  padding: 8px 12px 0 34px;
+  padding: 8px 12px 0 var(--row-gutter, 28px);
 }
 .empty-skeleton-card > i {
   display: block;

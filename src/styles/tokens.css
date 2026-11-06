@@ -12,7 +12,7 @@
   --list-width: clamp(320px, calc(31vw * var(--text-scale, 1)), min(560px, calc(448px * var(--text-scale, 1))));
   /* The select-all checkbox and the row checkboxes share this left gutter so
      every list header lines up (list padding + the row select offset). */
-  --select-gutter: 23px;
+  --select-gutter: 17px;
   --mail-row-medium: 34px;
   --mail-row-compact: 24px;
   --mail-row-card-medium: 100px;

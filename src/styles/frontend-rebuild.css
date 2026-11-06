@@ -134,9 +134,8 @@
 .row::after { display: none; }
 /* Keep the selection gutter stable when the reader hides checkboxes. Card
    slots share their content-based height with MailListWindow. */
-.mail-row > .row { padding-left: 34px; }
 .mail-window-row > .mail-row { height: 100%; }
-.mail-window-row .row.card { height: 100%; padding: calc(8px * var(--text-scale, 1)) 12px; padding-left: 34px; align-items: center; }
+.mail-window-row .row.card { height: 100%; padding: calc(8px * var(--text-scale, 1)) 12px; padding-left: var(--row-gutter, 28px); align-items: center; }
 .row.card :is(.row-line, .row-subject, .row-preview) { line-height: calc(18px * var(--text-scale, 1)); }
 .rail-wait { color: var(--text-2); }
 .row.card .avatar { display: inline-flex; width: calc(30px * var(--text-scale, 1)); height: calc(30px * var(--text-scale, 1)); margin: 0 12px 0 0; }
@@ -170,12 +169,13 @@
 .row.card .row-preview .row-preview-text { flex: 1 1 0; min-width: 0; margin-left: 2px; overflow: hidden; text-overflow: ellipsis; }
 /* Inline account content reports the name's baseline, not the dot's box. */
 .row.card :is(.row-preview, .row-subject-line) .row-account { display: inline; }
-.row.card :is(.row-preview, .row-subject-line) .row-account .account-dot { margin-right: 6px; vertical-align: baseline; }
+/* The account dot centers on the shared text line rather than sitting on the
+   name's baseline. */
+.row.card :is(.row-preview, .row-subject-line) .row-account .account-dot { margin-right: 6px; vertical-align: middle; }
 .row.card .row-preview .row-account::after,
 .row.card .row-subject-line .row-account:has(+ .row-status > .row-label)::after { content: "·"; margin-left: 6px; color: var(--text-4); }
 .row.card .row-meta { margin: 0; gap: 8px; line-height: calc(16px * var(--text-scale, 1)); }
 .row.card .row-account { font-size: calc(12px * var(--text-scale, 1)); }
-.mail-row > .row.card .unread-dot { width: calc(6px * var(--text-scale, 1)); height: calc(6px * var(--text-scale, 1)); }
 /* Compact cards are exactly two lines: the sender line, then the subject with
    the account and status trailing inline in secondary ink. */
 .compact .row.card {
@@ -201,6 +201,28 @@
 :root[data-scheme="dark"] .list:focus-within .row.selected {
   background-color: var(--selected-card); box-shadow: none;
 }
+
+/* The unread card dot badges the sender avatar's lower-right corner. Its ring
+   repaints in the row's own surface — canvas, hover wash or selected fill —
+   so the badge reads in light and dark themes and every row state. */
+.list { --mail-row-bed: var(--rebuild-canvas); }
+:root[data-glass] .list { --mail-row-bed: var(--pane-glass); }
+.row.card { --unread-ring: var(--mail-row-bed); }
+.avatar .unread-dot {
+  top: auto;
+  left: auto;
+  right: -2px;
+  bottom: -2px;
+  margin: 0;
+  width: calc(7px * var(--text-scale, 1));
+  height: calc(7px * var(--text-scale, 1));
+  box-shadow: 0 0 0 2px var(--unread-ring, var(--surface));
+}
+.mail-row:hover .row.card:not(.selected) { --unread-ring: color-mix(in srgb, var(--mail-row-bed) 96%, var(--text)); }
+.mail-row.bulk-selected > .row.card:not(:focus-visible) { --unread-ring: color-mix(in srgb, var(--mail-row-bed) 93%, var(--text)); }
+.row.card.selected { --unread-ring: var(--selected); }
+.list .row.card.selected, .list:focus-within .row.card.selected { --unread-ring: var(--selected-card); }
+:is(.workspace:has(.reader-pane .reader-empty), .workspace:not(.split)) .row.card.selected { --unread-ring: var(--mail-row-bed); }
 
 .row-actions { right: 8px; padding: 3px; border: 1px solid var(--line); border-radius: var(--radius-mark); box-shadow: var(--shadow); }
 .row-actions button { border-radius: var(--radius-mark-sm); }

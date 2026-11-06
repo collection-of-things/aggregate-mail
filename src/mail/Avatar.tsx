@@ -30,9 +30,11 @@ export function avatarTone(address: string): number {
 export const Avatar = memo(function Avatar({
   mail,
   provider,
+  unread,
 }: {
   mail: Pick<Mail, "address" | "sender">;
   provider?: Provider;
+  unread?: boolean;
 }) {
   const domain = logoDomain(mail.address);
   const [broken, setBroken] = useState(false);
@@ -55,6 +57,7 @@ export const Avatar = memo(function Avatar({
         </span>
       )}
       {provider && <ProviderIcon provider={provider} />}
+      {unread && <i className="unread-dot" aria-hidden="true" />}
     </span>
   );
 });
