@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Workspace } from "../../shared/workspace";
-import type { Api } from "../api";
+import { ApiError, type Api } from "../api";
 
 const empty: Workspace = { commitments: [], projects: [], decisions: [], coverage: [], proposals: [] };
 
@@ -63,7 +63,7 @@ export function useWorkspace(api: Api, enabled = true) {
     window.addEventListener("focus", tick);
     return () => { window.clearInterval(timer); window.removeEventListener("focus", tick); };
   }, [enabled, refresh]);
-  const mutate = async (task: () => Promise<unknown>) => {
+  const mutate = async (task: () => Promise<unknown>, singleRequest = false) => {
     if (lock.current || read.current || unsafe.current || review.current) return false;
     lock.current = true; setPending(true); setError("");
     try {
@@ -71,7 +71,12 @@ export function useWorkspace(api: Api, enabled = true) {
       const ok = await refresh(true);
       if (!ok && live.current) setError("Change was saved, but workspace refresh failed. Your input remains here. Refresh the workspace to inspect the saved result before making another change.");
       return ok;
-    } catch {
+    } catch (error) {
+      // Only a single request can prove rejection; a later step may follow a completed write.
+      if (singleRequest && error instanceof ApiError && error.status >= 400 && error.status < 500) {
+        if (live.current) setError(error.message);
+        return false;
+      }
       unsafe.current = true; review.current = true;
       if (live.current) {
         setStale(true); setReviewRequired(true);

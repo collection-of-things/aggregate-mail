@@ -1,5 +1,15 @@
 # Repository knowledge
 
+## Workspace save failures
+
+Explicit HTTP 4xx rejections keep the assistant access form editable and display the
+service error. Network failures and server errors still require refresh and
+review because the write may have happened. Settings can close in either case;
+closing does not clear the workspace recovery requirement. Synthetic App tests
+in `src/workbench.test.tsx` cover assistant access rejection, successful save,
+uncertain responses and closing Settings. The private-host cause reported in
+issue #234 and installed desktop behavior remain unverified.
+
 ## User guides
 
 The [README](../README.md#guides) introduces the app and links to topic guides

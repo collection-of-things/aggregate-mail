@@ -5,7 +5,7 @@ import { act } from "react";
 import { JSDOM } from "jsdom";
 import type { Mail, State } from "../shared/types";
 import type { AgentGrant, AgentProposal, Commitment, Workspace } from "../shared/workspace";
-import type { Api } from "./api";
+import { ApiError, type Api } from "./api";
 import type { CalendarEvent, GoogleCalendarStatus } from "../shared/calendar";
 import { useWorkspace, type WorkspaceState } from "./work/useWorkspace";
 
@@ -1594,5 +1594,62 @@ test("Calendar Day and Week preserve navigation, point labels and cache-only rea
   assert.ok(ui.container.querySelector(`[data-day="${day}"]`));
   await ui.privacy();
   assert.equal(ui.container.querySelector(".calendar-timed-entry")?.textContent?.includes("Private Reader"),false);
+ } finally { await ui.close(); }
+});
+
+// Exercise the real App API adapter and Settings dialog with synthetic grant responses.
+test("assistant access rejection stays editable and Settings closes", async () => {
+ for (const outcome of ["rejected", "unknown", "saved"] as const) {
+  const ui = await mount("actions", true);
+  const original = globalThis.fetch;
+  const grant: AgentGrant = { id: "access-test", name: "Synthetic assistant", accountIds: ["a", "b"], tools: ["read_email", "propose_draft"], token: "synthetic-only", createdAt: 1 };
+  try {
+   globalThis.fetch = async (input, options) => {
+    const url = String(input);
+    if (url === "/api/agent/grants") return Response.json([grant]);
+    if (url === "/api/agent/grants/access-test" && options?.method === "PATCH") {
+     if (outcome === "unknown") throw new TypeError("Synthetic lost response");
+     if (outcome === "rejected") return Response.json({ error: "Access change rejected." }, { status: 400 });
+     Object.assign(grant, JSON.parse(String(options.body)));
+     return Response.json(grant);
+    }
+    return original(input, options);
+   };
+   await ui.click(ui.button("Settings"));
+   await ui.click(ui.button("AI and agents"));
+   await ui.click(ui.button("Edit access"));
+   const form = ui.container.querySelector<HTMLFormElement>('[aria-label="Edit assistant access"]')!;
+   const checkbox = form.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+   await ui.click(checkbox);
+   await act(async () => { form.dispatchEvent(new ui.dom.window.Event("submit", { bubbles: true, cancelable: true })); });
+   if (outcome === "rejected") {
+    assert.equal(ui.button("Save access").matches(":disabled"), false);
+    assert.equal(checkbox.checked, false);
+    assert.ok(ui.container.textContent?.includes("Access change rejected."));
+    assert.ok(!ui.container.textContent?.includes("unknown outcome"));
+   } else if (outcome === "saved") {
+    assert.equal(ui.container.querySelector('[aria-label="Edit assistant access"]'), null);
+    assert.deepEqual(grant.accountIds, ["b"]);
+   } else assert.ok(ui.container.textContent?.includes("unknown outcome"));
+   await ui.click(ui.button("Close settings"));
+   assert.equal(ui.container.querySelector(".settings-dialog"), null);
+  } finally { globalThis.fetch = original; await ui.close(); }
+ }
+});
+
+test("multi-step workspace writes retain recovery after a follow-up 4xx", async () => {
+ const ui = await mount();
+ try {
+  let saved = false;
+  await act(async () => {
+   await ui.work.mutate(async () => {
+    saved = true;
+    throw new ApiError(403, "Synthetic follow-up read rejected.");
+   });
+  });
+  assert.equal(saved, true);
+  assert.equal(ui.work.blocked, true);
+  assert.equal(ui.work.reviewRequired, true);
+  assert.match(ui.work.error, /Change was not confirmed/);
  } finally { await ui.close(); }
 });
