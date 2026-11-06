@@ -255,6 +255,17 @@ const droppedTags = new Set(("head script style title iframe frame frameset obje
 const allowedAttributes = new Set(("style href src alt width height align valign bgcolor color size " +
   "colspan rowspan cellpadding cellspacing border start").split(" "));
 
+// Senders pad preview text with runs of invisible characters and spacing so a
+// preheader fills the excerpt without showing in the body. Three or more
+// consecutive units — zero-width spaces and joiners, grapheme joiner, word
+// joiner, byte-order mark or soft hyphen, each with any spacing after it —
+// collapse to one space. Single occurrences stay, so script shaping (ZWNJ)
+// and hyphenation hints survive; ZWJ is never matched, so emoji sequences
+// are untouched (ADR 0125).
+export function collapseInvisiblePadding(text: string): string {
+  return text.replace(/(?:[\u034F\u200B\u200C\u2060\uFEFF\u00AD]+[\s\u00A0\u2002-\u200A\u202F]*){3,}/g, " ");
+}
+
 // Unknown wrappers keep their text. Active content and its children are discarded.
 export function parseMailContent(html: string, selectors = false): MailContentNode[] | null {
   if (boundedMailHtml(html) === null) return null;
@@ -290,6 +301,15 @@ export function parseMailContent(html: string, selectors = false): MailContentNo
     },
   }, { decodeEntities: true });
   parser.end(html);
+  // Runs as a post-pass: htmlparser2 can split one text run into several
+  // chunks around entities, and a padding run can span chunk boundaries.
+  const collapse = (nodes: MailContentNode[]) => {
+    nodes.forEach((node, index) => {
+      if (typeof node === "string") nodes[index] = collapseInvisiblePadding(node);
+      else collapse(node.children);
+    });
+  };
+  if (!exceeded) collapse(roots);
   return exceeded ? null : roots;
 }
 
