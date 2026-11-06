@@ -10,6 +10,8 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+## 0.2.31 - 2026-11-06
+
 ### Fixed
 
 - Formatted mail now accounts for translucent reader backgrounds when choosing readable text colors, including dark themes. ([#223](https://github.com/collection-of-things/emc2/issues/223))
