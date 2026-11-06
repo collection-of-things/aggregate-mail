@@ -1,5 +1,6 @@
 import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { act } from "react";
 import { JSDOM } from "jsdom";
 import { defaults } from "./interaction";
@@ -3026,7 +3027,16 @@ test("account warning opens the affected private account without reconnecting on
   try {
     const warning = app.container.querySelector<HTMLButtonElement>(".account-warning")!;
     assert.ok(warning, "warning is a separate native button");
+    const account = app.account("Account 2 · Custom IMAP");
+    assert.equal(warning.previousElementSibling, account, "status marker follows its account on the same row");
+    assert.equal(warning.parentElement, account.parentElement, "status stays a direct child of the accounts nav");
+    assert.ok(warning.parentElement?.matches(".sidebar-group.sidebar-accounts"), "accounts group carries the row grid");
+    assert.equal(warning.getAttribute("data-state"), "attention");
     assert.match(warning.getAttribute("aria-label")!, /Account 2.*needs attention.*cleanup failed/);
+    assert.match(warning.title!, /Connection needs attention.*cleanup failed/, "full status stays in the tooltip");
+    assert.ok(warning.querySelector(".error-dot"), "attention marker uses the error dot");
+    assert.equal(warning.querySelector("span"), null, "the marker is icon-only and never wraps");
+    assert.doesNotMatch(warning.title!, /private\.example\.test|password rejected/);
     assert.equal(warning.tabIndex, 0);
     await act(async () => warning.focus());
     assert.equal(app.requests.filter(url => url.endsWith("/reconnect")).length, 0);
@@ -3040,6 +3050,75 @@ test("account warning opens the affected private account without reconnecting on
     assert.deepEqual(app.requests.filter(url => url.endsWith("/reconnect")), ["/api/accounts/b/reconnect"]);
     assert.equal(app.mutations.length, 0);
   } finally { await app.close(); }
+});
+
+test("running and queued connections get a quiet busy marker on the account row", async () => {
+  const app = await mount(false, (state) => {
+    state.accounts[0].syncStatus = "running";
+    state.accounts[1].syncStatus = "queued";
+  });
+  try {
+    const warnings = [...app.container.querySelectorAll<HTMLButtonElement>(".account-warning")];
+    assert.equal(warnings.length, 2);
+    for (const warning of warnings) {
+      assert.equal(warning.getAttribute("data-state"), "busy");
+      assert.ok(warning.querySelector(".error-dot"), "busy marker stays a small dot");
+      assert.equal(warning.querySelector("span"), null);
+    }
+    assert.match(warnings[0].title!, /Mail sync running/);
+    assert.match(warnings[0].getAttribute("aria-label")!, /first@example.com: Mail sync running\. Open account settings\./);
+    assert.match(warnings[1].title!, /Connection retry queued/);
+  } finally { await app.close(); }
+});
+
+test("the sidebar footer summarizes accounts needing attention and recovers", async () => {
+  const sync = () => app.container.querySelector<HTMLButtonElement>(".sidebar-footer .sync")!;
+  const app = await mount(false, (state) => {
+    state.accounts[1].error = "connection refused";
+  });
+  try {
+    assert.equal(sync().textContent, "Needs attention");
+    assert.ok(sync().querySelector(".error-dot"), "the summary leads with the attention dot");
+    assert.equal(sync().title, "1 account needs attention. Last synced never. Sync mail");
+    assert.doesNotMatch(sync().textContent!, /second@example\.com/, "no account names reach the footer");
+    app.state.accounts[0].syncFailure = { kind: "transient", phase: "connect", code: "unreachable" };
+    await app.refresh();
+    assert.equal(sync().textContent, "2 need attention");
+    assert.equal(sync().title, "2 accounts need attention. Last synced never. Sync mail");
+    app.state.accounts[0].syncFailure = undefined;
+    app.state.accounts[1].error = undefined;
+    await app.refresh();
+    assert.equal(sync().textContent, "Not synced");
+    assert.equal(sync().querySelector(".error-dot"), null);
+    assert.equal(sync().title, "Sync mail");
+    app.state.lastSync = Date.now();
+    await app.refresh();
+    assert.equal(sync().textContent, "Synced now");
+    app.state.accounts[1].error = "connection refused";
+    app.state.syncing = true;
+    await app.refresh();
+    assert.equal(sync().textContent, "Syncing", "syncing keeps its label over attention");
+    assert.equal(sync().title, "Sync mail");
+  } finally { await app.close(); }
+});
+
+test("section headings pin under the sidebar head and account status sits on the account row", () => {
+  const rules = readFileSync(new URL("./styles/sidebar.css", import.meta.url), "utf8");
+  const tokens = readFileSync(new URL("./styles/tokens.css", import.meta.url), "utf8");
+  assert.match(rules, /\.sidebar-heading\s*\{[^}]*position:\s*sticky[^}]*top:\s*0[^}]*z-index/s,
+    "headings pin beneath the head instead of clipping at the scroll edge");
+  assert.match(rules, /\.sidebar-accounts\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/s,
+    "the accounts group is a two-column row grid");
+  assert.match(rules, /\.sidebar-accounts\s*>\s*\*\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/s,
+    "every child spans the row by default");
+  assert.match(rules, /button:has\(\+\s*\.account-warning\)\s*\{[^}]*grid-column:\s*1/s,
+    "an account with a status keeps column 1");
+  assert.match(rules, /\.account-warning\s*\{[^}]*grid-column:\s*2/s,
+    "the status marker takes column 2 on the same row");
+  assert.match(rules, /\.account-warning\[data-state="busy"\]\s*\.error-dot[^}]*background:\s*var\(--text-4\)/s,
+    "busy markers use quiet ink");
+  assert.match(tokens, /:is\([^)]*\.sidebar-heading[^)]*\)\s*\{[^}]*backdrop-filter:\s*blur/s,
+    "pinned headings keep the glass tint and blur like other sticky surfaces");
 });
 
 test("persistent density agrees between Appearance, shortcut and Commands", async () => {

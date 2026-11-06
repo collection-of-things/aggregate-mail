@@ -1,4 +1,4 @@
-import { accountStatus } from "../account-status";
+import { accountStatus, accountsNeedingAttention } from "../account-status";
 import { Fragment, useState, type ReactNode } from "react";
 import type { Account } from "../../shared/types";
 import { accountLabel } from "../mail-ui";
@@ -83,6 +83,7 @@ export function Sidebar({
   const selectedAccount = mail.accounts.find(account => account.id === mail.accountFilter);
   const selectedIndex = selectedAccount ? mail.accounts.indexOf(selectedAccount) : -1;
   const footerLabel = selectedAccount ? accountLabel(selectedAccount, selectedIndex, mail.privacy, mail.accounts) : "All accounts";
+  const attentionCount = accountsNeedingAttention(mail.accounts);
   return (
     <aside
       id="sidebar"
@@ -129,7 +130,7 @@ export function Sidebar({
               );
             })}
           </SlidingNav>)}
-          <SlidingNav activeKey={mail.accountFilter} label="Filter accounts" className="sidebar-group">
+          <SlidingNav activeKey={mail.accountFilter} label="Filter accounts" className="sidebar-group sidebar-accounts">
             <Heading id="accounts" folded={folded.has("accounts")} onFold={fold}>Accounts</Heading>
             {!folded.has("accounts") && mail.accounts.length > 0 && (
               <button
@@ -158,9 +159,11 @@ export function Sidebar({
                 </span>
               </button>
               {(account.error || account.syncFailure || account.syncWarning || account.syncStatus) && <button type="button" className="account-warning" disabled={mail.blocked}
+                data-state={account.error || account.syncFailure || account.syncWarning ? "attention" : "busy"}
+                title={accountStatus(account)}
                 aria-label={`${accountLabel(account, index, mail.privacy, mail.accounts)}: ${accountStatus(account)} Open account settings.`}
                 onClick={() => mail.onAccountSettings?.(account.id)}>
-                <i className="error-dot" aria-hidden="true" /><span>{accountStatus(account)}</span>
+                <i className="error-dot" aria-hidden="true" />
               </button>}
               </Fragment>
             ))}
@@ -190,13 +193,17 @@ export function Sidebar({
               className="sync"
               disabled={mail.syncing || !mail.accounts.length}
               onClick={mail.onSync}
-              title="Sync mail"
+              title={attentionCount && !mail.syncing
+                ? `${attentionCount === 1 ? "1 account needs" : `${attentionCount} accounts need`} attention. Last synced ${mail.lastSync ? relative(mail.lastSync) : "never"}. Sync mail`
+                : "Sync mail"}
             >
               {mail.syncing
                 ? "Syncing"
-                : mail.lastSync
-                  ? `Synced ${relative(mail.lastSync)}`
-                  : "Not synced"}
+                : attentionCount
+                  ? <><i className="error-dot" aria-hidden="true" />{attentionCount === 1 ? "Needs attention" : `${attentionCount} need attention`}</>
+                  : mail.lastSync
+                    ? `Synced ${relative(mail.lastSync)}`
+                    : "Not synced"}
             </button>
             <button className="sidebar-settings" aria-label={settings ? "Close settings" : "Settings"} aria-current={settings ? "page" : undefined} title={`Settings (${mail.shortcut("settings")})`}
               onClick={settings ? sections.onClose : mail.onSettings}>
