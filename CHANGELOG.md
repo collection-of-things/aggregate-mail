@@ -10,6 +10,11 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Fixed
+
+- Keep cached mail browsing and folder navigation available while bulk actions finish, without allowing duplicate batches. ([#238](https://github.com/collection-of-things/emc2/issues/238))
+- Reduce repeated background-color processing when rendering deeply nested formatted mail. ([#238](https://github.com/collection-of-things/emc2/issues/238))
+
 ## 0.2.32 - 2026-11-07
 
 ### Fixed

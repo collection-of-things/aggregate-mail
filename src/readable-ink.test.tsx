@@ -53,7 +53,7 @@ test("applyReadableInk marks low-contrast elements and skips protected classes",
     <div id="hidden">preheader</div>
     <p id="clear" style="color:#222222">body</p>
     <span id="padding">\u200B\u200C\u00A0\u200B\u200C\u00A0\u200B\u200C\u00A0</span>
-    <span class="address" id="protected" style="color:#fefefe">reader@example.com</span>
+    <span class="address" id="protected" style="color:#fefefe">reader@example.com<b id="protected-child">hidden name</b></span>
     <span class="formatted-mail-image-placeholder" id="placeholder">x</span>
   </body>`);
   try {
@@ -69,6 +69,7 @@ test("applyReadableInk marks low-contrast elements and skips protected classes",
     assert.equal(document.getElementById("clear")!.getAttribute("data-ink"), null);
     assert.equal(document.getElementById("protected")!.getAttribute("data-ink"), null);
     assert.equal(document.getElementById("placeholder")!.getAttribute("data-ink"), null);
+    assert.equal(document.getElementById("protected-child")!.getAttribute("data-ink"), null);
     // A second pass clears a mark that became stale.
     document.getElementById("hidden")!.setAttribute("data-ink", "light");
     dom.window.getComputedStyle = ((element: Element) =>

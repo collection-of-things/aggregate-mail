@@ -3732,3 +3732,20 @@ allows same-origin images. Other asset paths and mailbox APIs remain protected.
 `server/browser-access.test.ts` covers this boundary, including unlisted files,
 traversal attempts and foreign origins. Native installed icon appearance and
 home-screen icon caching require separate device verification.
+
+
+### Responsive bulk actions and readable-text processing
+
+Bulk jobs live above keyed mail panes, so opening cached mail or changing
+folders preserves their admission lock and action results. Confirmations still
+block navigation; submitted work blocks conflicting actions while browsing
+remains available. Opening during a batch skips automatic Mark as read. Reopen
+or use Mark as read after completion. Failed and unknown results remain available
+on the mail list; no provider action is automatically retried.
+
+Readable-text processing caches a composited background color per ancestor,
+with linear background-cache storage rather than copied background chains.
+The contrast threshold, translucent surfaces, privacy controls and explicit
+image consent are unchanged. `scripts/benchmark-readable-ink.ts` measures a
+fixed synthetic traversal; its timing and temporary heap growth are separate
+from native rendering and total app RAM. See [ADR 0127](adr/0127-responsive-bulk-mail-and-reader-compositing.md).

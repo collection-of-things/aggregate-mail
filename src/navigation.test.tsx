@@ -111,9 +111,18 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
   let draftSaveFails = false;
   let readWait: Promise<void> | undefined;
   let releaseRead: (() => void) | undefined;
+  let batchWait: Promise<void> | undefined;
+  let releaseBatch: (() => void) | undefined;
+  let batches = 0;
   globalThis.fetch = async (input, options) => {
     const url = String(input);
     requests.push(url);
+    if (url === "/api/messages/batch") {
+      batches++;
+      const input = JSON.parse(String(options?.body));
+      await batchWait;
+      return Response.json({ results: input.items.map((item: { id: string; accountId: string }) => ({ ...item, status: "done" })) });
+    }
     if (url.startsWith("/api/saved-views")) {
       const body = JSON.parse(String(options?.body || "{}"));
       const id = url.split("/").at(-1);
@@ -287,6 +296,9 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
     subscriptions: () => subscriptions,
     holdRead: () => { readWait = new Promise<void>((resolve) => { releaseRead = resolve; }); },
     finishRead: async () => { await act(async () => { releaseRead?.(); await readWait; readWait = undefined; }); },
+    batches: () => batches,
+    holdBatch: () => { batchWait = new Promise<void>(resolve => { releaseBatch = resolve; }); },
+    finishBatch: async () => { await act(async () => { releaseBatch?.(); await batchWait; batchWait = undefined; }); },
     savedDraft: () => savedDraft,
     failDraftSave: (value: boolean) => { draftSaveFails = value; },
     close,
@@ -3511,4 +3523,30 @@ test("mail swipe guards keep syncing, sent, archived and desktop mail unchanged"
       assert.equal(app.mailActions.length, 0, guard + " must not archive");
     } finally { await app.close(); }
   }
+});
+
+
+test("a slow bulk action keeps reading and navigation available across pane remounts", async () => {
+  const app = await mount();
+  try {
+    app.holdBatch();
+    await app.click(app.button("Select all visible (up to 200)"));
+    await app.click(app.button("Mark as unread"));
+    assert.equal(app.batches(), 1);
+    assert.ok(!app.button("Archive").closest("[inert]"), "sidebar navigation stays interactive");
+    await app.open("a:1");
+    assert.equal(app.title(), "Alpha");
+    assert.ok(!app.container.querySelector(".message")?.closest("[inert]"), "reader text stays interactive");
+    assert.equal(app.mailActions.length, 0, "opening during bulk work does not queue an automatic read");
+    assert.equal(app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Archive"]')?.disabled, true);
+    await app.click(app.button("Close email"));
+    await app.click(app.button("Archive"));
+    await app.click(app.button("Inbox"));
+    assert.equal(app.button("Select all visible (up to 200)").disabled, true, "remounting cannot admit a second batch");
+    assert.match(app.container.textContent!, /Applying message actions/);
+    await app.finishBatch();
+    assert.equal(app.batches(), 1);
+    assert.equal(app.button("Select all visible (up to 200)").disabled, false);
+    assert.match(app.container.textContent!, /3 messages updated/);
+  } finally { await app.finishBatch(); await app.close(); }
 });

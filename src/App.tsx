@@ -39,6 +39,7 @@ import { InboxTabs } from "./mail/InboxTabs";
 import { ListEmpty } from "./mail/ListEmpty";
 import { MailActions } from "./mail/MailActions";
 import { MailFilters, type PinnedScope } from "./mail/MailFilters";
+import { useBulkMailAction } from "./mail/use-bulk-mail-action";
 import { BulkMailSelection } from "./mail/BulkMailSelection";
 import { MailList } from "./mail/MailList";
 import { ProviderSearch } from "./mail/ProviderSearch";
@@ -185,6 +186,7 @@ export function App() {
   // The shared unload guard also protects an event form with unsaved changes.
   const [eventDirty, setEventDirty] = useState(false);
   useEffect(() => { if (updateInstalling) setPalette(false); }, [updateInstalling]);
+  const bulkBatch = useBulkMailAction();
   const [bulkBlocking, setBulkBlocking] = useState(false);
   const [savedViewEdit, setSavedViewEdit] = useState<SavedViewEdit | null>(null);
   const [reviewingUnsubscribe, setReviewingUnsubscribe] = useState(false);
@@ -339,7 +341,8 @@ export function App() {
     () => { try { return localStorage.getItem("emc2.density") === "compact" ? "compact" : "comfortable"; } catch { return "comfortable"; } },
   );
   const storedDensity = useRef(density);
-  const [busy, setBusy] = useState(false);
+  const [actionBusy, setBusy] = useState(false);
+  const busy = actionBusy || bulkBatch.pending;
   const [syncing, setSyncing] = useState(false);
   const [notifications, setNotifications] = useState(readNotifications);
   const { toasts, push: pushToast, dismiss: dismissToast, consumeUndo } = useToasts(notifications);
@@ -761,7 +764,7 @@ export function App() {
     } finally { undoLock.current = false; }
   };
   const markRead = (mail: Mail) => {
-    if (mail.direction === "sent") return;
+    if (mail.direction === "sent" || bulkBatch.pending) return;
     void markMailRead(mail, pendingReads.current, async () => {
       setReading(new Set(pendingReads.current));
       await api(`/messages/${encodeURIComponent(mail.id)}`, "PATCH", { action: "read" });
@@ -916,7 +919,7 @@ export function App() {
   // One list of actions feeds the native menu on the desktop and the drawn menu elsewhere.
   const mailMenuActions = (mail: Mail): (MenuAction & { id: MailMenuId })[] => [
     { id: "open", label: "Open", key: shortcut("open"), run: () => openMail(mail) },
-    { id: "read", key: shortcut("read"), label: reading.has(mail.id) ? "Marking as read…" : "Mark as read", disabled: mail.direction === "sent" || !mail.unread || reading.has(mail.id),
+    { id: "read", key: shortcut("read"), label: reading.has(mail.id) ? "Marking as read…" : "Mark as read", disabled: busy || mail.direction === "sent" || !mail.unread || reading.has(mail.id),
       description: mail.direction === "sent" ? "Sent mail is already read" : reading.has(mail.id) ? "Update in progress" : !mail.unread ? "Already read" : undefined, run: () => markRead(mail) },
     { id: "unread", key: shortcut("unread"), label: "Mark as unread", disabled: busy || syncing || mail.direction === "sent" || mail.unread || reading.has(mail.id),
       description: mail.direction === "sent" ? "Not available for sent mail" : mail.unread ? "Already unread" : reading.has(mail.id) ? "Update in progress" : busyReason, run: () => void changeMessage(mail, "unread") },
@@ -1513,6 +1516,7 @@ export function App() {
               {!settings && historyControls}
               <div className="update-spacer" aria-hidden="true" />
             </PaneHeader>
+            {bulkBatch.pending && <div className="bulk-progress" role="status">Applying message actions… You can keep browsing mail.</div>}
             <div hidden={!searching || settings || nonMailView}>
               <Notice text={!settings && !nonMailView ? search.error || "" : ""} />
               <span id="mail-search-help" className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{search.error || (search.pending ? "Searching cached mail and saved drafts…" : `${filtered.length} mail results${search.typos ? " with close spellings, no exact match" : ""}${showSearchDrafts ? `, ${search.drafts.filter(draft => accountFilter === "all" || draft.accountId === accountFilter).length} saved drafts` : ""}. ${mailSearchScope(navigation.location, state.accounts, activeLabel, privacy, showSearchDrafts, ambientPrivateNames)}`)}</span>
@@ -1563,7 +1567,7 @@ export function App() {
                 tabIndex={-1}
               >
               <div key={paneKey} className={`pane ${pane.current.motion}`}>
-                <BulkMailSelection active={!fullReader} messages={fullReader ? [] : filtered} accounts={state.accounts}
+                <BulkMailSelection batch={bulkBatch} active={!fullReader} messages={fullReader ? [] : filtered} accounts={state.accounts}
                   railSelect={railSelect} railActions={railActions}
                   scope={JSON.stringify([page, view, tab, accountFilter, labelFilter, query, readFilter, relevanceFilter, sort, fullReader])}
                   selectedId={selected?.id} onSelect={setSelectedId} api={api} reload={reload}

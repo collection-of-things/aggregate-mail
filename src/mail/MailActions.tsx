@@ -78,7 +78,7 @@ export function MailActions({
       </div>
       <div className="tool-group">
         <Tool label="Reply" title={`Reply (${shortcut("reply")})`} Icon={Reply} disabled={busy} onClick={onReply} />
-        <Tool label={readLabel} text="Read" title={`${readLabel} (${shortcut("read")})`} Icon={Check} disabled={mail.direction === "sent" || !mail.unread || reading} busy={reading} onClick={onRead} />
+        <Tool label={readLabel} text="Read" title={`${readLabel} (${shortcut("read")})`} Icon={Check} disabled={busy || mail.direction === "sent" || !mail.unread || reading} busy={reading} onClick={onRead} />
         {onUnread && <Tool label="Mark as unread" text="Unread" Icon={MailUnread} disabled={busy || syncing || mail.direction === "sent" || mail.unread || reading} onClick={onUnread} />}
         {onPin && <Tool label={mail.pinned ? "Unpin email" : "Pin email"} text={mail.pinned ? "Unpin" : "Pin"} title={`${mail.pinned ? "Unpin email" : "Pin email for reference"} (local to this app, ${shortcut("pin")})`} Icon={Pin}
           disabled={busy} onClick={onPin} />}
