@@ -432,10 +432,8 @@ test("Trash confirmation is private, cancelable and keyboard accessible; success
     assert.equal(app.container.ownerDocument.activeElement?.getAttribute("aria-label"), "Close dialog");
     const gate = app.holdTrash();
     await app.activate(confirm);
-    assert.equal(app.button("Moving to Trash…", app.dialog()).disabled, true);
-    assert.equal(app.button("Cancel", app.dialog()).disabled, true);
-    await app.key("Escape");
-    assert.ok(app.dialog(), "pending move cannot be dismissed");
+    assert.equal(app.dialog(), null, "confirmed provider work releases its modal");
+    assert.equal(app.button("Drafts").disabled, false, "pending Trash does not block independent pages");
     assert.ok(app.row(), "pending move retains mail");
     assert.equal(app.mutations.length, 1);
     app.failRefresh(true);
@@ -459,13 +457,13 @@ test("failed reader Trash keeps mail visible and never retries or claims success
     await app.click(app.button("Move to Trash", app.container.querySelector('[role="menu"]')!));
     await app.click(app.button("Move to Trash", app.dialog()));
     assert.ok(app.container.querySelector(".message"));
-    assert.ok(app.dialog());
+    assert.equal(app.dialog(), null, "an uncertain result does not reopen a blocking modal");
     assert.match(app.container.querySelector(".toast-text")!.textContent!, /provider failure.*Check your provider/);
     assert.doesNotMatch(app.container.querySelector(".toast-text")!.textContent!, /Email moved to Trash/);
     assert.equal(app.mutations.filter((request) => request.action === "trash").length, 1);
-    assert.equal(app.button("Move to Trash", app.dialog()).disabled, false);
+    assert.equal(app.dialog(), null);
     await app.key("Escape");
-    assert.ok(app.container.querySelector(".message"));
+    assert.ok(app.row(), "failed Trash retains the mail when returning to its list");
   } finally { await app.close(); }
 });
 
@@ -811,7 +809,7 @@ test("accepted arrival IDs drive private-safe toasts and exact reader navigation
   } finally { await app.close(); }
 });
 
-test("native notification clicks wait for compose and busy work before marking only their exact target read", async () => {
+test("native notification clicks wait for compose while unrelated provider work does not block reading", async () => {
   const app = await mount(notificationDefaults, true, true);
   try {
     await app.key("c");
@@ -824,7 +822,7 @@ test("native notification clicks wait for compose and busy work before marking o
     const gate = app.holdAction();
     await app.click(app.button("Archive", app.toolbar()));
     await app.notificationClick("a:1:6");
-    assert.equal(app.mutations.some((entry) => entry.id === "a:1:6"), false);
+    assert.equal(app.mutations.filter(entry => entry.id === "a:1:6" && entry.action === "read").length, 1, "a different pending message does not block the notification target");
     await app.finish(gate);
     assert.equal(app.mutations.filter((entry) => entry.id === "a:1:6" && entry.action === "read").length, 1);
     assert.ok(app.container.querySelector(".message"));
@@ -1067,4 +1065,22 @@ for (const lostResponse of [false, true]) test(`Commands Undo consumes its confi
     assert.equal(app.undoRequests.length, 2);
     assert.equal(app.undoRequests[1].id, "a:1:5");
   } finally { await app.close(); }
+});
+
+test("finishing background Trash preserves a different reader opened while it waited", async () => {
+  const app = await mount();
+  const gate = app.holdTrash();
+  try {
+    await app.open();
+    await app.click(app.button("Move to Trash", app.toolbar()));
+    await app.click(app.button("Move to Trash", app.dialog()));
+    assert.equal(app.dialog(), null);
+    await app.open("b:1:5");
+    const heading = app.container.querySelector('.message h1')?.textContent;
+    assert.ok(heading);
+    await app.finish(gate);
+    assert.equal(app.container.querySelector('.message h1')?.textContent, heading);
+    assert.equal(app.row(), null);
+    assert.equal(app.mutations.filter(item => item.action === "trash").length, 1);
+  } finally { await app.finish(gate); await app.close(); }
 });

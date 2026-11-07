@@ -3732,3 +3732,40 @@ allows same-origin images. Other asset paths and mailbox APIs remain protected.
 `server/browser-access.test.ts` covers this boundary, including unlisted files,
 traversal attempts and foreign origins. Native installed icon appearance and
 home-screen icon caching require separate device verification.
+
+
+### Responsive bulk actions and readable-text processing
+
+Bulk jobs live above keyed mail panes, so opening cached mail or changing
+folders preserves their admission lock and action results. Confirmations still
+block navigation until confirmation; submitted work locks conflicting actions
+only on its exact account/message targets. Drafts, compose editing/saving,
+Contacts, settings preferences and unrelated mail remain available. Automatic
+Mark as read is skipped for pending targets only; unrelated mail keeps normal
+read behavior. Local selection remains available while another batch finishes.
+Failed and unknown results remain available; no provider action retries itself.
+
+Single-message mutations and Forward preparation also run outside foreground
+editor busy state. Confirmed Trash, Snooze and labels release their modal before
+provider waits. Late completion preserves a different reader or composer opened
+in the meantime. Account disconnect/reconnect waits only for that account's
+jobs; provider configuration and backup controls wait without blocking settings
+navigation or preference editing. Sent import and settings saves have separate
+admission state. See [ADR 0128](adr/0128-operation-scoped-mail-waits.md).
+
+General background actions now declare account, settings-section or connection
+resources through `src/background-actions.ts`. One account's Sent import cannot
+disable another account's actions or signature saves. Settings jobs retain their
+own admission locks across section changes. The aggregate pending bit drives
+progress and replacement protection, never unrelated controls. Connection checks
+can continue after Close/Escape; App owns late errors and a dialog generation
+prevents completion from replacing a new form. Composer admission and work/event
+editor recovery still protect their retained inputs. For the conflict policy and
+synthetic checks, see [ADR 0129](adr/0129-background-resource-admission.md).
+
+Readable-text processing caches a composited background color per ancestor,
+with linear background-cache storage rather than copied background chains.
+The contrast threshold, translucent surfaces, privacy controls and explicit
+image consent are unchanged. `scripts/benchmark-readable-ink.ts` measures a
+fixed synthetic traversal; its timing and temporary heap growth are separate
+from native rendering and total app RAM. See [ADR 0127](adr/0127-responsive-bulk-mail-and-reader-compositing.md).

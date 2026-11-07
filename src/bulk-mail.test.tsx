@@ -4,6 +4,7 @@ import { act, createRef, useState } from "react";
 import { JSDOM } from "jsdom";
 import type { Mail } from "../shared/types";
 import type { Api } from "./api";
+import { useBulkMailAction } from "./mail/use-bulk-mail-action";
 import { BulkMailSelection } from "./mail/BulkMailSelection";
 import { MailList } from "./mail/MailList";
 import { NotificationContext } from "./ui/Toasts";
@@ -24,8 +25,9 @@ async function mount(api: Api = async <T,>() => ({ results: [] } as T), reload =
   const ref = createRef<HTMLDivElement>();
   let opened = 0;
   function Harness({ items, scope, active }: { items: Mail[]; scope: string; active: boolean }) {
+    const batch = useBulkMailAction();
     const [cursor, setCursor] = useState(items[0]?.id);
-    return <NotificationContext.Provider value={push}><div ref={ref} className="list"><BulkMailSelection active={active} messages={items} accounts={[
+    return <NotificationContext.Provider value={push}><div ref={ref} className="list"><BulkMailSelection batch={batch} active={active} messages={items} accounts={[
       { id: "a", email: "a@example.test", provider: "imap" }, { id: "b", email: "b@example.test", provider: "imap" },
     ]} scope={scope} selectedId={cursor} onSelect={setCursor} api={api} reload={reload} disabled={false} syncing={syncing} onBlockingChange={noop} selectionShortcut={selectionShortcut}>
       <MailList messages={items} accounts={[]} listRef={ref} selectedId={cursor} focusSelection={true} density="comfortable" narrow={false} sort="relevance"
@@ -296,4 +298,27 @@ test("checkbox toggles do not rescan an unchanged large mailbox", async () => {
     assert.match(ui.count()!, /^1 messages selected/);
     assert.ok(reads < 1_000, `a local toggle read ${reads} message identities`);
   } finally { await ui.close(); }
+});
+
+
+test("uncertain batch results remain visible after switching from the list to a reader", async () => {
+  let finish: (() => void) | undefined;
+  const wait = new Promise<void>(resolve => { finish = resolve; });
+  let requests = 0;
+  const ui = await mount(async <T,>(_url: string, _method?: string, body?: unknown) => {
+    requests++;
+    const { items } = body as { items: { id: string; accountId: string }[] };
+    await wait;
+    return { results: items.map(item => ({ ...item, status: "unknown" })) } as T;
+  });
+  try {
+    await ui.render(messages.slice(0, 2));
+    await act(async () => ui.master().click());
+    await ui.click("Done");
+    await ui.render(messages.slice(0, 2), "reader", false);
+    await act(async () => finish?.());
+    assert.match(document.querySelector('.bulk-result')!.textContent!, /0 done, 0 failed, 2 unknown/);
+    assert.match(document.querySelector('.bulk-result')!.textContent!, /No actions were retried/);
+    assert.equal(requests, 1);
+  } finally { finish?.(); await ui.close(); }
 });

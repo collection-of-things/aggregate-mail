@@ -111,9 +111,18 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
   let draftSaveFails = false;
   let readWait: Promise<void> | undefined;
   let releaseRead: (() => void) | undefined;
+  let batchWait: Promise<void> | undefined;
+  let releaseBatch: (() => void) | undefined;
+  let batches = 0;
   globalThis.fetch = async (input, options) => {
     const url = String(input);
     requests.push(url);
+    if (url === "/api/messages/batch") {
+      batches++;
+      const input = JSON.parse(String(options?.body));
+      await batchWait;
+      return Response.json({ results: input.items.map((item: { id: string; accountId: string }) => ({ ...item, status: "done" })) });
+    }
     if (url.startsWith("/api/saved-views")) {
       const body = JSON.parse(String(options?.body || "{}"));
       const id = url.split("/").at(-1);
@@ -287,6 +296,9 @@ async function mount(native = false, setup?: (state: State, storage: Storage) =>
     subscriptions: () => subscriptions,
     holdRead: () => { readWait = new Promise<void>((resolve) => { releaseRead = resolve; }); },
     finishRead: async () => { await act(async () => { releaseRead?.(); await readWait; readWait = undefined; }); },
+    batches: () => batches,
+    holdBatch: () => { batchWait = new Promise<void>(resolve => { releaseBatch = resolve; }); },
+    finishBatch: async () => { await act(async () => { releaseBatch?.(); await batchWait; batchWait = undefined; }); },
     savedDraft: () => savedDraft,
     failDraftSave: (value: boolean) => { draftSaveFails = value; },
     close,
@@ -3510,5 +3522,310 @@ test("mail swipe guards keep syncing, sent, archived and desktop mail unchanged"
       });
       assert.equal(app.mailActions.length, 0, guard + " must not archive");
     } finally { await app.close(); }
+  }
+});
+
+
+test("a slow bulk action keeps reading and navigation available across pane remounts", async () => {
+  const app = await mount();
+  try {
+    app.holdBatch();
+    await app.click(app.button("Select all visible (up to 200)"));
+    await app.click(app.button("Mark as unread"));
+    assert.equal(app.batches(), 1);
+    assert.ok(!app.button("Archive").closest("[inert]"), "sidebar navigation stays interactive");
+    await app.open("a:1");
+    assert.equal(app.title(), "Alpha");
+    assert.ok(!app.container.querySelector(".message")?.closest("[inert]"), "reader text stays interactive");
+    assert.equal(app.mailActions.length, 0, "opening during bulk work does not queue an automatic read");
+    assert.equal(app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Archive"]')?.disabled, true);
+    await app.click(app.button("Close email"));
+    await app.click(app.button("Archive"));
+    await app.click(app.button("Inbox"));
+    assert.equal(app.button("Select all visible (up to 200)").disabled, false, "local selection remains available");
+    await app.click(app.button("Select all visible (up to 200)"));
+    assert.equal(app.button("Mark as unread").disabled, true, "remounting cannot admit a second batch");
+    assert.match(app.container.textContent!, /Applying message actions/);
+    await app.finishBatch();
+    assert.equal(app.batches(), 1);
+    assert.equal(app.button("Select all visible (up to 200)").disabled, false);
+    assert.match(app.container.textContent!, /3 messages updated/);
+  } finally { await app.finishBatch(); await app.close(); }
+});
+
+test("a bulk job does not block Drafts, composing and saving, Contacts, or Settings", async () => {
+  const app = await mount();
+  try {
+    app.holdBatch();
+    await app.click(app.button("Select all visible (up to 200)"));
+    await app.click(app.button("Mark as unread"));
+    assert.equal(app.button("Drafts").disabled, false, "bulk work must not disable Drafts");
+    await app.click(app.button("Drafts"));
+    assert.ok(app.container.querySelector('.draft-list'));
+    await app.click(app.button("New message"));
+    const subject = document.querySelector<HTMLInputElement>('.compose-subject input')!;
+    assert.ok(subject && !subject.disabled, "new messages remain editable during bulk work");
+    await app.input(subject, "Independent draft");
+    assert.equal(app.button("Close dialog").disabled, false);
+    await app.click(app.button("Close dialog"));
+    assert.equal(document.querySelector('.compose-dialog'), null);
+    assert.equal(app.savedDraft()?.subject, "Independent draft");
+    await app.click(app.button("Contacts"));
+    assert.ok(app.container.querySelector('.contacts-pane'));
+    assert.equal(app.button("Add contact").disabled, false);
+    await app.click(app.button("Settings"));
+    await app.click(app.button("Templates and signatures"));
+    const signature = document.querySelector<HTMLTextAreaElement>('.settings-pane textarea');
+    assert.ok(signature && !signature.disabled, "compose preferences remain editable");
+    await app.input(signature, "Independent signature");
+    await app.click(app.button("Save compose preferences"));
+    assert.equal(app.composeSaveRequests(), 1);
+    assert.equal(app.state.composePreferences?.signatures.a, "Independent signature");
+    await app.click(app.button("Accounts"));
+    const disconnects = [...app.container.querySelectorAll<HTMLButtonElement>('.account-row button')].filter(button => button.textContent?.trim() === "Disconnect");
+    assert.equal(disconnects.length, 2);
+    assert.ok(disconnects.every(button => button.disabled), "disconnect stays guarded while provider work is pending");
+    await app.click(app.button("Close settings"));
+    assert.equal(app.batches(), 1);
+  } finally { await app.finishBatch(); await app.close(); }
+});
+
+test("bulk mutation locks apply to their exact messages and leave unrelated mail and reply available", async () => {
+  const app = await mount();
+  try {
+    app.holdBatch();
+    await app.click(app.button("Select message 1"));
+    await app.click(app.button("Mark as unread"));
+    await app.open("a:1");
+    assert.equal(app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Archive"]')?.disabled, true);
+    assert.equal(app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Reply"]')?.disabled, false);
+    assert.equal(app.mailActions.length, 0, "the batch target must not be marked read concurrently");
+    await app.open("a:2");
+    assert.equal(app.title(), "Beta");
+    assert.ok(app.mailActions.some(item => item.id === "a:2" && item.action === "read"), "unrelated mail keeps its normal read behavior");
+    assert.equal(app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Archive"]')?.disabled, false);
+    const pin = app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Pin email"]');
+    assert.ok(pin && !pin.disabled);
+    await app.click(pin);
+    assert.ok(app.mailActions.some(item => item.id === "a:2" && item.action === "pin"));
+    assert.equal(app.batches(), 1);
+  } finally { await app.finishBatch(); await app.close(); }
+});
+
+test("a slow single-message mutation keeps Drafts and other messages available", async () => {
+  const app = await mount();
+  try {
+    await app.open("a:1");
+    app.holdRead();
+    await app.click(app.button("Pin email"));
+    assert.equal(app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Pin email"]')?.disabled, true);
+    assert.equal(app.button("Drafts").disabled, false);
+    await app.click(app.button("Close email"));
+    await app.open("a:2");
+    assert.equal(app.title(), "Beta");
+    assert.equal(app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Pin email"]')?.disabled, false);
+    await app.click(app.button("Drafts"));
+    assert.ok(app.container.querySelector('.draft-list'));
+  } finally { await app.finishRead(); await app.close(); }
+});
+
+test("a held Sent import keeps Drafts available while its own fetch button stays locked", async () => {
+  const app = await mount();
+  const original = globalThis.fetch;
+  let finish: (() => void) | undefined;
+  const wait = new Promise<void>(resolve => { finish = resolve; });
+  globalThis.fetch = async (input, options) => {
+    if (String(input) === "/api/accounts/a/sent/sync") { await wait; return Response.json({}); }
+    return original(input, options);
+  };
+  try {
+    await app.click(app.button("All cached"));
+    await app.click(app.account("first@example.com"));
+    await app.click(app.button("Fetch Sent"));
+    assert.equal(app.button("Fetch Sent").disabled, true);
+    await app.click(app.button("Select all visible (up to 200)"));
+    assert.equal(app.button("Mark as read").disabled, true, "provider-wide work still guards conflicting submissions");
+    assert.equal(app.button("Drafts").disabled, false);
+    await app.click(app.button("Drafts"));
+    assert.ok(app.container.querySelector('.draft-list'));
+  } finally {
+    await act(async () => { finish?.(); await wait; });
+    await app.close();
+  }
+});
+
+
+test("background scopes keep unrelated settings and accounts usable during Sent import", async () => {
+  const app = await mount();
+  const original = globalThis.fetch;
+  let finish!: () => void;
+  const wait = new Promise<void>(resolve => { finish = resolve; });
+  globalThis.fetch = async (input, options) => {
+    if (String(input) === "/api/accounts/a/sent/sync") { await wait; return Response.json({}); }
+    return original(input, options);
+  };
+  try {
+    await app.click(app.button("All cached"));
+    await app.click(app.account("first@example.com"));
+    await app.click(app.button("Fetch Sent"));
+    await app.click(app.button("Settings"));
+    await app.click(app.button("Templates and signatures"));
+    const signature = app.container.querySelector<HTMLTextAreaElement>('.settings-pane textarea');
+    assert.ok(signature);
+    assert.equal(signature.disabled, false, "Sent import must not lock signature editing");
+    await app.input(signature, "Synthetic signature");
+    assert.equal(app.button("Save compose preferences").disabled, false);
+    await app.click(app.button("Save compose preferences"));
+    assert.equal(app.composeSaveRequests(), 1);
+    await app.click(app.button("Close settings"));
+    await app.click(app.account("second@example.com"));
+    await app.open("b:1");
+    assert.equal(app.title(), "Gamma");
+    const pin = app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Pin email"]');
+    assert.ok(pin && !pin.disabled, "Sent import for account A must not lock account B");
+    await app.click(pin);
+    assert.ok(app.mailActions.some(item => item.id === "b:1" && item.action === "pin"));
+  } finally {
+    await act(async () => { finish(); await wait; });
+    await app.close();
+  }
+});
+
+
+for (const result of ["success", "failure"] as const) test(`background connection ${result} can be dismissed without hijacking a newer dialog`, async () => {
+  const app = await mount();
+  const original = globalThis.fetch;
+  const previousFormData = Object.getOwnPropertyDescriptor(globalThis, "FormData");
+  Object.defineProperty(globalThis, "FormData", { configurable: true, value: app.window.FormData });
+  let finish!: () => void;
+  const wait = new Promise<void>(resolve => { finish = resolve; });
+  let submissions = 0;
+  globalThis.fetch = async (input, options) => {
+    if (String(input) === "/api/accounts/imap") {
+      submissions++; await wait;
+      return result === "success" ? Response.json({}) : Response.json({ error: "Synthetic connection failure" }, { status: 502 });
+    }
+    return original(input, options);
+  };
+  const chooseProvider = async () => {
+    const row = [...app.container.querySelectorAll('.provider-row')].find(row => row.querySelector('strong')?.textContent === "Fastmail");
+    assert.ok(row);
+    await app.click(row.querySelector<HTMLButtonElement>('button')!);
+  };
+  try {
+    await app.click(app.button("Settings"));
+    await app.click(app.button("Accounts"));
+    await chooseProvider();
+    const dialog = app.container.querySelector('[role="dialog"][aria-label="Connect Fastmail"]')!;
+    await app.input(dialog.querySelector<HTMLInputElement>('[name="email"]')!, "synthetic@example.com");
+    await app.input(dialog.querySelector<HTMLInputElement>('[name="password"]')!, "synthetic-app-password");
+    await act(async () => { dialog.querySelector('form')!.dispatchEvent(new app.window.Event("submit", { bubbles: true, cancelable: true })); });
+    assert.equal(submissions, 1);
+    await app.click(app.button("Close dialog"));
+    assert.equal(dialog.isConnected, false, "a provider wait must not trap the user in Connect");
+    await app.click(app.button("Close settings"));
+    await app.click(app.button("Inbox"));
+    await app.open("a:2");
+    assert.equal(app.title(), "Beta");
+    const search = app.container.querySelector<HTMLInputElement>('.search input')!;
+    assert.equal(search.disabled, false);
+    await app.input(search, "Alpha");
+    await app.input(search, "");
+    await app.click(app.button("New message"));
+    const subject = app.container.querySelector<HTMLInputElement>('.compose-subject input');
+    assert.ok(subject && !subject.disabled, "compose remains available during connection checks");
+    await app.input(subject, "Independent connection draft");
+    await app.click(app.button("Close dialog"));
+    assert.equal(app.savedDraft()?.subject, "Independent connection draft");
+    await app.click(app.button("Settings"));
+    await app.click(app.button("Accounts"));
+    // A new dialog, even for the same provider, belongs to a new context.
+    // The provider choice stays available; only another connection submission waits.
+    await chooseProvider();
+    const replacement = app.container.querySelector('[role="dialog"][aria-label="Connect Fastmail"]')!;
+    assert.ok(replacement);
+    assert.equal(replacement.querySelector<HTMLButtonElement>('[type="submit"], button.button')?.disabled, true);
+    await act(async () => { finish(); await wait; });
+    assert.equal(replacement.isConnected, true, "late connection completion must preserve the new dialog");
+    assert.equal(submissions, 1, "no automatic duplicate connection check");
+    if (result === "failure") assert.match(app.container.textContent!, /Synthetic connection failure/);
+  } finally {
+    await act(async () => { finish(); await wait; });
+    if (previousFormData) Object.defineProperty(globalThis, "FormData", previousFormData);
+    else Reflect.deleteProperty(globalThis, "FormData");
+    await app.close();
+  }
+});
+
+
+test("background settings jobs retain their own lock across sections without blocking signature saves", async () => {
+  const app = await mount();
+  const original = globalThis.fetch;
+  let finish!: () => void;
+  const wait = new Promise<void>(resolve => { finish = resolve; });
+  let calls = 0;
+  globalThis.fetch = async (input, options) => {
+    if (String(input) === "/api/logos/sync") {
+      calls++; await wait; return Response.json({ total: 1, found: 1, missing: 0, failed: 0 });
+    }
+    return original(input, options);
+  };
+  try {
+    await app.click(app.button("Settings"));
+    await app.click(app.button("Sender logos"));
+    await app.click(app.button("Fetch company logos"));
+    assert.equal(app.button("Fetch company logos").disabled, true);
+    await app.click(app.button("Templates and signatures"));
+    const signature = app.container.querySelector<HTMLTextAreaElement>('.settings-pane textarea')!;
+    assert.equal(signature.disabled, false);
+    await app.input(signature, "Independent settings signature");
+    await app.click(app.button("Save compose preferences"));
+    assert.equal(app.composeSaveRequests(), 1);
+    await app.click(app.button("Sender logos"));
+    assert.equal(app.button("Fetch company logos").disabled, true, "the job outlives its form");
+    await app.click(app.button("Fetch company logos"));
+    assert.equal(calls, 1);
+    await app.click(app.button("Close settings"));
+    await app.open("a:1");
+    assert.equal(app.title(), "Alpha");
+    assert.equal(app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Pin email"]')?.disabled, false);
+  } finally {
+    await act(async () => { finish(); await wait; });
+    await app.close();
+  }
+});
+
+
+for (const fails of [false, true]) test(`background rename ${fails ? "failure" : "success"} preserves another account's editor`, async () => {
+  const app = await mount();
+  const original = globalThis.fetch;
+  let finish!: () => void;
+  const wait = new Promise<void>(resolve => { finish = resolve; });
+  globalThis.fetch = async (input, options) => {
+    if (String(input) === "/api/accounts/a" && options?.method === "PATCH") {
+      await wait;
+      if (fails) return Response.json({ error: "Synthetic rename failure" }, { status: 502 });
+    }
+    return original(input, options);
+  };
+  const rename = (id: string) => [...app.container.querySelectorAll<HTMLButtonElement>(`#settings-account-${id} button`)].find(button => button.textContent === "Rename")!;
+  try {
+    await app.click(app.button("Settings")); await app.click(app.button("Accounts"));
+    await app.click(rename("a"));
+    await app.input(app.container.querySelector<HTMLInputElement>('.account-name-form input')!, "Renamed A");
+    await app.click(app.button("Save"));
+    assert.equal(rename("a").disabled, true);
+    assert.equal(rename("b").disabled, false);
+    await app.click(rename("b"));
+    const field = app.container.querySelector<HTMLInputElement>('.account-name-form input')!;
+    await app.input(field, "Retained B edit");
+    await act(async () => { finish(); await wait; });
+    assert.equal(field.isConnected, true, "late result must not close another account's editor");
+    assert.equal(field.value, "Retained B edit");
+    assert.equal(field.getAttribute("aria-describedby"), null, "the new form must not inherit another account's error");
+    assert.equal(app.container.querySelector('.account-name-form [role="alert"]'), null, "late errors belong to the original account");
+  } finally {
+    await act(async () => { finish(); await wait; });
+    await app.close();
   }
 });

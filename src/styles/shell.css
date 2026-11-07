@@ -415,3 +415,5 @@
 .draft-warning, .draft-list-error { color: var(--danger); }
 .draft-list-error { padding: 12px 20px; }
 @media (max-width: 760px) { .draft-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; } .draft-row-account { grid-column: 1 / -1; } }
+
+.bulk-progress { flex: 0 0 auto; padding: 6px 12px; color: var(--text-2); font-size: calc(12px * var(--text-scale, 1)); overflow-wrap: anywhere; }

@@ -25,7 +25,7 @@ test("Disconnect warns before permanently deleting drafts and honors cancellatio
   const root = createRoot(container);
   const render = (section: "accounts" | "about") => act(async () => root.render(
     <PrivacyContext.Provider value={{ on: true, revealed: new Set(), toggle() {} }}>
-      <SettingsPage state={state} section={section} busy={false} perform={async (task) => { await task(); }}
+      <SettingsPage state={state} section={section} busy={false} perform={async (_scope, task) => { await task(); }}
         api={async <T,>(url: string, method?: string) => { requests.push(`${method} ${url}`); return {} as T; }}
         onConnectAccount={() => {}} onNotice={() => {}} windowSide="left" onWindowSide={() => {}}
         interaction={defaults} onInteraction={() => {}} appearance={defaultAppearance} scheme="dark" onAppearance={() => true} />

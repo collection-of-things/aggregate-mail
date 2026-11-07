@@ -54,6 +54,10 @@ export function contrastRatio(a: Rgba, b: Rgba): number {
 // surface sits behind all of them. Text already at 3:1 keeps its color.
 export function readableInk(text: Rgba, layers: Rgba[], surface: Rgba): "dark" | "light" | null {
   const background = layers.reduceRight((below, layer) => composite(layer, below), surface);
+  return inkOnBackground(text, background);
+}
+
+function inkOnBackground(text: Rgba, background: Rgba): "dark" | "light" | null {
   if (contrastRatio(composite(text, background), background) >= 3) return null;
   return contrastRatio(DARK_INK, background) >= contrastRatio(LIGHT_INK, background) ? "dark" : "light";
 }
@@ -68,29 +72,34 @@ const PROTECTED = ".address,.formatted-mail-image-placeholder";
 export function applyReadableInk(body: HTMLElement, surface: Rgba) {
   const view = body.ownerDocument.defaultView!;
   for (const element of body.querySelectorAll("[data-ink]")) element.removeAttribute("data-ink");
-  // Shared ancestors are read once per call: each element's layer list is the
-  // parent's list below its own background, so deep chains cost one computed
-  // style per element instead of one per descendant.
-  const layerCache = new Map<Element, Rgba[]>();
-  const layersOf = (element: Element): Rgba[] => {
-    const cached = layerCache.get(element);
+  // Cache one composited color per ancestor instead of copying each ancestor's
+  // entire layer chain for every descendant. This bounds scratch memory to O(n).
+  const backgrounds = new Map<Element, Rgba>();
+  const backgroundOf = (element: Element): Rgba => {
+    const cached = backgrounds.get(element);
     if (cached) return cached;
     const layer = parseColor(view.getComputedStyle(element).backgroundColor);
-    const above = element.parentElement && !(layer && layer[3] >= 1) ? layersOf(element.parentElement) : [];
-    const layers = layer && layer[3] > 0 ? [layer, ...above] : above;
-    layerCache.set(element, layers);
-    return layers;
+    const below = element.parentElement && !(layer && layer[3] >= 1) ? backgroundOf(element.parentElement) : surface;
+    const background = layer ? composite(layer, below) : below;
+    backgrounds.set(element, background);
+    return background;
   };
-  const candidates: { element: HTMLElement; color: Rgba; layers: Rgba[] }[] = [];
+  const candidates: { element: HTMLElement; color: Rgba; background: Rgba }[] = [];
+  // querySelectorAll visits parents before children. Carry protection forward
+  // rather than walking back through the same ancestors for every text node.
+  const protectedElements = new Set<Element>(body.closest(PROTECTED) ? [body] : []);
   for (const element of body.querySelectorAll<HTMLElement>("*")) {
-    if (element.closest(PROTECTED)) continue;
+    if (element.matches(PROTECTED) || element.parentElement && protectedElements.has(element.parentElement)) {
+      protectedElements.add(element);
+      continue;
+    }
     if (![...element.childNodes].some((node) => node.nodeType === node.TEXT_NODE && DIRECT_TEXT.test(node.nodeValue || ""))) continue;
     const color = parseColor(view.getComputedStyle(element).color);
     if (!color) continue;
-    candidates.push({ element, color, layers: layersOf(element) });
+    candidates.push({ element, color, background: backgroundOf(element) });
   }
-  for (const { element, color, layers } of candidates) {
-    const ink = readableInk(color, layers, surface);
+  for (const { element, color, background } of candidates) {
+    const ink = inkOnBackground(color, background);
     if (ink) element.setAttribute("data-ink", ink);
   }
 }

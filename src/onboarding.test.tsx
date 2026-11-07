@@ -242,8 +242,8 @@ for (const provider of ["icloud", "imap"] as const) {
           assert.match(originalForm.textContent!, /Checking connection/);
           await act(async () => submit(container));
           await attemptDismissal(container);
-          assert.equal(element(container, "form"), originalForm);
-          assertDetails(container);
+          assert.equal(originalForm.isConnected, false, "explicit dismissal releases the form while the check continues");
+          assert.equal(container.querySelector('[role="dialog"]'), null);
           assert.equal(api.calls.filter((call) => call === "POST /api/accounts/imap").length, 1);
         }
       } finally {
@@ -253,7 +253,7 @@ for (const provider of ["icloud", "imap"] as const) {
   }
 }
 
-test("actual connection submission blocks duplicates and dismissal, retains errors and retries corrected input", async () => withDOM(async ({ container, render }) => {
+test("connection submission blocks duplicates, permits dismissal, and retains open-form errors for explicit retry", async () => withDOM(async ({ container, render }) => {
   const first = deferred<void>();
   const retry = deferred<void>();
   const inputs: unknown[] = [];
@@ -274,7 +274,7 @@ test("actual connection submission blocks duplicates and dismissal, retains erro
     assert.equal(element<HTMLButtonElement>(container, '.form-actions button.button').disabled, true);
     assert.match(container.textContent!, /Checking connection/);
     await attemptDismissal(container);
-    assert.equal(closed, 0);
+    assert.equal(closed, 2, "Close and Escape release the connection dialog while its request runs");
     assert.equal(backed, 0);
     await act(async () => first.reject(new Error("Synthetic authentication rejection")));
     assert.equal(element(container, '[role="alert"]').textContent, "Synthetic authentication rejection");
@@ -290,7 +290,7 @@ test("actual connection submission blocks duplicates and dismissal, retains erro
     assert.equal(completed, 1);
     assert.equal(element<HTMLButtonElement>(container, '.form-actions button.button').disabled, false);
     await act(async () => element<HTMLButtonElement>(container, '[aria-label="Close dialog"]').click());
-    assert.equal(closed, 1);
+    assert.equal(closed, 3);
   } finally {
     await act(async () => { first.resolve(); retry.resolve(); });
   }

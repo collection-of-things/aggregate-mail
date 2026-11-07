@@ -10,6 +10,12 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Fixed
+
+- Keep Drafts, compose editing and saving, Contacts, Settings and unrelated mail available while bulk or single-message actions finish. Only conflicting message actions and affected account operations wait. ([#238](https://github.com/collection-of-things/emc2/issues/238))
+- Keep independent settings and accounts usable during Sent imports and settings requests. Account connection checks can continue after closing their dialog, with later errors reported in notifications. ([#238](https://github.com/collection-of-things/emc2/issues/238))
+- Reduce repeated background-color processing when rendering deeply nested formatted mail. ([#238](https://github.com/collection-of-things/emc2/issues/238))
+
 ## 0.2.32 - 2026-11-07
 
 ### Fixed

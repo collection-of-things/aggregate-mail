@@ -1,3 +1,4 @@
+import type { ActionScope, ScopedPerform } from "../background-actions";
 import { Notice, useFeedbackState } from "../ui/Toasts";
 import { accountStatus } from "../account-status";
 import { WorkspaceBackup } from "./WorkspaceBackup";
@@ -34,6 +35,9 @@ import { settingsGroup, settingsGroupNames, settingsSections, type SettingsSecti
 export function SettingsPage({
   state,
   busy,
+  scopeBusy = () => false,
+  accountBusy = () => false,
+  mailWorkPending = false,
   perform,
   api,
   onConnectAccount,
@@ -69,7 +73,10 @@ export function SettingsPage({
   onNotificationPreview?: () => void;
   state: State;
   busy: boolean;
-  perform: Perform;
+  accountBusy?: (accountId: string) => boolean;
+  mailWorkPending?: boolean;
+  perform: ScopedPerform;
+  scopeBusy?: (scope: ActionScope) => boolean;
   api: Api;
   onConnectAccount: (provider: ImapProvider) => void;
   onNotice: (text: string) => void;
@@ -98,6 +105,8 @@ export function SettingsPage({
 }) {
   const { on: privacy, names } = useContext(PrivacyContext);
   const [renaming, setRenaming] = useState<string | null>(null);
+  const renameTarget = useRef(renaming);
+  useLayoutEffect(() => { renameTarget.current = renaming; }, [renaming]);
   const [renameError, setRenameError] = useFeedbackState();
   const scrollPane = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => { scrollPane.current?.scrollTo({ top: 0, behavior: "instant" }); }, [section]);
@@ -113,6 +122,10 @@ export function SettingsPage({
     });
     return () => { cancelled = true; };
   }, [section, accountTarget]);
+  const settingsScope = (section: Extract<ActionScope, { kind: "settings" }>["section"]): ActionScope => ({ kind: "settings", section });
+  const pending = (section: Extract<ActionScope, { kind: "settings" }>["section"]) => busy || scopeBusy(settingsScope(section));
+  const inSection = (section: Extract<ActionScope, { kind: "settings" }>["section"]): Perform =>
+    (task, success) => perform(settingsScope(section), task, success);
   const current = settingsSections.find((item) => item.id === section)!;
   return (
     <main className="settings">
@@ -152,11 +165,11 @@ export function SettingsPage({
                 <span className={a.error || a.syncFailure || a.syncWarning ? "attention" : undefined}>
                   {accountStatus(a)}
                 </span>
-                <button type="button" className="link" disabled={busy} onClick={() => { setRenaming(a.id); setRenameError(""); }}>Rename</button>
+                <button type="button" className="link" disabled={busy || scopeBusy({ kind: "account", accountId: a.id })} onClick={() => { setRenaming(a.id); setRenameError(""); }}>Rename</button>
                 <button
                   className="link"
-                  disabled={busy || !!a.syncStatus}
-                  onClick={() => void perform(async () => {
+                  disabled={busy || accountBusy(a.id) || !!a.syncStatus}
+                  onClick={() => void perform({ kind: "account", accountId: a.id }, async () => {
                     const result = await api<{ status: "queued" | "running" }>(`/accounts/${encodeURIComponent(a.id)}/reconnect`, "POST");
                     onNotice(result.status === "running" ? "Connection retry running. Check this account's status for the result." : "Connection retry queued. Check this account's status for the result.");
                   })}
@@ -165,15 +178,17 @@ export function SettingsPage({
                 </button>
                 <button
                   className="link"
-                  disabled={busy}
+                  disabled={busy || accountBusy(a.id)}
+                  title={accountBusy(a.id) ? "Wait for this account's mail actions to finish" : undefined}
                   onClick={() => {
+                    if (busy || accountBusy(a.id)) return;
                     if (
                       confirm(
                         `Disconnect ${privacy ? redactPrivateText(a.email, names) : a.email}? This permanently deletes its local drafts, including messages that may already have been sent, and removes its local mail cache. Your provider mailbox stays intact.`,
                       )
                     )
                       void perform(
-                        () => api(`/accounts/${a.id}`, "DELETE"),
+                        { kind: "account", accountId: a.id }, () => api(`/accounts/${a.id}`, "DELETE"),
                         "Account disconnected.",
                       );
                   }}
@@ -181,16 +196,19 @@ export function SettingsPage({
                   Disconnect
                 </button>
               </div>
-              {renaming === a.id && <AccountNameForm key={a.id} account={a} busy={busy} error={renameError}
+              {renaming === a.id && <AccountNameForm key={a.id} account={a} busy={busy || scopeBusy({ kind: "account", accountId: a.id })} error={renameError}
                 onCancel={() => { setRenaming(null); setRenameError(""); }}
                 onSave={async (name) => {
                   setRenameError("");
                   let saved = false;
-                  await perform(async () => {
+                  await perform({ kind: "account", accountId: a.id }, async () => {
                     try { await api(`/accounts/${encodeURIComponent(a.id)}`, "PATCH", { name }); saved = true; }
-                    catch { setRenameError("Could not rename account. Try again."); throw new Error("Could not rename account. Try again."); }
+                    catch {
+                      if (renameTarget.current === a.id) setRenameError("Could not rename account. Try again.");
+                      throw new Error("Could not rename account. Try again.");
+                    }
                   }, "Account name saved.");
-                  if (saved) setRenaming(null);
+                  if (saved) setRenaming(current => current === a.id ? null : current);
                 }} />}
               </Fragment>
             ))}</div>
@@ -204,7 +222,7 @@ export function SettingsPage({
         </section>}
         {section === "compose" && onComposePreferences && <section>
           <ComposeSettings accounts={state.accounts} value={state.composePreferences ?? emptyComposePreferences}
-            draft={composeDraft} onDraftChange={onComposeDraft} onSave={onComposePreferences} busy={busy || composeSaving} />
+            draft={composeDraft} onDraftChange={onComposeDraft} onSave={onComposePreferences} busy={pending("compose") || composeSaving} />
         </section>}
         {section === "sorting" && <section>
           <details className="settings-help"><summary>Sorting details</summary><p className="note">
@@ -230,10 +248,10 @@ export function SettingsPage({
                 </div>
                 <button
                   className="link"
-                  disabled={busy}
+                  disabled={pending("sorting")}
                   onClick={() =>
                     void perform(
-                      () => api(`/rules/${rule.id}`, "DELETE"),
+                      settingsScope("sorting"), () => api(`/rules/${rule.id}`, "DELETE"),
                       "Rule removed. Local sorting reapplied.",
                     )
                   }
@@ -304,8 +322,8 @@ export function SettingsPage({
             )}
             <ConfigurationForm
               api={api}
-              perform={perform}
-              busy={busy}
+              perform={inSection("connection")}
+              busy={pending("connection") || mailWorkPending}
               googleConfigured={state.googleConfigured}
               googleClientId={state.googleClientId}
               aiConfigured={state.aiConfigured}
@@ -349,15 +367,15 @@ export function SettingsPage({
             </p>
           ) : null}
         </section>}
-        {section === "privacy" && <PrivacySettings state={state} api={api} perform={perform} busy={busy} />}
+        {section === "privacy" && <PrivacySettings state={state} api={api} perform={inSection("privacy")} busy={pending("privacy")} />}
         {section === "branding" && <BrandingSection
           api={api}
-          perform={perform}
-          busy={busy}
+          perform={inSection("branding")}
+          busy={pending("branding")}
           onNotice={onNotice}
         />}
-        {section === "mcp" && <>{assistants}<details className="settings-group settings-details settings-agent-advanced"><summary>Connection controls</summary><McpSection api={api} perform={perform} busy={busy} onCopied={onCopied} onError={onError} /></details></>}
-        {section === "about" && <WorkspaceBackup api={api} perform={perform} busy={busy} />}
+        {section === "mcp" && <>{assistants}<details className="settings-group settings-details settings-agent-advanced"><summary>Connection controls</summary><McpSection api={api} perform={inSection("mcp")} busy={pending("mcp")} onCopied={onCopied} onError={onError} /></details></>}
+        {section === "about" && <WorkspaceBackup api={api} perform={inSection("backup")} busy={pending("backup") || mailWorkPending} />}
         {section === "about" && <section>
           <dl className="settings-facts settings-group">
             <AboutVersion />

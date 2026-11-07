@@ -31,7 +31,7 @@ function Tool({ label, text = label, title, Icon, disabled, busy, onClick }: {
  * Mark as read. Opened mail adds a close control at the right.
  */
 export function MailActions({
-  mail, opened, reading, busy, syncing, snoozed, trashUnavailable, shortcut,
+  mail, opened, reading, busy, mutationBusy = busy, syncing, snoozed, trashUnavailable, shortcut,
   onRead, onUnread, onInbox, onReply, onArchive, onTrash, onSnooze, onUnsnooze, onClose,
   onPrevious, onNext, previousDisabled, nextDisabled, onPin, onTrack, onSchedule,
 }: {
@@ -39,6 +39,7 @@ export function MailActions({
   opened: boolean;
   reading: boolean;
   busy: boolean;
+  mutationBusy?: boolean;
   syncing: boolean;
   snoozed: boolean;
   trashUnavailable?: string;
@@ -65,29 +66,29 @@ export function MailActions({
     <div className="mail-actions" role="group" aria-label={opened ? "Opened email actions" : "Selected email actions"}>
       <div className="tool-group">
         <Tool label="Archive" title={`Archive in your provider (${shortcut("done")})`} Icon={Archive}
-          disabled={busy || syncing || mail.archived || mail.direction === "sent"} onClick={onArchive} />
-        {onInbox && mail.archived && <Tool label="Move to Inbox" Icon={Inbox} disabled={busy || syncing || mail.direction === "sent"} onClick={onInbox} />}
+          disabled={mutationBusy || syncing || mail.archived || mail.direction === "sent"} onClick={onArchive} />
+        {onInbox && mail.archived && <Tool label="Move to Inbox" Icon={Inbox} disabled={mutationBusy || syncing || mail.direction === "sent"} onClick={onInbox} />}
         <Tool label="Move to Trash" text="Trash" title={trashUnavailable || "Move to Trash"} Icon={Trash}
-          disabled={busy || syncing || !!trashUnavailable} onClick={onTrash} />
+          disabled={mutationBusy || syncing || !!trashUnavailable} onClick={onTrash} />
         {snoozed ? (
-          <Tool label="Return to inbox" Icon={Inbox} disabled={busy || syncing} onClick={onUnsnooze} />
+          <Tool label="Return to inbox" Icon={Inbox} disabled={mutationBusy || syncing} onClick={onUnsnooze} />
         ) : (
           <Tool label="Snooze" title={`Snooze (${shortcut("snooze")})`} Icon={Clock}
-            disabled={busy || syncing || mail.archived || mail.direction === "sent"} onClick={onSnooze} />
+            disabled={mutationBusy || syncing || mail.archived || mail.direction === "sent"} onClick={onSnooze} />
         )}
       </div>
       <div className="tool-group">
         <Tool label="Reply" title={`Reply (${shortcut("reply")})`} Icon={Reply} disabled={busy} onClick={onReply} />
-        <Tool label={readLabel} text="Read" title={`${readLabel} (${shortcut("read")})`} Icon={Check} disabled={mail.direction === "sent" || !mail.unread || reading} busy={reading} onClick={onRead} />
-        {onUnread && <Tool label="Mark as unread" text="Unread" Icon={MailUnread} disabled={busy || syncing || mail.direction === "sent" || mail.unread || reading} onClick={onUnread} />}
+        <Tool label={readLabel} text="Read" title={`${readLabel} (${shortcut("read")})`} Icon={Check} disabled={mutationBusy || mail.direction === "sent" || !mail.unread || reading} busy={reading} onClick={onRead} />
+        {onUnread && <Tool label="Mark as unread" text="Unread" Icon={MailUnread} disabled={mutationBusy || syncing || mail.direction === "sent" || mail.unread || reading} onClick={onUnread} />}
         {onPin && <Tool label={mail.pinned ? "Unpin email" : "Pin email"} text={mail.pinned ? "Unpin" : "Pin"} title={`${mail.pinned ? "Unpin email" : "Pin email for reference"} (local to this app, ${shortcut("pin")})`} Icon={Pin}
-          disabled={busy} onClick={onPin} />}
+          disabled={mutationBusy} onClick={onPin} />}
       </div>
       {(onTrack || onSchedule) && <div className="tool-group">
         {onTrack && <Tool label="Track work" text="Track" Icon={TaskSquare} disabled={busy} onClick={onTrack} />}
         {onSchedule && <Tool label="Schedule meeting" text="Meeting" Icon={CalendarPlus} disabled={busy} onClick={onSchedule} />}
       </div>}
-      <span role="status">{reading ? "Read update pending." : busy ? "Updating email…" : ""}</span>
+      <span role="status">{reading ? "Read update pending." : mutationBusy ? "Updating email…" : ""}</span>
       {trashUnavailable && <span id="trash-unavailable">{trashUnavailable}</span>}
       {opened && <div className="tool-group reader-navigation" role="group" aria-label="Reader navigation">
         {onPrevious && <Tool label="Previous email" Icon={ChevronUp} disabled={previousDisabled} onClick={onPrevious} />}

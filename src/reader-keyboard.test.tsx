@@ -42,6 +42,7 @@ function reader(opened = true, accountFilter = "a", selectedId: string | null = 
   const requests: unknown[][] = [];
   const scope = {
     toolbarBlocked: false,
+    get composeBusy(): boolean { return this.busy; },
     get nonMailView() { return this.workView || this.view === "contacts"; },
     opened, accountFilter, selectedId, recent: [] as string[], notice: "",
     state: { accounts: [{ id: "a" }, { id: "b" }], messages: [a, b, other] },
@@ -66,6 +67,8 @@ function reader(opened = true, accountFilter = "a", selectedId: string | null = 
     setState(update: (state: { accounts: { id: string }[]; messages: Mail[] }) => { accounts: { id: string }[]; messages: Mail[] }) { scope.state = update(scope.state); },
     loadRevision: { current: 0 },
     pendingReads: { current: new Set<string>() },
+    bulkBatch: { pending: false },
+    mailBusy: (_mail: Mail) => scope.busy || scope.bulkBatch.pending,
     api: async (...args: unknown[]) => { requests.push(args); },
     reload: async () => {},
     quickSource: null, meetingMail: null, view: "inbox", busy: false, updateInstalling: false, draftPicker: false, contextMenu: false, palette: false, settings: false, workView: false, compose: false, teach: false,
@@ -194,4 +197,18 @@ for (const view of ["actions", "projects", "calendar"]) test(`${view} mail-actio
       assert.deepEqual(actions, [], `${key}: ${guard}`);
     }
   }
+});
+
+
+test("opening during bulk work reads cached content without queuing a provider read", async () => {
+  const { scope, requests } = reader();
+  scope.bulkBatch.pending = true;
+  scope.openMail(b);
+  await new Promise(setImmediate);
+  assert.equal(scope.selected?.body, "Body B");
+  assert.equal(requests.length, 0);
+  scope.bulkBatch.pending = false;
+  scope.openMail(b);
+  await new Promise(setImmediate);
+  assert.equal(requests.length, 1);
 });
