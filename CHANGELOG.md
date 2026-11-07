@@ -10,9 +10,11 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+## 0.2.32 - 2026-11-07
+
 ### Fixed
 
-- Opening a message in the side-by-side reader keeps the list's selection checkboxes and current selection. Select all inside the reader still selects message text.
+- Opening a message in the side-by-side reader keeps the list's selection checkboxes and current selection. Select all inside the reader still selects message text. ([#232](https://github.com/collection-of-things/emc2/issues/232))
 - Rejected assistant access saves show the server error and keep the editor usable instead of requiring unknown-outcome recovery. Settings remains closable after failed or uncertain saves. ([#234](https://github.com/collection-of-things/emc2/issues/234))
 
 ## 0.2.31 - 2026-11-06
