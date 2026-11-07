@@ -82,7 +82,7 @@ export function useToasts(preferences: NotificationPreferences = notificationDef
 // Matches the slot collapse in mail-features.css so neighbours finish moving first.
 const exitMs = 200;
 
-function ToastItem({ toast, leaving, onDismiss, preferences, onOpen, onUndo, undoDisabled }: { toast: Toast; leaving: boolean; onDismiss: (id: number) => void; preferences: NotificationPreferences; onOpen?: (id: string) => void; onUndo?: (receipt: LocalMailUndo) => void; undoDisabled?: boolean }) {
+function ToastItem({ toast, leaving, onDismiss, preferences, onOpen, onUndo, undoDisabled, undoPending }: { toast: Toast; leaving: boolean; onDismiss: (id: number) => void; preferences: NotificationPreferences; onOpen?: (id: string) => void; onUndo?: (receipt: LocalMailUndo) => void; undoPending?: (receipt: LocalMailUndo) => boolean; undoDisabled?: boolean }) {
   const { on: privacy } = useContext(PrivacyContext);
   const swipe = useSwipe(() => onDismiss(toast.id), !leaving);
   const isMail = toast.kind === "info" && (Boolean(toast.mail) || toast.eventId?.startsWith("arrival:"));
@@ -109,7 +109,7 @@ function ToastItem({ toast, leaving, onDismiss, preferences, onOpen, onUndo, und
           <div role={toast.kind === "error" ? "alert" : "status"} aria-atomic="true" className="toast-text">{mail ? text : <Redact text={text} />}</div>
         </>}
         {toast.undo && onUndo && <div className="toast-actions">
-          <button type="button" className="toast-open" disabled={undoDisabled} onClick={() => { onUndo(toast.undo!); onDismiss(toast.id); }}>Undo</button>
+          <button type="button" className="toast-open" disabled={undoDisabled || !!(toast.undo && undoPending?.(toast.undo))} onClick={() => { onUndo(toast.undo!); onDismiss(toast.id); }}>Undo</button>
         </div>}
         {mail && preferences.openMail && onOpen && <div className="toast-actions">
           <button type="button" className="toast-open" onClick={() => { if (mail.id !== "sample") onOpen(mail.id); onDismiss(toast.id); }}>Open email<ChevronRight size={14} /></button>
@@ -120,7 +120,7 @@ function ToastItem({ toast, leaving, onDismiss, preferences, onOpen, onUndo, und
   </div></div>;
 }
 
-export function ToastStack({ outbox, toasts, onDismiss, position = "bottom-right", preferences = notificationDefaults, onOpen, onUndo, undoDisabled }: { outbox?: ReactNode; onUndo?: (receipt: LocalMailUndo) => void; undoDisabled?: boolean; preferences?: NotificationPreferences; onOpen?: (id: string) => void; toasts: Toast[]; onDismiss: (id: number) => void; position?: NotificationPreferences["position"] }) {
+export function ToastStack({ outbox, toasts, onDismiss, position = "bottom-right", preferences = notificationDefaults, onOpen, onUndo, undoDisabled, undoPending }: { outbox?: ReactNode; onUndo?: (receipt: LocalMailUndo) => void; undoPending?: (receipt: LocalMailUndo) => boolean; undoDisabled?: boolean; preferences?: NotificationPreferences; onOpen?: (id: string) => void; toasts: Toast[]; onDismiss: (id: number) => void; position?: NotificationPreferences["position"] }) {
   const host = useContext(NotificationTargetContext);
   const anchor = useRef<HTMLDivElement>(null);
   const [container] = useState(() => typeof document === "undefined" ? null : document.createElement("div"));
@@ -151,7 +151,7 @@ export function ToastStack({ outbox, toasts, onDismiss, position = "bottom-right
       {queued > 0 && <span className="toast-pending" role="status">{queued} more {queued === 1 ? "notification" : "notifications"}</span>}
       <button type="button" onClick={() => toasts.forEach((toast) => close(toast.id))}>Dismiss all</button>
     </div>}
-    {toasts.slice(0, 4).map((toast) => <ToastItem key={toast.id} toast={toast} leaving={leaving.has(toast.id)} onDismiss={close} preferences={preferences} onOpen={onOpen} onUndo={onUndo} undoDisabled={undoDisabled} />)}
+    {toasts.slice(0, 4).map((toast) => <ToastItem key={toast.id} toast={toast} leaving={leaving.has(toast.id)} onDismiss={close} preferences={preferences} onOpen={onOpen} onUndo={onUndo} undoDisabled={undoDisabled} undoPending={undoPending} />)}
   </section>;
   return container ? <><div ref={anchor} className="notification-host" />{createPortal(stack, container)}</> : stack;
 }

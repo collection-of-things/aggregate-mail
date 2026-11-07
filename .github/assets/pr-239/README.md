@@ -20,3 +20,9 @@ change and present before it.
 These images show the pending-state visual change. They do not establish
 installed Electron behavior, provider latency, retained RAM or rendering speed.
 The readable-text allocation optimization intentionally preserves appearance.
+
+
+These captures predate the operation-scoped follow-up in ADR 0128. They show
+the initial progress UI only, not the corrected availability of Drafts,
+compose saving, unrelated mail actions or settings controls. Those workflows
+are covered by the later held-response App regressions.

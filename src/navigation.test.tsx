@@ -3542,11 +3542,114 @@ test("a slow bulk action keeps reading and navigation available across pane remo
     await app.click(app.button("Close email"));
     await app.click(app.button("Archive"));
     await app.click(app.button("Inbox"));
-    assert.equal(app.button("Select all visible (up to 200)").disabled, true, "remounting cannot admit a second batch");
+    assert.equal(app.button("Select all visible (up to 200)").disabled, false, "local selection remains available");
+    await app.click(app.button("Select all visible (up to 200)"));
+    assert.equal(app.button("Mark as unread").disabled, true, "remounting cannot admit a second batch");
     assert.match(app.container.textContent!, /Applying message actions/);
     await app.finishBatch();
     assert.equal(app.batches(), 1);
     assert.equal(app.button("Select all visible (up to 200)").disabled, false);
     assert.match(app.container.textContent!, /3 messages updated/);
   } finally { await app.finishBatch(); await app.close(); }
+});
+
+test("a bulk job does not block Drafts, composing and saving, Contacts, or Settings", async () => {
+  const app = await mount();
+  try {
+    app.holdBatch();
+    await app.click(app.button("Select all visible (up to 200)"));
+    await app.click(app.button("Mark as unread"));
+    assert.equal(app.button("Drafts").disabled, false, "bulk work must not disable Drafts");
+    await app.click(app.button("Drafts"));
+    assert.ok(app.container.querySelector('.draft-list'));
+    await app.click(app.button("New message"));
+    const subject = document.querySelector<HTMLInputElement>('.compose-subject input')!;
+    assert.ok(subject && !subject.disabled, "new messages remain editable during bulk work");
+    await app.input(subject, "Independent draft");
+    assert.equal(app.button("Close dialog").disabled, false);
+    await app.click(app.button("Close dialog"));
+    assert.equal(document.querySelector('.compose-dialog'), null);
+    assert.equal(app.savedDraft()?.subject, "Independent draft");
+    await app.click(app.button("Contacts"));
+    assert.ok(app.container.querySelector('.contacts-pane'));
+    assert.equal(app.button("Add contact").disabled, false);
+    await app.click(app.button("Settings"));
+    await app.click(app.button("Templates and signatures"));
+    const signature = document.querySelector<HTMLTextAreaElement>('.settings-pane textarea');
+    assert.ok(signature && !signature.disabled, "compose preferences remain editable");
+    await app.input(signature, "Independent signature");
+    await app.click(app.button("Save compose preferences"));
+    assert.equal(app.composeSaveRequests(), 1);
+    assert.equal(app.state.composePreferences?.signatures.a, "Independent signature");
+    await app.click(app.button("Accounts"));
+    const disconnects = [...app.container.querySelectorAll<HTMLButtonElement>('.account-row button')].filter(button => button.textContent?.trim() === "Disconnect");
+    assert.equal(disconnects.length, 2);
+    assert.ok(disconnects.every(button => button.disabled), "disconnect stays guarded while provider work is pending");
+    await app.click(app.button("Close settings"));
+    assert.equal(app.batches(), 1);
+  } finally { await app.finishBatch(); await app.close(); }
+});
+
+test("bulk mutation locks apply to their exact messages and leave unrelated mail and reply available", async () => {
+  const app = await mount();
+  try {
+    app.holdBatch();
+    await app.click(app.button("Select message 1"));
+    await app.click(app.button("Mark as unread"));
+    await app.open("a:1");
+    assert.equal(app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Archive"]')?.disabled, true);
+    assert.equal(app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Reply"]')?.disabled, false);
+    assert.equal(app.mailActions.length, 0, "the batch target must not be marked read concurrently");
+    await app.open("a:2");
+    assert.equal(app.title(), "Beta");
+    assert.ok(app.mailActions.some(item => item.id === "a:2" && item.action === "read"), "unrelated mail keeps its normal read behavior");
+    assert.equal(app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Archive"]')?.disabled, false);
+    const pin = app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Pin email"]');
+    assert.ok(pin && !pin.disabled);
+    await app.click(pin);
+    assert.ok(app.mailActions.some(item => item.id === "a:2" && item.action === "pin"));
+    assert.equal(app.batches(), 1);
+  } finally { await app.finishBatch(); await app.close(); }
+});
+
+test("a slow single-message mutation keeps Drafts and other messages available", async () => {
+  const app = await mount();
+  try {
+    await app.open("a:1");
+    app.holdRead();
+    await app.click(app.button("Pin email"));
+    assert.equal(app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Pin email"]')?.disabled, true);
+    assert.equal(app.button("Drafts").disabled, false);
+    await app.click(app.button("Close email"));
+    await app.open("a:2");
+    assert.equal(app.title(), "Beta");
+    assert.equal(app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Pin email"]')?.disabled, false);
+    await app.click(app.button("Drafts"));
+    assert.ok(app.container.querySelector('.draft-list'));
+  } finally { await app.finishRead(); await app.close(); }
+});
+
+test("a held Sent import keeps Drafts available while its own fetch button stays locked", async () => {
+  const app = await mount();
+  const original = globalThis.fetch;
+  let finish: (() => void) | undefined;
+  const wait = new Promise<void>(resolve => { finish = resolve; });
+  globalThis.fetch = async (input, options) => {
+    if (String(input) === "/api/accounts/a/sent/sync") { await wait; return Response.json({}); }
+    return original(input, options);
+  };
+  try {
+    await app.click(app.button("All cached"));
+    await app.click(app.account("first@example.com"));
+    await app.click(app.button("Fetch Sent"));
+    assert.equal(app.button("Fetch Sent").disabled, true);
+    await app.click(app.button("Select all visible (up to 200)"));
+    assert.equal(app.button("Mark as read").disabled, true, "provider-wide work still guards conflicting submissions");
+    assert.equal(app.button("Drafts").disabled, false);
+    await app.click(app.button("Drafts"));
+    assert.ok(app.container.querySelector('.draft-list'));
+  } finally {
+    await act(async () => { finish?.(); await wait; });
+    await app.close();
+  }
 });

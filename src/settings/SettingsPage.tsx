@@ -34,6 +34,8 @@ import { settingsGroup, settingsGroupNames, settingsSections, type SettingsSecti
 export function SettingsPage({
   state,
   busy,
+  accountBusy = () => false,
+  mailWorkPending = false,
   perform,
   api,
   onConnectAccount,
@@ -69,6 +71,8 @@ export function SettingsPage({
   onNotificationPreview?: () => void;
   state: State;
   busy: boolean;
+  accountBusy?: (accountId: string) => boolean;
+  mailWorkPending?: boolean;
   perform: Perform;
   api: Api;
   onConnectAccount: (provider: ImapProvider) => void;
@@ -155,7 +159,7 @@ export function SettingsPage({
                 <button type="button" className="link" disabled={busy} onClick={() => { setRenaming(a.id); setRenameError(""); }}>Rename</button>
                 <button
                   className="link"
-                  disabled={busy || !!a.syncStatus}
+                  disabled={busy || accountBusy(a.id) || !!a.syncStatus}
                   onClick={() => void perform(async () => {
                     const result = await api<{ status: "queued" | "running" }>(`/accounts/${encodeURIComponent(a.id)}/reconnect`, "POST");
                     onNotice(result.status === "running" ? "Connection retry running. Check this account's status for the result." : "Connection retry queued. Check this account's status for the result.");
@@ -165,8 +169,10 @@ export function SettingsPage({
                 </button>
                 <button
                   className="link"
-                  disabled={busy}
+                  disabled={busy || accountBusy(a.id)}
+                  title={accountBusy(a.id) ? "Wait for this account's mail actions to finish" : undefined}
                   onClick={() => {
+                    if (busy || accountBusy(a.id)) return;
                     if (
                       confirm(
                         `Disconnect ${privacy ? redactPrivateText(a.email, names) : a.email}? This permanently deletes its local drafts, including messages that may already have been sent, and removes its local mail cache. Your provider mailbox stays intact.`,
@@ -305,7 +311,7 @@ export function SettingsPage({
             <ConfigurationForm
               api={api}
               perform={perform}
-              busy={busy}
+              busy={busy || mailWorkPending}
               googleConfigured={state.googleConfigured}
               googleClientId={state.googleClientId}
               aiConfigured={state.aiConfigured}
@@ -357,7 +363,7 @@ export function SettingsPage({
           onNotice={onNotice}
         />}
         {section === "mcp" && <>{assistants}<details className="settings-group settings-details settings-agent-advanced"><summary>Connection controls</summary><McpSection api={api} perform={perform} busy={busy} onCopied={onCopied} onError={onError} /></details></>}
-        {section === "about" && <WorkspaceBackup api={api} perform={perform} busy={busy} />}
+        {section === "about" && <WorkspaceBackup api={api} perform={perform} busy={busy || mailWorkPending} />}
         {section === "about" && <section>
           <dl className="settings-facts settings-group">
             <AboutVersion />

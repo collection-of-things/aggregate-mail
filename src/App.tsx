@@ -39,6 +39,8 @@ import { InboxTabs } from "./mail/InboxTabs";
 import { ListEmpty } from "./mail/ListEmpty";
 import { MailActions } from "./mail/MailActions";
 import { MailFilters, type PinnedScope } from "./mail/MailFilters";
+import type { MailIdentity } from "../shared/bulk-mail";
+import { useMailMutations } from "./mail/use-mail-mutations";
 import { useBulkMailAction } from "./mail/use-bulk-mail-action";
 import { BulkMailSelection } from "./mail/BulkMailSelection";
 import { MailList } from "./mail/MailList";
@@ -147,7 +149,7 @@ export function App() {
   const [draftProgress, setDraftProgress] = useState<DraftProgress>({ phase: "idle", message: "Draft saves on this device as you type." });
   const draftSession = useRef<DraftSession | null>(null);
   const composeGeneration = useRef(0);
-  const forwardRequest = useRef<{ source: Mail; generation: number; valid: boolean } | null>(null);
+  const forwardRequest = useRef<{ source: Mail; generation: number; valid: boolean; context: string } | null>(null);
   const draftLock = useRef(false);
   const draftAdmissionLock = useRef(false);
   const attachmentTask = useRef<Promise<void> | undefined>(undefined);
@@ -155,7 +157,7 @@ export function App() {
   const [updateInstalling, setUpdateInstalling] = useState(false);
   useLayoutEffect(() => {
     const request = forwardRequest.current;
-    if (request && (updateInstalling ||
+    if (request && (updateInstalling || request.context !== JSON.stringify(navigation.location) ||
       !state.accounts.some(account => account.id === request.source.accountId) ||
       !state.messages.some(mail => mail.id === request.source.id && mail.accountId === request.source.accountId && mail.remoteId === request.source.remoteId))) request.valid = false;
   });
@@ -187,6 +189,7 @@ export function App() {
   const [eventDirty, setEventDirty] = useState(false);
   useEffect(() => { if (updateInstalling) setPalette(false); }, [updateInstalling]);
   const bulkBatch = useBulkMailAction();
+  const mailMutations = useMailMutations();
   const [bulkBlocking, setBulkBlocking] = useState(false);
   const [savedViewEdit, setSavedViewEdit] = useState<SavedViewEdit | null>(null);
   const [reviewingUnsubscribe, setReviewingUnsubscribe] = useState(false);
@@ -341,8 +344,13 @@ export function App() {
     () => { try { return localStorage.getItem("emc2.density") === "compact" ? "compact" : "comfortable"; } catch { return "comfortable"; } },
   );
   const storedDensity = useRef(density);
-  const [actionBusy, setBusy] = useState(false);
-  const busy = actionBusy || bulkBatch.pending;
+  const [busy, setBusy] = useState(false);
+  const [performPending, setPerformPending] = useState(false);
+  const performLock = useRef(false);
+  const mailBusy = (mail: MailIdentity) => busy || performPending || bulkBatch.has(mail) || mailMutations.has(mail);
+  const mailWorkPending = bulkBatch.pending || mailMutations.pending;
+  const accountBusy = (id: string) => bulkBatch.hasAccount(id) || mailMutations.hasAccount(id) ||
+    (pendingReads.current.size > 0 && state.messages.some(mail => mail.accountId === id && pendingReads.current.has(mail.id)));
   const [syncing, setSyncing] = useState(false);
   const [notifications, setNotifications] = useState(readNotifications);
   const { toasts, push: pushToast, dismiss: dismissToast, consumeUndo } = useToasts(notifications);
@@ -375,7 +383,6 @@ export function App() {
   const csrf = useRef("");
   const pendingReads = useRef(new Set<string>());
   const [reading, setReading] = useState(new Set<string>());
-  const trashLock = useRef(false);
   const loadRevision = useRef(0);
   const mailCursor = useRef<string | undefined>(undefined);
   const syncLock = useRef(false);
@@ -718,9 +725,7 @@ export function App() {
   const snoozedCount = state.messages.filter(
     (m) => m.direction !== "sent" && !m.archived && isSnoozed(m) && matchesLabel(m, activeLabel),
   ).length;
-  const perform = async <T,>(task: () => Promise<T>, success?: string, localUndo?: (result: T) => LocalMailUndo | undefined) => {
-    if (busy) return;
-    setBusy(true);
+  const executeAction = async <T,>(task: () => Promise<T>, success?: string, localUndo?: (result: T) => LocalMailUndo | undefined) => {
     try {
       const result = await task();
       const undo = localUndo?.(result);
@@ -732,16 +737,24 @@ export function App() {
       } else await reload();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Action failed.");
-    } finally {
-      setBusy(false);
     }
+  };
+  const perform = async <T,>(task: () => Promise<T>, success?: string, localUndo?: (result: T) => LocalMailUndo | undefined) => {
+    if (busy || performLock.current) return;
+    performLock.current = true; setPerformPending(true);
+    try { await executeAction(task, success, localUndo); }
+    finally { performLock.current = false; setPerformPending(false); }
+  };
+  const performMail = <T,>(mail: MailIdentity, task: () => Promise<T>, success?: string, localUndo?: (result: T) => LocalMailUndo | undefined) => {
+    if (mailBusy(mail)) return;
+    return mailMutations.run(mail, () => executeAction(task, success, localUndo));
   };
   const changeMessage = (
     mail: Mail,
     action: "read" | "unread" | "inbox" | "archive" | "snooze" | "unsnooze" | "pin" | "unpin",
     until?: number,
   ) =>
-    perform(() =>
+    performMail(mail, () =>
       api<LocalMailActionResponse>(`/messages/${encodeURIComponent(mail.id)}`, "PATCH", {
         action,
         until,
@@ -752,19 +765,19 @@ export function App() {
       result => result.undo,
     );
   const undoLocalAction = async (receipt: LocalMailUndo) => {
-    if (busy || syncing || toolbarBlocked || undoLock.current) return;
+    if (mailBusy(receipt) || syncing || toolbarBlocked || undoLock.current) return;
     undoLock.current = true;
     consumeUndo(receipt.token);
     setLastUndo(current => current?.token === receipt.token ? null : current);
     try {
-      await perform(async () => {
+      await performMail(receipt, async () => {
         try { await api(`/messages/${encodeURIComponent(receipt.id)}/undo`, "POST", { accountId: receipt.accountId, token: receipt.token }); }
         catch (error) { throw new Error(`Undo was not confirmed and was not retried. Refresh mail before acting again. ${error instanceof Error ? error.message : ""}`); }
       }, "Local action undone.");
     } finally { undoLock.current = false; }
   };
   const markRead = (mail: Mail) => {
-    if (mail.direction === "sent" || bulkBatch.pending) return;
+    if (mail.direction === "sent" || mailBusy(mail)) return;
     void markMailRead(mail, pendingReads.current, async () => {
       setReading(new Set(pendingReads.current));
       await api(`/messages/${encodeURIComponent(mail.id)}`, "PATCH", { action: "read" });
@@ -784,25 +797,17 @@ export function App() {
     ? "Move to Trash is unavailable for this archived email because its Message-ID is missing. Move it in your provider."
     : undefined;
   const moveToTrash = async (mail: Mail) => {
-    if (busy || syncing || trashLock.current || trashUnavailable(mail)) return;
-    trashLock.current = true;
-    setBusy(true);
-    try {
-      await api(`/messages/${encodeURIComponent(mail.id)}`, "PATCH", { action: "trash" });
+    if (mailBusy(mail) || syncing || trashUnavailable(mail)) return;
+    // Confirmation is complete. Provider work must not hold its modal open.
+    setTrashMail(null);
+    await performMail(mail, async () => {
+      try { await api(`/messages/${encodeURIComponent(mail.id)}`, "PATCH", { action: "trash" }); }
+      catch (error) { throw new Error(`${error instanceof Error ? error.message : "Move to Trash could not be confirmed."} Check your provider before trying again.`); }
       ++loadRevision.current;
-      setState((current) => ({ ...current, messages: current.messages.filter((message) =>
+      setState(current => ({ ...current, messages: current.messages.filter(message =>
         !(message.id === mail.id && message.accountId === mail.accountId && message.remoteId === mail.remoteId)) }));
-      setTrashMail(null);
-      if (selectedId === mail.id) setOpened(false);
-      pushToast("Email moved to Trash.", "success");
-      try { await reload(); }
-      catch { setNotice("Email moved to Trash. Inbox refresh failed. Refresh the inbox separately."); }
-    } catch (error) {
-      setNotice(`${error instanceof Error ? error.message : "Move to Trash could not be confirmed."} Check your provider before trying again.`);
-    } finally {
-      trashLock.current = false;
-      setBusy(false);
-    }
+      navigation.update(current => current.selectedId === mail.id ? { ...current, opened: false } : current);
+    }, "Email moved to Trash.");
   };
   const openMail = (mail: Mail, context: Partial<MailLocation> = {}) => {
     if (navigationBlocked || settings) return;
@@ -856,20 +861,21 @@ export function App() {
   };
   const closeReader = () => { listFocusPending.current = true; setOpened(false); };
   const forwardMail = async (mail: Mail) => {
-    if (forwardRequest.current || draftSession.current || compose || busy || updateInstalling) return;
-    const request = { source: mail, generation: composeGeneration.current, valid: true };
+    if (forwardRequest.current || draftSession.current || compose || mailBusy(mail) || updateInstalling) return;
+    const request = { source: mail, generation: composeGeneration.current, valid: true, context: JSON.stringify(navigation.location) };
     forwardRequest.current = request;
-    setBusy(true);
-    try {
-      const draft = await api<Draft>(`/messages/${encodeURIComponent(mail.id)}/forward`, "POST", {});
-      if (request.valid && request.generation === composeGeneration.current && !draftSession.current) openCompose(draft);
-      else {
-        setNotice("Forward finished in the background. Check Drafts for recovery. No mail was sent.");
-        void reload().catch(() => {});
+    await mailMutations.run(mail, async () => {
+      try {
+        const draft = await api<Draft>(`/messages/${encodeURIComponent(mail.id)}/forward`, "POST", {});
+        if (request.valid && request.generation === composeGeneration.current && !draftSession.current) openCompose(draft);
+        else {
+          setNotice("Forward finished in the background. Check Drafts for recovery. No mail was sent.");
+          void reload().catch(() => {});
+        }
       }
-    }
-    catch { setNotice("Forward could not be prepared. No mail was sent."); }
-    finally { forwardRequest.current = null; setBusy(false); }
+      catch { setNotice("Forward could not be prepared. No mail was sent."); }
+      finally { forwardRequest.current = null; }
+    });
   };
   const startCompose = (reply?: Mail, all = false) => {
     if (!state.accounts.length) {
@@ -903,6 +909,7 @@ export function App() {
     }), reply);
   };
   const archive = (mail: Mail) => {
+    if (mailBusy(mail)) return;
     void changeMessage(mail, "archive");
     if (selectedId === mail.id) setOpened(false);
   };
@@ -915,24 +922,24 @@ export function App() {
   const busyReason = busy ? "Another action is in progress" : syncing ? "Mail is syncing" : undefined;
   // Why a mailbox-state action is unavailable; undefined while it can run.
   const mailActionReason = (mail: Mail) =>
-    mail.archived ? "Already archived" : mail.direction === "sent" ? "Not available for sent mail" : busyReason;
+    mail.archived ? "Already archived" : mail.direction === "sent" ? "Not available for sent mail" : mailBusy(mail) ? "This email has an action in progress" : busyReason;
   // One list of actions feeds the native menu on the desktop and the drawn menu elsewhere.
   const mailMenuActions = (mail: Mail): (MenuAction & { id: MailMenuId })[] => [
     { id: "open", label: "Open", key: shortcut("open"), run: () => openMail(mail) },
-    { id: "read", key: shortcut("read"), label: reading.has(mail.id) ? "Marking as read…" : "Mark as read", disabled: busy || mail.direction === "sent" || !mail.unread || reading.has(mail.id),
-      description: mail.direction === "sent" ? "Sent mail is already read" : reading.has(mail.id) ? "Update in progress" : !mail.unread ? "Already read" : undefined, run: () => markRead(mail) },
-    { id: "unread", key: shortcut("unread"), label: "Mark as unread", disabled: busy || syncing || mail.direction === "sent" || mail.unread || reading.has(mail.id),
+    { id: "read", key: shortcut("read"), label: reading.has(mail.id) ? "Marking as read…" : "Mark as read", disabled: mailBusy(mail) || mail.direction === "sent" || !mail.unread || reading.has(mail.id),
+      description: mail.direction === "sent" ? "Sent mail is already read" : reading.has(mail.id) ? "Update in progress" : !mail.unread ? "Already read" : mailBusy(mail) ? "An action is pending for this email" : undefined, run: () => markRead(mail) },
+    { id: "unread", key: shortcut("unread"), label: "Mark as unread", disabled: mailBusy(mail) || syncing || mail.direction === "sent" || mail.unread || reading.has(mail.id),
       description: mail.direction === "sent" ? "Not available for sent mail" : mail.unread ? "Already unread" : reading.has(mail.id) ? "Update in progress" : busyReason, run: () => void changeMessage(mail, "unread") },
-    { id: "inbox", key: shortcut("inbox"), label: "Move to Inbox", disabled: busy || syncing || !mail.archived || mail.direction === "sent",
+    { id: "inbox", key: shortcut("inbox"), label: "Move to Inbox", disabled: mailBusy(mail) || syncing || !mail.archived || mail.direction === "sent",
       description: mail.direction === "sent" ? "Not available for sent mail" : !mail.archived ? "Already in Inbox" : busyReason, run: () => void changeMessage(mail, "inbox") },
-    { id: "pin", key: shortcut("pin"), label: mail.pinned ? "Unpin email" : "Pin email", disabled: busy, description: busy ? "Another action is in progress" : undefined, run: () => void changeMessage(mail, mail.pinned ? "unpin" : "pin") },
+    { id: "pin", key: shortcut("pin"), label: mail.pinned ? "Unpin email" : "Pin email", disabled: mailBusy(mail), description: mailBusy(mail) ? "An action is pending for this email" : undefined, run: () => void changeMessage(mail, mail.pinned ? "unpin" : "pin") },
     { id: "reply", label: "Reply", key: shortcut("reply"), disabled: busy, description: busy ? "Another action is in progress" : undefined, separator: true, run: () => startCompose(mail) },
     { id: "reply-all", key: shortcut("replyAll"), label: "Reply all", disabled: busy, description: busy ? "Another action is in progress" : undefined, run: () => startCompose(mail, true) },
-    { id: "forward-mail", label: "Forward message", key: shortcut("forwardMail"), disabled: busy, run: () => void forwardMail(mail) },
-    { id: "archive", label: "Archive", key: shortcut("done"), disabled: busy || syncing || mail.archived || mail.direction === "sent", description: mailActionReason(mail), separator: true, run: () => archive(mail) },
-    { id: "snooze", label: "Snooze", key: shortcut("snooze"), disabled: busy || syncing || mail.archived || mail.direction === "sent", description: mailActionReason(mail), run: () => showSnooze(mail) },
-    ...(isSnoozed(mail) ? [{ id: "unsnooze" as const, label: "Return to inbox", disabled: busy || syncing, description: busyReason, run: () => void changeMessage(mail, "unsnooze") }] : []),
-    { id: "trash", label: "Move to Trash", disabled: busy || syncing || !!trashUnavailable(mail), description: trashUnavailable(mail) ?? busyReason, run: () => setTrashMail(mail) },
+    { id: "forward-mail", label: "Forward message", key: shortcut("forwardMail"), disabled: mailBusy(mail) || !!forwardRequest.current, run: () => void forwardMail(mail) },
+    { id: "archive", label: "Archive", key: shortcut("done"), disabled: mailBusy(mail) || syncing || mail.archived || mail.direction === "sent", description: mailActionReason(mail), separator: true, run: () => archive(mail) },
+    { id: "snooze", label: "Snooze", key: shortcut("snooze"), disabled: mailBusy(mail) || syncing || mail.archived || mail.direction === "sent", description: mailActionReason(mail), run: () => showSnooze(mail) },
+    ...(isSnoozed(mail) ? [{ id: "unsnooze" as const, label: "Return to inbox", disabled: mailBusy(mail) || syncing, description: busyReason, run: () => void changeMessage(mail, "unsnooze") }] : []),
+    { id: "trash", label: "Move to Trash", disabled: mailBusy(mail) || syncing || !!trashUnavailable(mail), description: trashUnavailable(mail) ?? (mailBusy(mail) ? "An action is pending for this email" : busyReason), run: () => setTrashMail(mail) },
     { id: "track", label: "Track work", disabled: busy || navigationBlocked, description: busy ? "Another action is in progress" : navigationBlocked ? "Not available right now" : undefined, run: () => openTracking(mail) },
     { id: "meeting", label: "Schedule meeting", disabled: busy || navigationBlocked, description: busy ? "Another action is in progress" : navigationBlocked ? "Not available right now" : undefined, run: () => openMeeting(mail) },
     { id: "teach", label: "Teach sorting", key: shortcut("teach"), disabled: busy || syncing, description: busyReason, separator: true, run: () => setTeach(mail) },
@@ -1055,7 +1062,7 @@ export function App() {
       if (event.key === "Escape" && !event.ctrlKey && !event.metaKey && !event.altKey) {
         if (compose) return;
         if (snooze) { closeSnooze(); return; }
-        if (trashMail) { if (!trashLock.current) setTrashMail(null); return; }
+        if (trashMail) { setTrashMail(null); return; }
         setOpened(false); setTeach(null); setSnooze(null); setShortcuts(false);
         setLabelMail(null); if (settings) setSettings(false);
         return;
@@ -1120,7 +1127,7 @@ export function App() {
       } else if (inbox && action === "open" && selected &&
         (!(target instanceof HTMLElement) || !target.closest("button, a, [role=button]") || target.closest(".row"))) {
         event.preventDefault(); openMail(selected);
-      } else if (mailActions && action === "done" && selected && !busy) archive(selected);
+      } else if (mailActions && action === "done" && selected && !mailBusy(selected)) archive(selected);
       else if (mailActions && ["pin", "read", "unread", "inbox", "replyAll"].includes(action ?? "") && selected) {
         const id = action === "replyAll" ? "reply-all" : action;
         const command = mailMenuActions(selected).find(command => command.id === id);
@@ -1267,6 +1274,7 @@ export function App() {
       opened={opened}
       reading={reading.has(selected.id)}
       busy={busy}
+      mutationBusy={mailBusy(selected)}
       syncing={syncing}
       snoozed={isSnoozed(selected)}
       trashUnavailable={trashUnavailable(selected)}
@@ -1298,6 +1306,7 @@ export function App() {
       provider={selectedAccount?.provider}
       labels={state.labels}
       busy={busy || syncing}
+      isMutationPending={mail => mailBusy(mail) || syncing}
       api={api}
       onOpen={inlineWorkView ? openWorkSource : jumpTo}
       onChanged={reload}
@@ -1395,8 +1404,8 @@ export function App() {
   });
   const commands: PaletteCommand[] = [
     ...savedViews.commands,
-    { id: "undo-local", label: "Undo last action", group: "navigation", disabled: !lastUndo || busy || syncing || toolbarBlocked,
-      disabledReason: !lastUndo ? "No local action to undo" : busy || syncing || toolbarBlocked ? "Another action is in progress" : undefined,
+    { id: "undo-local", label: "Undo last action", group: "navigation", disabled: !lastUndo || busy || syncing || toolbarBlocked || (!!lastUndo && mailBusy(lastUndo)),
+      disabledReason: !lastUndo ? "No local action to undo" : mailBusy(lastUndo) || syncing || toolbarBlocked ? "Another action is in progress for this email" : undefined,
       run: () => { if (lastUndo) void undoLocalAction(lastUndo); } },
     ...interactionActions.flatMap(({ id, label }) => id in paletteActions ? [{ id, label, group: "navigation" as const,
       shortcut: shortcut(id), aliases: commandAliases[id as keyof typeof paletteActions],
@@ -1426,7 +1435,7 @@ export function App() {
         data-view={settings ? "settings" : view}
         style={{ "--text-scale": textScale } as React.CSSProperties}
       >
-        <ToastStack outbox={<OutboxNotices api={api} refreshKey={outboxRefresh} enabled={loaded} onScheduled={() => setScheduledOpen(true)} onMissed={notifyMissedSchedules} blocked={busy || updateInstalling || scheduledOpen || !!compose || settingsModal || workModal} onEdit={openOutboxDraft} onNotice={outboxNotice} onChanged={() => { void reload().catch(() => {}); }} />} toasts={toasts} onDismiss={dismissToast} position={notifications.position} preferences={notifications} onOpen={requestNotificationMail} onUndo={receipt => void undoLocalAction(receipt)} undoDisabled={busy || syncing || toolbarBlocked} />
+        <ToastStack outbox={<OutboxNotices api={api} refreshKey={outboxRefresh} enabled={loaded} onScheduled={() => setScheduledOpen(true)} onMissed={notifyMissedSchedules} blocked={busy || updateInstalling || scheduledOpen || !!compose || settingsModal || workModal} onEdit={openOutboxDraft} onNotice={outboxNotice} onChanged={() => { void reload().catch(() => {}); }} />} toasts={toasts} onDismiss={dismissToast} position={notifications.position} preferences={notifications} onOpen={requestNotificationMail} onUndo={receipt => void undoLocalAction(receipt)} undoDisabled={busy || syncing || toolbarBlocked} undoPending={mailBusy} />
         {scheduledOpen && <Dialog title="Scheduled" onClose={() => setScheduledOpen(false)}>
           <p className="dialog-copy">Emc² must be running and online. Sleep, restart and missed offline schedules require review. Unknown outcomes are never retried automatically.</p>
           <OutboxNotices api={api} scheduledOnly enabled={loaded} blocked={busy || updateInstalling}
@@ -1434,7 +1443,7 @@ export function App() {
         </Dialog>}
 
         <BrowserUpdateNotice
-          blocked={scheduledOpen || !loaded || busy || syncing || navigationBlocked || nonMailView || view === "drafts" || eventDirty || composeSaving || !!palette || !!contextMenu || !!pendingReads.current.size || sendLock.current || syncLock.current || trashLock.current || (!!composeDraft && JSON.stringify(composeDraft) !== JSON.stringify(state.composePreferences ?? emptyComposePreferences))}
+          blocked={scheduledOpen || !loaded || busy || performPending || syncing || navigationBlocked || nonMailView || view === "drafts" || eventDirty || composeSaving || !!palette || !!contextMenu || !!pendingReads.current.size || sendLock.current || syncLock.current || mailWorkPending || (!!composeDraft && JSON.stringify(composeDraft) !== JSON.stringify(state.composePreferences ?? emptyComposePreferences))}
           writes={browserWrites}
           onReload={() => { rememberBrowserUpdateLocation(navigation.location); window.location.reload(); }}
         />
@@ -1516,7 +1525,7 @@ export function App() {
               {!settings && historyControls}
               <div className="update-spacer" aria-hidden="true" />
             </PaneHeader>
-            {bulkBatch.pending && <div className="bulk-progress" role="status">Applying message actions… You can keep browsing mail.</div>}
+            {(mailWorkPending || performPending) && <div className="bulk-progress" role="status">{bulkBatch.pending ? "Applying message actions…" : mailMutations.pending ? "Updating email…" : "Finishing action…"} You can keep using the app.</div>}
             <div hidden={!searching || settings || nonMailView}>
               <Notice text={!settings && !nonMailView ? search.error || "" : ""} />
               <span id="mail-search-help" className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{search.error || (search.pending ? "Searching cached mail and saved drafts…" : `${filtered.length} mail results${search.typos ? " with close spellings, no exact match" : ""}${showSearchDrafts ? `, ${search.drafts.filter(draft => accountFilter === "all" || draft.accountId === accountFilter).length} saved drafts` : ""}. ${mailSearchScope(navigation.location, state.accounts, activeLabel, privacy, showSearchDrafts, ambientPrivateNames)}`)}</span>
@@ -1547,7 +1556,7 @@ export function App() {
               {(view === "sent" || view === "all") && <PaneHeader className="main-head mail-view-head" corner={null} maximized={maximized}>
                 {fullReader ? null : <div className="rail-select" ref={setRailSelect} />}
                 <span className="view-summary">{loaded ? `${filtered.length} cached ${filtered.length === 1 ? "message" : "messages"}${query.trim() && search.typos ? " · No exact match, showing close spellings" : ""}` : "Loading cached mail"}</span>
-                {(view === "sent" || view === "all") && <div className="head-note"><button type="button" title={accountFilter === "all" ? "Select one account to fetch up to 50 Sent messages" : "Fetch up to 50 Sent messages"} disabled={busy || accountFilter === "all"} onClick={() => void perform(async () => { const coverage = await api<SentCoverage>(`/accounts/${encodeURIComponent(accountFilter)}/sent/sync`, "POST", { bound: 50 }); if (coverage.error) throw new Error("Sent import failed. Existing cached mail remains available."); }, "Sent cache refreshed.")}>Fetch Sent</button></div>}
+                {(view === "sent" || view === "all") && <div className="head-note"><button type="button" title={accountFilter === "all" ? "Select one account to fetch up to 50 Sent messages" : "Fetch up to 50 Sent messages"} disabled={busy || performPending || accountFilter === "all"} onClick={() => void perform(async () => { const coverage = await api<SentCoverage>(`/accounts/${encodeURIComponent(accountFilter)}/sent/sync`, "POST", { bound: 50 }); if (coverage.error) throw new Error("Sent import failed. Existing cached mail remains available."); }, "Sent cache refreshed.")}>Fetch Sent</button></div>}
               </PaneHeader>}
               {(!fullReader || showInboxCategories || combinedReaderToolbar) && <div className="mail-category-bar">
                 {fullReader || view === "sent" || view === "all" ? null : <div className="rail-select" ref={setRailSelect} />}
@@ -1575,6 +1584,7 @@ export function App() {
                   selectionShortcut={event => matches(event, "selectMail", interaction, interactionPlatform()) ? "toggle" :
                     interactionActions.some(({ id }) => matches(event, id, interaction, interactionPlatform())) ? null : "range"}
                   disabled={!loaded || search.pending || busy || settings || !!compose || updateInstalling || !!contextMenu || palette || !!teach || !!snooze || !!trashMail || shortcuts || !!labelMail || !!connecting}
+                  unavailable={mail => performPending || mailMutations.has(mail) || pendingReads.current.has(mail.id)}
                   syncing={syncing} onBlockingChange={setBulkBlocking}>
                 {reader && !split ? reader : filtered.length ? (
                   <MailList
@@ -1663,7 +1673,9 @@ export function App() {
                 }).catch(() => setNotice("Notification preview is unavailable."));
               }}
               state={state}
-              busy={busy}
+              busy={busy || performPending}
+              accountBusy={accountBusy}
+              mailWorkPending={mailWorkPending}
               perform={perform}
               api={api}
               onConnectAccount={setConnecting}
@@ -1738,11 +1750,13 @@ export function App() {
               key={labelMail.id}
               mail={labelMail}
               labels={customLabels(labelMail, state.labels)}
-              busy={busy || syncing}
-              onSave={(labelIds) => void perform(async () => {
-                await api(`/messages/${encodeURIComponent(labelMail.id)}`, "PATCH", { action: "labels", labelIds });
+              busy={mailBusy(labelMail) || syncing}
+              onSave={(labelIds) => {
+                const target = labelMail;
+                if (mailBusy(target)) return;
                 setLabelMail(null);
-              }, "Labels updated.")}
+                void performMail(target, () => api(`/messages/${encodeURIComponent(target.id)}`, "PATCH", { action: "labels", labelIds }), "Labels updated.");
+              }}
             />
           </Dialog>
           </MailPrivacy>
@@ -1862,40 +1876,44 @@ export function App() {
           <TeachDialog
             api={api}
             mail={teach}
-            busy={busy}
+            busy={busy || performPending}
             onClose={() => setTeach(null)}
-            onSave={(input) =>
-              void perform(async () => {
-                await api("/rules", "POST", input);
-                setTeach(null);
-              }, "Sorting updated for this sender.")
-            }
+            onSave={(input) => {
+              if (busy || performPending) return;
+              setTeach(null);
+              void perform(() => api("/rules", "POST", input), "Sorting updated for this sender.");
+            }}
           />
         )}
         {snooze && (
           <SnoozeMenu
             {...snooze}
-            busy={busy}
+            busy={mailBusy(snooze.mail)}
             onClose={closeSnooze}
-            onSnooze={(until) => void perform(async () => {
-              const result = await api<LocalMailActionResponse>(`/messages/${encodeURIComponent(snooze.mail.id)}`, "PATCH", { action: "snooze", until });
+            onSnooze={(until) => {
+              const target = snooze.mail;
+              if (mailBusy(target)) return;
               setSnooze(null);
-              if (selectedId === snooze.mailId) setOpened(false);
-              return result;
-            }, `Email snoozed until ${new Date(until).toLocaleString()}.`, result => result.undo)}
-            onUnsnooze={() => void perform(async () => {
-              const result = await api<LocalMailActionResponse>(`/messages/${encodeURIComponent(snooze.mail.id)}`, "PATCH", { action: "unsnooze" });
+              void performMail(target, async () => {
+                const result = await api<LocalMailActionResponse>(`/messages/${encodeURIComponent(target.id)}`, "PATCH", { action: "snooze", until });
+                navigation.update(current => current.selectedId === target.id ? { ...current, opened: false } : current);
+                return result;
+              }, `Email snoozed until ${new Date(until).toLocaleString()}.`, result => result.undo);
+            }}
+            onUnsnooze={() => {
+              const target = snooze.mail;
+              if (mailBusy(target)) return;
               setSnooze(null);
-              return result;
-            }, "Email returned to inbox.", result => result.undo)}
+              void changeMessage(target, "unsnooze");
+            }}
           />
         )}
         {trashMail && (
           <TrashDialog
-            busy={busy}
+            busy={mailBusy(trashMail)}
             syncing={syncing}
             onConfirm={() => void moveToTrash(trashMail)}
-            onClose={() => { if (!trashLock.current) setTrashMail(null); }}
+            onClose={() => setTrashMail(null)}
           />
         )}
         {shortcuts && <ShortcutsDialog shortcut={shortcut} onClose={() => setShortcuts(false)} />}

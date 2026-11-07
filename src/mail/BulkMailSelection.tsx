@@ -17,10 +17,11 @@ const actions: [BulkMailAction, string][] = [["read", "Mark as read"], ["unread"
 // Matches the server: Sent mail permits only local pins and Trash.
 const sentActions = new Set<BulkMailAction>(["pin", "unpin", "trash"]);
 
-export function BulkMailSelection({ messages, accounts, scope, selectedId, onSelect, api, reload, disabled, syncing = false, onBlockingChange, batch, selectionShortcut, toggleLabel = "X", active = true, railSelect = null, railActions = null, children }: {
+export function BulkMailSelection({ messages, accounts, scope, selectedId, onSelect, api, reload, disabled, syncing = false, onBlockingChange, batch, unavailable, selectionShortcut, toggleLabel = "X", active = true, railSelect = null, railActions = null, children }: {
   messages: RendererMail[]; accounts: Account[]; scope: string; selectedId?: string;
   onSelect: (id: string) => void; api: Api; reload: () => Promise<unknown>;
   batch: ReturnType<typeof useBulkMailAction>;
+  unavailable?: (mail: RendererMail) => boolean;
   selectionShortcut?: (event: globalThis.KeyboardEvent) => "toggle" | "range" | null; toggleLabel?: string;
   railSelect?: HTMLElement | null; railActions?: HTMLElement | null;
   disabled: boolean; syncing?: boolean; active?: boolean; onBlockingChange: (blocking: boolean) => void; children: ReactNode;
@@ -44,9 +45,12 @@ export function BulkMailSelection({ messages, accounts, scope, selectedId, onSel
   }, [messages]);
   const items = selection.scope === scope ? selection.items.filter(item => available.has(selectionKey(item))) : [];
   const selected = new Set(items.map(selectionKey));
-  const blocked = disabled || pending || !!confirmation || snoozing;
+  const blocked = disabled || !!confirmation || snoozing;
   // Selecting is local, so it stays available during sync; only actions wait.
-  const actionsBlocked = blocked || syncing;
+  const actionsBlocked = blocked || pending || syncing || items.some(item => {
+    const mail = available.get(selectionKey(item));
+    return !!mail && !!unavailable?.(mail);
+  });
   useEffect(() => {
     setSelection(current => ({ scope, items: current.scope === scope ? current.items.filter(item => available.has(selectionKey(item))) : [] }));
     // Sync refreshes keep a still-listed range anchor and an open dialog whose targets all remain.
@@ -110,7 +114,10 @@ export function BulkMailSelection({ messages, accounts, scope, selectedId, onSel
     return () => window.removeEventListener("keydown", handler);
   }, [active]);
   const execute = (action: BulkMailAction, submitted = items, until?: number) => {
-    if (pending || disabled || syncing || !submitted.length) return;
+    if (pending || disabled || syncing || !submitted.length || submitted.some(item => {
+      const mail = available.get(selectionKey(item));
+      return !!mail && !!unavailable?.(mail);
+    })) return;
     // Copy only the submitted rows before the request; do not retain the mailbox index.
     const targets = submitted.map(item => available.get(selectionKey(item))).filter((mail): mail is RendererMail => !!mail);
     setConfirmation(null); setSnoozing(false); clear();

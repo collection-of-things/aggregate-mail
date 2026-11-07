@@ -26,12 +26,13 @@ function readerDate(date: number) {
  * An opened email: subject, then one sender line with the recipient beneath
  * and the date at the right, Gmail labels, and the body with its image consent.
  */
-function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onMenuKey, onOpen, onChanged, onReplyAll, onForward, onOpenDraft, onUnsnooze, onChangeTime, onReviewingUnsubscribe, state, fromMeta }: {
+function SingleReader({ mail, provider, labels, busy, isMutationPending, api, onLabels, onMenu, onMenuKey, onOpen, onChanged, onReplyAll, onForward, onOpenDraft, onUnsnooze, onChangeTime, onReviewingUnsubscribe, state, fromMeta }: {
   mail: Mail;
   state?: State;
   provider?: Provider;
   labels: GmailLabel[];
   busy: boolean;
+  isMutationPending?: (mail: Mail) => boolean;
   api: Api;
   onLabels: () => void;
   onOpen?: (mail: Mail) => void;
@@ -48,6 +49,7 @@ function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onM
      reader places its "Selected for actions" text here. */
   fromMeta?: ReactNode;
 }) {
+  const mutationBusy = busy || !!isMutationPending?.(mail);
   const content = useMailBody(mail, api);
   const hydrated = content.mail;
   return (
@@ -71,8 +73,8 @@ function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onM
         </div>
         {mail.snoozedUntil !== null && mail.snoozedUntil > Date.now() && <p className="message-return">
           Returns to Inbox <time dateTime={new Date(mail.snoozedUntil).toISOString()}>{new Date(mail.snoozedUntil).toLocaleString()}</time> (local time)
-          {onUnsnooze && <> · <button type="button" className="link" disabled={busy} onClick={onUnsnooze}>Return to inbox</button></>}
-          {onChangeTime && <> · <button type="button" className="link" disabled={busy} onClick={onChangeTime}>Change time</button></>}
+          {onUnsnooze && <> · <button type="button" className="link" disabled={mutationBusy} onClick={onUnsnooze}>Return to inbox</button></>}
+          {onChangeTime && <> · <button type="button" className="link" disabled={mutationBusy} onClick={onChangeTime}>Change time</button></>}
         </p>}
         {hydrated && <InvitationPanel key={`invitation:${mailBodyKey(mail)}`} mail={hydrated} api={api} onOpenDraft={onOpenDraft} onChanged={onChanged} />}
         {!hydrated && <p role="status">{content.error || "Loading cached email…"}{content.error && <> <button type="button" className="link" onClick={content.retry}>Try again</button></>}</p>}
@@ -80,7 +82,7 @@ function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onM
           loadContent={(id) => api(`/messages/${encodeURIComponent(id)}/content`, "POST")}
           loadImages={(id) => api(`/messages/${encodeURIComponent(id)}/images`, "POST")} />}
         <footer className="reader-secondary-tools">
-        {hydrated && <UnsubscribeAction key={`unsubscribe:${mailBodyKey(mail)}`} mail={hydrated} api={api} busy={busy} onOpenDraft={onOpenDraft} onReviewing={onReviewingUnsubscribe} />}
+        {hydrated && <UnsubscribeAction key={`unsubscribe:${mailBodyKey(mail)}`} mail={hydrated} api={api} busy={mutationBusy} onOpenDraft={onOpenDraft} onReviewing={onReviewingUnsubscribe} />}
         {onReplyAll && <div className="message-labels reader-reply-all"><button type="button" className="link" disabled={busy} onClick={onReplyAll}>Reply all</button></div>}
         {onForward && <div className="message-labels"><button type="button" className="link" disabled={busy} onClick={onForward}>Forward message</button></div>}
         {state && onOpenDraft && <OfferTimes key={`offers:${mail.id}`} mail={mail} state={state} api={api} onOpenDraft={onOpenDraft} />}
@@ -91,7 +93,7 @@ function SingleReader({ mail, provider, labels, busy, api, onLabels, onMenu, onM
                 <span className="reader-label" key={label.id}><Redact text={label.name} /></span>)}
               {customLabels(mail, labels).every((label) => !mail.labelIds?.includes(label.id)) && <Redact text="No labels" />}
             </span>
-            <button className="link" disabled={busy} onClick={onLabels}>Edit labels</button>
+            <button className="link" disabled={mutationBusy} onClick={onLabels}>Edit labels</button>
           </div>
         )}
         </footer>

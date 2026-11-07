@@ -67,6 +67,7 @@ function reader(opened = true, accountFilter = "a", selectedId: string | null = 
     loadRevision: { current: 0 },
     pendingReads: { current: new Set<string>() },
     bulkBatch: { pending: false },
+    mailBusy: (_mail: Mail) => scope.busy || scope.bulkBatch.pending,
     api: async (...args: unknown[]) => { requests.push(args); },
     reload: async () => {},
     quickSource: null, meetingMail: null, view: "inbox", busy: false, updateInstalling: false, draftPicker: false, contextMenu: false, palette: false, settings: false, workView: false, compose: false, teach: false,

@@ -3738,10 +3738,20 @@ home-screen icon caching require separate device verification.
 
 Bulk jobs live above keyed mail panes, so opening cached mail or changing
 folders preserves their admission lock and action results. Confirmations still
-block navigation; submitted work blocks conflicting actions while browsing
-remains available. Opening during a batch skips automatic Mark as read. Reopen
-or use Mark as read after completion. Failed and unknown results remain available
-on the mail list; no provider action is automatically retried.
+block navigation until confirmation; submitted work locks conflicting actions
+only on its exact account/message targets. Drafts, compose editing/saving,
+Contacts, settings preferences and unrelated mail remain available. Automatic
+Mark as read is skipped for pending targets only; unrelated mail keeps normal
+read behavior. Local selection remains available while another batch finishes.
+Failed and unknown results remain available; no provider action retries itself.
+
+Single-message mutations and Forward preparation also run outside foreground
+editor busy state. Confirmed Trash, Snooze and labels release their modal before
+provider waits. Late completion preserves a different reader or composer opened
+in the meantime. Account disconnect/reconnect waits only for that account's
+jobs; provider configuration and backup controls wait without blocking settings
+navigation or preference editing. Sent import and settings saves have separate
+admission state. See [ADR 0128](adr/0128-operation-scoped-mail-waits.md).
 
 Readable-text processing caches a composited background color per ancestor,
 with linear background-cache storage rather than copied background chains.
