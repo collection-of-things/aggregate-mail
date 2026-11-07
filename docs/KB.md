@@ -3753,6 +3753,16 @@ jobs; provider configuration and backup controls wait without blocking settings
 navigation or preference editing. Sent import and settings saves have separate
 admission state. See [ADR 0128](adr/0128-operation-scoped-mail-waits.md).
 
+General background actions now declare account, settings-section or connection
+resources through `src/background-actions.ts`. One account's Sent import cannot
+disable another account's actions or signature saves. Settings jobs retain their
+own admission locks across section changes. The aggregate pending bit drives
+progress and replacement protection, never unrelated controls. Connection checks
+can continue after Close/Escape; App owns late errors and a dialog generation
+prevents completion from replacing a new form. Composer admission and work/event
+editor recovery still protect their retained inputs. For the conflict policy and
+synthetic checks, see [ADR 0129](adr/0129-background-resource-admission.md).
+
 Readable-text processing caches a composited background color per ancestor,
 with linear background-cache storage rather than copied background chains.
 The contrast threshold, translucent surfaces, privacy controls and explicit

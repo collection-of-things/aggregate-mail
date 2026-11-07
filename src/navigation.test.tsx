@@ -3653,3 +3653,179 @@ test("a held Sent import keeps Drafts available while its own fetch button stays
     await app.close();
   }
 });
+
+
+test("background scopes keep unrelated settings and accounts usable during Sent import", async () => {
+  const app = await mount();
+  const original = globalThis.fetch;
+  let finish!: () => void;
+  const wait = new Promise<void>(resolve => { finish = resolve; });
+  globalThis.fetch = async (input, options) => {
+    if (String(input) === "/api/accounts/a/sent/sync") { await wait; return Response.json({}); }
+    return original(input, options);
+  };
+  try {
+    await app.click(app.button("All cached"));
+    await app.click(app.account("first@example.com"));
+    await app.click(app.button("Fetch Sent"));
+    await app.click(app.button("Settings"));
+    await app.click(app.button("Templates and signatures"));
+    const signature = app.container.querySelector<HTMLTextAreaElement>('.settings-pane textarea');
+    assert.ok(signature);
+    assert.equal(signature.disabled, false, "Sent import must not lock signature editing");
+    await app.input(signature, "Synthetic signature");
+    assert.equal(app.button("Save compose preferences").disabled, false);
+    await app.click(app.button("Save compose preferences"));
+    assert.equal(app.composeSaveRequests(), 1);
+    await app.click(app.button("Close settings"));
+    await app.click(app.account("second@example.com"));
+    await app.open("b:1");
+    assert.equal(app.title(), "Gamma");
+    const pin = app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Pin email"]');
+    assert.ok(pin && !pin.disabled, "Sent import for account A must not lock account B");
+    await app.click(pin);
+    assert.ok(app.mailActions.some(item => item.id === "b:1" && item.action === "pin"));
+  } finally {
+    await act(async () => { finish(); await wait; });
+    await app.close();
+  }
+});
+
+
+for (const result of ["success", "failure"] as const) test(`background connection ${result} can be dismissed without hijacking a newer dialog`, async () => {
+  const app = await mount();
+  const original = globalThis.fetch;
+  const previousFormData = Object.getOwnPropertyDescriptor(globalThis, "FormData");
+  Object.defineProperty(globalThis, "FormData", { configurable: true, value: app.window.FormData });
+  let finish!: () => void;
+  const wait = new Promise<void>(resolve => { finish = resolve; });
+  let submissions = 0;
+  globalThis.fetch = async (input, options) => {
+    if (String(input) === "/api/accounts/imap") {
+      submissions++; await wait;
+      return result === "success" ? Response.json({}) : Response.json({ error: "Synthetic connection failure" }, { status: 502 });
+    }
+    return original(input, options);
+  };
+  const chooseProvider = async () => {
+    const row = [...app.container.querySelectorAll('.provider-row')].find(row => row.querySelector('strong')?.textContent === "Fastmail");
+    assert.ok(row);
+    await app.click(row.querySelector<HTMLButtonElement>('button')!);
+  };
+  try {
+    await app.click(app.button("Settings"));
+    await app.click(app.button("Accounts"));
+    await chooseProvider();
+    const dialog = app.container.querySelector('[role="dialog"][aria-label="Connect Fastmail"]')!;
+    await app.input(dialog.querySelector<HTMLInputElement>('[name="email"]')!, "synthetic@example.com");
+    await app.input(dialog.querySelector<HTMLInputElement>('[name="password"]')!, "synthetic-app-password");
+    await act(async () => { dialog.querySelector('form')!.dispatchEvent(new app.window.Event("submit", { bubbles: true, cancelable: true })); });
+    assert.equal(submissions, 1);
+    await app.click(app.button("Close dialog"));
+    assert.equal(dialog.isConnected, false, "a provider wait must not trap the user in Connect");
+    await app.click(app.button("Close settings"));
+    await app.click(app.button("Inbox"));
+    await app.open("a:2");
+    assert.equal(app.title(), "Beta");
+    const search = app.container.querySelector<HTMLInputElement>('.search input')!;
+    assert.equal(search.disabled, false);
+    await app.input(search, "Alpha");
+    await app.input(search, "");
+    await app.click(app.button("New message"));
+    const subject = app.container.querySelector<HTMLInputElement>('.compose-subject input');
+    assert.ok(subject && !subject.disabled, "compose remains available during connection checks");
+    await app.input(subject, "Independent connection draft");
+    await app.click(app.button("Close dialog"));
+    assert.equal(app.savedDraft()?.subject, "Independent connection draft");
+    await app.click(app.button("Settings"));
+    await app.click(app.button("Accounts"));
+    // A new dialog, even for the same provider, belongs to a new context.
+    // The provider choice stays available; only another connection submission waits.
+    await chooseProvider();
+    const replacement = app.container.querySelector('[role="dialog"][aria-label="Connect Fastmail"]')!;
+    assert.ok(replacement);
+    assert.equal(replacement.querySelector<HTMLButtonElement>('[type="submit"], button.button')?.disabled, true);
+    await act(async () => { finish(); await wait; });
+    assert.equal(replacement.isConnected, true, "late connection completion must preserve the new dialog");
+    assert.equal(submissions, 1, "no automatic duplicate connection check");
+    if (result === "failure") assert.match(app.container.textContent!, /Synthetic connection failure/);
+  } finally {
+    await act(async () => { finish(); await wait; });
+    if (previousFormData) Object.defineProperty(globalThis, "FormData", previousFormData);
+    else Reflect.deleteProperty(globalThis, "FormData");
+    await app.close();
+  }
+});
+
+
+test("background settings jobs retain their own lock across sections without blocking signature saves", async () => {
+  const app = await mount();
+  const original = globalThis.fetch;
+  let finish!: () => void;
+  const wait = new Promise<void>(resolve => { finish = resolve; });
+  let calls = 0;
+  globalThis.fetch = async (input, options) => {
+    if (String(input) === "/api/logos/sync") {
+      calls++; await wait; return Response.json({ total: 1, found: 1, missing: 0, failed: 0 });
+    }
+    return original(input, options);
+  };
+  try {
+    await app.click(app.button("Settings"));
+    await app.click(app.button("Sender logos"));
+    await app.click(app.button("Fetch company logos"));
+    assert.equal(app.button("Fetch company logos").disabled, true);
+    await app.click(app.button("Templates and signatures"));
+    const signature = app.container.querySelector<HTMLTextAreaElement>('.settings-pane textarea')!;
+    assert.equal(signature.disabled, false);
+    await app.input(signature, "Independent settings signature");
+    await app.click(app.button("Save compose preferences"));
+    assert.equal(app.composeSaveRequests(), 1);
+    await app.click(app.button("Sender logos"));
+    assert.equal(app.button("Fetch company logos").disabled, true, "the job outlives its form");
+    await app.click(app.button("Fetch company logos"));
+    assert.equal(calls, 1);
+    await app.click(app.button("Close settings"));
+    await app.open("a:1");
+    assert.equal(app.title(), "Alpha");
+    assert.equal(app.container.querySelector<HTMLButtonElement>('.mail-actions [aria-label="Pin email"]')?.disabled, false);
+  } finally {
+    await act(async () => { finish(); await wait; });
+    await app.close();
+  }
+});
+
+
+for (const fails of [false, true]) test(`background rename ${fails ? "failure" : "success"} preserves another account's editor`, async () => {
+  const app = await mount();
+  const original = globalThis.fetch;
+  let finish!: () => void;
+  const wait = new Promise<void>(resolve => { finish = resolve; });
+  globalThis.fetch = async (input, options) => {
+    if (String(input) === "/api/accounts/a" && options?.method === "PATCH") {
+      await wait;
+      if (fails) return Response.json({ error: "Synthetic rename failure" }, { status: 502 });
+    }
+    return original(input, options);
+  };
+  const rename = (id: string) => [...app.container.querySelectorAll<HTMLButtonElement>(`#settings-account-${id} button`)].find(button => button.textContent === "Rename")!;
+  try {
+    await app.click(app.button("Settings")); await app.click(app.button("Accounts"));
+    await app.click(rename("a"));
+    await app.input(app.container.querySelector<HTMLInputElement>('.account-name-form input')!, "Renamed A");
+    await app.click(app.button("Save"));
+    assert.equal(rename("a").disabled, true);
+    assert.equal(rename("b").disabled, false);
+    await app.click(rename("b"));
+    const field = app.container.querySelector<HTMLInputElement>('.account-name-form input')!;
+    await app.input(field, "Retained B edit");
+    await act(async () => { finish(); await wait; });
+    assert.equal(field.isConnected, true, "late result must not close another account's editor");
+    assert.equal(field.value, "Retained B edit");
+    assert.equal(field.getAttribute("aria-describedby"), null, "the new form must not inherit another account's error");
+    assert.equal(app.container.querySelector('.account-name-form [role="alert"]'), null, "late errors belong to the original account");
+  } finally {
+    await act(async () => { finish(); await wait; });
+    await app.close();
+  }
+});

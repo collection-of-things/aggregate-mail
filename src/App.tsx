@@ -40,6 +40,7 @@ import { ListEmpty } from "./mail/ListEmpty";
 import { MailActions } from "./mail/MailActions";
 import { MailFilters, type PinnedScope } from "./mail/MailFilters";
 import type { MailIdentity } from "../shared/bulk-mail";
+import { exclusiveScope, useBackgroundActions, type ActionScope } from "./background-actions";
 import { useMailMutations } from "./mail/use-mail-mutations";
 import { useBulkMailAction } from "./mail/use-bulk-mail-action";
 import { BulkMailSelection } from "./mail/BulkMailSelection";
@@ -132,6 +133,8 @@ export function App() {
   const [contextMenu, setContextMenu] = useState<ReturnType<typeof mailMenuRequest> | null>(null);
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
   const [connecting, setConnecting] = useState<ImapProvider | "choose" | null>(null);
+  const connectionGeneration = useRef(0);
+  useLayoutEffect(() => { connectionGeneration.current++; }, [connecting]);
   const [compose, setCompose] = useState<Compose | null>(null);
   const [replyContext, setReplyContext] = useState<Mail | undefined>();
   const afterCompose = useRef<
@@ -344,12 +347,12 @@ export function App() {
     () => { try { return localStorage.getItem("emc2.density") === "compact" ? "compact" : "comfortable"; } catch { return "comfortable"; } },
   );
   const storedDensity = useRef(density);
-  const [busy, setBusy] = useState(false);
-  const [performPending, setPerformPending] = useState(false);
-  const performLock = useRef(false);
-  const mailBusy = (mail: MailIdentity) => busy || performPending || bulkBatch.has(mail) || mailMutations.has(mail);
+  // Only draft/send admission owns this flag; background requests use resource scopes.
+  const [composeBusy, setComposeBusy] = useState(false);
+  const backgroundActions = useBackgroundActions();
+  const mailBusy = (mail: MailIdentity) => composeBusy || backgroundActions.blocksMail(mail.accountId) || bulkBatch.has(mail) || mailMutations.has(mail);
   const mailWorkPending = bulkBatch.pending || mailMutations.pending;
-  const accountBusy = (id: string) => bulkBatch.hasAccount(id) || mailMutations.hasAccount(id) ||
+  const accountBusy = (id: string) => backgroundActions.blocked({ kind: "account", accountId: id }) || bulkBatch.hasAccount(id) || mailMutations.hasAccount(id) ||
     (pendingReads.current.size > 0 && state.messages.some(mail => mail.accountId === id && pendingReads.current.has(mail.id)));
   const [syncing, setSyncing] = useState(false);
   const [notifications, setNotifications] = useState(readNotifications);
@@ -377,7 +380,7 @@ export function App() {
   const [ready, setReady] = useState(false);
   const swipeNavigation = useSwipe(direction => travel(direction === "right" ? -1 : 1),
     ready && !window.desktop && !roomy && interaction.touchNavigation && !navigationBlocked &&
-    !mobileSidebarOpen && !contextMenu && !palette && !busy && !eventDirty);
+    !mobileSidebarOpen && !contextMenu && !palette && !composeBusy && !eventDirty);
   const [mailLoadError, setMailLoadError] = useState("");
   const startupLoad = useRef<AbortController | undefined>(undefined);
   const csrf = useRef("");
@@ -451,16 +454,16 @@ export function App() {
   };
   const runDraftAction = (task: (session: DraftSession) => Promise<void>) => {
     const session = draftSession.current;
-    if (!session || busy || sendLock.current || draftAdmissionLock.current || updateInstalling) return;
+    if (!session || composeBusy || sendLock.current || draftAdmissionLock.current || updateInstalling) return;
     draftAdmissionLock.current = true;
-    setBusy(true);
+    setComposeBusy(true);
     draftTask.current = Promise.resolve(attachmentTask.current).then(() => {
       // Admit the current FileReader completion before freezing draft edits.
       draftLock.current = true;
       return task(session);
     }).catch(() => {
       setNotice("Draft action could not be confirmed. Your text is still open. Check the draft save status before closing.");
-    }).finally(() => { draftAdmissionLock.current = false; draftLock.current = false; setBusy(false); });
+    }).finally(() => { draftAdmissionLock.current = false; draftLock.current = false; setComposeBusy(false); });
   };
   const closeCompose = () => runDraftAction(async (session) => {
     await session.flush();
@@ -684,7 +687,7 @@ export function App() {
   useLayoutEffect(() => { draftOpenGuard.current = draftOpeningAllowed; });
   const outboxGeneration = composeGeneration.current;
   const outboxOpenContext = useRef({ allowed: false, scheduled: false, accounts: state.accounts });
-  useLayoutEffect(() => { outboxOpenContext.current = { allowed: draftOpeningAllowed && !busy, scheduled: scheduledOpen && !busy && !updateInstalling && !settingsModal && !workModal, accounts: state.accounts }; });
+  useLayoutEffect(() => { outboxOpenContext.current = { allowed: draftOpeningAllowed && !composeBusy, scheduled: scheduledOpen && !composeBusy && !updateInstalling && !settingsModal && !workModal, accounts: state.accounts }; });
   const openOutboxDraft = (draft: Draft) => {
     const context = outboxOpenContext.current;
     if (context.allowed && outboxGeneration === composeGeneration.current && !draftSession.current &&
@@ -739,11 +742,12 @@ export function App() {
       setNotice(error instanceof Error ? error.message : "Action failed.");
     }
   };
-  const perform = async <T,>(task: () => Promise<T>, success?: string, localUndo?: (result: T) => LocalMailUndo | undefined) => {
-    if (busy || performLock.current) return;
-    performLock.current = true; setPerformPending(true);
-    try { await executeAction(task, success, localUndo); }
-    finally { performLock.current = false; setPerformPending(false); }
+  const scopeBusy = (scope: ActionScope) => backgroundActions.blocked(scope) ||
+    (exclusiveScope(scope) && (mailWorkPending || pendingReads.current.size > 0)) ||
+    (scope.kind === "account" && accountBusy(scope.accountId));
+  const perform = async (scope: ActionScope, task: () => Promise<unknown>, success?: string) => {
+    if (scopeBusy(scope)) return;
+    await backgroundActions.run(scope, () => executeAction(task, success));
   };
   const performMail = <T,>(mail: MailIdentity, task: () => Promise<T>, success?: string, localUndo?: (result: T) => LocalMailUndo | undefined) => {
     if (mailBusy(mail)) return;
@@ -833,7 +837,7 @@ export function App() {
   useEffect(() => window.desktop?.notifications?.onOpen(requestNotificationMail), [requestNotificationMail]);
   const notifyMissedSchedules = useCallback((count: number) => { window.desktop?.notifications?.missed(count); }, []);
   useEffect(() => {
-    if (!loaded || busy || syncing || navigationBlocked || contextMenu || palette || !notificationTargets.length) return;
+    if (!loaded || composeBusy || syncing || navigationBlocked || contextMenu || palette || !notificationTargets.length) return;
     const id = notificationTargets[0];
     setNotificationTargets((ids) => ids.slice(1));
     const mail = state.messages.find((mail) => mail.id === id && state.accounts.some((account) => account.id === mail.accountId));
@@ -919,7 +923,7 @@ export function App() {
   const previousMail = neighbours[neighbourIndex - 1];
   const nextMail = neighbours[neighbourIndex + 1];
   type MailMenuId = "open" | "read" | "unread" | "inbox" | "pin" | "reply" | "reply-all" | "forward-mail" | "archive" | "snooze" | "unsnooze" | "trash" | "track" | "meeting" | "teach";
-  const busyReason = busy ? "Another action is in progress" : syncing ? "Mail is syncing" : undefined;
+  const busyReason = composeBusy ? "Another action is in progress" : syncing ? "Mail is syncing" : undefined;
   // Why a mailbox-state action is unavailable; undefined while it can run.
   const mailActionReason = (mail: Mail) =>
     mail.archived ? "Already archived" : mail.direction === "sent" ? "Not available for sent mail" : mailBusy(mail) ? "This email has an action in progress" : busyReason;
@@ -933,16 +937,16 @@ export function App() {
     { id: "inbox", key: shortcut("inbox"), label: "Move to Inbox", disabled: mailBusy(mail) || syncing || !mail.archived || mail.direction === "sent",
       description: mail.direction === "sent" ? "Not available for sent mail" : !mail.archived ? "Already in Inbox" : busyReason, run: () => void changeMessage(mail, "inbox") },
     { id: "pin", key: shortcut("pin"), label: mail.pinned ? "Unpin email" : "Pin email", disabled: mailBusy(mail), description: mailBusy(mail) ? "An action is pending for this email" : undefined, run: () => void changeMessage(mail, mail.pinned ? "unpin" : "pin") },
-    { id: "reply", label: "Reply", key: shortcut("reply"), disabled: busy, description: busy ? "Another action is in progress" : undefined, separator: true, run: () => startCompose(mail) },
-    { id: "reply-all", key: shortcut("replyAll"), label: "Reply all", disabled: busy, description: busy ? "Another action is in progress" : undefined, run: () => startCompose(mail, true) },
+    { id: "reply", label: "Reply", key: shortcut("reply"), disabled: composeBusy, description: composeBusy ? "Another action is in progress" : undefined, separator: true, run: () => startCompose(mail) },
+    { id: "reply-all", key: shortcut("replyAll"), label: "Reply all", disabled: composeBusy, description: composeBusy ? "Another action is in progress" : undefined, run: () => startCompose(mail, true) },
     { id: "forward-mail", label: "Forward message", key: shortcut("forwardMail"), disabled: mailBusy(mail) || !!forwardRequest.current, run: () => void forwardMail(mail) },
     { id: "archive", label: "Archive", key: shortcut("done"), disabled: mailBusy(mail) || syncing || mail.archived || mail.direction === "sent", description: mailActionReason(mail), separator: true, run: () => archive(mail) },
     { id: "snooze", label: "Snooze", key: shortcut("snooze"), disabled: mailBusy(mail) || syncing || mail.archived || mail.direction === "sent", description: mailActionReason(mail), run: () => showSnooze(mail) },
     ...(isSnoozed(mail) ? [{ id: "unsnooze" as const, label: "Return to inbox", disabled: mailBusy(mail) || syncing, description: busyReason, run: () => void changeMessage(mail, "unsnooze") }] : []),
     { id: "trash", label: "Move to Trash", disabled: mailBusy(mail) || syncing || !!trashUnavailable(mail), description: trashUnavailable(mail) ?? (mailBusy(mail) ? "An action is pending for this email" : busyReason), run: () => setTrashMail(mail) },
-    { id: "track", label: "Track work", disabled: busy || navigationBlocked, description: busy ? "Another action is in progress" : navigationBlocked ? "Not available right now" : undefined, run: () => openTracking(mail) },
-    { id: "meeting", label: "Schedule meeting", disabled: busy || navigationBlocked, description: busy ? "Another action is in progress" : navigationBlocked ? "Not available right now" : undefined, run: () => openMeeting(mail) },
-    { id: "teach", label: "Teach sorting", key: shortcut("teach"), disabled: busy || syncing, description: busyReason, separator: true, run: () => setTeach(mail) },
+    { id: "track", label: "Track work", disabled: composeBusy || navigationBlocked, description: composeBusy ? "Another action is in progress" : navigationBlocked ? "Not available right now" : undefined, run: () => openTracking(mail) },
+    { id: "meeting", label: "Schedule meeting", disabled: composeBusy || navigationBlocked, description: composeBusy ? "Another action is in progress" : navigationBlocked ? "Not available right now" : undefined, run: () => openMeeting(mail) },
+    { id: "teach", label: "Teach sorting", key: shortcut("teach"), disabled: composeBusy || syncing, description: busyReason, separator: true, run: () => setTeach(mail) },
   ];
   const showMailMenu = (event: ReactMouseEvent<HTMLElement> | ReactKeyboardEvent<HTMLElement>, mail: Mail, select = true) => {
     if (select) setSelectedId(mail.id);
@@ -1094,7 +1098,7 @@ export function App() {
       if (target instanceof HTMLElement && target.closest("#sidebar")) return;
       const draftControl = target instanceof HTMLElement && !!target.closest(".draft-list, .draft-tab-bar");
       const inbox = !draftControl && !settings && !nonMailView && view !== "drafts";
-      const mailActions = !draftControl && (inbox || !settings && inlineWorkView && opened && !busy);
+      const mailActions = !draftControl && (inbox || !settings && inlineWorkView && opened && !composeBusy);
       if (inbox && ["PageDown", "PageUp"].includes(event.key) &&
         !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
         event.preventDefault();
@@ -1273,7 +1277,7 @@ export function App() {
       mail={selected}
       opened={opened}
       reading={reading.has(selected.id)}
-      busy={busy}
+      busy={composeBusy}
       mutationBusy={mailBusy(selected)}
       syncing={syncing}
       snoozed={isSnoozed(selected)}
@@ -1305,7 +1309,7 @@ export function App() {
       onReviewingUnsubscribe={setReviewingUnsubscribe}
       provider={selectedAccount?.provider}
       labels={state.labels}
-      busy={busy || syncing}
+      busy={composeBusy || syncing}
       isMutationPending={mail => mailBusy(mail) || syncing}
       api={api}
       onOpen={inlineWorkView ? openWorkSource : jumpTo}
@@ -1321,10 +1325,10 @@ export function App() {
   );
   const historyControls = (
     <nav className="mail-navigation" aria-label="Mail history">
-      <button data-compose-access type="button" aria-label="Back" title="Back" disabled={toolbarBlocked || !!contextMenu || (!!compose && busy) || !(navigation.canBack || compose)} onClick={() => travel(-1)}>
+      <button data-compose-access type="button" aria-label="Back" title="Back" disabled={toolbarBlocked || !!contextMenu || (!!compose && composeBusy) || !(navigation.canBack || compose)} onClick={() => travel(-1)}>
         <ArrowLeft size={15} />
       </button>
-      <button data-compose-access type="button" aria-label="Forward" title="Forward" disabled={toolbarBlocked || !!contextMenu || (!!compose && busy) || !navigation.canForward} onClick={() => travel(1)}>
+      <button data-compose-access type="button" aria-label="Forward" title="Forward" disabled={toolbarBlocked || !!contextMenu || (!!compose && composeBusy) || !navigation.canForward} onClick={() => travel(1)}>
         <ArrowRight size={15} />
       </button>
     </nav>
@@ -1404,7 +1408,7 @@ export function App() {
   });
   const commands: PaletteCommand[] = [
     ...savedViews.commands,
-    { id: "undo-local", label: "Undo last action", group: "navigation", disabled: !lastUndo || busy || syncing || toolbarBlocked || (!!lastUndo && mailBusy(lastUndo)),
+    { id: "undo-local", label: "Undo last action", group: "navigation", disabled: !lastUndo || composeBusy || syncing || toolbarBlocked || (!!lastUndo && mailBusy(lastUndo)),
       disabledReason: !lastUndo ? "No local action to undo" : mailBusy(lastUndo) || syncing || toolbarBlocked ? "Another action is in progress for this email" : undefined,
       run: () => { if (lastUndo) void undoLocalAction(lastUndo); } },
     ...interactionActions.flatMap(({ id, label }) => id in paletteActions ? [{ id, label, group: "navigation" as const,
@@ -1435,15 +1439,15 @@ export function App() {
         data-view={settings ? "settings" : view}
         style={{ "--text-scale": textScale } as React.CSSProperties}
       >
-        <ToastStack outbox={<OutboxNotices api={api} refreshKey={outboxRefresh} enabled={loaded} onScheduled={() => setScheduledOpen(true)} onMissed={notifyMissedSchedules} blocked={busy || updateInstalling || scheduledOpen || !!compose || settingsModal || workModal} onEdit={openOutboxDraft} onNotice={outboxNotice} onChanged={() => { void reload().catch(() => {}); }} />} toasts={toasts} onDismiss={dismissToast} position={notifications.position} preferences={notifications} onOpen={requestNotificationMail} onUndo={receipt => void undoLocalAction(receipt)} undoDisabled={busy || syncing || toolbarBlocked} undoPending={mailBusy} />
+        <ToastStack outbox={<OutboxNotices api={api} refreshKey={outboxRefresh} enabled={loaded} onScheduled={() => setScheduledOpen(true)} onMissed={notifyMissedSchedules} blocked={composeBusy || updateInstalling || scheduledOpen || !!compose || settingsModal || workModal} onEdit={openOutboxDraft} onNotice={outboxNotice} onChanged={() => { void reload().catch(() => {}); }} />} toasts={toasts} onDismiss={dismissToast} position={notifications.position} preferences={notifications} onOpen={requestNotificationMail} onUndo={receipt => void undoLocalAction(receipt)} undoDisabled={composeBusy || syncing || toolbarBlocked} undoPending={mailBusy} />
         {scheduledOpen && <Dialog title="Scheduled" onClose={() => setScheduledOpen(false)}>
           <p className="dialog-copy">Emc² must be running and online. Sleep, restart and missed offline schedules require review. Unknown outcomes are never retried automatically.</p>
-          <OutboxNotices api={api} scheduledOnly enabled={loaded} blocked={busy || updateInstalling}
+          <OutboxNotices api={api} scheduledOnly enabled={loaded} blocked={composeBusy || updateInstalling}
             onEdit={openScheduledDraft} onNotice={outboxNotice} onChanged={() => { setOutboxRefresh(current => current + 1); void reload().catch(() => {}); }} />
         </Dialog>}
 
         <BrowserUpdateNotice
-          blocked={scheduledOpen || !loaded || busy || performPending || syncing || navigationBlocked || nonMailView || view === "drafts" || eventDirty || composeSaving || !!palette || !!contextMenu || !!pendingReads.current.size || sendLock.current || syncLock.current || mailWorkPending || (!!composeDraft && JSON.stringify(composeDraft) !== JSON.stringify(state.composePreferences ?? emptyComposePreferences))}
+          blocked={scheduledOpen || !loaded || composeBusy || backgroundActions.pending || syncing || navigationBlocked || nonMailView || view === "drafts" || eventDirty || composeSaving || !!palette || !!contextMenu || !!pendingReads.current.size || sendLock.current || syncLock.current || mailWorkPending || (!!composeDraft && JSON.stringify(composeDraft) !== JSON.stringify(state.composePreferences ?? emptyComposePreferences))}
           writes={browserWrites}
           onReload={() => { rememberBrowserUpdateLocation(navigation.location); window.location.reload(); }}
         />
@@ -1466,8 +1470,8 @@ export function App() {
               accountFilter,
               onAccount: (id) => fromSidebar(() => navigate({ page: "mail", accountFilter: id, labelFilter: "all", selectedId: null, opened: false })),
               privacy,
-              blocked: toolbarBlocked || (!!compose && busy),
-              busy,
+              blocked: toolbarBlocked || (!!compose && composeBusy),
+              busy: composeBusy,
               onAddAccount: () => fromSidebar(() => compose ? leaveCompose({ type: "connect" }) : setConnecting("choose")),
               onCompose: () => fromSidebar(() => compose ? leaveCompose({ type: "new" }) : startCompose()),
               onDrafts: () => fromSidebar(() => switchView("drafts")),
@@ -1498,7 +1502,7 @@ export function App() {
                 onSaveView={!settings && !nonMailView && !compose && savedViews.canSave ? savedViews.startSave : undefined}
                 label="Search cached mail and saved drafts"
                 optionsOpen={searchOptions} onOptions={() => { setSearching(true); setSearchOptions(value => !value); }}
-                invalid={!settings && !nonMailView && !!search.error} disabled={toolbarBlocked} commandsDisabled={toolbarBlocked || (!!compose && busy)} shortcut={shortcut("search")} onFocus={() => setSearching(true)}
+                invalid={!settings && !nonMailView && !!search.error} disabled={toolbarBlocked} commandsDisabled={toolbarBlocked || (!!compose && composeBusy)} shortcut={shortcut("search")} onFocus={() => setSearching(true)}
                 onChange={(value) => {
                   setSearching(true);
                   if (toolbarBlocked) return;
@@ -1512,7 +1516,7 @@ export function App() {
                   location={navigation.location}
                   labels={labels}
                   accounts={state.accounts}
-                  blocked={toolbarBlocked || (!!compose && busy)}
+                  blocked={toolbarBlocked || (!!compose && composeBusy)}
                   showReset={hasListControls}
                   labelName={(name) => privacy ? redactPrivateText(name, [...ambientPrivateNames, ...collectPrivateNames(state.accounts, opened ? selected || {} : {})]) : name}
                   onOpen={(open) => open && compose ? leaveCompose({ type: "filters" }) : setFiltersOpen(open)}
@@ -1525,16 +1529,16 @@ export function App() {
               {!settings && historyControls}
               <div className="update-spacer" aria-hidden="true" />
             </PaneHeader>
-            {(mailWorkPending || performPending) && <div className="bulk-progress" role="status">{bulkBatch.pending ? "Applying message actions…" : mailMutations.pending ? "Updating email…" : "Finishing action…"} You can keep using the app.</div>}
+            {(mailWorkPending || backgroundActions.pending) && <div className="bulk-progress" role="status">{bulkBatch.pending ? "Applying message actions…" : mailMutations.pending ? "Updating email…" : "Finishing action…"} You can keep using the app.</div>}
             <div hidden={!searching || settings || nonMailView}>
               <Notice text={!settings && !nonMailView ? search.error || "" : ""} />
               <span id="mail-search-help" className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{search.error || (search.pending ? "Searching cached mail and saved drafts…" : `${filtered.length} mail results${search.typos ? " with close spellings, no exact match" : ""}${showSearchDrafts ? `, ${search.drafts.filter(draft => accountFilter === "all" || draft.accountId === accountFilter).length} saved drafts` : ""}. ${mailSearchScope(navigation.location, state.accounts, activeLabel, privacy, showSearchDrafts, ambientPrivateNames)}`)}</span>
               {searchOptions && <div className="search-help" id="search-options">
-              <ProviderSearch api={api} query={query} account={searchAccount} accountName={searchAccount ? accountLabel(searchAccount, state.accounts.indexOf(searchAccount), privacy, state.accounts) : ""} blocked={toolbarBlocked || busy} visible={!settings && !nonMailView && view !== "drafts" && !search.error && !search.pending} reload={reload} />
+              <ProviderSearch api={api} query={query} account={searchAccount} accountName={searchAccount ? accountLabel(searchAccount, state.accounts.indexOf(searchAccount), privacy, state.accounts) : ""} blocked={toolbarBlocked || composeBusy} visible={!settings && !nonMailView && view !== "drafts" && !search.error && !search.pending} reload={reload} />
               <p>Use from:, to:, subject:, body:, account:, is:unread, is:pinned, before:YYYY-MM-DD or after:YYYY-MM-DD. Words match anywhere in sender, recipients, subject or text. When nothing matches exactly, unquoted words of 4 or more letters allow one typo. Searches imported mail and saved drafts on this device, including Sent, Archive and Snoozed. Provider history may be incomplete. With one account selected, searching older mail asks the provider for up to 100 more matches: Gmail uses Gmail search, IMAP searches Archive (or All Mail) and Sent, and account: and is:pinned apply only on this device.</p></div>}
             </div>
         {contactsView ? (
-          <div className="contacts-pane" inert={!!compose}><ContactsPage key={accountFilter} api={api} accounts={state.accounts} accountFilter={accountFilter} busy={busy} /></div>
+          <div className="contacts-pane" inert={!!compose}><ContactsPage key={accountFilter} api={api} accounts={state.accounts} accountFilter={accountFilter} busy={composeBusy} /></div>
         ) : view === "drafts" ? (
           <main className="drafts-pane" inert={!!compose}>
             <h1 className="pane-title visually-hidden">Drafts</h1>
@@ -1556,7 +1560,7 @@ export function App() {
               {(view === "sent" || view === "all") && <PaneHeader className="main-head mail-view-head" corner={null} maximized={maximized}>
                 {fullReader ? null : <div className="rail-select" ref={setRailSelect} />}
                 <span className="view-summary">{loaded ? `${filtered.length} cached ${filtered.length === 1 ? "message" : "messages"}${query.trim() && search.typos ? " · No exact match, showing close spellings" : ""}` : "Loading cached mail"}</span>
-                {(view === "sent" || view === "all") && <div className="head-note"><button type="button" title={accountFilter === "all" ? "Select one account to fetch up to 50 Sent messages" : "Fetch up to 50 Sent messages"} disabled={busy || performPending || accountFilter === "all"} onClick={() => void perform(async () => { const coverage = await api<SentCoverage>(`/accounts/${encodeURIComponent(accountFilter)}/sent/sync`, "POST", { bound: 50 }); if (coverage.error) throw new Error("Sent import failed. Existing cached mail remains available."); }, "Sent cache refreshed.")}>Fetch Sent</button></div>}
+                {(view === "sent" || view === "all") && <div className="head-note"><button type="button" title={accountFilter === "all" ? "Select one account to fetch up to 50 Sent messages" : "Fetch up to 50 Sent messages"} disabled={composeBusy || accountFilter === "all" || scopeBusy({ kind: "account", accountId: accountFilter })} onClick={() => void perform({ kind: "account", accountId: accountFilter }, async () => { const coverage = await api<SentCoverage>(`/accounts/${encodeURIComponent(accountFilter)}/sent/sync`, "POST", { bound: 50 }); if (coverage.error) throw new Error("Sent import failed. Existing cached mail remains available."); }, "Sent cache refreshed.")}>Fetch Sent</button></div>}
               </PaneHeader>}
               {(!fullReader || showInboxCategories || combinedReaderToolbar) && <div className="mail-category-bar">
                 {fullReader || view === "sent" || view === "all" ? null : <div className="rail-select" ref={setRailSelect} />}
@@ -1583,8 +1587,8 @@ export function App() {
                   toggleLabel={shortcut("selectMail")}
                   selectionShortcut={event => matches(event, "selectMail", interaction, interactionPlatform()) ? "toggle" :
                     interactionActions.some(({ id }) => matches(event, id, interaction, interactionPlatform())) ? null : "range"}
-                  disabled={!loaded || search.pending || busy || settings || !!compose || updateInstalling || !!contextMenu || palette || !!teach || !!snooze || !!trashMail || shortcuts || !!labelMail || !!connecting}
-                  unavailable={mail => performPending || mailMutations.has(mail) || pendingReads.current.has(mail.id)}
+                  disabled={!loaded || search.pending || composeBusy || settings || !!compose || updateInstalling || !!contextMenu || palette || !!teach || !!snooze || !!trashMail || shortcuts || !!labelMail || !!connecting}
+                  unavailable={mail => backgroundActions.blocksMail(mail.accountId) || mailMutations.has(mail) || pendingReads.current.has(mail.id)}
                   syncing={syncing} onBlockingChange={setBulkBlocking}>
                 {reader && !split ? reader : filtered.length ? (
                   <MailList
@@ -1598,7 +1602,7 @@ export function App() {
                     opening={interaction.opening}
                     mailGestures={ready && !window.desktop && !roomy && interaction.mailGestures}
                     onSwipe={(mail, direction) => {
-                      if (navigationBlocked || mobileSidebarOpen || contextMenu || palette || busy || syncing || eventDirty) return;
+                      if (navigationBlocked || mobileSidebarOpen || contextMenu || palette || composeBusy || syncing || eventDirty) return;
                       const action = mailMenuActions(mail).find(item => item.id === (direction === "left" ? "archive" : mail.unread ? "read" : "unread"));
                       if (action && !action.disabled) action.run();
                     }}
@@ -1673,7 +1677,8 @@ export function App() {
                 }).catch(() => setNotice("Notification preview is unavailable."));
               }}
               state={state}
-              busy={busy || performPending}
+              busy={composeBusy}
+              scopeBusy={scopeBusy}
               accountBusy={accountBusy}
               mailWorkPending={mailWorkPending}
               perform={perform}
@@ -1686,11 +1691,12 @@ export function App() {
               composeSaving={composeSaving}
               onComposeDraft={setComposeDraft}
               onComposePreferences={async (value) => {
+                if (scopeBusy({ kind: "settings", section: "compose" })) throw new Error("Wait for the conflicting settings action to finish.");
                 if (composeSaveLock.current) throw new Error("Compose preferences are already saving.");
                 composeSaveLock.current = true;
                 setComposeSaving(true);
                 try {
-                  const saved = await api<ComposePreferences>("/compose-preferences", "PUT", value);
+                  const saved = await backgroundActions.run({ kind: "settings", section: "compose" }, () => api<ComposePreferences>("/compose-preferences", "PUT", value));
                   setState((current) => ({ ...current, composePreferences: saved }));
                   setComposeDraft((current) => current === value ? undefined : current);
                   pushToast("Templates and signatures saved.", "success");
@@ -1745,7 +1751,7 @@ export function App() {
         )}
         {labelMail && (
           <MailPrivacy mail={labelMail}>
-          <Dialog title="Gmail labels" onClose={() => { if (!busy) setLabelMail(null); }}>
+          <Dialog title="Gmail labels" onClose={() => { if (!composeBusy) setLabelMail(null); }}>
             <LabelForm
               key={labelMail.id}
               mail={labelMail}
@@ -1764,19 +1770,26 @@ export function App() {
         {connecting === "choose" ? (
           <Dialog title="Connect account" onClose={() => setConnecting(null)}>
             <p className="dialog-copy">Choose your email provider.</p>
-            <ProviderChoices api={api} googleConfigured={state.googleConfigured} busy={busy} onChoose={setConnecting} />
+            <ProviderChoices api={api} googleConfigured={state.googleConfigured} busy={composeBusy} onChoose={setConnecting} />
           </Dialog>
         ) : connecting && (
           <ConnectDialog
             key={connecting}
             provider={connecting}
-            busy={busy}
+            busy={composeBusy || scopeBusy({ kind: "connect" })}
             onClose={() => setConnecting(null)}
             onBack={() => setConnecting("choose")}
             onConnect={async (input) => {
-              await api("/accounts/imap", "POST", input);
-              setConnecting(null);
-              setNotice("Account connected. Syncing your inbox.");
+              const generation = connectionGeneration.current;
+              if (scopeBusy({ kind: "connect" })) throw new Error("A connection check is already in progress.");
+              try {
+                await backgroundActions.run({ kind: "connect" }, () => api("/accounts/imap", "POST", input));
+              } catch (error) {
+                if (generation !== connectionGeneration.current) setNotice(error instanceof Error ? error.message : "Connection failed. Open Connect account to try again.");
+                throw error;
+              }
+              if (generation === connectionGeneration.current) setConnecting(null);
+              pushToast("Account connected. Syncing your inbox.", "success");
               try {
                 await reload();
                 void sync();
@@ -1812,7 +1825,7 @@ export function App() {
               const saved = await api<ComposePreferences>("/compose-preferences", "PUT", { ...current, undoSendSeconds: seconds });
               setState(currentState => ({ ...currentState, composePreferences: saved }));
             })}
-            busy={busy || updateInstalling}
+            busy={composeBusy || updateInstalling}
             progress={draftProgress}
             onClose={closeCompose}
             onDiscard={() => runDraftAction(async (session) => {
@@ -1825,12 +1838,12 @@ export function App() {
               setCompose(session.content);
             })}
             onSaveCopy={() => {
-              if (busy || sendLock.current || draftAdmissionLock.current || attachmentTask.current || updateInstalling) return;
+              if (composeBusy || sendLock.current || draftAdmissionLock.current || attachmentTask.current || updateInstalling) return;
               if (confirm("Save a separate copy? The previous saved draft may still exist. Neither copy will be sent automatically.")) openCompose(draftSession.current?.content || compose);
             }}
             onSend={scheduleAt => {
               const session = draftSession.current;
-              if (!session || busy || draftAdmissionLock.current || sendLock.current || attachmentTask.current || updateInstalling) return;
+              if (!session || composeBusy || draftAdmissionLock.current || sendLock.current || attachmentTask.current || updateInstalling) return;
               const snapshot = { ...session.content, to: session.content.to.map(value => value.trim()).filter(Boolean), cc: session.content.cc?.map((value) => value.trim()).filter(Boolean), bcc: session.content.bcc?.map(value => value.trim()).filter(Boolean) };
               sendTask.current = sendCompose(snapshot, {
                 lock: sendLock,
@@ -1865,7 +1878,7 @@ export function App() {
                   if (value === null) { draftSession.current = null; setOutboxRefresh(current => current + 1); }
                   setCompose(value);
                 },
-                setBusy,
+                setBusy: setComposeBusy,
                 setNotice: (text) => pushToast(text, text === "Email sent." ? "success" : (text.startsWith("Email queued") || text.startsWith("Email scheduled")) ? "info" : "error"),
                 confirm: (message) => confirm(message),
               });
@@ -1876,12 +1889,12 @@ export function App() {
           <TeachDialog
             api={api}
             mail={teach}
-            busy={busy || performPending}
+            busy={composeBusy || scopeBusy({ kind: "settings", section: "sorting" })}
             onClose={() => setTeach(null)}
             onSave={(input) => {
-              if (busy || performPending) return;
+              if (composeBusy || scopeBusy({ kind: "settings", section: "sorting" })) return;
               setTeach(null);
-              void perform(() => api("/rules", "POST", input), "Sorting updated for this sender.");
+              void perform({ kind: "settings", section: "sorting" }, () => api("/rules", "POST", input), "Sorting updated for this sender.");
             }}
           />
         )}

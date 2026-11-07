@@ -71,7 +71,7 @@ export function ConnectDialog({
   const submitting = useRef(false);
   const unavailable = busy || pending;
   return (
-    <Dialog title={`Connect ${providerNames[provider]}`} onClose={() => { if (!submitting.current) onClose(); }}>
+    <Dialog title={`Connect ${providerNames[provider]}`} onClose={onClose}>
       <form
         className="settings-form"
         onSubmit={async (e) => {
@@ -166,6 +166,7 @@ export function ConnectDialog({
             </div>
           </>
         )}
+        {pending && <p role="status">You can close this dialog while the connection is checked.</p>}
         {error && <Notice text={error} />}
         <div className="form-actions">
           <span>{credentialStorageFooter(globalThis.window?.desktop?.credentialFallback)}</span>
