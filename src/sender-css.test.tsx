@@ -7,9 +7,22 @@ test("sender class styles retain bounded columns and responsive colors without r
   const result = content.mailStylesheet('<style>.summary { color:#123456; width:600px; background:url(https://example.test/track) } @media screen and (max-width:600px) { .summary { width:100%; padding:12px } }</style>');
   assert.match(result.css, /color:#123456/);
   assert.match(result.css, /width:600px/);
-  assert.match(result.css, /@media screen and \(max-width:600px\)/);
+  assert.match(result.css, /@container \(max-width:600px\)\{:scope \.sender-0\{/, 'width queries measure the message');
   assert.doesNotMatch(result.css, /summary|https|url\(/);
   assert.ok(result.identifiers.get('.summary'));
+});
+
+test("sender selectors anchor at the message root, which stands in for html and body", () => {
+  const css = (rules: string) => content.mailStylesheet(`<style>${rules}</style>`).css;
+  assert.equal(css('body{color:red}'), ':scope{color:red}');
+  assert.equal(css('html body p{color:red}'), ':scope p{color:red}');
+  assert.equal(css('body > table td{color:red}'), ':scope > table td{color:red}');
+  assert.equal(css('body.dark p{color:red}'), ':scope.sender-0 p{color:red}');
+  assert.equal(css('td, .note{color:red}'), ':scope td,:scope .sender-0{color:red}');
+  assert.equal(css('*{color:red}'), ':scope *{color:red}');
+  assert.equal(css('p body{color:red}'), '', 'a nested root never matches');
+  assert.equal(css('body + p{color:red}'), '', 'the root has no siblings');
+  assert.equal(css('p body, td{color:red}'), ':scope td{color:red}', 'only the impossible selector in a list is dropped');
 });
 
 test("sender CSS rejects active features, private attribute selectors, escapes and hidden text", () => {
@@ -30,7 +43,21 @@ import { redactPrivateText } from "./privacy";
 import { PrivacyContext, Redact } from "./ui/Privacy";
 import { applyPalette, contrastRatio } from "./themes";
 
-test("isolated reader binds document, privacy, image consent and keyboard lifetime to the current opening", async () => {
+// jsdom parses @scope but leaves it out of computed styles. Flatten each
+// installed scope into plain selectors so synthetic checks can read the
+// cascade. The `to (.address)` boundary is not modeled here.
+function materialize(doc: Document) {
+  const style = doc.createElement("style");
+  style.textContent = doc.adoptedStyleSheets.flatMap((sheet) => Array.from(sheet.cssRules, (rule) => {
+    const scope = /^@scope \(([^)]+)\) to \(\.address\) \{([\s\S]*)\}$/.exec(rule.cssText.trim());
+    return scope ? scope[2].replaceAll(":scope", scope[1]) : rule.cssText;
+  })).join("\n");
+  doc.head.append(style);
+  return style;
+}
+const installedCss = (doc: Document) => doc.adoptedStyleSheets.flatMap((sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText)).join("\n");
+
+test("styled mail renders in the reader document with its sheet scoped to the current opening", async () => {
   const dom = new JSDOM('<!doctype html><main><div id="root"></div></main>', { url: 'https://app.example.test' });
   const saved = new Map<string, PropertyDescriptor | undefined>();
   for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true })) {
@@ -38,99 +65,67 @@ test("isolated reader binds document, privacy, image consent and keyboard lifeti
     Object.defineProperty(globalThis, key, { value, configurable: true });
   }
   const root = createRoot(dom.window.document.getElementById('root')!);
-  const html = '<style>body{color:#111;background-color:#fff}.summary {color:#123456;background-color:white;width:600px} .photo{width:120px} #undefined{color:red} @media (max-width:600px){.summary{width:100%}}</style><p class="summary">Hello Morgan Example</p><img class="photo" src="https://images.example.test/public.png"><img src="https://images.example.test/Morgan%20Example.png">';
-  const update = async (id: string, privacy: boolean, showImages: boolean, scale = 1) => {
-    await act(async () => root.render(<div className="app message-body" style={{ "--text-scale": scale } as import("react").CSSProperties}><FormattedMail mailId={id} html={html} showImages={showImages} privacy={privacy} privateNames={['Morgan Example']}
+  const html = '<style>body{color:#111;background-color:#fff}p{color:#222}.summary {color:#123456;background-color:white;width:600px} .photo{width:120px} #undefined{color:red} @media (max-width:600px){.summary{width:100%}}</style><p class="summary">Hello Morgan Example</p><img class="photo" src="https://images.example.test/public.png"><img src="https://images.example.test/Morgan%20Example.png">';
+  const update = async (id: string, privacy: boolean, showImages: boolean) => {
+    await act(async () => root.render(<div className="app message-body"><FormattedMail mailId={id} html={html} showImages={showImages} privacy={privacy} privateNames={['Morgan Example']}
       renderText={(text) => privacy ? redactPrivateText(text, ['Morgan Example']) : text}
       redactText={(text) => privacy ? redactPrivateText(text, ['Morgan Example']) : text} /></div>));
   };
-  let keys = 0;
-  const handler = (event: KeyboardEvent) => { if (event.key === 'Escape' || event.key === 'Enter') { keys++; event.preventDefault(); } };
-  dom.window.addEventListener('keydown', handler);
+  const doc = dom.window.document;
   try {
-    const readerStyle = dom.window.document.createElement('style');
+    const readerStyle = doc.createElement('style');
     readerStyle.textContent = readFileSync(new URL('./styles/reader.css', import.meta.url), 'utf8');
-    dom.window.document.head.append(readerStyle);
+    doc.head.append(readerStyle);
     await update('one', false, false);
-    let frame = dom.window.document.querySelector('iframe')!;
-    assert.ok(frame, 'sender styles use a separate document');
-    const body = dom.window.document.querySelector('.message-body')!;
-    assert.equal(body.querySelector('.formatted-mail'), null, 'formatted content has moved into the frame');
-    assert.equal(dom.window.getComputedStyle(body).maxWidth, '100%', 'isolated mail keeps the full reader width after portal mount');
-    const plain = dom.window.document.createElement('div'); plain.className = 'message-body';
-    dom.window.document.body.append(plain);
+    assert.equal(doc.querySelector('iframe'), null, 'sender styles no longer need a separate document');
+    const mail = doc.querySelector<HTMLElement>('.formatted-mail')!;
+    assert.equal(mail.closest('.formatted-mail-frame')?.parentElement?.className, 'app message-body', 'the mail sits in the reader body');
+    const body = doc.querySelector('.message-body')!;
+    assert.equal(dom.window.getComputedStyle(body).maxWidth, '100%', 'styled mail keeps the full reader width');
+    const plain = doc.createElement('div'); plain.className = 'message-body';
+    doc.body.append(plain);
     assert.ok(['65ch', '520px'].includes(dom.window.getComputedStyle(plain).maxWidth), 'plain text retains its readable line length');
-    plain.remove();
-    readerStyle.remove();
-    assert.equal(frame.getAttribute('sandbox'), 'allow-same-origin');
-    assert.equal(frame.hasAttribute('srcdoc'), false);
-    assert.equal(dom.window.document.querySelector('style'), null, 'sender CSS never enters host document');
-    assert.equal(frame.contentDocument!.querySelector('p')?.textContent, 'Hello Morgan Example');
-    // jsdom does not include adopted sheets in computed styles. Materialize
-    // their exact rules only in this synthetic document to exercise cascade.
-    const installed = frame.contentDocument!.adoptedStyleSheets.flatMap(sheet => Array.from(sheet.cssRules, rule => rule.cssText)).join('\n');
-    const style = frame.contentDocument!.createElement('style'); style.textContent = installed;
-    frame.contentDocument!.head.append(style);
-    assert.equal(frame.contentWindow!.getComputedStyle(frame.contentDocument!.body).color, 'rgb(17, 17, 17)', 'sender body foreground wins over host defaults');
-    assert.match(installed, /font: calc\(14px \* var\(--text-scale, 1\)\)/, 'default body font also follows text scaling');
-    assert.match(installed, /color:\s*var\(--code-ink\)/, 'isolated code ink follows the veil-safe token');
-    assert.match(installed, /a\s*\{[^}]*text-decoration[^;}]*underline/, 'isolated links keep a persistent underline');
-    assert.doesNotMatch(installed, /a\s*\{[^}]*text-decoration[^;}]*none/, 'isolated links no longer wait for hover');
-    assert.match(installed, /code\s*\{[^}]*background:[^;}]*!important[^}]*color:[^;}]*!important/,
-      'sender styles cannot split code ink from its surface');
-    assert.match(installed, /pre\s*\{[^}]*background:[^;}]*!important[^}]*color:[^;}]*!important/,
-      'sender styles cannot split pre ink from its surface');
-    assert.match(installed, /pre code\s*\{[^}]*background:[^;}]*!important/,
-      'nested code stays on the pre surface');
-    assert.match(installed, /:is\(p,ul,ol,blockquote,h1,h2,h3,h4,h5,h6,pre\)\s*\{\s*max-width:\s*70ch/,
-      'isolated prose keeps the readable measure');
-    assert.match(installed, /table :is\(p,ul,ol,blockquote,h1,h2,h3,h4,h5,h6,pre\)\s*\{\s*max-width:\s*none/,
-      'table content keeps the full reader width');
-    assert.match(installed, /:is\(code,pre\) :not\(img,\.address,\.formatted-mail-image-placeholder\)\s*\{[^}]*color:[^;}]*!important[^}]*background:[^;}]*!important/,
+    const outside = doc.createElement('p'); outside.textContent = 'Reader text';
+    doc.body.append(outside);
+    assert.equal(doc.querySelectorAll('style').length, 1, 'sender CSS never enters the page as a style element');
+    assert.equal(doc.adoptedStyleSheets.length, 1, 'one constructable sheet carries the sender rules');
+    const scope = mail.getAttribute('data-mail-scope')!;
+    assert.ok(scope, 'the mail root names its scope');
+    const installed = installedCss(doc);
+    assert.ok(installed.startsWith(`@scope ([data-mail-scope="${scope}"]) to (.address)`), 'sender rules reach only this message and never address controls');
+    assert.match(installed, /@container \(max-width:\s*600px\)/, 'width queries measure the message, not the window');
+    assert.match(installed, /:scope \{\s*color: rgb\(17, 17, 17\)/, 'sender body rules apply to the message root');
+    assert.match(installed, /:scope a\s*\{[^}]*text-decoration[^;}]*underline/, 'links keep a persistent underline');
+    assert.match(installed, /:scope code\s*\{[^}]*background:[^;}]*!important[^}]*color:[^;}]*!important/, 'sender styles cannot split code ink from its surface');
+    assert.match(installed, /:scope pre\s*\{[^}]*background:[^;}]*!important[^}]*color:[^;}]*!important/, 'sender styles cannot split pre ink from its surface');
+    assert.match(installed, /:scope pre code\s*\{[^}]*background:[^;}]*!important/, 'nested code stays on the pre surface');
+    assert.match(installed, /:scope :is\(p,\s*ul,\s*ol,\s*blockquote,\s*h1,\s*h2,\s*h3,\s*h4,\s*h5,\s*h6,\s*pre\)\s*\{\s*max-width:\s*70ch/, 'prose keeps the readable measure');
+    assert.match(installed, /:scope table :is\(p,\s*ul,\s*ol,\s*blockquote,\s*h1,\s*h2,\s*h3,\s*h4,\s*h5,\s*h6,\s*pre\)\s*\{\s*max-width:\s*none/, 'table content keeps the full reader width');
+    assert.match(installed, /:scope :is\(code,\s*pre\) :not\(img,\s*\.address,\s*\.formatted-mail-image-placeholder\)\s*\{[^}]*color:[^;}]*!important[^}]*background:[^;}]*!important/,
       'code descendants keep the app ink and no sender background');
-    assert.doesNotMatch(installed, /:is\(code,pre\)[^{]*a[^{]*\{[^}]*color:\s*var\(--link\)/,
-      'links inside code inherit the veil-safe code ink, not the unchecked link ink');
-    assert.match(installed, /:is\(code,pre\) a\s*\{[^}]*text-decoration-color:[^;}]*currentColor/i,
-      'links inside code keep an underline in the code ink');
-    assert.equal(frame.contentDocument!.querySelectorAll('img').length, 0);
-    assert.equal(frame.contentDocument!.querySelector('p')?.hasAttribute('id'), false, 'absent ids cannot match a sender selector');
-    assert.doesNotMatch(frame.contentDocument!.body.innerHTML, /summary/);
-    await act(async () => { dom.window.document.documentElement.style.color = 'rgb(10, 20, 30)'; });
-    assert.equal(frame.contentDocument!.body.style.getPropertyValue('--reader-foreground'), 'rgb(10, 20, 30)', 'unstyled text follows host theme changes');
-    await act(async () => { dom.window.document.querySelector<HTMLElement>('.app')!.style.setProperty('--text-scale', '1.5'); });
-    assert.equal(frame.contentDocument!.body.style.getPropertyValue('--text-scale'), '1.5', 'open mail follows preference changes on .app');
-    await update('one', false, false, 1.25);
-    assert.equal(dom.window.document.querySelector('iframe'), frame, 'React scale update keeps the same opening');
-    assert.equal(frame.contentDocument!.body.style.getPropertyValue('--text-scale'), '1.25', 'React rerender refreshes inherited values even when queued mutations are discarded');
-    const event = new (frame.contentWindow as Window & typeof globalThis).KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
-    frame.contentDocument!.body.dispatchEvent(event);
-    assert.equal(keys, 1);
-    assert.equal(event.defaultPrevented, true);
-    const enter = new (frame.contentWindow as Window & typeof globalThis).KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
-    frame.contentDocument!.querySelector('p')!.dispatchEvent(enter);
-    assert.equal(keys, 2, 'plain reader text forwards configurable Enter shortcuts');
-    assert.equal(enter.defaultPrevented, true);
-    const link = frame.contentDocument!.createElement('a'); link.href = 'https://example.test';
-    frame.contentDocument!.body.append(link);
-    link.dispatchEvent(new (frame.contentWindow as Window & typeof globalThis).KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-    assert.equal(keys, 2, 'link activation does not invoke host Enter shortcuts');
+    assert.match(installed, /:scope :is\(code,\s*pre\) a\s*\{[^}]*text-decoration-color:[^;}]*currentColor/i, 'links inside code keep an underline in the code ink');
+    const flat = materialize(doc);
+    assert.equal(dom.window.getComputedStyle(mail).color, 'rgb(17, 17, 17)', 'sender body foreground wins over the reader default');
+    assert.equal(dom.window.getComputedStyle(mail.querySelector('p')!).color, 'rgb(18, 52, 86)', 'sender class rules outrank sender element rules');
+    assert.notEqual(dom.window.getComputedStyle(outside).color, 'rgb(34, 34, 34)', 'sender element rules do not leak to the reader');
+    flat.remove(); outside.remove(); plain.remove(); readerStyle.remove();
+    assert.equal(mail.querySelectorAll('img').length, 0);
+    assert.equal(mail.querySelector('p')?.hasAttribute('id'), false, 'absent ids cannot match a sender selector');
+    assert.doesNotMatch(mail.innerHTML, /summary/);
     await update('one', true, false);
-    assert.equal(frame.isConnected, false, 'privacy replaces the old document synchronously');
-    frame = dom.window.document.querySelector('iframe')!;
-    assert.doesNotMatch(frame.contentDocument!.body.innerHTML, /Morgan|Example/);
+    assert.doesNotMatch(doc.querySelector('.formatted-mail')!.innerHTML, /Morgan|Example/);
     await update('one', true, true);
-    frame = dom.window.document.querySelector('iframe')!;
-    assert.equal(frame.contentDocument!.querySelectorAll('img').length, 1, 'only consented nonprivate image is admitted');
-    assert.match(frame.contentDocument!.querySelector('img')?.className || '', /^sender-\d+$/, 'image class rules survive consent activation');
-    assert.equal(frame.contentDocument!.querySelector('img')?.getAttribute('referrerpolicy'), 'no-referrer');
+    const images = doc.querySelectorAll('.formatted-mail img');
+    assert.equal(images.length, 1, 'only consented nonprivate image is admitted');
+    assert.match(images[0].className, /^sender-\d+$/, 'image class rules survive consent activation');
+    assert.equal(images[0].getAttribute('referrerpolicy'), 'no-referrer');
     await update('two', false, false);
-    assert.equal(frame.isConnected, false, 'message changes discard old content and consent presentation');
-    assert.equal(dom.window.document.querySelector('iframe')!.contentDocument!.querySelectorAll('img').length, 0);
+    assert.equal(doc.querySelectorAll('.formatted-mail img').length, 0, 'a new opening starts without consent');
+    assert.equal(doc.adoptedStyleSheets.length, 1, 'rerenders keep one sheet');
     await act(async () => root.unmount());
-    assert.equal(dom.window.document.querySelector('iframe'), null);
+    assert.equal(doc.adoptedStyleSheets.length, 0, 'the sheet leaves with the message');
   } finally {
     await act(async () => root.unmount());
-    dom.window.removeEventListener('keydown', handler);
     dom.window.close();
     for (const [key, descriptor] of saved) {
       if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key);
@@ -202,35 +197,33 @@ test("code surfaces keep the veil-safe ink under sender colors", async () => {
   };
   try {
     for (const [name, wrap] of structures) {
-      // Isolated path: a sender stylesheet supplies class tints, inline styles supply the rest.
+      // Styled path: a sender stylesheet supplies class tints, inline styles supply the rest.
       const html = `<style>.tint{color:#111111;background-color:#ffffff}pre{color:#111111;background:#ffffff}</style>${wrap(inner)}`;
       await mount_(html);
-      const frame = mount.querySelector("iframe")!;
-      assert.ok(frame, `${name}: sender stylesheet isolates the document`);
-      const installed = frame.contentDocument!.adoptedStyleSheets.flatMap((sheet) => Array.from(sheet.cssRules, (rule) => rule.cssText)).join("\n");
-      const sheet = frame.contentDocument!.createElement("style");
-      sheet.textContent = installed;
-      frame.contentDocument!.head.append(sheet);
-      for (const span of frame.contentDocument!.querySelectorAll("code span, pre span")) {
+      const styled = mount.querySelector("[data-mail-scope]")!;
+      assert.ok(styled, `${name}: sender stylesheet scopes the mail`);
+      const sheet = materialize(dom.window.document);
+      for (const span of styled.querySelectorAll("code span, pre span")) {
         const fg = fgOf(span), paint = paintOf(span.closest("pre, code")!);
         const ratio = contrastRatio(fg.startsWith("#") ? fg : rgbToHex(fg), paint.startsWith("#") ? paint : rgbToHex(paint));
         assert.ok(ratio >= 4.5, `${name}: span foreground ${fg} on ${paint} = ${ratio.toFixed(2)}:1`);
         assert.equal(resolvedColor(span, "backgroundColor").replace(/\s/g, ""), "rgba(0,0,0,0)", `${name}: no sender bg survives under code`);
       }
-      const codePaint = frame.contentDocument!.querySelector(wrap === structures[0][1] ? "code" : "pre")!;
+      const codePaint = styled.querySelector(wrap === structures[0][1] ? "code" : "pre")!;
       assert.equal((paintOf(codePaint).startsWith("#") ? paintOf(codePaint) : rgbToHex(paintOf(codePaint))), "#111111",
         `${name}: the code surface paints the dark veil`);
-      const inkCheck = fgOf(frame.contentDocument!.querySelector("code span, pre span")!);
+      const inkCheck = fgOf(styled.querySelector("code span, pre span")!);
       assert.equal(inkCheck.startsWith("#") ? inkCheck : rgbToHex(inkCheck), codeInk, `${name}: descendants read the code ink`);
+      sheet.remove();
       await act(async () => root.render(<></>));
-      // Nonisolated path: no stylesheet, sender colors are removed at render; reader.css owns code ink.
+      // Themed path: no stylesheet, sender colors are removed at render; reader.css owns code ink.
       await mount_(wrap(inner));
       const inline = mount.querySelector(".formatted-mail");
-      assert.ok(inline, `${name}: styleless sender mail stays in the reader document`);
+      assert.equal(inline?.hasAttribute("data-mail-scope"), false, `${name}: styleless sender mail takes the themed path`);
       for (const span of inline!.querySelectorAll("code span, pre span")) {
         const fg = fgOf(span), paint = paintOf(span.closest("pre, code")!);
         const ratio = contrastRatio(fg.startsWith("#") ? fg : rgbToHex(fg), paint.startsWith("#") ? paint : rgbToHex(paint));
-        assert.ok(ratio >= 4.5, `${name} nonisolated: span ${fg} on ${paint} = ${ratio.toFixed(2)}:1`);
+        assert.ok(ratio >= 4.5, `${name} themed: span ${fg} on ${paint} = ${ratio.toFixed(2)}:1`);
       }
       await act(async () => root.render(<></>));
     }
@@ -245,44 +238,38 @@ test("code surfaces keep the veil-safe ink under sender colors", async () => {
       ["nested link text in pre", '<pre><a href="https://example.test"><span>Nested link</span></a></pre>', "pre a span"],
       ["quote in pre", '<pre><blockquote>Readable code</blockquote></pre>', "pre blockquote"],
     ];
-    for (const [name, body, selector] of counterexamples) for (const isolated of [true, false]) {
-      const path = isolated ? "isolated" : "nonisolated";
-      await mount_(isolated ? `<style>.sample{background-color:#ffffff}</style>${body}` : body);
-      const frame = mount.querySelector("iframe");
-      assert.equal(!!frame, isolated, `${name}: ${path} path renders where expected`);
-      const doc = frame ? frame.contentDocument! : dom.window.document;
-      if (frame) {
-        const sheet = doc.createElement("style");
-        sheet.textContent = doc.adoptedStyleSheets.flatMap((s) => Array.from(s.cssRules, (rule) => rule.cssText)).join("\n");
-        doc.head.append(sheet);
-      }
-      const target = (frame ? doc : mount).querySelector(selector);
+    for (const [name, body, selector] of counterexamples) for (const styled of [true, false]) {
+      const path = styled ? "styled" : "themed";
+      await mount_(styled ? `<style>.sample{background-color:#ffffff}</style>${body}` : body);
+      assert.equal(!!mount.querySelector("[data-mail-scope]"), styled, `${name}: ${path} path renders where expected`);
+      const sheet = styled ? materialize(dom.window.document) : undefined;
+      const target = mount.querySelector(selector);
       assert.ok(target, `${name}: ${path} renders ${selector}`);
       const fg = fgOf(target), paint = paintOf(target.closest("pre, code")!);
       const ratio = contrastRatio(fg.startsWith("#") ? fg : rgbToHex(fg), paint.startsWith("#") ? paint : rgbToHex(paint));
       assert.ok(ratio >= 4.5, `${name} ${path}: ${fg} on ${paint} = ${ratio.toFixed(2)}:1`);
       for (let node: Element | null = target; node && !node.matches("pre, code"); node = node.parentElement)
         assert.equal(resolvedColor(node, "backgroundColor").replace(/\s/g, ""), "rgba(0,0,0,0)", `${name} ${path}: no sender background under code`);
+      sheet?.remove();
       await act(async () => root.render(<></>));
     }
     // Privacy inside code still hides names, and consented images still gate on showImages.
     const privateHtml = '<style>.x{color:#333333}</style><pre><code>send to morgan@example.com for Morgan Example <img src="https://images.example.test/logo.png"></code></pre>';
     await mount_(privateHtml, true, true);
-    let frame = mount.querySelector("iframe")!;
-    assert.doesNotMatch(frame.contentDocument!.body.innerHTML, /Morgan|morgan@/, "privacy still redacts inside code");
-    assert.ok(frame.contentDocument!.querySelector("code .address, pre .address"), "addresses still render inside code");
-    const privateSheet = frame.contentDocument!.createElement("style");
-    privateSheet.textContent = frame.contentDocument!.adoptedStyleSheets.flatMap((s) => Array.from(s.cssRules, (rule) => rule.cssText)).join("\n");
-    frame.contentDocument!.head.append(privateSheet);
-    const veiled = frame.contentDocument!.querySelector("code .address.veiled, pre .address.veiled");
+    const privateMail = mount.querySelector(".formatted-mail")!;
+    assert.doesNotMatch(privateMail.innerHTML, /Morgan|morgan@/, "privacy still redacts inside code");
+    assert.ok(privateMail.querySelector("code .address, pre .address"), "addresses still render inside code");
+    const veiled = privateMail.querySelector("code .address.veiled, pre .address.veiled");
     assert.ok(veiled, "privacy bar renders inside code");
     assert.equal(veiled.textContent, "", "the privacy bar holds no private text");
-    assert.match(viewOf(veiled).background, /#888|136,\s*136,\s*136/, "the code rule leaves the privacy bar's own fill");
-    assert.ok(frame.contentDocument!.querySelector("img"), "consented image renders inside pre");
+    // jsdom cannot resolve var() in the base.css background shorthand, so
+    // check that neither the code rule nor the sender scope reaches the bar.
+    assert.equal(veiled.matches(":is(code,pre) :not(img,.address,.formatted-mail-image-placeholder)"), false, "the code rule leaves the privacy bar's own fill");
+    assert.match(installedCss(dom.window.document), /to \(\.address\)/, "sender rules stop at the privacy bar");
+    assert.ok(privateMail.querySelector("img"), "consented image renders inside pre");
     await mount_(privateHtml, true, false);
-    frame = mount.querySelector("iframe")!;
-    assert.equal(frame.contentDocument!.querySelectorAll("img").length, 0, "unconsented image stays a placeholder");
-    assert.ok(frame.contentDocument!.querySelector(".formatted-mail-image-placeholder"), "placeholder keeps its marker inside pre");
+    assert.equal(mount.querySelectorAll(".formatted-mail img").length, 0, "unconsented image stays a placeholder");
+    assert.ok(mount.querySelector(".formatted-mail .formatted-mail-image-placeholder"), "placeholder keeps its marker inside pre");
   } finally {
     await act(async () => root.unmount());
     readerStyle.remove();
@@ -314,7 +301,7 @@ test("embedded image responses cannot cross message bindings and release owned b
     await act(async () => root.render(<FormattedMail mailId={id} html={html} attachments={attachments}
       showImages privacy={false} renderText={text => text} redactText={text => text} />));
   };
-  const image = () => dom.window.document.querySelector('iframe')!.contentDocument!.querySelector('img');
+  const image = () => dom.window.document.querySelector('.formatted-mail img');
   try {
     await update('one');
     await update('two');

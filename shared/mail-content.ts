@@ -419,8 +419,13 @@ export function privateMailLink(value: string, redactText: (text: string) => str
   return true;
 }
 
-// Only resource-free declarations enter the isolated reader. Original selector
-// names stay in memory; the document receives opaque per-message identifiers.
+// Only resource-free declarations reach the reader. Original selector names
+// stay in memory; the page receives opaque per-message identifiers. Every
+// selector is anchored at `:scope`, the message root that stands in for the
+// sender's html and body, so the renderer can confine the sheet with @scope and
+// sender rules outrank the reader's own element defaults. Width media queries
+// become container queries: the sender wrote them for the message width, not
+// the window width.
 export function mailStylesheet(html: string) {
   const identifiers = new Map<string, string>();
   if (boundedMailHtml(html) === null) return { css: "", identifiers };
@@ -451,7 +456,7 @@ export function mailStylesheet(html: string) {
       if (!identifiers.has(key)) identifiers.set(key, `sender-${identifiers.size}`);
       return prefix + identifiers.get(key);
     });
-    return valid ? result : null;
+    return valid ? anchored(result) : null;
   };
   function block(input: string, nested = false): string {
     let css = '', at = 0;
@@ -471,7 +476,7 @@ export function mailStylesheet(html: string) {
         const media = head.slice(6).trim().toLowerCase();
         if (!nested && /^(?:(?:only )?screen(?: and )?)?\((?:min|max)-width:\s*\d{1,4}px\)(?: and \((?:min|max)-width:\s*\d{1,4}px\))*$/.test(media)) {
           const children = block(body, true);
-          if (children) css += `@media ${media}{${children}}`;
+          if (children) css += `@container ${media.replace(/^(?:only )?screen(?: and )?/, '')}{${children}}`;
         }
       } else if (!head.startsWith('@') && !/[{}]/.test(body)) {
         const safe = selector(head), values = declarations(body);
@@ -481,4 +486,26 @@ export function mailStylesheet(html: string) {
     return css;
   }
   return { css: block(source), identifiers };
+}
+
+const ROOT_TAG = /^(?:html|body)(?![\w-])/;
+// `body > p, .note` becomes `:scope > p,:scope .note`. The sender's html and
+// body are both the message root, so a leading html/body chain collapses into
+// one `:scope` that keeps their classes. A root that is not leading, or a
+// sibling of the root, can never match, so that selector is dropped.
+function anchored(list: string): string | null {
+  const selectors = list.split(',').flatMap((raw) => {
+    const tokens = raw.trim().replace(/\s*([>+~])\s*/g, ' $1 ').split(/\s+/);
+    let root = '', at = 0, child = false;
+    while (ROOT_TAG.test(tokens[at] ?? '')) {
+      root += tokens[at++].replace(ROOT_TAG, '');
+      child = tokens[at] === '>';
+      if (child) at++;
+      else if (tokens[at] === '+' || tokens[at] === '~') return [];
+    }
+    const rest = tokens.slice(at);
+    if (rest.some((token) => ROOT_TAG.test(token))) return [];
+    return [`:scope${root}${rest.length ? (child ? ' > ' : ' ') + rest.join(' ') : ''}`];
+  });
+  return selectors.length ? selectors.join(',') : null;
 }

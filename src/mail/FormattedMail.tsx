@@ -1,9 +1,9 @@
-import { Fragment, createElement, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, createElement, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { imageSource, type MailAttachment } from "../../shared/types";
 import { embeddedImageTypes, mailLink, mailStyle, mailStylesheet, parseMailContent, privateMailLink, type MailContentNode } from "../../shared/mail-content";
 import { segmentPrivateParts, type PrivacySegment } from "../privacy";
-import { IsolatedMail } from "./IsolatedMail";
 import { useRemoteImage } from "./remote-image";
+import { useFitWidth, useReadableInk, useScopedSheet } from "./scoped-mail";
 
 type Presentation = { className?: string; id?: string };
 
@@ -24,8 +24,10 @@ type Props = {
 // formatted-mail-fallback, formatted-mail-image and formatted-mail-image-placeholder.
 export function FormattedMail({ mailId, attachments = [], html, showImages, renderText, redactText, privacy, privateNames = [], fallbackText = "", fallback }: Props) {
   const stylesheet = useMemo(() => mailStylesheet(html || ""), [html]);
-  const isolated = !!stylesheet.css;
-  const nodes = useMemo(() => typeof html === "string" ? parseMailContent(html, isolated) : null, [html, isolated]);
+  // Mail with supported sender rules keeps its colors and classes; other mail
+  // takes the themed reader colors.
+  const styled = !!stylesheet.css;
+  const nodes = useMemo(() => typeof html === "string" ? parseMailContent(html, styled) : null, [html, styled]);
   const textParts = nodes ? contentParts(nodes) : [];
   const privateParts = privacy ? segmentPrivateParts(textParts, privateNames) : undefined;
   const embeddedFiles = new Map<string, MailAttachment>();
@@ -65,7 +67,7 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
     // Quotes take the app's own inset and bar, so nested replies keep their width.
     if (tag === "blockquote") for (const property of Object.keys(style) as (keyof CSSProperties)[])
       if (/^(margin|padding|border)/.test(property)) delete style[property];
-    if (!isolated) {
+    if (!styled) {
       delete style.color;
       // Code and pre drop the sender background so the shared chip/surface
       // styling applies; everything else keeps its transparent field.
@@ -76,7 +78,7 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
         if (style[property]) style[property] = String(style[property]).replace(/^(\d+(?:\.\d+)?px (?:solid|dashed|dotted) ).+$/, "$1var(--line)");
       }
     }
-    const presentation: Presentation = isolated ? {
+    const presentation: Presentation = styled ? {
       className: (a.class || "").split(/\s+/).map(name => stylesheet.identifiers.get('.' + name)).filter(Boolean).join(' ') || undefined,
       id: a.id ? stylesheet.identifiers.get('#' + a.id) : undefined,
     } : {};
@@ -107,9 +109,6 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
         style.color = "var(--link)";
         // Sender-set decoration stays; plain links underline on hover via CSS.
         Object.assign(props, { href, target: "_blank", rel: "noopener noreferrer", referrerPolicy: "no-referrer" });
-        if (isolated) props.onClick = (event: { preventDefault: () => void }) => {
-          event.preventDefault(); window.open(href, "_blank", "noopener,noreferrer");
-        };
       }
       else element = "span";
     }
@@ -133,19 +132,41 @@ export function FormattedMail({ mailId, attachments = [], html, showImages, rend
     return createElement(element, props, content);
   };
   const formatted = !!nodes && !!(textParts.join("").trim() || hasImage(nodes, attachments));
-  const body = <div className={formatted ? "formatted-mail" : "formatted-mail formatted-mail-fallback"}
-    style={{ maxWidth: "100%", minWidth: 0, overflow: "auto", overflowWrap: formatted ? "break-word" : "anywhere", contain: "layout paint", isolation: "isolate", whiteSpace: formatted ? "normal" : "pre-wrap" }}>
+  const scoped = styled && formatted;
+  const root = useRef<HTMLDivElement>(null);
+  const sheet = useScopedSheet(scoped ? stylesheet.css : "");
+  useReadableInk(root, scoped && !sheet.failed);
+  useFitWidth(root, [html, showImages, privacy, scoped, sheet.failed]);
+  if (scoped && sheet.failed) return <div className="formatted-mail formatted-mail-fallback">{fallback ?? renderText(fallbackText || textParts.join(''))}</div>;
+  // The mail renders in the reader's own document, so the reader is its only
+  // scroller. Wide mail is zoomed to fit; what still overflows scrolls inside
+  // this box without a visible bar.
+  const body = <div ref={root} className={formatted ? "formatted-mail" : "formatted-mail formatted-mail-fallback"} data-mail-scope={scoped ? sheet.scope : undefined}
+    style={{ maxWidth: "100%", minWidth: 0, overflowX: "auto", overflowWrap: formatted ? "break-word" : "anywhere", contain: "layout paint", isolation: "isolate", whiteSpace: formatted ? "normal" : "pre-wrap" }}>
     {formatted ? nodes.map(render) : fallback ?? renderText(fallbackText)}
   </div>;
-  return isolated && formatted ? <IsolatedMail key={JSON.stringify([mailId, html, privacy, showImages])} css={stylesheet.css}
-    fallback={<div className="formatted-mail formatted-mail-fallback">{fallback ?? renderText(fallbackText || textParts.join(''))}</div>}>{body}</IsolatedMail> : body;
+  // Sender width queries measure this frame, the width the message gets.
+  return scoped ? <div className="formatted-mail-frame">{body}</div> : body;
 }
 
 // Holds a blocked image's place at its own size (24px when unsized); the reason
 // is a label and tooltip because a small icon cell cannot fit it as text.
 function ImagePlaceholder({ style, reason, className, id }: { style: CSSProperties; reason: string } & Presentation) {
   return <span id={id} className={["formatted-mail-image-placeholder", className].filter(Boolean).join(" ")} role="img" aria-label={reason} title={reason}
-    style={{ width: style.width ?? 24, height: style.height ?? 24, maxHeight: style.maxHeight }} />;
+    style={placeholderShape(style)} />;
+}
+
+// A placeholder narrows exactly as its image would. An image's max-width lets a
+// table cell shrink it, but a sized empty box would hold the cell open and
+// widen the whole mail, so a px width becomes min(width, 100%) and a px width
+// and height keep their ratio instead of a fixed height.
+function placeholderShape(style: CSSProperties): CSSProperties {
+  const width = pxLength(style.width), height = pxLength(style.height);
+  return {
+    width: width ? `min(${width}px, 100%)` : style.width ?? 24,
+    ...(width && height ? { height: "auto", aspectRatio: `${width} / ${height}` } : { height: style.height ?? 24 }),
+    maxHeight: style.maxHeight,
+  };
 }
 
 // CID URLs encode Content-ID characters; ambiguous IDs never resolve.

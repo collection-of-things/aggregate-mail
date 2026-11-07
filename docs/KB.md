@@ -871,7 +871,7 @@ Synthetic tests cover file validation, library limits, persistence/restart, reso
 
 Formatted mail removes sub-6px and unitless-zero font sizes, line heights, heights and max-heights from text-bearing elements so compressed preview text remains readable without collapsing its wrapper. Image styles retain small max-height caps, including in blocked, unsupported, private-source and failed-image placeholders. A loaded image keeps the sender's declared shape: a px width and height become an aspect ratio, a declared height alone stays fixed, and only unsized images fall back to their natural size, so spacer and divider images cannot stretch into giant boxes. Inline image status adds no prose to the sender layout. Synthetic parser and renderer tests cover these cases. Installed rendering and remote image delivery are not verified here.
 
-When sender HTML is parsed, a run of three or more invisible padding units — a zero-width space or joiner, grapheme joiner, word joiner, byte-order mark or soft hyphen plus any spacing — collapses to one space, so hidden preheader padding can no longer form a tall empty band. In the isolated document, text whose computed color falls below 3:1 contrast against its composited background is re-inked to whichever of a fixed dark or light reads stronger, while `.address` and image-placeholder elements are never marked; see [ADR 0125](adr/0125-readable-hidden-sender-text.md). Single padding characters and ZWJ are preserved for script shaping and emoji sequences.
+When sender HTML is parsed, a run of three or more invisible padding units — a zero-width space or joiner, grapheme joiner, word joiner, byte-order mark or soft hyphen plus any spacing — collapses to one space, so hidden preheader padding can no longer form a tall empty band. In sender-styled mail, text whose computed color falls below 3:1 contrast against its composited background is re-inked to whichever of a fixed dark or light reads stronger, while `.address` and image-placeholder elements are never marked; see [ADR 0125](adr/0125-readable-hidden-sender-text.md). Single padding characters and ZWJ are preserved for script shaping and emoji sequences.
 
 With transparency enabled, `src/styles/tokens.css` puts one shared `--pane-glass` tint on `.app`, covering the full window. Its persisted `glassOpacity` is 0 to 100 percent, defaulting to 70 in both schemes. See [ADR 0068](adr/0068-window-opacity.md). The toolbar, mail list, reader, Settings, work and Drafts panes stay transparent to avoid stacking tints. Sticky date headings, the agent review tabs and Today mail actions use a 60% surface tint with 12px blur; scrolling panes themselves gain no CSS blur. Secondary text brightens for built-in and custom themes; text opacity and opaque privacy masks remain intact. The `data-glass` gate keeps Off and unsupported platforms opaque. This shared layer replaces the separate pane tints recorded in [ADR 0035](adr/0035-frosted-working-panes.md). Native appearance, contrast over desktop content and movement smoothness still need target-platform verification.
 
@@ -3566,45 +3566,57 @@ See [operator setup and recovery](web-updates.md) and
 access and native phone proof remain separate, held operator acceptance.
 
 
-## Isolated sender styles
+## Scoped sender styles
 
 The formatted reader extracts up to 32,000 bytes of sender style rules from
 bounded HTML. It keeps at most 128 tag/class/id rules and one level of min/max
 width media queries. Declarations pass through the existing resource-free
 mail-style grammar. Attribute/pseudo selectors, external styles and fonts,
 resource URLs, script, positioning and text-hiding rules remain unsupported.
-Class and ID selectors become opaque document-local tokens before rendering.
+Class and ID selectors become opaque per-message tokens before rendering.
 
-Mail with supported rules uses a blank sandboxed iframe with only same-origin
-host access. The host portals the existing sanitized React tree into it; it
-never injects sender HTML or enables scripts, forms, popups or top navigation.
-The host installs sanitized CSS through the document stylesheet API without
-relaxing request CSP. The cached/themed fallback remains if style installation
-is unavailable. Mail without supported styles keeps the existing themed reader.
+Every kept selector is anchored at `:scope`, which stands in for the sender's
+html and body (`body > table td` becomes `:scope > table td`). Selectors with a
+non-leading html/body or a sibling of it are dropped. Width media queries
+become `@container` queries.
+
+All formatted mail renders in the reader document; no iframe is used. For mail
+with supported rules, `src/mail/scoped-mail.ts` installs one constructable
+stylesheet per message, wrapped in
+`@scope ([data-mail-scope="<id>"]) to (.address)`, followed by the reader's
+link, quote, code-ink, measure and readable-ink controls. The sheet is removed
+on unmount, and request CSP is unchanged. The container queries measure the
+`.formatted-mail-frame` wrapper. The themed fallback text remains if
+constructable stylesheets are unavailable. Mail without supported styles keeps
+the existing themed reader.
+
+Mail wider than its box zooms down to fit (minimum 0.5). Zoom resets before
+each measurement, which runs on mount, input changes, resize and image load.
+Whatever still overflows scrolls sideways inside `.formatted-mail`. Blocked
+images keep their placeholder at `min(width, 100%)` with the declared aspect
+ratio, so hiding images does not widen table layouts.
 
 Cross-leaf text redaction, link checks and remote/CID image consent stay in the
-existing formatter. Each document is replaced on message, HTML, privacy or
-image-consent changes. Embedded blob results are bound to exact message and
-attachment metadata. Resize observers and key listeners are removed on cleanup;
-reader shortcuts forward only after the document's own controls can consume
-the event. Synthetic parser and mounted lifecycle checks are in
-`src/sender-css.test.tsx`; native layout and physical keyboard acceptance are
-separate proof. See [ADR 0102](adr/0102-isolated-sender-styles.md).
+existing formatter. Embedded blob results are bound to exact message and
+attachment metadata. Synthetic checks are in `src/sender-css.test.tsx` and
+`src/FormattedMail.test.tsx`. jsdom parses `@scope` but does not cascade it,
+so those tests flatten the installed sheet before reading computed styles.
+Native layout and physical wheel input are separate proof. See
+[ADR 0127](adr/0127-scoped-sender-styles-in-reader.md), which supersedes the
+separate document in [ADR 0102](adr/0102-isolated-sender-styles.md).
 
-The isolated frame carries the `isolated-mail` class so the host message body
-keeps its full available width after the formatted tree moves into the frame.
-Plain-text bodies retain the 65ch line limit. The mounted sender-style test
-checks both host width rules after portal creation; native geometry remains
-separate acceptance.
+Styled mail keeps the full reader width (`.message-body:has(.formatted-mail)`);
+plain-text bodies retain the 65ch line limit.
 
 <!-- coderabbit-ai-generated:v1 -->
 
 <!-- coderabbit-ai-generated-section:v1:aeafae0e98fb003de3553d39211dd7234a51bb91b453cc9a5f7e035312ff6333 -->
 
-Isolated sender styles use the host foreground as a low-priority default.
-Readable ink composites translucent host backgrounds from the frame through its
-ancestors until an opaque surface is reached, or over the white document canvas
-when none is opaque.
+Sender-styled mail inherits the reader foreground unless a sender rule sets
+one. Readable ink collects backgrounds from each text element up to the
+message root. It then composites translucent host backgrounds from the root's
+parent through its ancestors until an opaque surface is reached, or over the
+white document canvas when none is opaque.
 
 <!-- /coderabbit-ai-generated:v1 -->
 Sender font sizes and the body default follow `--text-scale`, including changes

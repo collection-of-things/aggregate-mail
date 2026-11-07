@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { JSDOM } from "jsdom";
 import { FormattedMail } from "./mail/FormattedMail";
-import { IsolatedMail } from "./mail/IsolatedMail";
+import { fitWidth, MIN_FIT } from "./mail/scoped-mail";
 import { MAIL_HTML_LIMIT, MAIL_NODE_LIMIT, MAIL_DEPTH_LIMIT } from "../shared/mail-content";
 import { redactPrivateText } from "./privacy";
 import { PrivacyContext, Redact } from "./ui/Privacy";
@@ -49,7 +49,7 @@ test("formatted renderer keeps headings, nested formatting, tables and validated
   assert.equal(table.style.backgroundColor, "transparent");
   assert.equal(document.querySelector("td span")?.textContent, "Legacy");
   assert.equal((document.querySelector("td span") as HTMLElement).style.fontSize, "calc(18px * var(--text-scale, 1))");
-  assert.equal((document.querySelector(".formatted-mail") as HTMLElement).style.overflow, "auto");
+  assert.equal((document.querySelector(".formatted-mail") as HTMLElement).style.overflowX, "auto", "wide content scrolls sideways inside the mail, never vertically");
 });
 
 test("tiny newsletter preheader typography and box height do not overlap the body", () => {
@@ -256,8 +256,8 @@ test("mounted inline images report load/error and leave DOM when consent is revo
     assert.equal(container.querySelector("img"), null);
     const failed = container.querySelector<HTMLElement>('[aria-label="Image could not be loaded."]');
     assert.equal(failed?.getAttribute("role"), "img");
-    assert.equal(failed?.style.width, "120px");
-    assert.equal(failed?.style.height, "800px");
+    assert.equal(failed?.style.width, "min(120px, 100%)");
+    assert.equal(failed?.style.getPropertyValue("aspect-ratio"), "120 / 800");
     assert.equal(failed?.style.maxHeight, "24px");
     await update(false);
     await update(true);
@@ -277,7 +277,7 @@ test("mounted inline images report load/error and leave DOM when consent is revo
   }
 });
 
-test("isolated mail re-inks sender text that matches its background and re-evaluates each render", async () => {
+test("styled mail re-inks sender text that matches its background and re-evaluates each render", async () => {
   const dom = new JSDOM("<!doctype html><div id='root'></div>");
   const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   const oldDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
@@ -296,28 +296,23 @@ test("isolated mail re-inks sender text that matches its background and re-evalu
         renderText={(text, segments) => privacy ? <Redact text={text} segments={segments} /> : <>{text}</>}
         redactText={(text) => privacy ? redact(text) : text} />
     </PrivacyContext.Provider>));
-  // jsdom does not apply adoptedStyleSheets, so sender-class colors are
-  // stubbed per element; everything else uses real jsdom computed values.
+  // jsdom does not cascade @scope, so sender-class colors are stubbed per
+  // element; everything else uses real jsdom computed values.
   const colors = new Map<Element, string>();
-  const stubView = (frame: HTMLIFrameElement) => {
-    const view = frame.contentDocument!.defaultView!;
-    const real = view.getComputedStyle.bind(view);
-    view.getComputedStyle = ((element: Element) =>
-      colors.has(element) ? { color: colors.get(element), backgroundColor: "rgba(0, 0, 0, 0)" } as CSSStyleDeclaration :
-        real(element)) as typeof view.getComputedStyle;
-  };
+  const real = dom.window.getComputedStyle.bind(dom.window);
+  dom.window.getComputedStyle = ((element: Element) =>
+    colors.has(element) ? { color: colors.get(element), backgroundColor: "rgba(0, 0, 0, 0)" } as CSSStyleDeclaration :
+      real(element)) as typeof dom.window.getComputedStyle;
   try {
     await update();
-    let frame = container.querySelector<HTMLIFrameElement>("iframe.isolated-mail")!;
-    let fdoc = frame.contentDocument!;
-    let pre = fdoc.querySelector<HTMLElement>(".sender-0")!;
+    assert.equal(container.querySelector("iframe"), null, "styled mail renders in the reader document");
+    const pre = container.querySelector<HTMLElement>(".formatted-mail .sender-0")!;
     assert.equal(pre.textContent, "Your weekly digest ", "padding entities collapse to one space");
     assert.equal(pre.getAttribute("data-ink"), null, "real jsdom color (black) needs no ink");
     colors.set(pre, "rgb(254, 254, 254)");
-    stubView(frame);
     await update();
     assert.equal(pre.getAttribute("data-ink"), "dark", "near-white text on white is re-inked dark");
-    const body = fdoc.querySelector("p")!;
+    const body = container.querySelector(".formatted-mail p")!;
     assert.equal(body.textContent, "Visible body text");
     assert.equal(body.getAttribute("data-ink"), null, "real jsdom #222 keeps its sender color");
     pre.setAttribute("data-ink", "light");
@@ -325,17 +320,13 @@ test("isolated mail re-inks sender text that matches its background and re-evalu
     assert.equal(pre.getAttribute("data-ink"), "dark", "re-render re-evaluates the mark");
     // A privacy-mode address control is skipped even at preheader contrast.
     await update(true);
-    frame = container.querySelector<HTMLIFrameElement>("iframe.isolated-mail")!;
-    fdoc = frame.contentDocument!;
-    const address = fdoc.querySelector<HTMLElement>(".address")!;
+    const address = container.querySelector<HTMLElement>(".formatted-mail .address")!;
     assert.ok(address, "revealed address control renders");
     colors.set(address, "rgb(254, 254, 254)");
-    stubView(frame);
     await update(true);
     assert.equal(address.textContent, "reader@example.com");
     assert.equal(address.getAttribute("data-ink"), null);
-    assert.equal(fdoc.querySelector<HTMLElement>(".sender-0")!.getAttribute("data-ink"), null,
-      "the new document's preheader is unmarked until its color is stubbed");
+    assert.equal(container.querySelector(".formatted-mail .sender-0")!.getAttribute("data-ink"), "dark", "the preheader stays marked under privacy");
   } finally {
     await act(async () => root.unmount());
     dom.window.close();
@@ -390,18 +381,25 @@ test("loaded images keep the sender's declared proportions instead of their natu
   // Height alone is unchanged.
   assert.equal(icon.style.height, "25px");
   assert.equal(icon.style.getPropertyValue("aspect-ratio"), "");
-  // Blocked placeholders already carry the declared size, before consent.
+  // Blocked placeholders already carry the declared shape, before consent,
+  // and narrow with the reader exactly as the loaded image would.
   const blocked = documentOf(render('<img src="https://images.example.com/spacer.png" width="600" height="1">'));
   const box = blocked.querySelector<HTMLElement>(".formatted-mail-image-placeholder")!;
-  assert.equal(box.style.width, "600px");
-  assert.equal(box.style.height, "1px");
+  assert.equal(box.style.width, "min(600px, 100%)");
+  assert.equal(box.style.height, "auto");
+  assert.equal(box.style.getPropertyValue("aspect-ratio"), "600 / 1");
 });
 
 test("blocked images keep their size as an empty box and carry the reason as a label", () => {
-  const document = documentOf(render('<img src="https://images.example.com/icon.png" width="24" height="24" alt="Icon">'));
-  const box = document.querySelector<HTMLElement>(".formatted-mail-image-placeholder")!;
-  assert.equal(box.style.width, "24px");
-  assert.equal(box.style.height, "24px");
+  const document = documentOf(render('<img src="https://images.example.com/icon.png" width="24" height="24" alt="Icon">' +
+    '<img src="https://images.example.com/bar.png" width="100%" height="4"><img src="https://images.example.com/tall.png" height="40">'));
+  const [box, bar, tall] = document.querySelectorAll<HTMLElement>(".formatted-mail-image-placeholder");
+  assert.equal(box.style.width, "min(24px, 100%)");
+  assert.equal(box.style.getPropertyValue("aspect-ratio"), "24 / 24");
+  assert.equal(bar.style.width, "100%", "relative widths pass through");
+  assert.equal(bar.style.height, "4px");
+  assert.equal(tall.style.width, "24px", "an unsized width keeps the 24px box");
+  assert.equal(tall.style.height, "40px");
   assert.equal(box.textContent, "");
   assert.equal(box.getAttribute("aria-label"), "Image blocked. Use Show images to load it.");
 });
@@ -416,8 +414,8 @@ test("image max-height caps survive blocked, unsupported and private placeholder
   for (const [markup, reason] of cases) {
     const box = documentOf(markup).querySelector<HTMLElement>(".formatted-mail-image-placeholder");
     assert.ok(box, reason);
-    assert.equal(box.style.width, "120px");
-    assert.equal(box.style.height, "800px");
+    assert.equal(box.style.width, "min(120px, 100%)");
+    assert.equal(box.style.getPropertyValue("aspect-ratio"), "120 / 800");
     assert.equal(box.style.maxHeight, "24px");
     assert.equal(box.getAttribute("aria-label"), reason);
   }
@@ -494,7 +492,7 @@ test("an image the browser refuses is retried once through the mail service", as
     await fail();
     assert.equal(requests.length, 2);
     assert.equal(container.querySelector("img"), null);
-    assert.equal(container.querySelector<HTMLElement>('[aria-label="Image could not be loaded."]')?.style.width, "120px");
+    assert.equal(container.querySelector<HTMLElement>('[aria-label="Image could not be loaded."]')?.style.width, "min(120px, 100%)");
     // Closing the reader mid-retry cancels the request and creates no blob URL.
     let signal: AbortSignal | undefined, created = 0;
     globalThis.fetch = ((_url: string, init?: RequestInit) => { signal = init?.signal ?? undefined; return new Promise<Response>(() => {}); }) as typeof fetch;
@@ -517,7 +515,7 @@ test("an image the browser refuses is retried once through the mail service", as
 });
 
 
-test("isolated mail selects ink over translucent host layers and canvas fallbacks", async () => {
+test("styled mail selects ink over translucent host layers and canvas fallbacks", async () => {
   const dom = new JSDOM("<!doctype html><div id='root'></div>");
   const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   const oldDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
@@ -542,11 +540,11 @@ test("isolated mail selects ink over translucent host layers and canvas fallback
       dom.window.document.documentElement.style.backgroundColor = canvas;
       await act(async () => root.render(
         <div className="app" style={{ backgroundColor: app }}>
-          <IsolatedMail css="" fallback={null}><p style={{ color: "transparent" }}>Preview</p></IsolatedMail>
+          <FormattedMail html='<style>p{margin:0}</style><p style="color:transparent">Preview</p>' privacy={false} showImages={false}
+            renderText={(text) => text} redactText={(text) => text} />
         </div>,
       ));
-      const frame = container.querySelector<HTMLIFrameElement>("iframe")!;
-      assert.equal(frame.contentDocument!.querySelector("p")!.getAttribute("data-ink"), ink,
+      assert.equal(container.querySelector(".formatted-mail p")!.getAttribute("data-ink"), ink,
         `app=${app}, body=${body}, canvas=${canvas}`);
     }
   } finally {
@@ -555,5 +553,27 @@ test("isolated mail selects ink over translucent host layers and canvas fallback
     if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow); else Reflect.deleteProperty(globalThis, "window");
     if (oldDocument) Object.defineProperty(globalThis, "document", oldDocument); else Reflect.deleteProperty(globalThis, "document");
     delete actGlobal.IS_REACT_ACT_ENVIRONMENT;
+  }
+});
+
+test("wide mail zooms to the reader width down to the legibility floor, then scrolls", () => {
+  const dom = new JSDOM("<!doctype html><div class='formatted-mail'></div>");
+  const box = dom.window.document.querySelector<HTMLElement>(".formatted-mail")!;
+  const measure = (client: number, scroll: number) => {
+    Object.defineProperty(box, "clientWidth", { configurable: true, get: () => client });
+    // Measurement must happen at natural size, so zoom is reset first.
+    Object.defineProperty(box, "scrollWidth", { configurable: true, get: () => box.style.zoom ? -1 : scroll });
+    fitWidth(box);
+    return box.style.zoom;
+  };
+  try {
+    assert.equal(measure(500, 500), "", "mail that fits keeps its size");
+    assert.equal(measure(500, 501), "", "a subpixel rounding difference is not overflow");
+    assert.equal(Number(measure(450, 600)), 0.75, "a 600px newsletter fits a 450px reader");
+    assert.equal(measure(500, 500), "", "a wider reader removes the zoom");
+    assert.equal(Number(measure(200, 800)), MIN_FIT, "very wide mail stops at the floor and scrolls");
+    assert.equal(measure(0, 600), "", "an unmeasured box is left alone");
+  } finally {
+    dom.window.close();
   }
 });

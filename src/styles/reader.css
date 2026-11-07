@@ -234,7 +234,9 @@ article.message {
 }
 .message-images .message-body { margin-top: 12px; }
 .message-return { margin: 0 0 12px; color: var(--text-2); font-size: calc(12px * var(--text-scale, 1)); }
-.message-body:has(.formatted-mail, .isolated-mail) { max-width: 100%; }
+.message-body:has(.formatted-mail) { max-width: 100%; }
+/* Sender width queries measure the message, not the window. */
+.formatted-mail-frame { container-type: inline-size; min-width: 0; }
 .formatted-mail { color: var(--text); }
 .formatted-mail p { white-space: normal; }
 .formatted-mail-fallback { white-space: pre-wrap; }
@@ -299,7 +301,8 @@ article.message {
 }
 .message-body blockquote p:last-child { margin-bottom: 0; }
 .quoted-toggle { display: inline-block; margin: 0 0 0.85em; }
-.formatted-mail-image-placeholder { display: inline-block; max-width: 100%; vertical-align: middle; border-radius: 4px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+/* Neutral grey reads on the reader surface and on any sender background. */
+.formatted-mail-image-placeholder { display: inline-block; max-width: 100%; vertical-align: middle; border-radius: 4px; background: rgb(128 128 128 / 0.14); box-shadow: inset 0 0 0 1px rgb(128 128 128 / 0.26); }
 .mail-actions #trash-unavailable {
   flex: 1;
   min-width: 0;
