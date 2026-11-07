@@ -1254,6 +1254,11 @@ test("side by side keeps the list beside the opened email; full width opens it i
     assert.equal(split.container.querySelector(".rail-master")?.closest("[aria-hidden]"), null, "the focusable select-all stays exposed to assistive technology");
     assert.ok(split.container.querySelector(".rail-actions .rail-count"), "the selection count stays in the shared rail");
     assert.equal(split.container.querySelector(".bulk-bar"), null, "opening a message adds no fallback selection bar to the list");
+    const railButton = (text: string) => [...split.container.querySelectorAll<HTMLButtonElement>(".rail-actions button")].find(item => item.textContent === text)!;
+    await split.click(railButton("Move to Trash"));
+    assert.equal(split.container.querySelector(".reader-pane")?.hasAttribute("inert"), true, "reader actions wait while a bulk action is pending");
+    await split.click([...split.container.ownerDocument.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(item => item.textContent === "Cancel")!);
+    assert.equal(split.container.querySelector(".reader-pane")?.hasAttribute("inert"), false, "reader actions return when the bulk dialog closes");
     assert.equal(split.container.querySelector(".reader-pane .mail-actions")?.getAttribute("aria-label"), "Opened email actions");
     await split.click(split.button("Close email"));
     assert.equal(split.title(), undefined);

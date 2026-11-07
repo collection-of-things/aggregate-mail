@@ -1625,7 +1625,7 @@ export function App() {
               </div>
             </section>
             {split && (
-              <section className="reader-pane" aria-label="Reading pane">
+              <section className="reader-pane" aria-label="Reading pane" inert={bulkBlocking}>
                 <PaneHeader className="reader-head" corner={null} maximized={maximized}>
                   {opened && actions}
                 </PaneHeader>
