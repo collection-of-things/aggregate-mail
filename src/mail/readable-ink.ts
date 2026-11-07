@@ -1,4 +1,4 @@
-// Readable ink for the isolated mail document (ADR 0125). Sender text below
+// Readable ink for sender-styled mail (ADR 0125). Sender text below
 // 3:1 contrast against its effective background is re-inked to the stronger
 // of a fixed dark or light; text at 3:1 or better keeps the sender color.
 
@@ -76,7 +76,8 @@ export function applyReadableInk(body: HTMLElement, surface: Rgba) {
     const cached = layerCache.get(element);
     if (cached) return cached;
     const layer = parseColor(view.getComputedStyle(element).backgroundColor);
-    const above = element.parentElement && !(layer && layer[3] >= 1) ? layersOf(element.parentElement) : [];
+    // Layers stop at the message root; the caller's surface covers the host.
+    const above = element !== body && element.parentElement && !(layer && layer[3] >= 1) ? layersOf(element.parentElement) : [];
     const layers = layer && layer[3] > 0 ? [layer, ...above] : above;
     layerCache.set(element, layers);
     return layers;

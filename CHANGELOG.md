@@ -10,6 +10,16 @@ unversioned history without treating it as a release record.
 
 ## Unreleased
 
+### Fixed
+
+- Mail with sender styles no longer shows its own scrollbar while images are hidden, and the reader scrolls with the pointer over the message. Styled mail now renders in the reader itself with sender rules scoped to the message ([ADR 0127](docs/adr/0127-scoped-sender-styles-in-reader.md)).
+- Hidden-image placeholders narrow with the reader the same way their images do, so showing images no longer changes the layout width.
+
+### Changed
+
+- Newsletters wider than the reader shrink to fit, down to half size, instead of scrolling sideways.
+- Hidden-image placeholders use a neutral grey box with a hairline outline that stays visible on light and dark sender backgrounds.
+
 ## 0.2.32 - 2026-11-07
 
 ### Fixed
