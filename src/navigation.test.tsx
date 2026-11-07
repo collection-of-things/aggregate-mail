@@ -1242,10 +1242,18 @@ test("side by side keeps the list beside the opened email; full width opens it i
   const split = await mount();
   try {
     assert.ok(split.container.querySelector(".workspace.split .reader-pane"), "side by side reserves the reader before opening mail");
+    const rowCheckbox = () => split.container.querySelector("[id='mail-a:2']")?.closest(".mail-row")?.querySelector<HTMLButtonElement>('.mail-select[role="checkbox"]');
+    await split.click(rowCheckbox()!);
+    assert.equal(rowCheckbox()?.getAttribute("aria-checked"), "true");
     await split.open("a:1");
     assert.equal(split.title(), "Alpha");
     assert.ok(split.container.querySelector(".reader-pane .message"));
     assert.ok(split.container.querySelector("[id='mail-a:2']"), "the list stays beside the reader");
+    assert.equal(rowCheckbox()?.getAttribute("aria-checked"), "true", "row checkboxes and their selection stay beside the opened reader");
+    assert.ok(split.container.querySelector(".rail-master"), "the select-all checkbox stays beside the opened reader");
+    assert.equal(split.container.querySelector(".rail-master")?.closest("[aria-hidden]"), null, "the focusable select-all stays exposed to assistive technology");
+    assert.ok(split.container.querySelector(".rail-actions .rail-count"), "the selection count stays in the shared rail");
+    assert.equal(split.container.querySelector(".bulk-bar"), null, "opening a message adds no fallback selection bar to the list");
     assert.equal(split.container.querySelector(".reader-pane .mail-actions")?.getAttribute("aria-label"), "Opened email actions");
     await split.click(split.button("Close email"));
     assert.equal(split.title(), undefined);

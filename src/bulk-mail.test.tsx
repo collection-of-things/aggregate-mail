@@ -158,6 +158,11 @@ test("platform select-all works anywhere on a mail page but leaves fields, dialo
     assert.match(ui.count()!, /^0 messages selected/);
     dialog.remove();
 
+    const reader = document.createElement("section"); reader.className = "reader-pane"; reader.tabIndex = -1; document.body.append(reader); reader.focus();
+    assert.equal(await press(reader, { ctrlKey: true }), false, "the split reader keeps native select-all for message text");
+    assert.match(ui.count()!, /^0 messages selected/);
+    reader.remove();
+
     // Desktop on macOS uses Command and leaves Control+A for line editing.
     Object.defineProperty(ui.dom.window, "desktop", { configurable: true, value: { platform: "darwin" } });
     assert.equal(await press(document.body, { ctrlKey: true }), false);

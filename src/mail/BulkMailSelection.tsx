@@ -100,7 +100,9 @@ export function BulkMailSelection({ messages, accounts, scope, selectedId, onSel
   useEffect(() => {
     if (!active) return;
     const handler = (event: globalThis.KeyboardEvent) => {
-      if (event.defaultPrevented || event.isComposing || !isSelectAllShortcut(event) || ownsKeyboard(event.target)) return;
+      // The split reader keeps native select-all for the message text.
+      if (event.defaultPrevented || event.isComposing || !isSelectAllShortcut(event) || ownsKeyboard(event.target)
+        || (event.target as Element | null)?.closest?.(".reader-pane")) return;
       event.preventDefault();
       selectAll.current();
     };

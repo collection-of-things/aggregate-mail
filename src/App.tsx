@@ -1541,15 +1541,15 @@ export function App() {
           <div className={`mail-view${fullReader ? " full-reading" : ""}`} data-reader-toolbar={appearance.readerToolbar} inert={!!compose}>
               <h1 className="pane-title visually-hidden">{viewNames[view]}</h1>
               {(view === "sent" || view === "all") && <PaneHeader className="main-head mail-view-head" corner={null} maximized={maximized}>
-                {opened && !split ? null : <div className="rail-select" ref={setRailSelect} aria-hidden={opened || undefined} />}
+                {fullReader ? null : <div className="rail-select" ref={setRailSelect} />}
                 <span className="view-summary">{loaded ? `${filtered.length} cached ${filtered.length === 1 ? "message" : "messages"}${query.trim() && search.typos ? " · No exact match, showing close spellings" : ""}` : "Loading cached mail"}</span>
                 {(view === "sent" || view === "all") && <div className="head-note"><button type="button" title={accountFilter === "all" ? "Select one account to fetch up to 50 Sent messages" : "Fetch up to 50 Sent messages"} disabled={busy || accountFilter === "all"} onClick={() => void perform(async () => { const coverage = await api<SentCoverage>(`/accounts/${encodeURIComponent(accountFilter)}/sent/sync`, "POST", { bound: 50 }); if (coverage.error) throw new Error("Sent import failed. Existing cached mail remains available."); }, "Sent cache refreshed.")}>Fetch Sent</button></div>}
               </PaneHeader>}
-              {(!opened || showInboxCategories || combinedReaderToolbar) && <div className="mail-category-bar">
-                {opened && !split ? null : view === "sent" || view === "all" ? null : <div className="rail-select" ref={setRailSelect} aria-hidden={opened || undefined} />}
+              {(!fullReader || showInboxCategories || combinedReaderToolbar) && <div className="mail-category-bar">
+                {fullReader || view === "sent" || view === "all" ? null : <div className="rail-select" ref={setRailSelect} />}
                 {showInboxCategories &&
                   <InboxTabs tab={tab} unread={tabUnread} onTab={switchTab} compact={!splitRoom} />}
-                {!opened && <div className="rail-actions" ref={setRailActions} />}
+                {!fullReader && <div className="rail-actions" ref={setRailActions} />}
                 {combinedReaderToolbar && actions}
               </div>}
           <main className={split ? "workspace split" : "workspace"}>
@@ -1563,9 +1563,9 @@ export function App() {
                 tabIndex={-1}
               >
               <div key={paneKey} className={`pane ${pane.current.motion}`}>
-                <BulkMailSelection active={!opened} messages={opened ? [] : filtered} accounts={state.accounts}
+                <BulkMailSelection active={!fullReader} messages={fullReader ? [] : filtered} accounts={state.accounts}
                   railSelect={railSelect} railActions={railActions}
-                  scope={JSON.stringify([page, view, tab, accountFilter, labelFilter, query, readFilter, relevanceFilter, sort, opened])}
+                  scope={JSON.stringify([page, view, tab, accountFilter, labelFilter, query, readFilter, relevanceFilter, sort, fullReader])}
                   selectedId={selected?.id} onSelect={setSelectedId} api={api} reload={reload}
                   toggleLabel={shortcut("selectMail")}
                   selectionShortcut={event => matches(event, "selectMail", interaction, interactionPlatform()) ? "toggle" :
