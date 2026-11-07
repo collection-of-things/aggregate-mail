@@ -3140,7 +3140,8 @@ editable; existing custom bindings keep priority. Shift+arrows and Shift-click
 select a range. Platform select-all includes unmounted virtual rows in the
 current filtered list up to 200. Selection clears on view/filter changes and
 prunes missing or account-changed mail. Fields, dialogs and opened readers keep
-their keys. Trash confirms the captured count; results identify affected items
+their keys. Selection stays active beside the side-by-side reader and turns off
+only while a full-width reader replaces the list. Trash confirms the captured count; results identify affected items
 with privacy-redacted subjects. See [ADR 0089](adr/0089-bulk-mail-selection.md).
 
 ## Inline cached conversation reader (#54)

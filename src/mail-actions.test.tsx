@@ -956,7 +956,7 @@ test("unread and Move to Inbox keep single-message targets and do not reread the
 });
 
 
-test("App select-all selects closed-list mail without reading and leaves an open reader alone", async () => {
+test("App select-all selects listed mail without reading and leaves text selection in an open reader alone", async () => {
   const app = await mount();
   try {
     const event = await app.key("a", undefined, { ctrlKey: true });
@@ -970,9 +970,13 @@ test("App select-all selects closed-list mail without reading and leaves an open
     assert.equal(app.mutations.length, 0);
     await app.click(app.button("Clear selection", bar));
     await app.open();
-    assert.equal(app.container.querySelector('[aria-label="Select and triage messages"]'), null);
-    const native = await app.key("a", undefined, { ctrlKey: true });
-    assert.equal(native.defaultPrevented, false);
+    // Side by side keeps the list and its selection rail beside the reader.
+    assert.ok(app.container.querySelector('.mail-category-bar [aria-label="Select and triage messages"]'), "the triage group stays in the rail");
+    const reader = app.container.querySelector<HTMLElement>(".reader-pane .message");
+    assert.ok(reader, "the opened message renders in the reader");
+    const native = await app.key("a", reader, { ctrlKey: true });
+    assert.equal(native.defaultPrevented, false, "select-all in the reader stays native text selection");
+    assert.match(app.container.querySelector('[aria-label="Select and triage messages"]')!.textContent!, /^0 messages selected/);
     assert.equal(app.mutations.filter(item => item.action === "read").length, 1);
   } finally { await app.close(); }
 });
